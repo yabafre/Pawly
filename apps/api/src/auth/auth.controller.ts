@@ -1,7 +1,8 @@
-import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -21,6 +22,18 @@ export class AuthController {
     @ApiOperation({ summary: 'Register new user' })
     async register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto);
+    }
+
+    @Post('magic-link/request')
+    @ApiOperation({ summary: 'Request a magic link' })
+    async requestMagicLink(@Body() requestMagicLinkDto: RequestMagicLinkDto) {
+        return this.authService.requestMagicLink(requestMagicLinkDto.email);
+    }
+
+    @Get('magic-link/callback')
+    @ApiOperation({ summary: 'Validate a magic link' })
+    async validateMagicLink(@Query('token') token: string) {
+        return this.authService.validateMagicLink(token);
     }
 
     @UseGuards(AuthGuard('jwt'))
