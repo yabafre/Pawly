@@ -1,0 +1,14 @@
+// =============================================================================
+// Prisma Schema - Base Configuration
+// =============================================================================
+// This file contains the generator and datasource configuration.
+// In Prisma 7, the database URL is configured in prisma.config.ts
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+!/pnpm-lock.yaml
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# TypeScript compiled outputs in source directories (should use dist/)
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
+*.tsbuildinfo
+
+# Environment variables - CRITICAL: Never commit secrets
+.env
+.env.local
+.env.*.local
+*.env
+.env.docker
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Prisma
+prisma/migrations/*_migration_lock.toml
+**/src/generated/
+
+# Turbo
+.turbo/
+
+# OS files
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+# .mcp.json contains secrets - never commit
+.mcp.json
+
+# AI config - Commit .claude/ but ignore personal/sensitive files
+.claude/
+.agentvibes/
+.codex/
+.agent/
+.gemini/
+.windsurf/
+_bmad/

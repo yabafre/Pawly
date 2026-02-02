@@ -1,0 +1,55 @@
+enum JobType {
+  VET
+  ASV
+  APPRENTICE
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  color     String   @default("#3b82f6")
+  
+  jobType   JobType  @map("job_type")
+  contractHours Int  @default(35) @map("contract_hours")
+  
+  clinicId  String   @map("clinic_id")
+  
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @unique @map("user_id")
+  
+  shifts    Shift[]
+  absences  Absence[]
+  unavailabilities Unavailability[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+}
+
+model Unavailability {
+  id        String   @id @default(uuid())
+  type      UnavailabilityType
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  reason    String?
+  
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String  @map("employee_id")
+  
+  clinicId  String   @map("clinic_id")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@index([employeeId])
+}
+
+enum UnavailabilityType {
+  SCHOOL
+  VACATION
+  SICK
+  OTHER
+}

@@ -1,0 +1,82 @@
+enum ShiftType {
+  SURGERY
+  RECEPTION
+  FORMATION
+  OTHER
+}
+
+enum AbsenceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Shift {
+  id        String   @id @default(uuid())
+  date      DateTime
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  type      ShiftType
+  
+  employee  Employee @relation(fields: [employeeId], references: [id])
+  employeeId String  @map("employee_id")
+  
+  clinicId  String   @map("clinic_id")
+  
+  isConfirmed Boolean @default(false) @map("is_confirmed")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@index([employeeId])
+  @@index([date])
+}
+
+model Absence {
+  id        String   @id @default(uuid())
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  reason    String?
+  status    AbsenceStatus @default(PENDING)
+  
+  employee  Employee @relation(fields: [employeeId], references: [id])
+  employeeId String  @map("employee_id")
+  
+  clinicId  String   @map("clinic_id")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@index([employeeId])
+}
+
+model PlanningTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  data      Json     // Structure of the typical week
+  
+  clinicId  String   @map("clinic_id")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+}
+
+model VarianceEvent {
+  id          String   @id @default(uuid())
+  type        String   // e.g., "CLOCK_IN_DEVIATION"
+  plannedTime DateTime @map("planned_time")
+  actualTime  DateTime @map("actual_time")
+  
+  shiftId     String   @map("shift_id")
+  // Relation intentionally loose or strict depending on audit needs
+  
+  clinicId    String   @map("clinic_id")
+  
+  createdAt   DateTime @default(now())
+
+  @@index([clinicId])
+}

@@ -1,0 +1,12 @@
+{
+    "name": "@pawly/validators",
+    "version": "0.0.0",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "dependencies": {
+        "@pawly/zod": "workspace:*"
+    },
+    "devDependencies": {
+        "typescript": "latest"
+    }
+}
