@@ -1,6 +1,6 @@
 # Story 1.3: Interface de Connexion & Flux Zsa/tRPC
 
-Status: review
+Status: review (needs refactor in Story 1.5)
 
 ## Story
 
@@ -11,10 +11,10 @@ so that I can access my dashboard based on my role.
 ## Acceptance Criteria
 
 1. **Given** a Next.js 16.1.6 login page (RSC + Client Components) using shadcn/ui, **When** I submit my credentials or request a magic link, **Then** the data flow `Page (RSC) -> Client Comp -> Hook -> Zsa -> Server Action -> tRPC -> API` is executed. [Source: docs/planning-artifacts/epics.md#Story 1.3]
-   - **Note**: Current route `app/login/` will migrate to `app/[locale]/(auth)/login/` when FR11 i18n is implemented (Epic 6).
+   - **Note**: Current route `app/login/` will migrate to `app/[locale]/(auth)/login/` when FR11 i18n is implemented (Epic 2).
 2. **Then** I am authenticated with a JWT and redirected to the appropriate route. [Source: docs/planning-artifacts/epics.md#Story 1.3]
 3. **Given** the login forms, **Then** they meet NFR14-NFR17 accessibility standards (WCAG 2.1 AA, 44px touch targets, 4.5:1 contrast ratio, keyboard navigation).
-4. **Given** admin authentication succeeds, **Then** subscription status check will be added per FR16 (deferred to Epic 7 - Stripe Integration).
+4. **Given** admin authentication succeeds, **Then** subscription status check will be added per FR16 (deferred to Epic 3 - Subscription & Registration).
 
 ## Tasks / Subtasks
 
@@ -37,13 +37,18 @@ so that I can access my dashboard based on my role.
   - [ ] Verify color contrast >= 4.5:1 for all text elements.
   - [ ] Verify keyboard navigation works (Tab, Enter, Escape).
   - [ ] Verify WCAG 2.1 AA compliance using automated tools (axe-core).
-- [ ] **Future Refactoring for i18n (Epic 6, FR11)** (AC: 1)
+- [ ] **Auth Refactor (Story 1.5)** (AC: 1, 2)
+  - [ ] Remove clinicId from login/magic-link form inputs and schemas.
+  - [ ] Remove `NEXT_PUBLIC_CLINIC_ID` from env and all code references.
+  - [ ] Update `useAuth.ts` and `auth-actions.ts` to no longer reference clinicId as input.
+  - [ ] Remove `register()` flow (registration via Stripe webhook only).
+- [ ] **Future Refactoring for i18n (Epic 2, FR11)** (AC: 1)
   - [ ] Migrate route from `app/login/` to `app/[locale]/(auth)/login/`.
   - [ ] Extract all hardcoded strings to `messages/{fr,en}.json`.
   - [ ] Implement locale switching UI (language toggle).
   - [ ] Update root layout to support dynamic locale param.
   - [ ] Add locale param to all auth actions and redirects.
-- [ ] **Future Subscription Guard (Epic 7, FR16)** (AC: 4)
+- [ ] **Future Subscription Guard (Epic 3, FR16)** (AC: 4)
   - [ ] Add subscription status check in `admin/layout.tsx` (server-side).
   - [ ] Redirect to billing page if subscription inactive/canceled.
   - [ ] Source of truth: Subscription record in DB (synced from Stripe via webhooks).
@@ -68,21 +73,22 @@ so that I can access my dashboard based on my role.
 - **Security**: JWT stored in localStorage (MVP). CORS enabled in backend.
 - **Performance**: Adhere to **vercel-react-best-practices** for Next.js 16.1.6 performance optimization.
 - **Runtime**: Repo uses **Next.js 16.1.6** (kept intentionally; documented for alignment).
-- **i18n Refactoring Required (Epic 6, FR11)**: Current route structure (`app/login/`) will migrate to `app/[locale]/(auth)/login/` when next-intl is integrated. All UI strings will be externalized to translation files (fr.json, en.json).
-- **Subscription Guard (Epic 7, FR16)**: Admin layout currently only checks auth (localStorage token). When Stripe integration is complete, subscription status validation will be added per architecture requirements (server-side check in admin/layout.tsx).
+- **Pending Refactor (Story 1.5)**: clinicId will be removed from login/magic-link form inputs. `NEXT_PUBLIC_CLINIC_ID` will be eliminated. `useAuth.ts` and `auth-actions.ts` will no longer reference clinicId as input. `register()` flow will be disabled (registration via Stripe webhook only).
+- **i18n Refactoring Required (Epic 2, FR11)**: Current route structure (`app/login/`) will migrate to `app/[locale]/(auth)/login/` when next-intl is integrated. All UI strings will be externalized to translation files (fr.json, en.json).
+- **Subscription Guard (Epic 3, FR16)**: Admin layout currently only checks auth (localStorage token). When Stripe integration is complete, subscription status validation will be added per architecture requirements (server-side check in admin/layout.tsx).
 - **Accessibility (NFR14-NFR17)**: Login forms must meet WCAG 2.1 AA standards. Verify touch targets (44px), contrast (4.5:1 text, 3:1 UI), keyboard navigation.
-- **Landing Page (Epic 8, FR12)**: Public landing page at `app/[locale]/page.tsx` (SSG) is NOT in scope for this story but will coexist with login routes.
+- **Landing Page (Epic 4, FR12)**: Public landing page at `app/[locale]/page.tsx` (SSG) is NOT in scope for this story but will coexist with login routes.
 
 ### Project Structure Notes
 
 - `apps/api/src/trpc/`: tRPC backend configuration.
 - `apps/web/src/lib/trpc/`: tRPC client configuration.
-- `apps/web/src/app/login/`: Current location (will migrate to `app/[locale]/(auth)/login/` for Epic 6 FR11).
+- `apps/web/src/app/login/`: Current location (will migrate to `app/[locale]/(auth)/login/` for Epic 2 FR11).
 - `apps/web/src/app/login/_actions/`: ZSA server actions.
 - `apps/web/src/app/login/_hooks/`: Route-local hooks (auth flow).
 - `apps/web/src/app/auth/callback/`: Magic link validation route (RSC + Client).
-- `apps/web/src/i18n/`: (FUTURE - Epic 6) i18n config, routing, translation files.
-- `apps/web/proxy.ts`: (FUTURE - Epic 6) next-intl locale detection proxy.
+- `apps/web/src/i18n/`: (Epic 2) i18n config, routing, translation files.
+- `apps/web/proxy.ts`: (Epic 2) next-intl locale detection proxy.
 - **Shared Packages**: MUST use `@pawly/validators` for Zod schemas, `@pawly/types` for TypeScript contracts, and `@pawly/zod` for the unified Zod instance.
 - **Monorepo**: Strictly follow **turborepo** pipeline and workspace conventions.
 
@@ -93,7 +99,14 @@ so that I can access my dashboard based on my role.
 
 ## Future Extension Points (Cross-Epic Dependencies)
 
-**For i18n Epic (Epic 6, FR11, NFR20):**
+**For Auth Refactor (Story 1.5):**
+- [ ] Remove clinicId from login/magic-link form inputs and Zod schemas.
+- [ ] Remove `NEXT_PUBLIC_CLINIC_ID` from `.env`, `.env.example`, and all code references.
+- [ ] Update `useAuth.ts` and `auth-actions.ts` to email-only login.
+- [ ] Disable/remove `register()` flow (registration via Stripe webhook only).
+- [ ] Update all frontend auth tests.
+
+**For i18n Epic (Epic 2, FR11, NFR20):**
 - [ ] Install and configure `next-intl` package.
 - [ ] Create `apps/web/src/i18n/routing.ts` (defaultLocale: 'fr', locales: ['fr', 'en']).
 - [ ] Create `apps/web/proxy.ts` for locale detection and routing.
@@ -103,15 +116,16 @@ so that I can access my dashboard based on my role.
 - [ ] Update root layout to accept locale param.
 - [ ] Test instantaneous language switching (NFR20).
 
-**For Landing Page Epic (Epic 8, FR12, NFR21-NFR22):**
+**For Landing Page Epic (Epic 4, FR12, NFR21-NFR22):**
 - [ ] Create `app/[locale]/page.tsx` (public landing, SSG).
-- [ ] Create `app/[locale]/pricing/page.tsx` (pricing, SSG).
+- [ ] Create `app/[locale]/pricing/page.tsx` (pricing + pre-checkout form, SSG).
 - [ ] Implement `generateStaticParams` for ['fr', 'en'].
 - [ ] Lighthouse Performance >= 90 (NFR21).
 - [ ] No auth required, no non-essential cookies (NFR22).
 
-**For Stripe Subscription Epic (Epic 7, FR13-FR16, NFR18-NFR19):**
+**For Stripe Subscription Epic (Epic 3, FR13-FR17, NFR18-NFR19):**
 - [ ] Add subscription status check to `admin/layout.tsx` (server-side).
+- [ ] Add onboarding check (`Clinic.onboardingCompleted`) to admin layout.
 - [ ] Query Subscription model to verify active status.
 - [ ] Redirect to billing page if subscription inactive.
 - [ ] Source of truth: Stripe subscription status in DB.

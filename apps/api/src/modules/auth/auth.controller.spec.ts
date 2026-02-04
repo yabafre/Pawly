@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -14,7 +15,9 @@ describe('AuthController', () => {
 
   const mockAuthService = {
     login: jest.fn().mockResolvedValue(mockAuthResponse),
-    register: jest.fn().mockResolvedValue({ id: 'user-new', email: 'new@example.com' }),
+    register: jest.fn().mockRejectedValue(
+      new ForbiddenException('Registration is disabled. Account creation happens via subscription checkout.'),
+    ),
     requestMagicLink: jest.fn().mockResolvedValue({ message: 'If an account exists, a magic link has been sent' }),
     validateMagicLink: jest.fn().mockResolvedValue(mockAuthResponse),
     refreshToken: jest.fn().mockResolvedValue(mockAuthResponse),
@@ -52,10 +55,17 @@ describe('AuthController', () => {
       expect(result).toHaveProperty('refresh_token');
       expect(result).toHaveProperty('user');
     });
+
+    it('should propagate UnauthorizedException from service', async () => {
+      mockAuthService.login.mockRejectedValueOnce(new UnauthorizedException('Invalid credentials'));
+      const loginDto = { email: 'test@example.com', password: 'wrong', clinicId: 'clinic-1' };
+
+      await expect(controller.login(loginDto)).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   describe('register', () => {
-    it('should call authService.register and return created user', async () => {
+    it('should throw ForbiddenException (registration disabled)', async () => {
       const registerDto = {
         email: 'new@example.com',
         password: 'Password1',
@@ -64,11 +74,8 @@ describe('AuthController', () => {
         jobType: 'VET' as const,
       };
 
-      const result = await controller.register(registerDto);
-
+      await expect(controller.register(registerDto)).rejects.toThrow(ForbiddenException);
       expect(service.register).toHaveBeenCalledWith(registerDto);
-      expect(result).toHaveProperty('id');
-      expect(result).toHaveProperty('email', 'new@example.com');
     });
   });
 
@@ -93,6 +100,16 @@ describe('AuthController', () => {
       expect(service.validateMagicLink).toHaveBeenCalledWith(query.token);
       expect(result).toEqual(mockAuthResponse);
     });
+
+    it('should propagate UnauthorizedException for invalid token', async () => {
+      mockAuthService.validateMagicLink.mockRejectedValueOnce(
+        new UnauthorizedException('Invalid or expired magic link'),
+      );
+
+      await expect(controller.validateMagicLink({ token: 'bad' } as any)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
   });
 
   describe('refresh', () => {
@@ -103,6 +120,16 @@ describe('AuthController', () => {
 
       expect(service.refreshToken).toHaveBeenCalledWith('valid-refresh-token');
       expect(result).toEqual(mockAuthResponse);
+    });
+
+    it('should propagate UnauthorizedException for expired refresh token', async () => {
+      mockAuthService.refreshToken.mockRejectedValueOnce(
+        new UnauthorizedException('Invalid or expired refresh token'),
+      );
+
+      await expect(controller.refresh({ refresh_token: 'expired' })).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 

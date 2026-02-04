@@ -1,6 +1,6 @@
 # Story 1.2: Backend d'Authentification (JWT + Magic Link Logic)
 
-Status: complete
+Status: complete (needs refactor in Story 1.5)
 
 ## Story
 
@@ -50,8 +50,9 @@ so that I can log in without a password.
 - **Security**: Magic Link TTL 15m, single-use, hashed in DB. [Source: docs/planning-artifacts/epics.md#NFR5]
 - **NFR7 Compliance**: Password complexity validation required (8+ chars, mixed case, numbers)
 - **NFR8 Compliance**: JWT access tokens expire in 24h, refresh tokens in 7d
-- **Future Integration (FR16)**: When Subscription model is added (Epic 7), auth responses should include subscription status for access control
-- **NFR18-NFR19 Note**: No card data stored in auth system. Subscription access control will be layered on top via Stripe webhook-driven status checks (Epic 7).
+- **Pending Refactor (Story 1.5)**: clinicId will be removed from login/magic-link schemas. Backend will resolve clinicId from user record via `findUnique({ email })`. `NEXT_PUBLIC_CLINIC_ID` will be eliminated. `register()` endpoint will be disabled (registration via Stripe webhook only).
+- **Future Integration (FR16)**: When Subscription model is added (Epic 3), auth responses should include subscription status for access control.
+- **NFR18-NFR19 Note**: No card data stored in auth system. Subscription access control will be layered on top via Stripe webhook-driven status checks (Epic 3).
 - **Email**: Use Resend. Ensure API key is handled via env vars (do not hardcode).
 - **Tech Stack**: NestJS 11, Prisma 7, Passport JWT, React Email.
 
@@ -70,7 +71,14 @@ so that I can log in without a password.
 
 ## Future Extension Points (Cross-Epic Dependencies)
 
-**For Stripe Subscription Epic (Epic 7, FR16):**
+**For Auth Refactor (Story 1.5):**
+- [ ] Remove clinicId from `loginSchema` and `requestMagicLinkSchema` in `@pawly/validators`
+- [ ] Change `auth.service.ts` to use `findUnique({ where: { email } })` instead of `findFirst({ where: { email, clinicId } })`
+- [ ] Remove `NEXT_PUBLIC_CLINIC_ID` from `.env`, `.env.example`, and all code references
+- [ ] Disable/remove `register()` tRPC procedure (registration via Stripe webhook only)
+- [ ] Update all auth tests to reflect email-only login flow
+
+**For Stripe Subscription Epic (Epic 3, FR16):**
 - [ ] Include subscription status in JWT payload or auth response for client-side access control
 - [ ] Create NestJS guard to check active subscription status for admin endpoints
 - [ ] Ensure auth system can query Subscription model after Stripe webhooks update subscription status
@@ -103,6 +111,7 @@ Gemini 2.0 Flash
 - **2026-02-04**: Story documentation updated to reflect PRD/Architecture changes (NFR5-NFR8 security requirements, FR16 subscription integration points).
 - **2026-02-04**: Adversarial code review #1 by Claude Opus 4.5 — 19 issues fixed (8 HIGH, 7 MEDIUM, 4 LOW). See Change Log below.
 - **2026-02-04**: Adversarial code review #2 by Claude Opus 4.5 — 14 additional issues fixed (5 CRITICAL, 7 HIGH, 2 MEDIUM). Focus: missing infrastructure (RequestIdInterceptor, global guards/filters, rate limiting), duplicate directories cleanup, tRPC context JWT extraction, @pawly/types single source of truth, helpers refactor storeId→clinicId. Build passes, 28/28 tests pass.
+- **2026-02-04**: Adversarial code review #3 by Claude Opus 4.5 — 14 issues fixed (3 CRITICAL, 5 HIGH, 6 MEDIUM). Focus: @Public() decorators on auth endpoints, register() disabled (Stripe-only registration), per-endpoint rate limiting, magic link cleanup + DB index, Zod token validation consistency, comprehensive NFR5/NFR7/NFR8 test coverage, JwtStrategy unit tests. Build passes, 41/41 tests pass.
 
 ### Change Log (Code Review Fixes — Review #1, Gemini 2.0 Flash)
 
@@ -147,34 +156,56 @@ Gemini 2.0 Flash
 | 32 | MEDIUM | Updated `validateMagicLink` tests — mocks now support `$transaction` pattern, added race condition test |
 | 33 | MEDIUM | Added barrel export for interceptors in `common/index.ts` |
 
+### Change Log (Code Review Fixes — Review #3, Claude Opus 4.5)
+
+| # | Severity | Fix Applied |
+|---|----------|-------------|
+| 34 | CRITICAL | Added `@Public()` decorator to all auth endpoints (`login`, `register`, `magic-link/request`, `magic-link/callback`, `refresh`) — app would reject all unauthenticated auth requests due to global `JwtAuthGuard` |
+| 35 | CRITICAL | Disabled `register()` endpoint with `ForbiddenException` — was using hardcoded `'temp-clinic-id'`, breaking multi-tenancy. Registration via Stripe webhook only (per architecture) |
+| 36 | CRITICAL | Fixed `validateMagicLinkSchema` in `@pawly/validators` — now validates `^[a-f0-9]{64}$` regex (was `min(1)`, inconsistent with REST DTO) |
+| 37 | HIGH | Added per-endpoint `@Throttle()` rate limiting: login (5/min), magic-link/request (3/min), register (3/min), callback (5/min), refresh (5/min) |
+| 38 | HIGH | Added magic link cleanup mechanism — expired/used tokens deleted in background after successful validation (24h cutoff) |
+| 39 | HIGH | Extracted `MAGIC_LINK_TTL_MINUTES = 15` constant (was hardcoded `15` inline) |
+| 40 | HIGH | Added NFR5 test: verifies SHA-256 hashing of stored token vs raw token sent in email |
+| 41 | HIGH | Added NFR5 test: verifies magic link TTL is set to exactly 15 minutes |
+| 42 | MEDIUM | Added `@@index([expiresAt])` on `MagicLink` Prisma model for validation query performance |
+| 43 | MEDIUM | Added NFR8 tests: verifies refresh token uses `7d` expiry and access token uses module default (no explicit override) |
+| 44 | MEDIUM | Added mail service error test: verifies exception propagation when Resend API fails |
+| 45 | MEDIUM | Added controller error propagation tests for `UnauthorizedException` on login, validateMagicLink, refresh |
+| 46 | MEDIUM | Created `jwt.strategy.spec.ts` with payload extraction and field mapping tests |
+| 47 | MEDIUM | Added `@ApiResponse({ status: 429 })` Swagger decorators on rate-limited endpoints |
+
 ### File List
 
-- `apps/api/src/modules/auth/auth.service.ts` (Existing — transactional validateMagicLink)
-- `apps/api/src/modules/auth/auth.controller.ts` (Existing)
+- `apps/api/src/modules/auth/auth.service.ts` (Modified — register disabled, magic link cleanup, TTL constant)
+- `apps/api/src/modules/auth/auth.controller.ts` (Modified — @Public, @Throttle decorators)
 - `apps/api/src/modules/auth/auth.module.ts` (Existing)
 - `apps/api/src/modules/auth/jwt.strategy.ts` (Existing)
+- `apps/api/src/modules/auth/jwt.strategy.spec.ts` (New — JwtStrategy unit tests)
 - `apps/api/src/modules/auth/dto/login.dto.ts` (Existing)
 - `apps/api/src/modules/auth/dto/register.dto.ts` (Existing — NFR7 password validation)
 - `apps/api/src/modules/auth/dto/request-magic-link.dto.ts` (Existing)
 - `apps/api/src/modules/auth/dto/validate-magic-link.dto.ts` (Existing — token format validation)
 - `apps/api/src/modules/auth/dto/refresh-token.dto.ts` (Existing — refresh token DTO)
 - `apps/api/src/modules/auth/dto/auth-response.dto.ts` (Existing — Swagger response DTOs)
-- `apps/api/src/modules/auth/auth.service.spec.ts` (Modified — $transaction mocks, race condition test)
-- `apps/api/src/modules/auth/auth.controller.spec.ts` (Existing)
+- `apps/api/src/modules/auth/auth.service.spec.ts` (Modified — NFR5/NFR8 tests, cleanup test, mail error test, register ForbiddenException)
+- `apps/api/src/modules/auth/auth.controller.spec.ts` (Modified — error propagation tests, register ForbiddenException)
 - `apps/api/src/modules/mail/mail.module.ts` (Existing)
 - `apps/api/src/modules/mail/mail.service.tsx` (Existing)
 - `apps/api/src/modules/mail/templates/MagicLinkEmail.tsx` (Existing)
-- `apps/api/src/app.module.ts` (Modified — APP_GUARD, APP_FILTER, ThrottlerModule)
-- `apps/api/src/main.ts` (Modified — ConfigService, fixed imports)
-- `apps/api/src/common/interceptors/request-id.interceptor.ts` (New)
-- `apps/api/src/common/interceptors/index.ts` (New)
-- `apps/api/src/common/index.ts` (Modified — interceptors export)
-- `apps/api/src/common/guards/roles.guard.ts` (Modified — ForbiddenException)
-- `apps/api/src/trpc/context.ts` (Modified — JWT extraction, JwtService)
-- `apps/api/src/trpc/helpers.ts` (Modified — clinicId/Role refactor)
-- `apps/api/src/trpc/trpc.module.ts` (Modified — import paths, createContext opts)
-- `packages/validators/src/auth/response.schema.ts` (Modified — refresh_token)
-- `packages/types/src/auth/auth.types.ts` (Modified — re-export from validators)
-- `packages/types/package.json` (Modified — @pawly/validators dependency)
-- `apps/api/package.json` (Modified — @nestjs/throttler)
-- `pnpm-lock.yaml` (Modified)
+- `apps/api/src/app.module.ts` (Existing — APP_GUARD, APP_FILTER, ThrottlerModule)
+- `apps/api/src/main.ts` (Existing — ConfigService, fixed imports)
+- `apps/api/src/common/interceptors/request-id.interceptor.ts` (Existing)
+- `apps/api/src/common/interceptors/index.ts` (Existing)
+- `apps/api/src/common/index.ts` (Existing — interceptors export)
+- `apps/api/src/common/guards/roles.guard.ts` (Existing — ForbiddenException)
+- `apps/api/src/trpc/context.ts` (Existing — JWT extraction, JwtService)
+- `apps/api/src/trpc/helpers.ts` (Existing — clinicId/Role refactor)
+- `apps/api/src/trpc/trpc.module.ts` (Existing — import paths, createContext opts)
+- `packages/validators/src/auth/magic-link.schema.ts` (Modified — strict 64-char hex regex)
+- `packages/validators/src/auth/response.schema.ts` (Existing — refresh_token)
+- `packages/types/src/auth/auth.types.ts` (Existing — re-export from validators)
+- `packages/types/package.json` (Existing — @pawly/validators dependency)
+- `apps/api/package.json` (Existing — @nestjs/throttler)
+- `apps/api/prisma/schema/MagicLink.prisma` (Modified — @@index on expiresAt)
+- `pnpm-lock.yaml` (Existing)

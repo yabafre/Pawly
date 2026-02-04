@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -11,9 +11,13 @@ import type { EnvConfig } from '@/config/index';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
+const MAGIC_LINK_TTL_MINUTES = 15;
+const MAGIC_LINK_CLEANUP_HOURS = 24;
 
 @Injectable()
 export class AuthService {
+    private readonly logger = new Logger(AuthService.name);
+
     constructor(
         private prisma: PrismaService,
         private jwtService: JwtService,
@@ -60,35 +64,14 @@ export class AuthService {
         };
     }
 
-    async register(registerDto: RegisterDto) {
-        const hashedPassword = await bcrypt.hash(registerDto.password, BCRYPT_ROUNDS);
-        try {
-            const user = await this.prisma.user.create({
-                data: {
-                    email: registerDto.email,
-                    password: hashedPassword,
-                    clinicId: 'temp-clinic-id',
-                    employee: {
-                        create: {
-                            firstName: registerDto.firstName,
-                            lastName: registerDto.lastName,
-                            jobType: registerDto.jobType as any,
-                            clinicId: 'temp-clinic-id',
-                        },
-                    },
-                },
-                include: {
-                    employee: true
-                }
-            });
-            const { password, ...result } = user;
-            return result;
-        } catch (error: any) {
-            if (error?.code === 'P2002') {
-                throw new BadRequestException('Registration failed. Please try again.');
-            }
-            throw error;
-        }
+    /**
+     * @deprecated Registration is disabled. Account creation happens exclusively
+     * via Stripe webhook (checkout.session.completed). Will be removed in Story 1.5.
+     */
+    async register(_registerDto: RegisterDto) {
+        throw new ForbiddenException(
+            'Registration is disabled. Account creation happens via subscription checkout.',
+        );
     }
 
     async requestMagicLink(email: string, clinicId: string) {
@@ -102,7 +85,7 @@ export class AuthService {
         const rawToken = crypto.randomBytes(32).toString('hex');
         const hashedToken = this.hashToken(rawToken);
         const expiresAt = new Date();
-        expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+        expiresAt.setMinutes(expiresAt.getMinutes() + MAGIC_LINK_TTL_MINUTES);
 
         await this.prisma.magicLink.create({
             data: {
@@ -148,7 +131,25 @@ export class AuthService {
             return magicLink.user;
         });
 
+        // Cleanup expired magic links in background (non-blocking)
+        this.cleanupExpiredMagicLinks().catch((err) =>
+            this.logger.warn('Failed to cleanup expired magic links', err),
+        );
+
         return this.generateToken(user);
+    }
+
+    private async cleanupExpiredMagicLinks() {
+        const cutoff = new Date();
+        cutoff.setHours(cutoff.getHours() - MAGIC_LINK_CLEANUP_HOURS);
+        await this.prisma.magicLink.deleteMany({
+            where: {
+                OR: [
+                    { expiresAt: { lt: cutoff } },
+                    { used: true, createdAt: { lt: cutoff } },
+                ],
+            },
+        });
     }
 
     async refreshToken(token: string) {

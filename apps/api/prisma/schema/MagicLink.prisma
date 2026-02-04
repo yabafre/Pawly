@@ -13,4 +13,5 @@ model MagicLink {
 
   @@index([clinicId])
   @@index([userId])
+  @@index([expiresAt])
 }

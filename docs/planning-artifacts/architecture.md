@@ -15,6 +15,8 @@ completedAt: '2026-02-02'
 lastEdited: '2026-02-04'
 editHistory:
   - date: '2026-02-04'
+    changes: 'Epic reordering (Option B). Updated Implementation Sequence (12-step). Added Clinic model, No Self-Registration principle, pre-checkout form + magic link to Subscription Flow. Updated Requirements to Structure Mapping. clinicId resolved from DB.'
+  - date: '2026-02-04'
     changes: 'Added i18n (next-intl), Stripe subscriptions, landing page, updated tooling/MCP, corrected Next.js 16.1.6'
 project_name: Pawly
 user_name: Alex
@@ -27,7 +29,7 @@ date: '2026-02-02'
 ### Requirements Overview
 
 **Functional Requirements:**
-16 FRs identified covering access management (FR1-FR3), planning generation (FR4-FR8), employee validation (FR9-FR10), internationalization (FR11), landing page (FR12), and subscription/billing (FR13-FR16). Architecturally, this requires a clear separation between the planning engine (server-side generation), the interactive grid (client-side refinement), and the acquisition/billing layer (Stripe-delegated).
+18 FRs identified covering access management (FR1-FR3), planning generation (FR4-FR8), employee validation (FR9-FR10), internationalization (FR11), landing page (FR12), subscription/billing (FR13-FR16), webhook-driven registration (FR17), and post-checkout onboarding (FR18). Architecturally, this requires a clear separation between the planning engine (server-side generation), the interactive grid (client-side refinement), and the acquisition/billing layer (Stripe-delegated). Registration is exclusively via Stripe Checkout webhook — no self-registration endpoint exists.
 
 **Non-Functional Requirements:**
 22 NFRs covering responsiveness (NFR1: <100ms), reliability (NFR3: zero silent failures), PWA capabilities (NFR4: offline cache), payment security (NFR18-NFR19), i18n performance (NFR20), and landing page performance (NFR21-NFR22). This drives a need for robust state management, "Optimistic UI" pattern, and strict Stripe webhook verification.
@@ -35,11 +37,13 @@ date: '2026-02-02'
 **Scale & Complexity:**
 - Primary domain: Veterinary Resource Management (HR/SaaS).
 - Complexity level: Medium-High.
-- Estimated architectural components: Auth service, Planning Engine, Staff-Grid UI, Multi-tenant DB layer, Stripe Billing layer, i18n routing layer, Landing page (SSG).
+- Estimated architectural components: Auth service, Planning Engine, Staff-Grid UI, Multi-tenant DB layer (Clinic FK), Stripe Billing layer, i18n routing layer, Landing page (SSG), Onboarding wizard.
 
 ### Technical Constraints & Dependencies
-- Multi-tenant isolation via `clinicId`.
+- Multi-tenant isolation via `clinicId` (proper FK to `Clinic` model).
 - No medical patient data (GDPR focus on PII).
+- No self-registration endpoint — account creation via Stripe webhook only.
+- Login resolves `clinicId` from DB (not from client input). `NEXT_PUBLIC_CLINIC_ID` eliminated.
 - Use of shadcn/ui and Tailwind v4 for the "Clinique Zen" aesthetic.
 
 ### Cross-Cutting Concerns Identified
@@ -114,7 +118,8 @@ npx create-next-app@latest apps/web --typescript --tailwind --eslint --app --src
 - **ORM**: Prisma 7.2.0 using **Schema Folders** (`packages/database/prisma/schema/`).
 - **Validation**: Single source via Zod in `packages/validators`.
 - **Constraints Model**: Strict distinction between `Unavailability` (Blocking) and `Preference` (Scoring/Equity).
-- **Subscription Model** (`Subscription.prisma`): 1:1 with `Clinic`. Fields: `stripeCustomerId`, `stripeSubscriptionId`, `status` (enum: `trialing`, `active`, `past_due`, `canceled`, `unpaid`), `planKey` (internal: `starter`, `pro`, etc.), `currentPeriodEnd`, `cancelAtPeriodEnd`, `trialEnd`.
+- **Clinic Model** (`Clinic.prisma`): Central multi-tenant entity. Fields: `id` (cuid), `name`, `slug` (@unique), `onboardingCompleted` (Boolean, default false), `createdAt`, `updatedAt`. All business entities reference `Clinic.id` as FK (replaces orphaned string `clinicId`). Created exclusively via `checkout.session.completed` webhook.
+- **Subscription Model** (`Subscription.prisma`): 1:1 with `Clinic` (via `clinicId` FK, @unique). Fields: `stripeCustomerId`, `stripeSubscriptionId`, `status` (enum: `trialing`, `active`, `past_due`, `canceled`, `unpaid`), `planKey` (internal: `starter`, `pro`, etc.), `currentPeriodEnd`, `cancelAtPeriodEnd`, `trialEnd`.
 - **Entitlement Model**: `entitlementTier` field on Subscription to gate features. Required for safely adding paid features later without breaking 100% promo users.
 - **Stripe Event Deduplication** (`StripeEvent.prisma`): Store `event.id` to ensure webhook idempotency. Reject duplicate events before processing.
 
@@ -122,8 +127,11 @@ npx create-next-app@latest apps/web --typescript --tailwind --eslint --app --src
 
 - **Employee**: Magic Link (TTL 15min, single use, hashed). Long session adapted for mobile.
 - **Admin**: Password + JWT by default.
+- **Login Flow**: Email-only login. `clinicId` resolved from `User` record via `findUnique({ email })`. No `clinicId` in login schemas. No `NEXT_PUBLIC_CLINIC_ID` environment variable. JWT payload includes resolved `clinicId`.
+- **No Self-Registration**: No `register()` endpoint. Account creation happens exclusively via `checkout.session.completed` Stripe webhook (creates Clinic + Admin + Subscription, sends Magic Link).
+- **Onboarding Guard**: After first login, admin routes check `Clinic.onboardingCompleted`. If `false`, redirect to `/admin/onboarding`.
 - **Pattern**: Systematic Zod validation at Server Actions level (Zsa).
-- **Subscription Guard**: Admin routes require both auth AND active subscription. Check performed in `admin/layout.tsx` server-side. Source of truth = Stripe subscription status in DB (synced via webhooks).
+- **Subscription Guard**: Admin routes require both auth AND active subscription AND completed onboarding. Check performed in `admin/layout.tsx` server-side. Source of truth = Stripe subscription status in DB (synced via webhooks).
 - **Stripe Webhook Security**: HMAC signature verification via `stripe.webhooks.constructEvent()`. Raw body parser applied ONLY to `/api/stripe/webhook` route (not global). Idempotency enforced via `StripeEvent` table.
 - **Landing Page Isolation**: No authentication, no session cookies, no non-essential cookies on public routes (`/`, `/pricing`, etc.).
 
@@ -183,33 +191,46 @@ Every REST API endpoint MUST have Swagger decorators. This is **not optional**.
 
 ### Decision Impact Analysis
 
-**Implementation Sequence:**
-1. Prisma Migration (Schema Folders) + Subscription/StripeEvent models.
-2. NestJS + tRPC + Zsa Foundation.
-3. Magic Link Authentication.
-4. i18n setup (`next-intl` routing, proxy, translation files).
-5. Stripe integration (NestJS module, webhooks, Checkout, Billing Portal).
-6. Landing page (SSG, SEO metadata, sitemap).
-7. Planning Engine (Template + Greedy Scoring).
+**Implementation Sequence (12-step, aligned with Epic order):**
+1. ✅ Prisma Migration (Schema Folders) + Core models — *Epic 1, Story 1.1 DONE*.
+2. ✅ NestJS + tRPC + Zsa Foundation — *Epic 1, Story 1.1 DONE*.
+3. ✅ Magic Link Authentication (JWT + Magic Link backend + Login UI) — *Epic 1, Stories 1.2–1.3 DONE*.
+4. Clinic, Subscription & StripeEvent Prisma models (proper FK) — *Epic 1, Story 1.4*.
+5. Auth Refactor (remove clinicId from login, resolve from DB, eliminate NEXT_PUBLIC_CLINIC_ID) — *Epic 1, Story 1.5*.
+6. i18n setup (next-intl routing, proxy, translation files) — *Epic 2, Stories 2.1–2.2*.
+7. Stripe integration (NestJS module, webhooks, Checkout = Registration, Magic Link on signup) — *Epic 3, Stories 3.1–3.2*.
+8. Post-checkout onboarding wizard — *Epic 3, Story 3.3*.
+9. Subscription management (Billing Portal, promos, access control) — *Epic 3, Stories 3.4–3.6*.
+10. Landing page + Pricing page with pre-checkout form (SSG, SEO) — *Epic 4, Stories 4.1–4.2*.
+11. Staff Management & Clinic Configuration — *Epic 5, Stories 5.1–5.6*.
+12. Planning Engine, Admin Arbitration, Employee PWA — *Epics 6–8*.
 
 **Cross-Component Dependencies:**
 - The planning engine depends on employee declarative constraints and admin templates.
 - Subscription gating depends on Stripe webhooks being operational before admin routes are protected.
 - i18n proxy must be configured before any page routing works correctly.
 - Landing page depends on i18n and Stripe pricing being defined.
+- Onboarding wizard depends on Clinic model (Story 1.4) and i18n routing (Story 2.1).
+- Auth refactor (Story 1.5) depends on Clinic model (Story 1.4).
 
-**Subscription Flow:**
+**Subscription Flow (Registration = Stripe Checkout):**
 ```
-Landing -> "Subscribe" -> API creates Checkout Session -> Redirect to Stripe
--> Payment OK -> Webhook `checkout.session.completed` -> Create Clinic + Admin
--> Redirect success_url -> Onboarding
+Pricing Page → Pre-checkout form (clinic name, admin name, admin email)
+  → API creates Checkout Session (metadata: clinic info)
+  → Redirect to Stripe hosted Checkout
+  → Payment OK → Webhook `checkout.session.completed`
+  → Create Clinic + Admin User + Subscription
+  → Send Magic Link email to new admin
+  → Admin clicks link → Authenticated → Onboarding wizard
+  → Configure clinic (hours, days, shifts) → Dashboard ready
 ```
 
 **Promo 100% Flow:**
 ```
-Landing -> Enter promo code -> Checkout with coupon -> Webhook confirms $0 sub
--> Clinic created with entitlementTier matching plan -> Full access at $0
--> Promo tracked via Stripe metadata (type=partner|internal|lifetime)
+Pricing Page → Enter promo code → Pre-checkout form → Checkout with coupon
+  → Webhook confirms $0 sub → Clinic created with entitlementTier matching plan
+  → Full access at $0 → Magic Link email sent → Onboarding wizard
+  → Promo tracked via Stripe metadata (type=partner|internal|lifetime)
 ```
 
 
@@ -331,8 +352,10 @@ Pawly/
 │   │   │   │       │       ├── _components/
 │   │   │   │       │       ├── _hooks/
 │   │   │   │       │       └── page.tsx
-│   │   │   │       ├── admin/ (PROTECTED: auth + subscription guard)
-│   │   │   │       │   ├── layout.tsx (auth + subscription check)
+│   │   │   │       ├── admin/ (PROTECTED: auth + subscription + onboarding guard)
+│   │   │   │       │   ├── layout.tsx (auth + subscription + onboarding check)
+│   │   │   │       │   ├── onboarding/
+│   │   │   │       │   │   └── page.tsx (clinic config wizard - Story 3.3)
 │   │   │   │       │   ├── planning/
 │   │   │   │       │   │   ├── _actions/
 │   │   │   │       │   │   ├── _components/
@@ -375,8 +398,9 @@ Pawly/
 │       │   │   ├── User.prisma
 │       │   │   ├── Employee.prisma
 │       │   │   ├── Planning.prisma
-│       │   │   ├── Subscription.prisma (NEW)
-│       │   │   └── StripeEvent.prisma (NEW - webhook idempotency)
+│       │   │   ├── Clinic.prisma (multi-tenant root entity)
+│       │   │   ├── Subscription.prisma (1:1 with Clinic)
+│       │   │   └── StripeEvent.prisma (webhook idempotency)
 │       │   └── seed.ts
 │       └── test/ (Vitest)
 ├── packages/
@@ -396,12 +420,14 @@ Pawly/
 
 ### Requirements to Structure Mapping
 
-- **Epic: Authentication** -> `apps/api/src/auth` & `apps/web/src/app/[locale]/(auth)/login`.
-- **Epic: Planning Engine** -> `apps/api/src/planning/planning.algorithm.ts`.
-- **Epic: Employee Management** -> `apps/api/src/employees` & `apps/web/src/app/[locale]/admin/employees`.
-- **FR11: i18n** -> `apps/web/src/i18n/`, `proxy.ts`, `messages/{fr,en}.json`.
-- **FR12: Landing Page** -> `apps/web/src/app/[locale]/page.tsx` & `pricing/page.tsx` (SSG).
-- **FR13-FR16: Subscriptions** -> `apps/api/src/stripe/` & `apps/web/src/app/[locale]/admin/billing/`.
+- **Epic 1: Technical Foundation** -> `apps/api/src/auth`, `apps/web/src/app/[locale]/(auth)/login`, `prisma/schema/Clinic.prisma`, `prisma/schema/Subscription.prisma`, `prisma/schema/StripeEvent.prisma`.
+- **Epic 2: i18n (FR11)** -> `apps/web/src/i18n/`, `proxy.ts`, `messages/{fr,en}.json`.
+- **Epic 3: Stripe + Registration (FR13, FR17, FR18)** -> `apps/api/src/stripe/`, `apps/web/src/app/[locale]/admin/billing/`, `apps/web/src/app/[locale]/admin/onboarding/`.
+- **Epic 4: Landing Page (FR12)** -> `apps/web/src/app/[locale]/page.tsx` & `pricing/page.tsx` (SSG, pre-checkout form).
+- **Epic 5: Staff Management** -> `apps/api/src/employees` & `apps/web/src/app/[locale]/admin/employees`.
+- **Epic 6: Planning Engine** -> `apps/api/src/planning/planning.algorithm.ts`.
+- **Epic 7: Admin Arbitration** -> `apps/web/src/app/[locale]/admin/planning/` (drag-and-drop, Health Bar).
+- **Epic 8: Employee PWA** -> `apps/web/src/app/[locale]/dashboard/` (mobile, offline, presence).
 - **NFR18-NFR19: Payment Security** -> `apps/api/src/stripe/stripe-webhook.controller.ts` (HMAC) & `StripeEvent.prisma` (idempotency).
 
 
@@ -411,11 +437,13 @@ Pawly/
 The architecture is coherent: Prisma isolation in `apps/api` and tRPC usage ensure a clear separation of responsibilities. Stripe integration is server-only with webhook-driven state sync. i18n routing is proxy-first with auth/subscription guards at layout level.
 
 ### Requirements Coverage Validation ✅
-All 16 FRs and 22 NFRs are mapped to specific modules:
+All 18 FRs and 22 NFRs are mapped to specific modules:
 - FR1-FR10: Planning, Auth, Employee modules (original scope).
 - FR11: `next-intl` i18n layer.
 - FR12: SSG landing page routes.
 - FR13-FR16: Stripe module (NestJS) + billing routes (Next.js).
+- FR17: Stripe webhook handler (Clinic + Admin + Subscription creation + Magic Link).
+- FR18: Onboarding wizard (`/admin/onboarding`) + `Clinic.onboardingCompleted` flag.
 - NFR18-NFR19: Stripe webhook controller with HMAC + StripeEvent idempotency.
 - NFR20: `next-intl` client-side locale switching.
 - NFR21-NFR22: SSG + Lighthouse optimization on landing routes.
@@ -432,12 +460,12 @@ All 16 FRs and 22 NFRs are mapped to specific modules:
 - Raw body parser on `/api/stripe/webhook` ONLY. Never app-wide.
 - Subscription source of truth = Stripe (via webhooks), never frontend.
 - i18n proxy runs before auth guards. Auth/subscription checks in route layouts.
+- No `register()` endpoint. Registration = Stripe Checkout only.
+- Login resolves `clinicId` from DB. No `NEXT_PUBLIC_CLINIC_ID`.
+- Admin routes check `Clinic.onboardingCompleted` and redirect to onboarding if needed.
 
-**Implementation Sequence:**
-1. Prisma Migration (Schema Folders) + Subscription/StripeEvent models.
-2. NestJS + tRPC + Zsa Foundation.
-3. Magic Link Authentication.
-4. i18n setup (next-intl routing, proxy, translation files).
-5. Stripe integration (NestJS module, webhooks, Checkout, Billing Portal).
-6. Landing page (SSG, SEO metadata, sitemap, robots.txt).
-7. Planning Engine (Template + Greedy Scoring).
+**Implementation Sequence (see Decision Impact Analysis for full 12-step breakdown):**
+1. ✅ Monorepo + Prisma + Auth (Stories 1.1–1.3 DONE).
+2. Clinic/Subscription models + Auth refactor (Stories 1.4–1.5).
+3. i18n (Epic 2) → Stripe + Registration + Onboarding (Epic 3) → Landing (Epic 4).
+4. Staff Management (Epic 5) → Planning + Admin + PWA (Epics 6–8).

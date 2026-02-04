@@ -1,7 +1,7 @@
 # Story 1.1: Initialisation du Monorepo & Schéma Prisma Modulaire
 
 **ID:** 1.1
-**Epic:** Epic 1: Fondation du Projet & Authentification Hybride
+**Epic:** Epic 1: Technical Foundation
 **Status:** done
 **Priority:** Critical
 
@@ -20,7 +20,7 @@ So that the project has a solid and scalable technical foundation.
 - [x] **And** core models (`User`, `MagicLink`) include a mandatory `clinicId` field
 - [x] **And** `@pawly/validators`, `@pawly/types`, and `@pawly/zod` packages are initialized in `packages/`.
 
-> **Note:** Schema folder setup establishes foundation for future Subscription and StripeEvent models (Epic 7: FR13-FR16).
+> **Note:** Schema folder setup establishes foundation for Clinic, Subscription and StripeEvent models (Story 1.4) and auth refactor (Story 1.5).
 
 ## Developer Context
 
@@ -38,8 +38,9 @@ So that the project has a solid and scalable technical foundation.
 - [x] **Multi-tenancy**: Mandatory `clinicId` field added.
 - [x] **NFR5-NFR8**: Security baseline established (clinicId isolation, hashed magic links).
 - [x] **NFR9-NFR10**: Scalability consideration for multi-tenant Prisma queries.
-- [ ] **Future Compliance**: Schema folder structure prepared for Subscription and StripeEvent models (deferred to Epic 7 - Stripe Integration).
-- [ ] **Future Compliance**: Route structure will migrate to `app/[locale]/` when i18n is implemented (Epic 6).
+- [ ] **Next Step (Story 1.4)**: Add Clinic, Subscription and StripeEvent models. Migrate clinicId to proper FK.
+- [ ] **Next Step (Story 1.5)**: Auth refactor — remove clinicId from login, resolve from DB, eliminate NEXT_PUBLIC_CLINIC_ID.
+- [ ] **Future Compliance**: Route structure will migrate to `app/[locale]/` when i18n is implemented (Epic 2).
 
 ### File Structure Requirements
 ```text
@@ -51,17 +52,18 @@ Pawly/
 │   │   │   │   ├── base.prisma (generator & datasource)
 │   │   │   │   ├── User.prisma
 │   │   │   │   ├── MagicLink.prisma
-│   │   │   │   ├── Subscription.prisma (FUTURE - Epic 7, FR13-FR16)
-│   │   │   │   └── StripeEvent.prisma (FUTURE - Epic 7, NFR19 webhook idempotency)
+│   │   │   │   ├── Clinic.prisma (Story 1.4 — multi-tenant root entity)
+│   │   │   │   ├── Subscription.prisma (Story 1.4 — 1:1 with Clinic)
+│   │   │   │   └── StripeEvent.prisma (Story 1.4 — webhook idempotency)
 │   │   │   └── seed.ts
 │   │   └── src/
-│   │       └── stripe/ (FUTURE - Epic 7, FR13-FR16)
+│   │       └── stripe/ (Epic 3, FR13-FR17)
 │   │           ├── stripe.module.ts
 │   │           ├── stripe.service.ts
 │   │           └── stripe-webhook.controller.ts
 │   └── web/ (Next.js 16.1.6)
 │       └── src/
-│           └── i18n/ (FUTURE - Epic 6, FR11)
+│           └── i18n/ (Epic 2, FR11)
 │               ├── routing.ts
 │               ├── request.ts
 │               └── messages/
@@ -109,11 +111,11 @@ Pawly/
 
 ## Future Extension Points (Cross-Epic Dependencies)
 
-- [ ] **Subscription Schema (Epic 7)**: Add `Subscription.prisma` with stripeCustomerId, stripeSubscriptionId, status, planKey, entitlementTier, currentPeriodEnd, cancelAtPeriodEnd, trialEnd
-- [ ] **Webhook Idempotency Schema (Epic 7, NFR19)**: Add `StripeEvent.prisma` with event.id as primary key
-- [ ] **i18n Folder Structure (Epic 6, FR11)**: Create `apps/web/src/i18n/` with routing config and translation files
-- [ ] **Stripe Backend Module (Epic 7, FR13-FR16)**: Create `apps/api/src/stripe/` module
-- [ ] **Route Restructure for i18n (Epic 6, FR11)**: Migrate routes from `app/login` to `app/[locale]/(auth)/login`
+- [ ] **Clinic + Subscription + StripeEvent Models (Story 1.4)**: Add `Clinic.prisma` (name, slug, onboardingCompleted), `Subscription.prisma` (1:1 with Clinic), `StripeEvent.prisma` (webhook idempotency). Migrate all clinicId to proper FK.
+- [ ] **Auth Refactor (Story 1.5)**: Remove clinicId from login/magic-link schemas, resolve from DB via findUnique({email}), eliminate NEXT_PUBLIC_CLINIC_ID, disable register() endpoint.
+- [ ] **i18n Folder Structure (Epic 2, FR11)**: Create `apps/web/src/i18n/` with routing config and translation files
+- [ ] **Stripe Backend Module (Epic 3, FR13-FR17)**: Create `apps/api/src/stripe/` module
+- [ ] **Route Restructure for i18n (Epic 2, FR11)**: Migrate routes from `app/login` to `app/[locale]/(auth)/login`
 
 ## Dev Agent Record
 

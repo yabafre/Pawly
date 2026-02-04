@@ -4,8 +4,9 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '@/modules/mail/mail.service';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -23,6 +24,7 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: jest.fn(),
   };
@@ -162,7 +164,7 @@ describe('AuthService', () => {
       expect(mockJwtService.sign).toHaveBeenCalledTimes(2); // access + refresh
     });
 
-    it('should include clinicId in JWT payload', async () => {
+    it('should include all required fields in JWT payload', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
       mockPrismaService.user.findFirst.mockResolvedValue({
         id: 'user-1',
@@ -175,8 +177,55 @@ describe('AuthService', () => {
       await service.login(loginDto);
 
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        expect.objectContaining({ clinicId: loginDto.clinicId }),
+        expect.objectContaining({
+          email: loginDto.email,
+          sub: 'user-1',
+          role: 'ADMIN',
+          clinicId: loginDto.clinicId,
+        }),
       );
+    });
+
+    it('should generate refresh token with 7d expiry (NFR8)', async () => {
+      const hashedPassword = await bcrypt.hash(loginDto.password, 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        email: loginDto.email,
+        password: hashedPassword,
+        role: 'ADMIN',
+        clinicId: loginDto.clinicId,
+      });
+
+      await service.login(loginDto);
+
+      // Second call is the refresh token
+      expect(mockJwtService.sign).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Object),
+        { expiresIn: '7d' },
+      );
+    });
+
+    it('should generate access token without explicit expiresIn (uses module default 1d/24h - NFR8)', async () => {
+      const hashedPassword = await bcrypt.hash(loginDto.password, 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        email: loginDto.email,
+        password: hashedPassword,
+        role: 'ADMIN',
+        clinicId: loginDto.clinicId,
+      });
+
+      await service.login(loginDto);
+
+      // First call is the access token — no explicit expiresIn (defaults to module config '1d')
+      expect(mockJwtService.sign).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Object),
+      );
+      // Verify it was NOT called with an expiresIn override
+      const firstCallArgs = mockJwtService.sign.mock.calls[0];
+      expect(firstCallArgs.length).toBe(1); // only payload, no options
     });
 
     it('should throw UnauthorizedException on invalid credentials', async () => {
@@ -196,35 +245,11 @@ describe('AuthService', () => {
       jobType: 'VET' as const,
     };
 
-    it('should create user with hashed password and return without password', async () => {
-      const mockCreatedUser = {
-        id: 'user-new',
-        email: registerDto.email,
-        password: 'hashed-password',
-        clinicId: 'temp-clinic-id',
-        employee: {
-          firstName: registerDto.firstName,
-          lastName: registerDto.lastName,
-          jobType: registerDto.jobType,
-        },
-      };
-      mockPrismaService.user.create.mockResolvedValue(mockCreatedUser);
-
-      const result = await service.register(registerDto);
-
-      expect(result).not.toHaveProperty('password');
-      expect(result).toHaveProperty('email', registerDto.email);
-      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            email: registerDto.email,
-            password: expect.any(String), // bcrypt hash
-          }),
-        }),
+    it('should throw ForbiddenException (registration disabled)', async () => {
+      await expect(service.register(registerDto)).rejects.toThrow(ForbiddenException);
+      await expect(service.register(registerDto)).rejects.toThrow(
+        'Registration is disabled. Account creation happens via subscription checkout.',
       );
-      // Verify password was hashed (not stored in plain text)
-      const callArgs = mockPrismaService.user.create.mock.calls[0][0];
-      expect(callArgs.data.password).not.toBe(registerDto.password);
     });
   });
 
@@ -270,6 +295,58 @@ describe('AuthService', () => {
       expect(result).toEqual({ message: 'If an account exists, a magic link has been sent' });
     });
 
+    it('should store a SHA-256 hashed token, not the raw token (NFR5)', async () => {
+      const mockUser = {
+        id: 'user-1',
+        email: 'test@example.com',
+        clinicId: 'clinic-1',
+      };
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
+
+      await service.requestMagicLink('test@example.com', 'clinic-1');
+
+      const createCall = mockPrismaService.magicLink.create.mock.calls[0][0];
+      const storedToken = createCall.data.token;
+
+      // Stored token must be a 64-char hex string (SHA-256 hash)
+      expect(storedToken).toMatch(/^[a-f0-9]{64}$/);
+
+      // The URL sent to mail must contain a DIFFERENT token (the raw one)
+      const mailUrl = mockMailService.sendMagicLink.mock.calls[0][1];
+      const rawTokenInUrl = mailUrl.match(/token=([a-f0-9]{64})/)?.[1];
+      expect(rawTokenInUrl).toBeDefined();
+
+      // Verify stored hash != raw token (they should differ because one is hashed)
+      // Hash the raw token and it should equal the stored token
+      const expectedHash = crypto.createHash('sha256').update(rawTokenInUrl!).digest('hex');
+      expect(storedToken).toBe(expectedHash);
+    });
+
+    it('should set magic link TTL to 15 minutes (NFR5)', async () => {
+      const mockUser = {
+        id: 'user-1',
+        email: 'test@example.com',
+        clinicId: 'clinic-1',
+      };
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
+
+      const beforeCreate = Date.now();
+      await service.requestMagicLink('test@example.com', 'clinic-1');
+      const afterCreate = Date.now();
+
+      const createCall = mockPrismaService.magicLink.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt as Date;
+
+      // expiresAt should be ~15 minutes from now
+      const minExpected = beforeCreate + 14 * 60 * 1000; // 14 min (tolerance)
+      const maxExpected = afterCreate + 16 * 60 * 1000;  // 16 min (tolerance)
+
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(minExpected);
+      expect(expiresAt.getTime()).toBeLessThanOrEqual(maxExpected);
+    });
+
     it('should return identical messages for existing and non-existing users', async () => {
       // Non-existing user
       mockPrismaService.user.findFirst.mockResolvedValue(null);
@@ -285,6 +362,21 @@ describe('AuthService', () => {
       const result2 = await service.requestMagicLink('yes@example.com', 'clinic-1');
 
       expect(result1.message).toBe(result2.message);
+    });
+
+    it('should throw if email sending fails', async () => {
+      const mockUser = {
+        id: 'user-1',
+        email: 'test@example.com',
+        clinicId: 'clinic-1',
+      };
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.magicLink.create.mockResolvedValue({});
+      mockMailService.sendMagicLink.mockRejectedValueOnce(new Error('Resend API error'));
+
+      await expect(
+        service.requestMagicLink('test@example.com', 'clinic-1'),
+      ).rejects.toThrow();
     });
   });
 
@@ -391,6 +483,31 @@ describe('AuthService', () => {
 
       await expect(service.validateMagicLink('race-token')).rejects.toThrow(
         'Invalid or expired magic link',
+      );
+    });
+
+    it('should trigger cleanup of expired magic links after successful validation', async () => {
+      const mockMagicLink = {
+        expiresAt: new Date(Date.now() + 100000),
+        used: false,
+        user: { id: 'user-1', email: 'test@example.com', role: 'EMPLOYEE', clinicId: 'clinic-1' },
+      };
+      mockTransaction(mockMagicLink, 1);
+
+      await service.validateMagicLink('valid-token');
+
+      // Wait for the background cleanup promise to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mockPrismaService.magicLink.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({ expiresAt: expect.any(Object) }),
+              expect.objectContaining({ used: true }),
+            ]),
+          }),
+        }),
       );
     });
   });
