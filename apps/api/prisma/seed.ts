@@ -1,4 +1,4 @@
-import { PrismaClient, Role, JobType } from '@prisma/client';
+import { PrismaClient, Role, JobType, SubscriptionStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -10,7 +10,8 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const SEED = {
-  clinicId: '00000000-0000-4000-8000-000000000001',
+  clinicName: 'Clinique Zen Dev',
+  clinicSlug: 'clinique-zen-dev',
   adminEmail: 'admin@pawly.local',
   adminPassword: 'Admin123!',
   employeeEmail: 'employee@pawly.local',
@@ -21,7 +22,8 @@ const SEED = {
 
 async function main() {
   const {
-    clinicId,
+    clinicName,
+    clinicSlug,
     adminEmail,
     adminPassword,
     employeeEmail,
@@ -29,19 +31,53 @@ async function main() {
     employeeLastName,
     employeeJobType,
   } = SEED;
+
+  // 1. Create Clinic first (FK parent for all other records)
+  const clinic = await prisma.clinic.upsert({
+    where: { slug: clinicSlug },
+    update: {
+      name: clinicName,
+      onboardingCompleted: true,
+    },
+    create: {
+      name: clinicName,
+      slug: clinicSlug,
+      onboardingCompleted: true,
+    },
+  });
+
+  // 2. Create Subscription for dev testing
+  await prisma.subscription.upsert({
+    where: { clinicId: clinic.id },
+    update: {
+      status: SubscriptionStatus.active,
+      planKey: 'starter',
+      entitlementTier: 'starter',
+    },
+    create: {
+      clinicId: clinic.id,
+      stripeCustomerId: 'cus_dev_seed_000001',
+      stripeSubscriptionId: 'sub_dev_seed_000001',
+      status: SubscriptionStatus.active,
+      planKey: 'starter',
+      entitlementTier: 'starter',
+    },
+  });
+
+  // 3. Create Users linked to Clinic via FK
   const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
 
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       role: Role.ADMIN,
-      clinicId,
+      clinicId: clinic.id,
       password: adminPasswordHash,
     },
     create: {
       email: adminEmail,
       role: Role.ADMIN,
-      clinicId,
+      clinicId: clinic.id,
       password: adminPasswordHash,
     },
   });
@@ -50,35 +86,38 @@ async function main() {
     where: { email: employeeEmail },
     update: {
       role: Role.EMPLOYEE,
-      clinicId,
+      clinicId: clinic.id,
       password: null,
     },
     create: {
       email: employeeEmail,
       role: Role.EMPLOYEE,
-      clinicId,
+      clinicId: clinic.id,
     },
   });
 
+  // 4. Create Employee linked to Clinic via FK
   await prisma.employee.upsert({
     where: { userId: employeeUser.id },
     update: {
       firstName: employeeFirstName,
       lastName: employeeLastName,
       jobType: employeeJobType,
-      clinicId,
+      clinicId: clinic.id,
     },
     create: {
       firstName: employeeFirstName,
       lastName: employeeLastName,
       jobType: employeeJobType,
-      clinicId,
+      clinicId: clinic.id,
       userId: employeeUser.id,
     },
   });
 
   console.log('Seed complete:', {
-    clinicId,
+    clinicId: clinic.id,
+    clinicName: clinic.name,
+    clinicSlug: clinic.slug,
     adminEmail: admin.email,
     employeeEmail: employeeUser.email,
   });

@@ -5,18 +5,18 @@ enum Role {
 
 model User {
   id        String   @id @default(uuid())
-  email     String
+  email     String   @unique
   password  String?  // Nullable for Magic Link users
   role      Role     @default(EMPLOYEE)
 
   clinicId  String   @map("clinic_id")
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   employee  Employee?
   magicLinks MagicLink[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([email, clinicId])
   @@index([clinicId])
 }

@@ -58,6 +58,17 @@ export const loginAction = createServerAction()
         return parsed;
     });
 
+export async function logoutAction() {
+    const cookieStore = await cookies();
+    cookieStore.set(AUTH_COOKIE_NAME, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 0,
+        path: "/",
+    });
+}
+
 export const requestMagicLinkAction = createServerAction()
     .input(requestMagicLinkSchema)
     .output(magicLinkResponseSchema)

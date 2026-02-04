@@ -29,6 +29,7 @@
 
 generated: '2026-02-02'
 updated: '2026-02-04'
+# 2026-02-04: Story 1-4 created (ready-for-dev). Clinic, Subscription & StripeEvent Prisma models.
 project: Pawly
 project_key: NOKEY
 tracking_system: file-system
@@ -67,7 +68,7 @@ development_status:
   1-1-monorepo-initialization-modular-prisma-schema: done
   1-2-authentication-backend-jwt-magic-link-logic: done
   1-3-unified-login-interface-zsa-trpc-flow: done
-  1-4-clinic-subscription-stripe-event-prisma-models: backlog
+  1-4-clinic-subscription-stripe-event-prisma-models: done
   1-5-auth-refactor-remove-clinic-id-from-login: backlog
   epic-1-retrospective: optional
 

@@ -17,16 +17,19 @@ model Shift {
   startTime String   @map("start_time")
   endTime   String   @map("end_time")
   type      ShiftType
-  
-  employee  Employee @relation(fields: [employeeId], references: [id])
+
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String  @map("employee_id")
-  
+
   clinicId  String   @map("clinic_id")
-  
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
   isConfirmed Boolean @default(false) @map("is_confirmed")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  varianceEvents VarianceEvent[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
   @@index([employeeId])
@@ -39,14 +42,15 @@ model Absence {
   endDate   DateTime @map("end_date")
   reason    String?
   status    AbsenceStatus @default(PENDING)
-  
-  employee  Employee @relation(fields: [employeeId], references: [id])
+
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String  @map("employee_id")
-  
+
   clinicId  String   @map("clinic_id")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
   @@index([employeeId])
@@ -56,11 +60,12 @@ model PlanningTemplate {
   id        String   @id @default(uuid())
   name      String
   data      Json     // Structure of the typical week
-  
+
   clinicId  String   @map("clinic_id")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
 }
@@ -70,13 +75,15 @@ model VarianceEvent {
   type        String   // e.g., "CLOCK_IN_DEVIATION"
   plannedTime DateTime @map("planned_time")
   actualTime  DateTime @map("actual_time")
-  
+
+  shift       Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   shiftId     String   @map("shift_id")
-  // Relation intentionally loose or strict depending on audit needs
-  
+
   clinicId    String   @map("clinic_id")
-  
-  createdAt   DateTime @default(now())
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([clinicId])
+  @@index([shiftId])
 }

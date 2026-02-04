@@ -14,7 +14,8 @@ model Employee {
   contractHours Int  @default(35) @map("contract_hours")
   
   clinicId  String   @map("clinic_id")
-  
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
   user      User?    @relation(fields: [userId], references: [id])
   userId    String?  @unique @map("user_id")
   
@@ -22,8 +23,8 @@ model Employee {
   absences  Absence[]
   unavailabilities Unavailability[]
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
 }
@@ -39,9 +40,10 @@ model Unavailability {
   employeeId String  @map("employee_id")
   
   clinicId  String   @map("clinic_id")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
   @@index([employeeId])
