@@ -1,0 +1,25 @@
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  unpaid
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  clinicId             String             @unique @map("clinic_id")
+  stripeCustomerId     String             @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  status               SubscriptionStatus @default(trialing)
+  planKey              String             @map("plan_key")
+  entitlementTier      String             @default("starter") @map("entitlement_tier")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  trialEnd             DateTime?          @map("trial_end")
+
+  clinic               Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+}

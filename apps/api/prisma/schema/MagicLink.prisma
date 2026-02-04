@@ -8,8 +8,9 @@ model MagicLink {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   clinicId  String   @map("clinic_id")
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([clinicId])
   @@index([userId])

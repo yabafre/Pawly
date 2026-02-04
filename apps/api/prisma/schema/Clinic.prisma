@@ -1,0 +1,19 @@
+model Clinic {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  onboardingCompleted Boolean  @default(false) @map("onboarding_completed")
+
+  users               User[]
+  employees           Employee[]
+  shifts              Shift[]
+  absences            Absence[]
+  unavailabilities    Unavailability[]
+  magicLinks          MagicLink[]
+  planningTemplates   PlanningTemplate[]
+  varianceEvents      VarianceEvent[]
+  subscription        Subscription?
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+}
