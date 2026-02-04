@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -6,7 +6,6 @@ import { MailService } from '@/modules/mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import type { EnvConfig } from '@/config/index';
 import type { User } from '@prisma/client';
 
@@ -69,16 +68,6 @@ export class AuthService {
             refresh_token: this.jwtService.sign(payload, { expiresIn: REFRESH_TOKEN_EXPIRY }),
             user: safeUser,
         };
-    }
-
-    /**
-     * @deprecated Registration is disabled. Account creation happens exclusively
-     * via Stripe webhook (checkout.session.completed). Will be removed in Story 1.5.
-     */
-    async register(_registerDto: RegisterDto) {
-        throw new ForbiddenException(
-            'Registration is disabled. Account creation happens via subscription checkout.',
-        );
     }
 
     async requestMagicLink(email: string) {
@@ -173,7 +162,7 @@ export class AuthService {
     async refreshToken(token: string) {
         try {
             const payload = this.jwtService.verify(token);
-            const user = await this.prisma.user.findFirst({
+            const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
             });
             if (!user) {

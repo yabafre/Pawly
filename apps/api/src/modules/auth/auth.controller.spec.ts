@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -15,9 +15,6 @@ describe('AuthController', () => {
 
   const mockAuthService = {
     login: jest.fn().mockResolvedValue(mockAuthResponse),
-    register: jest.fn().mockRejectedValue(
-      new ForbiddenException('Registration is disabled. Account creation happens via subscription checkout.'),
-    ),
     requestMagicLink: jest.fn().mockResolvedValue({ message: 'If an account exists, a magic link has been sent' }),
     validateMagicLink: jest.fn().mockResolvedValue(mockAuthResponse),
     refreshToken: jest.fn().mockResolvedValue(mockAuthResponse),
@@ -61,21 +58,6 @@ describe('AuthController', () => {
       const loginDto = { email: 'test@example.com', password: 'wrong' };
 
       await expect(controller.login(loginDto)).rejects.toThrow(UnauthorizedException);
-    });
-  });
-
-  describe('register', () => {
-    it('should throw ForbiddenException (registration disabled)', async () => {
-      const registerDto = {
-        email: 'new@example.com',
-        password: 'Password1',
-        firstName: 'John',
-        lastName: 'Doe',
-        jobType: 'VET' as const,
-      };
-
-      await expect(controller.register(registerDto)).rejects.toThrow(ForbiddenException);
-      expect(service.register).toHaveBeenCalledWith(registerDto);
     });
   });
 

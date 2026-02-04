@@ -4,7 +4,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '@/modules/mail/mail.service';
-import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -17,7 +17,6 @@ describe('AuthService', () => {
   const mockPrismaService = {
     user: {
       findUnique: jest.fn(),
-      findFirst: jest.fn(),
       create: jest.fn(),
     },
     magicLink: {
@@ -250,23 +249,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('register', () => {
-    const registerDto = {
-      email: 'new@example.com',
-      password: 'Password1',
-      firstName: 'John',
-      lastName: 'Doe',
-      jobType: 'VET' as const,
-    };
-
-    it('should throw ForbiddenException (registration disabled)', async () => {
-      await expect(service.register(registerDto)).rejects.toThrow(ForbiddenException);
-      await expect(service.register(registerDto)).rejects.toThrow(
-        'Registration is disabled. Account creation happens via subscription checkout.',
-      );
-    });
-  });
-
   describe('requestMagicLink', () => {
     it('should return success message if user not found (prevent enumeration)', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
@@ -370,6 +352,18 @@ describe('AuthService', () => {
       const result2 = await service.requestMagicLink('yes@example.com');
 
       expect(result1.message).toBe(result2.message);
+    });
+
+    it('should enforce minimum response time for non-existent user (timing attack prevention)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const start = Date.now();
+      await service.requestMagicLink('nonexistent@example.com');
+      const elapsed = Date.now() - start;
+
+      // delayToMinimumResponse enforces 300ms floor to prevent user enumeration via timing
+      expect(elapsed).toBeGreaterThanOrEqual(250); // slight tolerance for CI jitter
+      expect(mockMailService.sendMagicLink).not.toHaveBeenCalled();
     });
 
     it('should throw if email sending fails', async () => {
@@ -526,7 +520,7 @@ describe('AuthService', () => {
       const mockUser = { id: 'user-1', email: 'test@example.com', role: 'ADMIN', clinicId: 'clinic-1' };
 
       mockJwtService.verify.mockReturnValue(mockPayload);
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.refreshToken('valid-refresh-token');
 
@@ -551,7 +545,7 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if user no longer exists', async () => {
       mockJwtService.verify.mockReturnValue({ sub: 'deleted-user' });
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.refreshToken('orphan-token')).rejects.toThrow(
         'Invalid refresh token',
