@@ -34,57 +34,113 @@ story_location: docs/implementation-artifacts
 
 development_status:
   # ===========================================================================
-  # EPIC 1: FONDATION DU PROJET & AUTHENTIFICATION HYBRIDE
-  # Objectif : Établir le socle technique monorepo (Turbo) et sécuriser les accès.
-  # Points clés : Isolation Prisma dans apps/api, flux Zsa/tRPC, et Magic Link Logic.
+  # EPIC 1: AUTHENTICATION & SECURE ACCESS
+  # Objective: Secure access (Password/JWT Admin, Magic Link Employee).
+  # Key Points: Story 1.1 = technical prerequisite, Zsa/tRPC flow, Magic Link Logic.
+  # FRs: FR1 (partial), FR2
   # ===========================================================================
   epic-1: in-progress
-  1-1-initialisation-du-monorepo-schema-prisma-modulaire: done
-  1-2-backend-dauthentification-jwt-magic-link-logic: done
-  1-3-interface-de-connexion-flux-zsatrpc: backlog
+  1-1-monorepo-initialization-modular-prisma-schema: done
+  1-2-authentication-backend-jwt-magic-link-logic: review
+  1-3-unified-login-interface-zsa-trpc-flow: review
   epic-1-retrospective: optional
 
   # ===========================================================================
-  # EPIC 2: GESTION DU PERSONNEL & PROFILS "CLINIQUE ZEN"
-  # Objectif : Gérer le référentiel des employés et leurs contraintes.
-  # Points clés : Multi-tenancy strict (clinicId) et types de contrats (Apprentis).
+  # EPIC 2: STAFF MANAGEMENT & CLINIC CONFIGURATION
+  # Objective: Manage employees, clinic configuration (hours, days, closures),
+  #            configurable planning assistance rules, apprentice school declaration,
+  #            and equity counters.
+  # Key Points: Multi-tenancy (clinicId), configurable rules (not hardcoded),
+  #             monthly school declaration, equity counters (Saturday/weekend/holidays).
+  # FRs: FR1 (user management), FR3, FR7 (partial), FR8 (partial)
   # ===========================================================================
   epic-2: backlog
-  2-1-gestion-des-employes-contrats-crud: backlog
-  2-2-configuration-des-contraintes-declaratives: backlog
+  2-1-employee-contract-management-crud: backlog
+  2-2-declarative-constraints-configuration: backlog
+  2-3-clinic-configuration-hours-days: backlog
+  2-4-monthly-school-day-declaration-apprentices: backlog
+  2-5-planning-assistance-rules-configurable: backlog
+  2-6-equity-counters-management: backlog
   epic-2-retrospective: optional
 
   # ===========================================================================
-  # EPIC 3: MOTEUR DE PLANIFICATION INTELLIGENTE (TEMPLATE + GREEDY)
-  # Objectif : Automatiser la création de plannings valides et sans erreurs.
-  # Points clés : Algorithme Greedy Scoring, vérification des écoles apprentis.
+  # EPIC 3: INTELLIGENT PLANNING ENGINE (TEMPLATE + GREEDY)
+  # Objective: Automate creation of valid schedules (Hard Rules).
+  # Key Points: Greedy Scoring Algorithm, templates, blocking constraints.
+  # FRs: FR4, FR5, FR7
   # ===========================================================================
   epic-3: backlog
-  3-1-definition-des-templates-de-planning-admin: backlog
-  3-2-algorithme-de-generation-greedy-regles-bloquantes: backlog
-  3-3-visualisation-du-planning-indicateurs-de-conflits: backlog
+  3-1-planning-template-definition-admin: backlog
+  3-2-greedy-generation-algorithm-blocking-rules: backlog
+  3-3-schedule-visualization-conflict-indicators: backlog
   epic-3-retrospective: optional
 
   # ===========================================================================
-  # EPIC 4: ARBITRAGE ADMIN & VALIDATION FINALE
-  # Objectif : Permettre la correction humaine et le pilotage de la performance.
-  # Points clés : Health Bar en temps réel, Drag & Drop, et audit de variance.
+  # EPIC 4: ADMIN ARBITRATION & FINAL VALIDATION
+  # Objective: Manual adjustments (drag-drop), Soft Rules and Health Bar.
+  # Key Points: Drag & Drop with dnd-kit, equity alerts, variance audit.
+  # FRs: FR6, FR8
   # ===========================================================================
   epic-4: backlog
-  4-1-ajustement-manuel-du-planning-drag-drop: backlog
-  4-2-gestion-des-alertes-dequite-soft-rules: backlog
-  4-3-workflow-de-demande-et-validation-dabsences: backlog
+  4-1-manual-schedule-adjustment-drag-drop: backlog
+  4-2-equity-alerts-management-soft-rules: backlog
+  4-3-absence-request-validation-workflow: backlog
   4-4-planning-health-bar: backlog
   4-5-admin-variance-view: backlog
   epic-4-retrospective: optional
 
   # ===========================================================================
-  # EPIC 5: PORTAIL EMPLOYÉ PWA & POINTAGE
-  # Objectif : Offrir une expérience mobile fluide pour les équipes terrain.
-  # Points clés : Graceful offline (cache), installation PWA, et pointage AM/PM.
+  # EPIC 5: EMPLOYEE PWA PORTAL & TIME TRACKING
+  # Objective: Mobile experience (offline), presence confirmation, notifications.
+  # Key Points: PWA cache, declarative time tracking, email on publication.
+  # FRs: FR9, FR10
   # ===========================================================================
   epic-5: backlog
-  5-1-consultation-du-planning-personnel-graceful-offline: backlog
-  5-2-pointage-declaratif-varianceevent-tracking: backlog
-  5-3-installation-pwa-email-notifications: backlog
+  5-1-personal-schedule-consultation-graceful-offline: backlog
+  5-2-declarative-time-tracking-variance-event: backlog
+  5-3-pwa-installation-email-notifications: backlog
   epic-5-retrospective: optional
+
+  # ===========================================================================
+  # EPIC 6: INTERNATIONALIZATION (FR/EN)
+  # Objective: Bilingual support with next-intl, locale routing, translation files.
+  # Key Points: Proxy before auth, [locale] routing, SSG locale params.
+  # FRs: FR11
+  # NFRs: NFR20
+  # Dependency: Must be implemented before Epics 7 and 8 (routing prerequisite).
+  # ===========================================================================
+  epic-6: backlog
+  6-1-i18n-foundation-next-intl-routing-proxy: backlog
+  6-2-application-translation-language-switching: backlog
+  epic-6-retrospective: optional
+
+  # ===========================================================================
+  # EPIC 7: SUBSCRIPTION & BILLING (STRIPE)
+  # Objective: Stripe-powered subscription lifecycle (Checkout, Billing Portal,
+  #            webhooks, promos, access control). Server-only in NestJS.
+  # Key Points: HMAC webhook verification, StripeEvent idempotency, raw body parser,
+  #             entitlementTier for feature gating, 100% promo support.
+  # FRs: FR13, FR14, FR15, FR16
+  # NFRs: NFR18, NFR19
+  # Dependency: Depends on Epic 1 (auth) and Epic 6 (i18n routing).
+  # ===========================================================================
+  epic-7: backlog
+  7-1-stripe-module-foundation-webhook-security: backlog
+  7-2-stripe-checkout-clinic-onboarding: backlog
+  7-3-subscription-management-billing-portal: backlog
+  7-4-promotion-codes-100-discount-support: backlog
+  7-5-subscription-based-access-control: backlog
+  epic-7-retrospective: optional
+
+  # ===========================================================================
+  # EPIC 8: PUBLIC LANDING PAGE & ACQUISITION
+  # Objective: SSG public marketing page with pricing, SEO, subscription CTA.
+  # Key Points: generateStaticParams for locales, Lighthouse >= 90, no auth/cookies.
+  # FRs: FR12
+  # NFRs: NFR21, NFR22
+  # Dependency: Depends on Epic 6 (i18n) and Epic 7 (Stripe pricing).
+  # ===========================================================================
+  epic-8: backlog
+  8-1-public-landing-page-ssg-seo-acquisition: backlog
+  8-2-pricing-page: backlog
+  epic-8-retrospective: optional
