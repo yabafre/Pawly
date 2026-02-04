@@ -158,7 +158,7 @@ describe('auth-actions', () => {
         'jwt-token-abc',
         expect.objectContaining({
           httpOnly: true,
-          sameSite: 'lax',
+          sameSite: 'strict',
           maxAge: 86400,
           path: '/',
         }),

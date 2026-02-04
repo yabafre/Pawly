@@ -35,6 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             throw new UnauthorizedException('User not found');
         }
 
+        // Always use current clinicId from DB, not JWT payload, in case user was transferred between clinics
         return { sub: payload.sub, email: payload.email, role: payload.role, clinicId: user.clinicId };
     }
 }

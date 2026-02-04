@@ -3,10 +3,30 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RequestIdInterceptor } from '@/common/interceptors/request-id.interceptor';
 import { TRPCService } from './trpc/trpc.module';
 import type { EnvConfig } from '@/config/index';
+
+// Simple in-memory rate limiter for tRPC endpoints
+function createTrpcRateLimiter(limit: number, windowMs: number) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (req: { ip?: string }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
+    const key = req.ip ?? 'unknown';
+    const now = Date.now();
+    const record = hits.get(key);
+    if (!record || record.resetAt < now) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    record.count++;
+    if (record.count > limit) {
+      return res.status(429).json({ message: 'Too many requests to tRPC endpoint' });
+    }
+    return next();
+  };
+}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -17,7 +37,10 @@ async function bootstrap() {
     });
 
     const configService = app.get(ConfigService<EnvConfig, true>);
-    const port = configService.get('PORT', { infer: true });
+    const port = configService.get('API_PORT', { infer: true });
+
+    // Security headers
+    app.use(helmet());
 
     // Global validation pipe with transformation enabled
     app.useGlobalPipes(
@@ -35,12 +58,16 @@ async function bootstrap() {
     // Enable graceful shutdown
     app.enableShutdownHooks();
 
-    // Enable CORS for dashboard
+    // Enable CORS for dashboard (supports comma-separated origins)
     const webAppUrl = configService.get('WEB_APP_URL', { infer: true });
+    const allowedOrigins = webAppUrl.split(',').map((o: string) => o.trim());
     app.enableCors({
-      origin: webAppUrl,
+      origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
       credentials: true,
     });
+
+    // tRPC rate limiting (10 req/60s per IP — matches global ThrottlerModule config)
+    app.use('/trpc', createTrpcRateLimiter(10, 60_000));
 
     // tRPC Middleware Setup
     const trpcService = app.get(TRPCService);

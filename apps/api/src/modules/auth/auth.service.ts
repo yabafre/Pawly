@@ -132,6 +132,8 @@ export class AuthService {
         });
 
         // Cleanup expired magic links in background (non-blocking)
+        // TODO: Replace with scheduled cron job (e.g., @nestjs/schedule) for reliable cleanup.
+        // If this consistently fails, MagicLink table will grow unbounded.
         this.cleanupExpiredMagicLinks().catch((err) =>
             this.logger.warn('Failed to cleanup expired magic links', err),
         );
@@ -159,6 +161,10 @@ export class AuthService {
         });
     }
 
+    // NOTE: Refresh tokens are stateless JWTs (7d expiry). This means:
+    // - Cannot revoke individual tokens if compromised
+    // - Cannot implement "logout from all devices"
+    // TODO: For production, migrate to database-backed refresh tokens with family chain for theft detection
     async refreshToken(token: string) {
         try {
             const payload = this.jwtService.verify(token);

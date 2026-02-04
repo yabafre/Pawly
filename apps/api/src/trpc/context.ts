@@ -1,11 +1,13 @@
 import type { CreateExpressContextOptions } from '@trpc/server/adapters/express';
 import type { AuthService } from '@/modules/auth/auth.service';
 import type { JwtService } from '@nestjs/jwt';
+import type { PrismaService } from '@/prisma/prisma.service';
 import type { AuthenticatedUser } from '@pawly/types';
 
 export interface TRPCServices {
   authService: AuthService;
   jwtService: JwtService;
+  prisma: PrismaService;
 }
 
 export async function createContext(
@@ -20,12 +22,19 @@ export async function createContext(
     const token = authHeader.substring(7);
     try {
       const payload = services.jwtService.verify(token);
-      user = {
-        sub: payload.sub,
-        email: payload.email,
-        role: payload.role,
-        clinicId: payload.clinicId,
-      };
+      // Validate user still exists in DB — consistent with JwtStrategy behavior on REST endpoints
+      const dbUser = await services.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
+      if (dbUser) {
+        // Always use current clinicId from DB, not JWT payload, in case user was transferred
+        user = {
+          sub: payload.sub,
+          email: payload.email,
+          role: payload.role,
+          clinicId: dbUser.clinicId,
+        };
+      }
     } catch {
       // Invalid token - user remains null
     }

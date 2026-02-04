@@ -10,6 +10,8 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import { JwtService } from '@nestjs/jwt';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { AuthService } from '@/modules/auth/auth.service';
+import { PrismaService } from '@/prisma/prisma.service';
+import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
 import { createContext, type TRPCServices } from './context';
 
@@ -24,11 +26,13 @@ export class TRPCMiddleware implements NestMiddleware {
 
   constructor(
     private readonly authService: AuthService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) {
     const services: TRPCServices = {
       authService: this.authService,
       jwtService: this.jwtService,
+      prisma: this.prisma,
     };
 
     this.middleware = trpcExpress.createExpressMiddleware({
@@ -49,18 +53,18 @@ export class TRPCMiddleware implements NestMiddleware {
 export class TRPCService {
   constructor(
     private readonly authService: AuthService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
   ) { }
 
   /**
    * Get the services to inject into tRPC context
-   *
-   * NOTE: CartValidationService is NOT included - it uses REST for storefront.
    */
   getServices(): TRPCServices {
     return {
       authService: this.authService,
       jwtService: this.jwtService,
+      prisma: this.prisma,
     };
   }
 
@@ -79,7 +83,8 @@ export class TRPCService {
 
 @Module({
   imports: [
-    AuthModule
+    AuthModule,
+    PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],
   exports: [TRPCService, TRPCMiddleware],
