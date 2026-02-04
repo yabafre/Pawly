@@ -51,7 +51,7 @@ export class AuthController {
     @ApiResponse({ status: 429, description: 'Too many requests' })
     @ApiResponse({ status: 500, description: 'Internal server error' })
     async requestMagicLink(@Body() requestMagicLinkDto: RequestMagicLinkDto) {
-        return this.authService.requestMagicLink(requestMagicLinkDto.email, requestMagicLinkDto.clinicId);
+        return this.authService.requestMagicLink(requestMagicLinkDto.email);
     }
 
     @Public()

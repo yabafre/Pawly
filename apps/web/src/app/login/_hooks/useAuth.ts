@@ -5,24 +5,14 @@ import { loginAction, requestMagicLinkAction } from "@/app/login/_actions/auth-a
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { z } from "@pawly/zod";
-import { loginSchema, requestMagicLinkSchema } from "@pawly/validators";
+import { loginSchema } from "@pawly/validators";
 import { useQueryClient } from "@tanstack/react-query";
 
-type LoginFormValues = Omit<z.infer<typeof loginSchema>, "clinicId">;
-type MagicLinkInput = z.infer<typeof requestMagicLinkSchema>;
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export const useAuth = () => {
     const router = useRouter();
     const queryClient = useQueryClient();
-
-    const getClinicId = () => {
-        const rawClinicId = process.env.NEXT_PUBLIC_CLINIC_ID?.trim();
-        const parsed = loginSchema.shape.clinicId.safeParse(rawClinicId);
-        if (!parsed.success) {
-            throw new Error("NEXT_PUBLIC_CLINIC_ID is missing or invalid. Set a valid UUID in your environment.");
-        }
-        return parsed.data;
-    };
 
     const invalidateAuthQueries = async () => {
         await queryClient.invalidateQueries({ queryKey: QueryKeyFactory.auth() });
@@ -39,8 +29,7 @@ export const useAuth = () => {
 
     const login = async (values: LoginFormValues) => {
         try {
-            const clinicId = getClinicId();
-            const [data, err] = await loginMutation.mutateAsync({ ...values, clinicId });
+            const [data, err] = await loginMutation.mutateAsync(values);
 
             if (err) {
                 toast.error(err.message || "Email ou mot de passe incorrect");
@@ -67,9 +56,7 @@ export const useAuth = () => {
 
     const requestMagicLink = async (email: string) => {
         try {
-            const clinicId = getClinicId();
-            const payload: MagicLinkInput = { email, clinicId };
-            const [data, err] = await magicLinkMutation.mutateAsync(payload);
+            const [data, err] = await magicLinkMutation.mutateAsync({ email });
 
             if (err) {
                 toast.error(err.message || "Une erreur est survenue");

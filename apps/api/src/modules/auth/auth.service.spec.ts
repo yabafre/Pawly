@@ -16,6 +16,7 @@ describe('AuthService', () => {
 
   const mockPrismaService = {
     user: {
+      findUnique: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
     },
@@ -86,9 +87,9 @@ describe('AuthService', () => {
         role: 'EMPLOYEE',
         clinicId,
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
-      const result = await service.validateUser(email, password, clinicId);
+      const result = await service.validateUser(email, password);
 
       expect(result).toEqual({
         id: 'user-1',
@@ -100,16 +101,16 @@ describe('AuthService', () => {
     });
 
     it('should return null if user not found', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      const result = await service.validateUser(email, password, clinicId);
+      const result = await service.validateUser(email, password);
 
       expect(result).toBeNull();
     });
 
     it('should return null if password does not match', async () => {
       const hashedPassword = await bcrypt.hash('DifferentPassword1', 10);
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email,
         password: hashedPassword,
@@ -117,13 +118,13 @@ describe('AuthService', () => {
         clinicId,
       });
 
-      const result = await service.validateUser(email, 'WrongPassword1', clinicId);
+      const result = await service.validateUser(email, 'WrongPassword1');
 
       expect(result).toBeNull();
     });
 
     it('should return null if user has no password set', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email,
         password: null,
@@ -131,9 +132,22 @@ describe('AuthService', () => {
         clinicId,
       });
 
-      const result = await service.validateUser(email, password, clinicId);
+      const result = await service.validateUser(email, password);
 
       expect(result).toBeNull();
+    });
+
+    it('should not short-circuit when user not found (timing attack prevention)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const start = Date.now();
+      const result = await service.validateUser(email, password);
+      const elapsed = Date.now() - start;
+
+      expect(result).toBeNull();
+      // bcrypt.compare should run even for non-existent users (~50-200ms).
+      // If the function short-circuited, it would return in <5ms.
+      expect(elapsed).toBeGreaterThanOrEqual(10);
     });
   });
 
@@ -141,8 +155,8 @@ describe('AuthService', () => {
     const loginDto = {
       email: 'test@example.com',
       password: 'Password1',
-      clinicId: '00000000-0000-4000-8000-000000000001',
     };
+    const clinicId = '00000000-0000-4000-8000-000000000001';
 
     it('should return tokens and user on successful login', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
@@ -151,9 +165,9 @@ describe('AuthService', () => {
         email: loginDto.email,
         password: hashedPassword,
         role: 'ADMIN',
-        clinicId: loginDto.clinicId,
+        clinicId,
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.login(loginDto);
 
@@ -166,12 +180,12 @@ describe('AuthService', () => {
 
     it('should include all required fields in JWT payload', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: loginDto.email,
         password: hashedPassword,
         role: 'ADMIN',
-        clinicId: loginDto.clinicId,
+        clinicId,
       });
 
       await service.login(loginDto);
@@ -181,19 +195,19 @@ describe('AuthService', () => {
           email: loginDto.email,
           sub: 'user-1',
           role: 'ADMIN',
-          clinicId: loginDto.clinicId,
+          clinicId,
         }),
       );
     });
 
     it('should generate refresh token with 7d expiry (NFR8)', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: loginDto.email,
         password: hashedPassword,
         role: 'ADMIN',
-        clinicId: loginDto.clinicId,
+        clinicId,
       });
 
       await service.login(loginDto);
@@ -208,12 +222,12 @@ describe('AuthService', () => {
 
     it('should generate access token without explicit expiresIn (uses module default 1d/24h - NFR8)', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: loginDto.email,
         password: hashedPassword,
         role: 'ADMIN',
-        clinicId: loginDto.clinicId,
+        clinicId,
       });
 
       await service.login(loginDto);
@@ -229,7 +243,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException on invalid credentials', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
       await expect(service.login(loginDto)).rejects.toThrow('Invalid credentials');
@@ -255,12 +269,9 @@ describe('AuthService', () => {
 
   describe('requestMagicLink', () => {
     it('should return success message if user not found (prevent enumeration)', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      const result = await service.requestMagicLink(
-        'nonexistent@example.com',
-        '00000000-0000-4000-8000-000000000001',
-      );
+      const result = await service.requestMagicLink('nonexistent@example.com');
 
       expect(result).toEqual({ message: 'If an account exists, a magic link has been sent' });
       expect(mockMailService.sendMagicLink).not.toHaveBeenCalled();
@@ -272,13 +283,10 @@ describe('AuthService', () => {
         email: 'test@example.com',
         clinicId: '00000000-0000-4000-8000-000000000001',
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
 
-      const result = await service.requestMagicLink(
-        'test@example.com',
-        '00000000-0000-4000-8000-000000000001',
-      );
+      const result = await service.requestMagicLink('test@example.com');
 
       expect(prisma.magicLink.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({
@@ -301,10 +309,10 @@ describe('AuthService', () => {
         email: 'test@example.com',
         clinicId: 'clinic-1',
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
 
-      await service.requestMagicLink('test@example.com', 'clinic-1');
+      await service.requestMagicLink('test@example.com');
 
       const createCall = mockPrismaService.magicLink.create.mock.calls[0][0];
       const storedToken = createCall.data.token;
@@ -329,11 +337,11 @@ describe('AuthService', () => {
         email: 'test@example.com',
         clinicId: 'clinic-1',
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
 
       const beforeCreate = Date.now();
-      await service.requestMagicLink('test@example.com', 'clinic-1');
+      await service.requestMagicLink('test@example.com');
       const afterCreate = Date.now();
 
       const createCall = mockPrismaService.magicLink.create.mock.calls[0][0];
@@ -349,17 +357,17 @@ describe('AuthService', () => {
 
     it('should return identical messages for existing and non-existing users', async () => {
       // Non-existing user
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
-      const result1 = await service.requestMagicLink('no@example.com', 'clinic-1');
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      const result1 = await service.requestMagicLink('no@example.com');
 
       // Existing user
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'yes@example.com',
         clinicId: 'clinic-1',
       });
       mockPrismaService.magicLink.create.mockResolvedValue({});
-      const result2 = await service.requestMagicLink('yes@example.com', 'clinic-1');
+      const result2 = await service.requestMagicLink('yes@example.com');
 
       expect(result1.message).toBe(result2.message);
     });
@@ -370,12 +378,12 @@ describe('AuthService', () => {
         email: 'test@example.com',
         clinicId: 'clinic-1',
       };
-      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.magicLink.create.mockResolvedValue({});
       mockMailService.sendMagicLink.mockRejectedValueOnce(new Error('Resend API error'));
 
       await expect(
-        service.requestMagicLink('test@example.com', 'clinic-1'),
+        service.requestMagicLink('test@example.com'),
       ).rejects.toThrow();
     });
   });

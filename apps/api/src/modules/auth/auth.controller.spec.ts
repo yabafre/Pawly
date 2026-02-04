@@ -45,7 +45,7 @@ describe('AuthController', () => {
 
   describe('login', () => {
     it('should call authService.login and return tokens', async () => {
-      const loginDto = { email: 'test@example.com', password: 'Password1', clinicId: 'clinic-1' };
+      const loginDto = { email: 'test@example.com', password: 'Password1' };
 
       const result = await controller.login(loginDto);
 
@@ -58,7 +58,7 @@ describe('AuthController', () => {
 
     it('should propagate UnauthorizedException from service', async () => {
       mockAuthService.login.mockRejectedValueOnce(new UnauthorizedException('Invalid credentials'));
-      const loginDto = { email: 'test@example.com', password: 'wrong', clinicId: 'clinic-1' };
+      const loginDto = { email: 'test@example.com', password: 'wrong' };
 
       await expect(controller.login(loginDto)).rejects.toThrow(UnauthorizedException);
     });
@@ -82,11 +82,10 @@ describe('AuthController', () => {
   describe('requestMagicLink', () => {
     it('should call authService.requestMagicLink and return message', async () => {
       const email = 'test@example.com';
-      const clinicId = '00000000-0000-4000-8000-000000000001';
 
-      const result = await controller.requestMagicLink({ email, clinicId });
+      const result = await controller.requestMagicLink({ email });
 
-      expect(service.requestMagicLink).toHaveBeenCalledWith(email, clinicId);
+      expect(service.requestMagicLink).toHaveBeenCalledWith(email);
       expect(result).toEqual({ message: 'If an account exists, a magic link has been sent' });
     });
   });

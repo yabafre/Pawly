@@ -5,6 +5,13 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { EnvConfig } from '@/config/index';
 
+interface JwtPayload {
+    sub: string;
+    email: string;
+    role: string;
+    clinicId?: string;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     constructor(
@@ -18,15 +25,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
     }
 
-    async validate(payload: any) {
-        const user = await this.prisma.user.findFirst({
-            where: { id: payload.sub, clinicId: payload.clinicId },
+    // TODO: Consider caching user lookups (e.g., Redis with short TTL) to reduce DB load per request
+    async validate(payload: JwtPayload) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: payload.sub },
         });
 
         if (!user) {
-            throw new UnauthorizedException('User no longer belongs to this clinic');
+            throw new UnauthorizedException('User not found');
         }
 
-        return { sub: payload.sub, email: payload.email, role: payload.role, clinicId: payload.clinicId };
+        return { sub: payload.sub, email: payload.email, role: payload.role, clinicId: user.clinicId };
     }
 }

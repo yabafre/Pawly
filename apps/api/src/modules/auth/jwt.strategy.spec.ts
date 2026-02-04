@@ -6,7 +6,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 
 const mockPrismaService = {
   user: {
-    findFirst: jest.fn(),
+    findUnique: jest.fn(),
   },
 };
 
@@ -47,7 +47,7 @@ describe('JwtStrategy', () => {
         clinicId: 'clinic-1',
       };
 
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'test@example.com',
         role: 'ADMIN',
@@ -62,12 +62,12 @@ describe('JwtStrategy', () => {
         role: 'ADMIN',
         clinicId: 'clinic-1',
       });
-      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
-        where: { id: 'user-1', clinicId: 'clinic-1' },
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
       });
     });
 
-    it('should throw UnauthorizedException when user no longer belongs to clinic', async () => {
+    it('should throw UnauthorizedException when user not found', async () => {
       const payload = {
         sub: 'user-abc-123',
         email: 'test@example.com',
@@ -75,9 +75,10 @@ describe('JwtStrategy', () => {
         clinicId: 'clinic-2',
       };
 
-      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(strategy.validate(payload)).rejects.toThrow(UnauthorizedException);
+      await expect(strategy.validate(payload)).rejects.toThrow('User not found');
     });
 
     it('should use sub as the user identifier', async () => {
@@ -88,7 +89,7 @@ describe('JwtStrategy', () => {
         clinicId: 'clinic-2',
       };
 
-      mockPrismaService.user.findFirst.mockResolvedValue({
+      mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-abc-123',
         email: 'test@example.com',
         role: 'EMPLOYEE',
@@ -99,6 +100,46 @@ describe('JwtStrategy', () => {
 
       expect(result.sub).toBe('user-abc-123');
       expect(result).not.toHaveProperty('userId');
+    });
+
+    it('should resolve clinicId from the database user record', async () => {
+      const payload = {
+        sub: 'user-1',
+        email: 'test@example.com',
+        role: 'ADMIN',
+        clinicId: 'old-clinic-id',
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        role: 'ADMIN',
+        clinicId: 'current-clinic-id',
+      });
+
+      const result = await strategy.validate(payload);
+
+      // clinicId should come from DB user record, not from JWT payload
+      expect(result.clinicId).toBe('current-clinic-id');
+      expect(result.clinicId).not.toBe('old-clinic-id');
+    });
+
+    it('should handle JWT payload without clinicId field (backward compatibility)', async () => {
+      const payload = {
+        sub: 'user-1',
+        email: 'test@example.com',
+        role: 'ADMIN',
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        role: 'ADMIN',
+        clinicId: 'db-clinic-id',
+      });
+
+      const result = await strategy.validate(payload as any);
+      expect(result.clinicId).toBe('db-clinic-id');
     });
   });
 });
