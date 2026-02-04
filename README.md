@@ -26,15 +26,14 @@ Pawly/
 │       ├── types/     # TypeScript type definitions
 │       ├── validators/# Shared Zod validators
 │       └── zod/       # Shared Zod schemas
-├── docs/              # Documentation & Implementation Artifacts
-└── docker-compose.yml # Local services (DB, etc.)
+└── docs/              # Documentation & Implementation Artifacts
 ```
 
 ## Prerequisites
 
 - **Node.js** 22 or higher
 - **pnpm** 9.0.0 (package manager)
-- **Docker** and Docker Compose (for PostgreSQL)
+- **Neon.com** account (for PostgreSQL database)
 
 ## Getting Started
 
@@ -53,20 +52,16 @@ Copy the example environment file (if available) or ensure your `.env` is set up
 - `JWT_SECRET`
 - *Note: Check individual app directories for specific `.env.example` files.*
 
-### 3. Start Infrastructure
+### 3. Initialize Database
 
-```bash
-docker-compose up -d
-```
-
-### 4. Initialize Database
+Database is hosted on [Neon.com](https://neon.tech). Make sure `DATABASE_URL` is set in your `.env` file.
 
 ```bash
 pnpm db:generate  # Generate Prisma client
-pnpm db:push      # Run migrations (dev)
+pnpm db:push      # Sync schema to Neon
 ```
 
-### 5. Run Development Servers
+### 4. Run Development Servers
 
 ```bash
 pnpm dev

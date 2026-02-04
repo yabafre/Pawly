@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Bell, Calendar, CheckCircle2, FileText, LogOut, PawPrint } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { logoutAction } from "@/app/login/_actions/auth-actions";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -16,10 +17,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { href: "/admin/requests", icon: CheckCircle2, label: "Demandes" },
     ];
 
-    const handleLogout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        document.cookie = "auth-token=; path=/; max-age=0";
+    const handleLogout = async () => {
+        await logoutAction();
         router.push("/login");
     };
 

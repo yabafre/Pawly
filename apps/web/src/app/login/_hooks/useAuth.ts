@@ -16,10 +16,12 @@ export const useAuth = () => {
     const queryClient = useQueryClient();
 
     const getClinicId = () => {
-        const fallbackClinicId = "00000000-0000-4000-8000-000000000001";
         const rawClinicId = process.env.NEXT_PUBLIC_CLINIC_ID?.trim();
         const parsed = loginSchema.shape.clinicId.safeParse(rawClinicId);
-        return parsed.success ? parsed.data : fallbackClinicId;
+        if (!parsed.success) {
+            throw new Error("NEXT_PUBLIC_CLINIC_ID is missing or invalid. Set a valid UUID in your environment.");
+        }
+        return parsed.data;
     };
 
     const invalidateAuthQueries = async () => {
@@ -36,9 +38,8 @@ export const useAuth = () => {
     });
 
     const login = async (values: LoginFormValues) => {
-        const clinicId = getClinicId();
-
         try {
+            const clinicId = getClinicId();
             const [data, err] = await loginMutation.mutateAsync({ ...values, clinicId });
 
             if (err) {
@@ -47,8 +48,6 @@ export const useAuth = () => {
             }
 
             if (data) {
-                localStorage.setItem("token", data.access_token);
-                localStorage.setItem("user", JSON.stringify(data.user));
                 toast.success("Connexion réussie !");
 
                 if (data.user.role === "ADMIN") {
@@ -67,9 +66,8 @@ export const useAuth = () => {
     };
 
     const requestMagicLink = async (email: string) => {
-        const clinicId = getClinicId();
-
         try {
+            const clinicId = getClinicId();
             const payload: MagicLinkInput = { email, clinicId };
             const [data, err] = await magicLinkMutation.mutateAsync(payload);
 

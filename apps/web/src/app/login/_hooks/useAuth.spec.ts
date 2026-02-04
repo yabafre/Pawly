@@ -57,7 +57,7 @@ describe('useAuth', () => {
   });
 
   describe('login', () => {
-    it('should call login mutation and store tokens on success', async () => {
+    it('should call login mutation and show success toast', async () => {
       const mockData = {
         access_token: 'token123',
         refresh_token: 'refresh123',
@@ -81,31 +81,8 @@ describe('useAuth', () => {
         password: 'password',
         clinicId: '00000000-0000-4000-8000-000000000001',
       });
-      expect(localStorage.getItem('token')).toBe('token123');
+      expect(localStorage.getItem('token')).toBeNull();
       expect(toast.success).toHaveBeenCalledWith('Connexion réussie !');
-    });
-
-    it('should store user data in localStorage on success', async () => {
-      const mockUser = {
-        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        role: 'ADMIN',
-        email: 'test@example.com',
-        clinicId: '00000000-0000-4000-8000-000000000001',
-      };
-      const mockData = {
-        access_token: 'token123',
-        refresh_token: 'refresh123',
-        user: mockUser,
-      };
-      mockMutateAsync.mockResolvedValue([mockData, null]);
-
-      const { result } = renderHook(() => useAuth());
-
-      await act(async () => {
-        await result.current.login({ email: 'test@example.com', password: 'password' });
-      });
-
-      expect(localStorage.getItem('user')).toBe(JSON.stringify(mockUser));
     });
 
     it('should redirect ADMIN users to /admin/planning', async () => {
@@ -163,6 +140,7 @@ describe('useAuth', () => {
 
       expect(toast.error).toHaveBeenCalledWith('Invalid credentials');
       expect(localStorage.getItem('token')).toBeNull();
+      expect(localStorage.getItem('user')).toBeNull();
     });
 
     it('should use default error message when error has no message', async () => {
@@ -216,20 +194,8 @@ describe('useAuth', () => {
       expect(localStorage.getItem('user')).toBeNull();
     });
 
-    it('should use fallback clinic ID when env variable is not set', async () => {
+    it('should show error toast when NEXT_PUBLIC_CLINIC_ID is not set', async () => {
       delete process.env.NEXT_PUBLIC_CLINIC_ID;
-
-      const mockData = {
-        access_token: 'token',
-        refresh_token: 'refresh',
-        user: {
-          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-          role: 'ADMIN',
-          email: 'test@test.com',
-          clinicId: '00000000-0000-4000-8000-000000000001',
-        },
-      };
-      mockMutateAsync.mockResolvedValue([mockData, null]);
 
       const { result } = renderHook(() => useAuth());
 
@@ -237,11 +203,8 @@ describe('useAuth', () => {
         await result.current.login({ email: 'test@test.com', password: 'pass' });
       });
 
-      expect(mockMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clinicId: '00000000-0000-4000-8000-000000000001',
-        }),
-      );
+      expect(toast.error).toHaveBeenCalledWith('Une erreur inattendue est survenue');
+      expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
 
