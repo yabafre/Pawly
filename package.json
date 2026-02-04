@@ -16,7 +16,7 @@
     "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed"
   },
   "devDependencies": {
-    "turbo": "^latest",
+    "turbo": "^2.8.1",
     "prettier": "^3.4.2",
     "dotenv-cli": "^8.0.0"
   },

@@ -1,13 +1,9 @@
-// Shared TypeScript types for Pawly
-export type Role = "ADMIN" | "EMPLOYEE";
+/**
+ * @pawly/types
+ *
+ * Canonical TypeScript types for the Pawly platform.
+ * All shared interfaces and types MUST be defined here.
+ */
 
-export interface User {
-  id: string;
-  email: string;
-  role: Role;
-  clinicId: string;
-}
-
-export interface ClinicContext {
-  clinicId: string;
-}
+export * from "./auth";
+export * from "./common";

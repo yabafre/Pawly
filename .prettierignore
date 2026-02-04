@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+.next
+coverage
+
+# Generated files
+*.generated.*
+pnpm-lock.yaml
+
+# Other
+.turbo
+.cache
+
+# BMAD workflow files (external tooling)
+_bmad
+_bmad-output
+
+# Claude and IDE config
+.claude
+.agent
+.gemini
+.codex
+.windsurf
+.mcp.json
+.agentvibes

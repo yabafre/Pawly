@@ -5,6 +5,12 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "exports": {
+    "./trpc-types": {
+      "types": "./dist/src/trpc-types.d.ts",
+      "default": "./dist/src/trpc-types.js"
+    }
+  },
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
@@ -29,11 +35,13 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.5",
+    "@nestjs/throttler": "^6.5.0",
     "@pawly/types": "workspace:*",
     "@pawly/validators": "workspace:*",
     "@pawly/zod": "workspace:*",
@@ -54,7 +62,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.9.1",
     "rxjs": "^7.8.1",
-    "zod": "^3.23.8"
+    "superjson": "^2.2.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -64,11 +72,13 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
+    "@types/express-serve-static-core": "^5.1.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.16.0",
+    "@types/qs": "^6.14.0",
     "@types/react": "^19",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
@@ -103,6 +113,12 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)sx?$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1",
+      "^@pawly/validators$": "<rootDir>/../../../packages/validators/src/index.ts",
+      "^@pawly/zod$": "<rootDir>/../../../packages/zod/src/index.ts",
+      "^@pawly/types$": "<rootDir>/../../../packages/types/src/index.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

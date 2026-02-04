@@ -20,7 +20,9 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@pawly/validators": "workspace:*"
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.16",
     "typescript": "^5.7.3",
