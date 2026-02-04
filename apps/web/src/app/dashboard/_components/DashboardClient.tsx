@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
     ArrowRight,
     Briefcase,
@@ -223,30 +222,11 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
 };
 
 export const DashboardClient = () => {
-    const router = useRouter();
-    const [isAuthChecked, setIsAuthChecked] = useState(false);
     const [employeeView, setEmployeeView] = useState<"dashboard" | "request">("dashboard");
-
-    useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (!token) {
-            router.replace("/login");
-            return;
-        }
-        setIsAuthChecked(true);
-    }, [router]);
 
     const handleRequestSubmit = () => {
         setEmployeeView("dashboard");
     };
-
-    if (!isAuthChecked) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD]">
-                <div className="w-8 h-8 border-2 border-neutral-300 border-t-neutral-900 rounded-full animate-spin" />
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans text-neutral-900">

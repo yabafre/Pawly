@@ -39,7 +39,12 @@ export class AuthService {
 
     async validateUser(email: string, pass: string, clinicId: string): Promise<any> {
         const user = await this.prisma.user.findFirst({ where: { email, clinicId } });
-        if (user && user.password && (await bcrypt.compare(pass, user.password))) {
+
+        // Always run bcrypt.compare to prevent timing-based user enumeration
+        const dummyHash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewKyNiGWxYLx.UPi';
+        const isValid = await bcrypt.compare(pass, user?.password ?? dummyHash);
+
+        if (user && user.password && isValid) {
             const { password, ...result } = user;
             return result;
         }
@@ -159,10 +164,13 @@ export class AuthService {
                 where: { id: payload.sub },
             });
             if (!user) {
+                this.logger.warn(`Refresh token: user not found for sub=${payload.sub}`);
                 throw new UnauthorizedException('Invalid refresh token');
             }
             return this.generateToken(user);
-        } catch {
+        } catch (error) {
+            if (error instanceof UnauthorizedException) throw error;
+            this.logger.warn('Refresh token verification failed', error instanceof Error ? error.message : error);
             throw new UnauthorizedException('Invalid or expired refresh token');
         }
     }

@@ -1,6 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
+import { PrismaService } from '@/prisma/prisma.service';
+
+const mockPrismaService = {
+  user: {
+    findFirst: jest.fn(),
+  },
+};
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -15,10 +23,15 @@ describe('JwtStrategy', () => {
             get: jest.fn().mockReturnValue('test-jwt-secret'),
           },
         },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
       ],
     }).compile();
 
     strategy = module.get<JwtStrategy>(JwtStrategy);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -26,7 +39,7 @@ describe('JwtStrategy', () => {
   });
 
   describe('validate', () => {
-    it('should extract user fields from valid JWT payload', async () => {
+    it('should return user fields from valid JWT payload when user exists', async () => {
       const payload = {
         sub: 'user-1',
         email: 'test@example.com',
@@ -34,17 +47,27 @@ describe('JwtStrategy', () => {
         clinicId: 'clinic-1',
       };
 
-      const result = await strategy.validate(payload);
-
-      expect(result).toEqual({
-        userId: 'user-1',
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-1',
         email: 'test@example.com',
         role: 'ADMIN',
         clinicId: 'clinic-1',
       });
+
+      const result = await strategy.validate(payload);
+
+      expect(result).toEqual({
+        sub: 'user-1',
+        email: 'test@example.com',
+        role: 'ADMIN',
+        clinicId: 'clinic-1',
+      });
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { id: 'user-1', clinicId: 'clinic-1' },
+      });
     });
 
-    it('should map sub to userId', async () => {
+    it('should throw UnauthorizedException when user no longer belongs to clinic', async () => {
       const payload = {
         sub: 'user-abc-123',
         email: 'test@example.com',
@@ -52,28 +75,30 @@ describe('JwtStrategy', () => {
         clinicId: 'clinic-2',
       };
 
-      const result = await strategy.validate(payload);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
-      expect(result.userId).toBe('user-abc-123');
-      expect(result).not.toHaveProperty('sub');
+      await expect(strategy.validate(payload)).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should handle payload with undefined fields gracefully', async () => {
+    it('should use sub as the user identifier', async () => {
       const payload = {
-        sub: undefined,
-        email: undefined,
-        role: undefined,
-        clinicId: undefined,
+        sub: 'user-abc-123',
+        email: 'test@example.com',
+        role: 'EMPLOYEE',
+        clinicId: 'clinic-2',
       };
+
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-abc-123',
+        email: 'test@example.com',
+        role: 'EMPLOYEE',
+        clinicId: 'clinic-2',
+      });
 
       const result = await strategy.validate(payload);
 
-      expect(result).toEqual({
-        userId: undefined,
-        email: undefined,
-        role: undefined,
-        clinicId: undefined,
-      });
+      expect(result.sub).toBe('user-abc-123');
+      expect(result).not.toHaveProperty('userId');
     });
   });
 });

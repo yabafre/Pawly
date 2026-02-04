@@ -546,7 +546,7 @@ describe('AuthService', () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(service.refreshToken('orphan-token')).rejects.toThrow(
-        'Invalid or expired refresh token',
+        'Invalid refresh token',
       );
     });
   });

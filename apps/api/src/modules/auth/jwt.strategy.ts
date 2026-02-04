@@ -1,12 +1,16 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '@/prisma/prisma.service';
 import type { EnvConfig } from '@/config/index';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-    constructor(configService: ConfigService<EnvConfig, true>) {
+    constructor(
+        configService: ConfigService<EnvConfig, true>,
+        private readonly prisma: PrismaService,
+    ) {
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
@@ -15,6 +19,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: any) {
-        return { userId: payload.sub, email: payload.email, role: payload.role, clinicId: payload.clinicId };
+        const user = await this.prisma.user.findFirst({
+            where: { id: payload.sub, clinicId: payload.clinicId },
+        });
+
+        if (!user) {
+            throw new UnauthorizedException('User no longer belongs to this clinic');
+        }
+
+        return { sub: payload.sub, email: payload.email, role: payload.role, clinicId: payload.clinicId };
     }
 }
