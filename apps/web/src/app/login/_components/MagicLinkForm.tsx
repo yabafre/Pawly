@@ -74,13 +74,15 @@ export const MagicLinkForm = () => {
                             type="email"
                             placeholder="nom@clinique.fr"
                             required
+                            aria-invalid={field.state.meta.errors.length > 0}
+                            aria-describedby={field.state.meta.errors.length > 0 ? `${field.name}-error` : undefined}
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             onBlur={field.handleBlur}
-                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-11 transition-all focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                         />
                         {field.state.meta.errors.length > 0 && (
-                            <p className="text-[11px] text-orange-600">{field.state.meta.errors[0]}</p>
+                            <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">{field.state.meta.errors[0]}</p>
                         )}
                         <p className="text-[11px] text-neutral-400 mt-2">
                             Recommandé pour les employés. Sans mot de passe, plus sécurisé.

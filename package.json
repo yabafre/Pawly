@@ -20,6 +20,11 @@
     "prettier": "^3.4.2",
     "dotenv-cli": "^8.0.0"
   },
+  "pnpm": {
+    "overrides": {
+      "zod": "4.3.6"
+    }
+  },
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=22"

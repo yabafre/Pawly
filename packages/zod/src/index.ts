@@ -8,4 +8,4 @@
  *   import { z } from '@pawly/zod'
  */
 export { z } from 'zod'
-export type { ZodTypeAny, ZodType, ZodSchema, infer as ZodInfer } from 'zod'
+export type { ZodType, infer as ZodInfer } from 'zod'

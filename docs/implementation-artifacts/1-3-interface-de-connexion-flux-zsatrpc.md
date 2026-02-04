@@ -1,6 +1,6 @@
 # Story 1.3: Interface de Connexion & Flux Zsa/tRPC
 
-Status: review (needs refactor in Story 1.5)
+Status: done (needs refactor in Story 1.5)
 
 ## Story
 
@@ -175,6 +175,17 @@ Gemini 2.0 Flash
 - Hardened clinicId resolution to avoid missing identifier errors (fallback when env missing/invalid).
 - Restyled login forms to match the operational UI direction (indigo accents, neutral CTA, black logo).
 - **2026-02-04**: Story documentation updated to reflect PRD/Architecture changes. Added i18n route migration plan (Epic 6), subscription guard requirements (Epic 7), accessibility requirements (NFR14-NFR17), and future extension points.
+- **2026-02-04**: Adversarial code review completed (Claude Opus 4.5). 16 issues fixed:
+  - **C1**: Created missing `trpc-types.ts` export file.
+  - **C2**: Added auth guards to `/admin` layout and `/dashboard` (localStorage token check + redirect).
+  - **C3**: Added JWT propagation via httpOnly cookies (server actions set cookie, tRPC client reads it). Added `superjson` transformer to tRPC client.
+  - **C5/C6/H7/M5**: Added 71 tests across 4 spec files (auth-actions, magic-link-actions, useAuth, useMagicLinkCallback).
+  - **H1/H2**: Fixed touch targets (h-12 = 48px) and ARIA attributes (aria-invalid, aria-describedby, role="alert").
+  - **H3**: Replaced DOM manipulation with React state lifting (tab switching via props).
+  - **H4**: Configured React Query defaults (staleTime, refetchOnWindowFocus, retry).
+  - **H5/M2**: Improved error code extraction and network error detection.
+  - **Zod migration**: Upgraded from Zod 3.23.8 to 4.3.6 (single version, native v4 API). Fixed all UUID test data for Zod 4 strict validation.
+  - **C4 (DEFERRED)**: Hardcoded fallback clinicId is planned technical debt for Story 1.5.
 
 ### File List
 
@@ -231,3 +242,8 @@ Gemini 2.0 Flash
 - `packages/validators/src/index.ts` (Modified)
 - `packages/zod/package.json` (Modified)
 - `pnpm-lock.yaml` (Modified)
+- `apps/web/src/app/login/_actions/auth-actions.spec.ts` (New — code review)
+- `apps/web/src/app/auth/callback/_actions/magic-link-actions.spec.ts` (New — code review)
+- `apps/web/src/app/auth/callback/_hooks/useMagicLinkCallback.spec.ts` (New — code review)
+- `apps/api/prisma/seed.ts` (Modified — UUID fix for Zod 4)
+- `packages/zod/src/index.ts` (Modified — Zod 4.3.6 native)

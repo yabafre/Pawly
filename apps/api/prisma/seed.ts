@@ -10,7 +10,7 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const SEED = {
-  clinicId: '00000000-0000-0000-0000-000000000001',
+  clinicId: '00000000-0000-4000-8000-000000000001',
   adminEmail: 'admin@pawly.local',
   adminPassword: 'Admin123!',
   employeeEmail: 'employee@pawly.local',

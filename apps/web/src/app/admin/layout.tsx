@@ -1,14 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Calendar, CheckCircle2, FileText, LogOut, PawPrint } from "lucide-react";
+import { Bell, Calendar, CheckCircle2, FileText, Loader2, LogOut, PawPrint } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
+    const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            router.replace("/login");
+            return;
+        }
+        setIsAuthChecked(true);
+    }, [router]);
 
     const navItems = [
         { href: "/admin/dashboard", icon: FileText, label: "Dashboard" },
@@ -21,6 +32,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         localStorage.removeItem("user");
         router.push("/login");
     };
+
+    if (!isAuthChecked) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD]">
+                <Loader2 className="w-8 h-8 text-neutral-400 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans text-neutral-900">

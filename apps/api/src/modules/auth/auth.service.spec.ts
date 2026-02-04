@@ -75,7 +75,7 @@ describe('AuthService', () => {
   describe('validateUser', () => {
     const email = 'test@example.com';
     const password = 'Password1';
-    const clinicId = '00000000-0000-0000-0000-000000000001';
+    const clinicId = '00000000-0000-4000-8000-000000000001';
 
     it('should return user without password if credentials are valid', async () => {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -141,7 +141,7 @@ describe('AuthService', () => {
     const loginDto = {
       email: 'test@example.com',
       password: 'Password1',
-      clinicId: '00000000-0000-0000-0000-000000000001',
+      clinicId: '00000000-0000-4000-8000-000000000001',
     };
 
     it('should return tokens and user on successful login', async () => {
@@ -259,7 +259,7 @@ describe('AuthService', () => {
 
       const result = await service.requestMagicLink(
         'nonexistent@example.com',
-        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
       );
 
       expect(result).toEqual({ message: 'If an account exists, a magic link has been sent' });
@@ -270,20 +270,20 @@ describe('AuthService', () => {
       const mockUser = {
         id: 'user-1',
         email: 'test@example.com',
-        clinicId: '00000000-0000-0000-0000-000000000001',
+        clinicId: '00000000-0000-4000-8000-000000000001',
       };
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       mockPrismaService.magicLink.create.mockImplementation(({ data }) => Promise.resolve(data));
 
       const result = await service.requestMagicLink(
         'test@example.com',
-        '00000000-0000-0000-0000-000000000001',
+        '00000000-0000-4000-8000-000000000001',
       );
 
       expect(prisma.magicLink.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({
           userId: 'user-1',
-          clinicId: '00000000-0000-0000-0000-000000000001',
+          clinicId: '00000000-0000-4000-8000-000000000001',
           token: expect.any(String),
         }),
       }));

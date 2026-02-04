@@ -8,7 +8,11 @@ import { useAuth } from "@/app/login/_hooks/useAuth";
 import { ArrowRight } from "lucide-react";
 import { loginSchema } from "@pawly/validators";
 
-export const PasswordForm = () => {
+type PasswordFormProps = {
+    onSwitchToMagicLink: () => void;
+};
+
+export const PasswordForm = ({ onSwitchToMagicLink }: PasswordFormProps) => {
     const { login, isLoginPending } = useAuth();
 
     const form = useForm({
@@ -46,13 +50,15 @@ export const PasswordForm = () => {
                             type="email"
                             placeholder="admin@clinique.fr"
                             required
+                            aria-invalid={field.state.meta.errors.length > 0}
+                            aria-describedby={field.state.meta.errors.length > 0 ? `${field.name}-error` : undefined}
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             onBlur={field.handleBlur}
-                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-11 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                         />
                         {field.state.meta.errors.length > 0 && (
-                            <p className="text-[11px] text-orange-600">{field.state.meta.errors[0]}</p>
+                            <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">{field.state.meta.errors[0]}</p>
                         )}
                     </div>
                 )}
@@ -72,7 +78,7 @@ export const PasswordForm = () => {
                             <Label htmlFor={field.name} className="text-neutral-900 font-medium">Mot de passe</Label>
                             <button
                                 type="button"
-                                onClick={() => document.querySelector<HTMLButtonElement>('[value="magic"]')?.click()}
+                                onClick={onSwitchToMagicLink}
                                 className="text-xs text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                             >
                                 Oublié ?
@@ -82,13 +88,15 @@ export const PasswordForm = () => {
                             id={field.name}
                             type="password"
                             required
+                            aria-invalid={field.state.meta.errors.length > 0}
+                            aria-describedby={field.state.meta.errors.length > 0 ? `${field.name}-error` : undefined}
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             onBlur={field.handleBlur}
-                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-11 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                         />
                         {field.state.meta.errors.length > 0 && (
-                            <p className="text-[11px] text-orange-600">{field.state.meta.errors[0]}</p>
+                            <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">{field.state.meta.errors[0]}</p>
                         )}
                     </div>
                 )}

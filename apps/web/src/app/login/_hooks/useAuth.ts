@@ -16,7 +16,7 @@ export const useAuth = () => {
     const queryClient = useQueryClient();
 
     const getClinicId = () => {
-        const fallbackClinicId = "00000000-0000-0000-0000-000000000001";
+        const fallbackClinicId = "00000000-0000-4000-8000-000000000001";
         const rawClinicId = process.env.NEXT_PUBLIC_CLINIC_ID?.trim();
         const parsed = loginSchema.shape.clinicId.safeParse(rawClinicId);
         return parsed.success ? parsed.data : fallbackClinicId;
@@ -58,7 +58,11 @@ export const useAuth = () => {
                 }
             }
         } catch (error) {
-            toast.error("Une erreur inattendue est survenue");
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error("Problème de connexion au serveur");
+            } else {
+                toast.error("Une erreur inattendue est survenue");
+            }
         }
     };
 
@@ -78,7 +82,11 @@ export const useAuth = () => {
                 toast.success("Lien de connexion envoyé !");
             }
         } catch (error) {
-            toast.error("Impossible d'envoyer le lien");
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error("Problème de connexion au serveur");
+            } else {
+                toast.error("Impossible d'envoyer le lien");
+            }
         }
     };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PawlyLogo } from "@/components/pawly-logo";
@@ -8,6 +9,8 @@ import { MagicLinkForm } from "./MagicLinkForm";
 import { PasswordForm } from "./PasswordForm";
 
 export const LoginPageClient = () => {
+    const [activeTab, setActiveTab] = useState("magic");
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden">
             {/* Background Ambient Layers */}
@@ -30,7 +33,7 @@ export const LoginPageClient = () => {
                         </CardDescription>
                     </CardHeader>
 
-                    <Tabs defaultValue="magic" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="px-6">
                             <TabsList className="grid w-full grid-cols-2 bg-neutral-100 p-1 h-12 rounded-full">
                                 <TabsTrigger value="magic" className="rounded-full data-[state=active]:bg-neutral-900 data-[state=active]:text-white data-[state=active]:shadow-md">
@@ -50,7 +53,7 @@ export const LoginPageClient = () => {
 
                         <TabsContent value="password" className="animate-in fade-in-50 duration-500">
                             <div className="px-6 pb-6">
-                                <PasswordForm />
+                                <PasswordForm onSwitchToMagicLink={() => setActiveTab("magic")} />
                             </div>
                         </TabsContent>
                     </Tabs>

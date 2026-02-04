@@ -82,7 +82,7 @@ describe('AuthController', () => {
   describe('requestMagicLink', () => {
     it('should call authService.requestMagicLink and return message', async () => {
       const email = 'test@example.com';
-      const clinicId = '00000000-0000-0000-0000-000000000001';
+      const clinicId = '00000000-0000-4000-8000-000000000001';
 
       const result = await controller.requestMagicLink({ email, clinicId });
 

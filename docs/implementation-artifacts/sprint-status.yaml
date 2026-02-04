@@ -36,6 +36,11 @@ story_location: docs/implementation-artifacts
 
 # =============================================================================
 # CHANGE LOG:
+# 2026-02-04: Adversarial code review of Story 1-3 completed. 16 issues fixed.
+#   Stories 1-2 and 1-3 moved from review → done.
+#   Zod migrated from 3.23.8 → 4.3.6 (single version, zod/v3 compat not needed).
+#   All UUIDs updated to RFC-compliant format for Zod 4 strict validation.
+#   Total: 112 tests passing (71 web + 41 API). Build green.
 # 2026-02-04: MAJOR REWRITE — Epic reordering (Option B: Stripe = Registration).
 #   Old → New mapping:
 #     Epic 1 (Auth)       → Epic 1 (Technical Foundation) + NEW stories 1.4, 1.5
@@ -46,7 +51,7 @@ story_location: docs/implementation-artifacts
 #     Epic 3 (Planning)   → Epic 6 (Planning Engine)
 #     Epic 4 (Admin)      → Epic 7 (Admin Arbitration)
 #     Epic 5 (PWA)        → Epic 8 (Employee PWA)
-#   Stories 1.1 = done, 1.2 = review, 1.3 = review.
+#   Stories 1.1 = done, 1.2 = done, 1.3 = done.
 #   Added FR17, FR18. Removed clinicId from login. Registration = Stripe only.
 # =============================================================================
 
@@ -55,13 +60,13 @@ development_status:
   # EPIC 1: TECHNICAL FOUNDATION
   # Objective: Monorepo, Prisma schema, hybrid auth, login UI, Clinic model,
   #            auth refactor (clinicId from DB).
-  # Stories 1.1-1.3: DONE/REVIEW. Stories 1.4-1.5: NEW (backlog).
+  # Stories 1.1-1.3: DONE. Stories 1.4-1.5: NEW (backlog).
   # FRs: FR1 (partial), FR2, FR17 (partial — models)
   # ===========================================================================
   epic-1: in-progress
   1-1-monorepo-initialization-modular-prisma-schema: done
-  1-2-authentication-backend-jwt-magic-link-logic: review
-  1-3-unified-login-interface-zsa-trpc-flow: review
+  1-2-authentication-backend-jwt-magic-link-logic: done
+  1-3-unified-login-interface-zsa-trpc-flow: done
   1-4-clinic-subscription-stripe-event-prisma-models: backlog
   1-5-auth-refactor-remove-clinic-id-from-login: backlog
   epic-1-retrospective: optional
