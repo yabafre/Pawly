@@ -32,7 +32,7 @@ Pawly/
 
 ## Prerequisites
 
-- **Node.js** 18 or higher
+- **Node.js** 22 or higher
 - **pnpm** 9.0.0 (package manager)
 - **Docker** and Docker Compose (for PostgreSQL)
 

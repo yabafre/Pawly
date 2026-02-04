@@ -10,8 +10,6 @@ inputDocuments: ['docs/implementation-artifacts/tech-spec-pawly-mvp-planning-pwa
 
 ---
 
-<!-- UX design content will be appended sequentially through collaborative workflow steps -->
-
 ## Executive Summary
 
 ### Project Vision
@@ -117,7 +115,7 @@ The core experience is bifurcated by role:
 
 ## Design System Foundation
 
-### 1.1 Design System Choice
+### Design System Choice
 **Themeable System: shadcn/ui + Tailwind CSS v4**.
 We will build upon the **shadcn/ui** primitive library (Radix UI + Tailwind), adapted to the "Clinique Zen" visual identity.
 
@@ -144,28 +142,28 @@ We will build upon the **shadcn/ui** primitive library (Radix UI + Tailwind), ad
 *   **Backgrounds:** **Surgical White (`#FFFFFF`)** cards on **Neutral Wash (`#FDFDFD`)** app background.
 *   **Visual Reference:** A dedicated "Brand Board" component serves as the living style guide for developers.
 
-## 2. Core User Experience
+## Core User Experience (Detailed Mechanics)
 
-### 2.1 Defining Experience
+### Defining Experience (Admin Focus)
 **"The Staff-Grid Negotiation"** (Admin-side).
 The core interaction is the tactile negotiation between the Admin's intent and the System's constraints. It is a "Tetris Game" where the Admin refines a pre-filled schedule on a visual grid. If we nail the fluidity and feedback of this grid, the product succeeds.
 
-### 2.2 User Mental Model
+### User Mental Model
 *   **Current State (Excel):** A static grid where the Admin must mentally calculate every constraint ("Is she sick? Is he overtime?"). High cognitive load.
 *   **Pawly State (Smart Board):** A responsive grid where the system acts as a real-time referee. "I drag a shift, and the system tells me if it fits."
 *   **Shift:** The system shifts the mental model from "Data Entry" to "Decision Making."
 
-### 2.3 Success Criteria
+### Success Criteria
 *   **Zero Latency:** Dragging a shift must feel instant (Optimistic UI). No spinners on drop.
 *   **Clear Consequence:** Every action immediately impacts the "Health Bar" (Global Status).
 *   **Visual Logic:** Shifts "snap" to valid slots or visually bounce back/shake from blocked ones (Hard Rules).
 
-### 2.4 Novel UX Patterns
+### Novel UX Patterns
 *   **Established:** Standard Drag & Drop (Google Calendar style).
 *   **Novelty:** The **"Planning Health Bar"** feedback loop. Instead of just managing time, the user is managing a score (Conflicts/Warnings). We gamify the completion of the schedule.
 *   **Visual "Holes":** Explicitly rendering "Empty slots that *need* filling" as active UI elements (red/orange outlines), prompting action.
 
-### 2.5 Experience Mechanics
+### Experience Mechanics
 1.  **Initiation:** Admin opens the planning view. The "Greedy Algorithm" has already placed 90% of shifts. The user sees clearly marked "Holes" and a Health Bar showing "3 Errors, 5 Warnings."
 2.  **Interaction:** Admin spots a "Hole" on Thursday. Drags "Dr. Martin" from the sidebar (or another slot) towards the hole.
 3.  **Feedback (The "Why"):**
@@ -401,3 +399,227 @@ We follow **Tailwind CSS default breakpoints** but add specific logic for the Gr
 ### Testing Strategy
 *   **Responsive:** Verify "One-Thumb" reachability on actual iOS/Android devices for the Employee portal. Ensure the Staff-Grid doesn't break on 13" laptops.
 *   **Accessibility:** Run `axe-core` automated scans on all pages. Perform manual "Keyboard-Only" test runs for the entire schedule generation flow.
+
+## Admin & Employee Direction (Operational UI)
+
+**Purpose:** Align the Admin and Employee experiences with a calm, data-dense operational UI inspired by the latest design direction.
+
+### Visual Tokens (Operational Layer)
+*   **Primary Action:** Electric Indigo (`#4F46E5`) for planning actions and active states.
+*   **Secondary Action:** Vital Orange (`#F97316`) for warnings and attention states.
+*   **Validation / Medical Trust:** Vet Teal (`#009588`) remains the semantic color for validation and care.
+*   **Surface:** Surgical White on Neutral Wash (`#FFFFFF` / `#FDFDFD`) with soft shadows.
+
+### Layout & Components
+*   **Top Bar:** Sticky, blurred, minimal. Brand mark in Neutral-900 and subtle notification affordances.
+*   **Tab Pills:** Rounded, bold, high-contrast active state (Neutral-900) with soft shadows.
+*   **Cards:** Rounded-3xl, light borders, low-contrast shadows for a clinical calm feel.
+*   **Planning Grid:** Dense, structured grid with dashed separators and interactive shift chips.
+*   **Employee Dashboard:** Two-up shortcut cards + "Today" focus card + upcoming list.
+*   **Absence Requests:** Card-based list with emoji avatars and badge-based statuses.
+*   **Login Surface:** Single centered card with tabbed auth. Logo in Neutral-900, indigo accents for interactive elements, primary CTA in Neutral-900, success state in Indigo wash.
+
+### Motion & Feedback
+*   **Micro-motion:** Subtle scale/opacity on hover. Avoid high-frequency animation.
+*   **Status:** Use badges and small pulse dots for "today" or "action required" states.
+
+---
+
+## Vision Mockups Reference
+
+**Note:** A React-based vision mockup exists demonstrating the Admin Planning Grid, Employee Dashboard, and Absence Request flows. This mockup serves as a **visual direction reference** (not a final implementation). Key components demonstrated:
+
+### Admin View (Desktop)
+- **Planning Grid:** Staff rows × Day columns with ShiftCell components (CHIR, ACC, OFF, ECOLE, VAC)
+- **Tab Navigation:** Dashboard | Planning | Requests with pill-style buttons
+- **Auto-Generate Button:** Primary CTA with sparkle icon for algorithm trigger
+
+### Employee View (Mobile)
+- **Today Card:** Current shift with confirmation action (Check icon → CheckCircle2 on confirm)
+- **Stats Card:** Weekly hours progress with visual bar
+- **Absence Request Shortcut:** Dashed card CTA to request flow
+- **Upcoming List:** Next days preview with shift type icons and status badges
+
+### Absence Request Flow
+- **Type Selection:** Grid of 4 types (Leave, Sick, School, Child) with icons
+- **Date Selection:** Calendar-based picker
+- **Submit CTA:** Full-width primary button
+
+### Brand System
+- **Logo:** PawPrint icon in Neutral-900 square (rounded-xl)
+- **App Name:** "Pawly" (extrabold, tracking-tight)
+- **Design System:** "Clean Care" v1.1 aligned with "Clinique Zen" principles
+
+---
+
+## Visual Patterns & Micro-Copy Reference
+
+This section provides implementation-ready visual specifications extracted from the design system and vision mockups.
+
+### Shift Type Visual Patterns
+
+| Shift Code | Label | Hours | Color Class | Icon |
+|------------|-------|-------|-------------|------|
+| `CHIR` | Surgery | 8:30am - 6:30pm | `bg-indigo-50 border-indigo-100 text-indigo-700` | `Briefcase` |
+| `ACC` | Reception | 9:00am - 7:30pm | `bg-orange-50 border-orange-100 text-orange-700` | `Users` |
+| `OFF` | Day Off | - | `bg-white border-neutral-100 text-neutral-300` | `Palmtree` |
+| `FORM`/`SCHOOL` | Training/School | School | `bg-neutral-100 border-neutral-200 text-neutral-600` | `GraduationCap` |
+| `SICK` | Sick Leave | - | `bg-rose-50 border-rose-100 text-rose-700` | `Thermometer` |
+| `VAC` | Vacation | - | `bg-emerald-50 border-emerald-100 text-emerald-700` | `Plane` |
+
+### Badge Component Patterns
+
+```css
+/* Base Badge Style */
+.badge {
+  padding: 6px 12px; /* px-3 py-1.5 */
+  border-radius: 9999px; /* rounded-full */
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em; /* tracking-wide */
+  text-transform: uppercase;
+}
+
+/* Badge Color Variants */
+.badge-neutral { background: #F5F5F5; color: #525252; }
+.badge-indigo { background: #EEF2FF; color: #4338CA; }
+.badge-orange { background: #FFF7ED; color: #C2410C; }
+.badge-emerald { background: #ECFDF5; color: #047857; }
+.badge-rose { background: #FFF1F2; color: #BE123C; }
+```
+
+### Employee Stats Card (Mobile Dashboard)
+
+```
+┌─────────────────────────────────────┐
+│  This week              ┌─────────┐ │
+│  ┌──────────┐           │ Request  │ │
+│  │   35h    │           │   an     │ │
+│  │          │           │ absence  │ │
+│  │ ████████ │           │  [+]     │ │
+│  │ Goal     │           └─────────┘ │
+│  │ reached ✅│                       │
+│  └──────────┘                       │
+└─────────────────────────────────────┘
+```
+
+**Stats Card Implementation:**
+- Container: `bg-neutral-900 text-white rounded-3xl h-36`
+- Progress Bar: `h-1.5 bg-neutral-700 rounded-full` with `bg-emerald-400` fill
+- Label: `text-xs font-bold uppercase text-neutral-400`
+- Value: `text-3xl font-bold`
+
+### Absence Request Flow Visual
+
+**Request Types Grid (2x2):**
+| Type | Icon | Color Class |
+|------|------|-------------|
+| Paid Leave | `Plane` | `bg-emerald-100 text-emerald-700` |
+| Sick Leave | `Thermometer` | `bg-rose-100 text-rose-700` |
+| School / Training | `GraduationCap` | `bg-neutral-100 text-neutral-700` |
+| Child Sick | `Baby` | `bg-blue-100 text-blue-700` |
+
+**Selection State:**
+- Unselected: `border-transparent bg-white shadow-sm`
+- Selected: `border-neutral-900 bg-neutral-50 border-2`
+
+### Today's Shift Card (Employee)
+
+```
+┌─────────────────────────────────────────────────┐
+│  [🔵] Today                                     │
+│  ┌─────────────────────────────────────────────┐│
+│  │ [💼]  Surgery            [✓] / [✓✓]        ││
+│  │       Dr. Martin • 8:30am - 6:30pm         ││
+│  └─────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────┘
+```
+
+**Confirmation States:**
+- Pending: `p-3 bg-neutral-100 rounded-full` with `Check` icon
+- Confirmed: `p-3 bg-emerald-100 text-emerald-600 rounded-full` with `CheckCircle2` icon
+
+### Admin Planning Grid Layout
+
+```
+┌──────────┬────────┬────────┬────────┬────────┬────────┬────────┐
+│ Employee │ Mon 12 │ Tue 13 │ Wed 14 │ Thu 15 │ Fri 16 │ Sat 17 │
+├──────────┼────────┼────────┼────────┼────────┼────────┼────────┤
+│ 👨‍⚕️ Dr.Martin │ CHIR │ CHIR │ CHIR │ CHIR │ CHIR │ OFF  │
+│ 👩‍⚕️ Julie    │ ACC  │ CHIR │ OFF  │ CHIR │ VAC  │ ACC  │
+│ 👨‍💻 Thomas   │ CHIR │ ACC  │ ACC  │ OFF  │ ACC  │ OFF  │
+│ 🎓 Eva      │ ACC  │ ACC  │ ACC  │SCHOOL│SCHOOL│ OFF  │
+└──────────┴────────┴────────┴────────┴────────┴────────┴────────┘
+```
+
+**Grid Structure:**
+- Container: `grid grid-cols-[180px_repeat(6,1fr)]`
+- Header Row: `bg-neutral-50/50 border-b border-neutral-100`
+- Employee Cell: Avatar emoji + Name (bold) + Role (10px uppercase)
+- Shift Cell: `min-h-[60px] rounded-xl border p-2`
+- Cell Dividers: `border-l border-dashed border-neutral-100`
+
+### Micro-Copy Examples
+
+**Greeting (Employee Dashboard):**
+```
+"Hello,
+Julie"
+```
+Font: `text-3xl font-extrabold tracking-tight`
+
+**Stats Label:**
+- "This week" → `text-xs font-bold uppercase text-neutral-400`
+- "Goal reached ✅" → `text-[10px] text-neutral-400`
+
+**Today Indicator:**
+- Pulse dot: `w-2 h-2 rounded-full bg-indigo-500 animate-pulse`
+- Label: "Today" in `font-bold text-lg`
+
+**Upcoming Days Label:**
+- "Upcoming Days" → `font-bold text-lg text-neutral-400`
+
+**Absence CTA:**
+- "Request an absence" → `font-bold text-lg text-neutral-900`
+- "Leave, Sick..." → `text-xs text-neutral-500`
+
+**Admin Toolbar:**
+- Week selector: "Week 42" with `Calendar` icon
+- Generate CTA: "Auto-Generate" with `Sparkles` icon (yellow-300)
+
+### Color Semantic Reference
+
+| Context | Color | Hex | Usage |
+|---------|-------|-----|-------|
+| Truth/Validation | Vet Teal | `#009588` | Primary actions, validation states, medical trust |
+| UI Actions | Electric Indigo | `#4F46E5` | Buttons, links, active states |
+| Alerts/Human | Vital Orange | `#F97316` | Warnings, absence tags, soft rule violations |
+| Success | Emerald | `#10B981` | Confirmed states, approved badges |
+| Danger | Rose | `#F43F5E` | Hard conflicts, blocking errors |
+| Neutral | Gray-900 | `#171717` | Primary text, logo, main CTAs |
+
+### Animation Guidelines
+
+**Micro-motion:**
+- Hover scale: `hover:scale-[1.02]` or `hover:scale-[1.05]`
+- Transition: `transition-all` with default duration
+- Pulse: `animate-pulse` for "today" indicators and live status
+
+**Entry Animations:**
+- Fade in: `animate-in fade-in`
+- Slide from right: `animate-in slide-in-from-right duration-500`
+- Slide from bottom: `animate-in fade-in slide-in-from-bottom-4`
+
+### Apprentice School Day Declaration UI
+
+**Declaration Interface:**
+- Calendar-based date picker (tap to select dates)
+- Selected dates highlighted with `SCHOOL` shift color
+- Submit CTA: "Submit my school days"
+- Reminder banner (if undeclared after 25th): Orange warning banner
+
+**Micro-copy:**
+- Title: "My School Days - [Month]"
+- Instruction: "Select your school days for the upcoming month"
+- Reminder: "⚠️ Remember to declare your days before the 25th"
+- Success: "School days saved ✓"

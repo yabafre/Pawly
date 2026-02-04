@@ -5,34 +5,18 @@ enum Role {
 
 model User {
   id        String   @id @default(uuid())
-  email     String   @unique
+  email     String
   password  String?  // Nullable for Magic Link users
   role      Role     @default(EMPLOYEE)
-  
+
   clinicId  String   @map("clinic_id")
-  
+
   employee  Employee?
   magicLinks MagicLink[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([email, clinicId])
   @@index([clinicId])
-}
-
-model MagicLink {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  used      Boolean  @default(false)
-  
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  clinicId  String   @map("clinic_id")
-  
-  createdAt DateTime @default(now())
-
-  @@index([clinicId])
-  @@index([userId])
 }

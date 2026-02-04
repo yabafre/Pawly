@@ -5,7 +5,14 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "exports": {
+    "./trpc-types": {
+      "types": "./dist/src/trpc-types.d.ts",
+      "default": "./dist/src/trpc-types.js"
+    }
+  },
   "scripts": {
+    "dev": "nest start --watch",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -18,33 +25,44 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:push:force": "prisma db push --accept-data-loss",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.5",
+    "@nestjs/throttler": "^6.5.0",
     "@pawly/types": "workspace:*",
     "@pawly/validators": "workspace:*",
     "@pawly/zod": "workspace:*",
+    "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "7.2.0",
     "@prisma/config": "7.2.0",
     "@react-email/components": "^1.0.6",
     "@react-email/render": "^2.0.4",
+    "@trpc/server": "^11.9.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "pg": "^8.18.0",
     "react": "19.2.3",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.9.1",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "superjson": "^2.2.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -54,10 +72,13 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
+    "@types/express-serve-static-core": "^5.1.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@types/pg": "^8.16.0",
+    "@types/qs": "^6.14.0",
     "@types/react": "^19",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
@@ -73,11 +94,13 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
   "prisma": {
-    "schema": "prisma/schema"
+    "schema": "prisma/schema",
+    "seed": "tsx prisma/seed.ts"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -90,6 +113,12 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)sx?$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1",
+      "^@pawly/validators$": "<rootDir>/../../../packages/validators/src/index.ts",
+      "^@pawly/zod$": "<rootDir>/../../../packages/zod/src/index.ts",
+      "^@pawly/types$": "<rootDir>/../../../packages/types/src/index.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

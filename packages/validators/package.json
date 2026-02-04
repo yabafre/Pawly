@@ -1,12 +1,32 @@
 {
     "name": "@pawly/validators",
     "version": "0.0.0",
-    "main": "./src/index.ts",
-    "types": "./src/index.ts",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "require": "./dist/index.js",
+            "import": "./src/index.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "clean": "rm -rf dist",
+        "lint": "eslint src/",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:cov": "vitest run --coverage"
+    },
     "dependencies": {
         "@pawly/zod": "workspace:*"
     },
     "devDependencies": {
-        "typescript": "latest"
+        "@vitest/coverage-v8": "^4.0.16",
+        "typescript": "^5.7.3",
+        "vitest": "^4.0.16"
     }
 }
