@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -6,13 +6,14 @@ import { MailService } from '@/modules/mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import type { EnvConfig } from '@/config/index';
+import type { User } from '@prisma/client';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
 const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
+const MAGIC_LINK_MIN_RESPONSE_MS = 300;
 
 @Injectable()
 export class AuthService {
@@ -29,16 +30,16 @@ export class AuthService {
         return crypto.createHash('sha256').update(token).digest('hex');
     }
 
-    private sanitizeUser(user: any) {
-        if (!user || typeof user !== 'object') {
-            return user;
+    private sanitizeUser(user: User | Omit<User, 'password'>): Omit<User, 'password'> {
+        if ('password' in user) {
+            const { password, ...safeUser } = user;
+            return safeUser;
         }
-        const { password, ...safeUser } = user;
-        return safeUser;
+        return user;
     }
 
-    async validateUser(email: string, pass: string, clinicId: string): Promise<any> {
-        const user = await this.prisma.user.findFirst({ where: { email, clinicId } });
+    async validateUser(email: string, pass: string): Promise<Omit<User, 'password'> | null> {
+        const user = await this.prisma.user.findUnique({ where: { email } });
 
         // Always run bcrypt.compare to prevent timing-based user enumeration
         const dummyHash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewKyNiGWxYLx.UPi';
@@ -52,14 +53,14 @@ export class AuthService {
     }
 
     async login(loginDto: LoginDto) {
-        const user = await this.validateUser(loginDto.email, loginDto.password, loginDto.clinicId);
+        const user = await this.validateUser(loginDto.email, loginDto.password);
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
         }
         return this.generateToken(user);
     }
 
-    private generateToken(user: any) {
+    private generateToken(user: User | Omit<User, 'password'>) {
         const safeUser = this.sanitizeUser(user);
         const payload = { email: safeUser.email, sub: safeUser.id, role: safeUser.role, clinicId: safeUser.clinicId };
         return {
@@ -69,21 +70,13 @@ export class AuthService {
         };
     }
 
-    /**
-     * @deprecated Registration is disabled. Account creation happens exclusively
-     * via Stripe webhook (checkout.session.completed). Will be removed in Story 1.5.
-     */
-    async register(_registerDto: RegisterDto) {
-        throw new ForbiddenException(
-            'Registration is disabled. Account creation happens via subscription checkout.',
-        );
-    }
+    async requestMagicLink(email: string) {
+        const startTime = Date.now();
+        const user = await this.prisma.user.findUnique({ where: { email } });
 
-    async requestMagicLink(email: string, clinicId: string) {
-        const user = await this.prisma.user.findFirst({ where: { email, clinicId } });
-
-        // Prevent user enumeration - always return same response
+        // Prevent user enumeration — consistent response AND consistent timing
         if (!user) {
+            await this.delayToMinimumResponse(startTime);
             return { message: 'If an account exists, a magic link has been sent' };
         }
 
@@ -92,6 +85,8 @@ export class AuthService {
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + MAGIC_LINK_TTL_MINUTES);
 
+        // Note: user.clinicId read from same request context. If atomicity becomes
+        // a concern (e.g., bulk user migrations), wrap user lookup + create in $transaction.
         await this.prisma.magicLink.create({
             data: {
                 token: hashedToken,
@@ -144,6 +139,13 @@ export class AuthService {
         return this.generateToken(user);
     }
 
+    private async delayToMinimumResponse(startTime: number): Promise<void> {
+        const remaining = MAGIC_LINK_MIN_RESPONSE_MS - (Date.now() - startTime);
+        if (remaining > 0) {
+            await new Promise(resolve => setTimeout(resolve, remaining));
+        }
+    }
+
     private async cleanupExpiredMagicLinks() {
         const cutoff = new Date();
         cutoff.setHours(cutoff.getHours() - MAGIC_LINK_CLEANUP_HOURS);
@@ -160,7 +162,7 @@ export class AuthService {
     async refreshToken(token: string) {
         try {
             const payload = this.jwtService.verify(token);
-            const user = await this.prisma.user.findFirst({
+            const user = await this.prisma.user.findUnique({
                 where: { id: payload.sub },
             });
             if (!user) {

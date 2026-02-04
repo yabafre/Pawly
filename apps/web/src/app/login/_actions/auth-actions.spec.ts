@@ -132,7 +132,6 @@ describe('auth-actions', () => {
     const validInput = {
       email: 'vet@pawly.com',
       password: 'SecurePass123!',
-      clinicId: '00000000-0000-4000-8000-000000000001',
     };
 
     const validResponse = {
@@ -266,7 +265,6 @@ describe('auth-actions', () => {
   describe('requestMagicLinkAction', () => {
     const validInput = {
       email: 'vet@pawly.com',
-      clinicId: '00000000-0000-4000-8000-000000000001',
     };
 
     it('should call trpc.auth.requestMagicLink.mutate on success', async () => {

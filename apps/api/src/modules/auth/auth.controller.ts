@@ -2,7 +2,6 @@ import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ValidateMagicLinkDto } from './dto/validate-magic-link.dto';
@@ -31,19 +30,6 @@ export class AuthController {
 
     @Public()
     @Throttle({ default: { limit: 3, ttl: 60000 } })
-    @Post('register')
-    @ApiOperation({ summary: 'Register a new user (disabled — registration via Stripe webhook only)' })
-    @ApiResponse({ status: 201, description: 'User created successfully' })
-    @ApiResponse({ status: 400, description: 'Invalid request body or password does not meet complexity requirements' })
-    @ApiResponse({ status: 403, description: 'Registration is disabled' })
-    @ApiResponse({ status: 409, description: 'Email already registered' })
-    @ApiResponse({ status: 500, description: 'Internal server error' })
-    async register(@Body() registerDto: RegisterDto) {
-        return this.authService.register(registerDto);
-    }
-
-    @Public()
-    @Throttle({ default: { limit: 3, ttl: 60000 } })
     @Post('magic-link/request')
     @ApiOperation({ summary: 'Request a magic link for passwordless login' })
     @ApiResponse({ status: 200, description: 'Magic link sent (if account exists)', type: MagicLinkResponseDto })
@@ -51,7 +37,7 @@ export class AuthController {
     @ApiResponse({ status: 429, description: 'Too many requests' })
     @ApiResponse({ status: 500, description: 'Internal server error' })
     async requestMagicLink(@Body() requestMagicLinkDto: RequestMagicLinkDto) {
-        return this.authService.requestMagicLink(requestMagicLinkDto.email, requestMagicLinkDto.clinicId);
+        return this.authService.requestMagicLink(requestMagicLinkDto.email);
     }
 
     @Public()

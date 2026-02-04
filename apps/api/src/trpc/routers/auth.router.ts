@@ -14,7 +14,7 @@ export const authRouter = router({
   requestMagicLink: publicProcedure
     .input(requestMagicLinkSchema)
     .mutation(async ({ input, ctx }) => {
-      return ctx.authService.requestMagicLink(input.email, input.clinicId);
+      return ctx.authService.requestMagicLink(input.email);
     }),
   validateMagicLink: publicProcedure
     .input(validateMagicLinkSchema)

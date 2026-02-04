@@ -42,7 +42,6 @@ describe('useAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    process.env.NEXT_PUBLIC_CLINIC_ID = '00000000-0000-4000-8000-000000000001';
 
     (useQueryClient as any).mockReturnValue({
       invalidateQueries: vi.fn(),
@@ -79,7 +78,6 @@ describe('useAuth', () => {
       expect(mockMutateAsync).toHaveBeenCalledWith({
         email: 'test@example.com',
         password: 'password',
-        clinicId: '00000000-0000-4000-8000-000000000001',
       });
       expect(localStorage.getItem('token')).toBeNull();
       expect(toast.success).toHaveBeenCalledWith('Connexion réussie !');
@@ -193,19 +191,6 @@ describe('useAuth', () => {
       expect(localStorage.getItem('token')).toBeNull();
       expect(localStorage.getItem('user')).toBeNull();
     });
-
-    it('should show error toast when NEXT_PUBLIC_CLINIC_ID is not set', async () => {
-      delete process.env.NEXT_PUBLIC_CLINIC_ID;
-
-      const { result } = renderHook(() => useAuth());
-
-      await act(async () => {
-        await result.current.login({ email: 'test@test.com', password: 'pass' });
-      });
-
-      expect(toast.error).toHaveBeenCalledWith('Une erreur inattendue est survenue');
-      expect(mockMutateAsync).not.toHaveBeenCalled();
-    });
   });
 
   describe('requestMagicLink', () => {
@@ -220,7 +205,6 @@ describe('useAuth', () => {
 
       expect(mockMutateAsync).toHaveBeenCalledWith({
         email: 'test@example.com',
-        clinicId: '00000000-0000-4000-8000-000000000001',
       });
       expect(toast.success).toHaveBeenCalledWith('Lien de connexion envoyé !');
     });
