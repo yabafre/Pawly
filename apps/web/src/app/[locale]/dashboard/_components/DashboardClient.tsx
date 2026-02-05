@@ -16,6 +16,9 @@ import {
     Thermometer,
     Baby,
 } from "lucide-react";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { useFormattedDate } from "@/lib/hooks/useFormattedDate";
+import { useFormattedNumber } from "@/lib/hooks/useFormattedNumber";
 
 const Card = ({
     children,
@@ -51,7 +54,10 @@ const AbsenceRequestView = ({
     onCancel: () => void;
 }) => {
     const t = useTranslations("dashboard");
+    const { formatDate } = useFormattedDate();
     const [selectedType, setSelectedType] = useState<string | null>(null);
+    // Demo date — would come from a date picker in a real implementation
+    const selectedDate = new Date(2024, 9, 15); // October 15, 2024
 
     const REQUEST_TYPES = [
         { id: "vacation", label: t("requestTypes.vacation"), icon: Plane, color: "bg-emerald-100 text-emerald-700" },
@@ -97,14 +103,14 @@ const AbsenceRequestView = ({
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-neutral-100 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <Calendar className="text-neutral-400" />
-                            <span className="font-bold text-neutral-900">Jeudi 15 Octobre</span>
+                            <span className="font-bold text-neutral-900">{formatDate(selectedDate, 'fullWithWeekday')}</span>
                         </div>
                         <span className="text-sm text-neutral-400">{t("allDay")}</span>
                     </div>
 
                     <div className="mt-8">
                         <button
-                            onClick={() => onSubmit({ type: selectedType, date: "Jeudi 15 Oct" })}
+                            onClick={() => onSubmit({ type: selectedType, date: formatDate(selectedDate, 'short') })}
                             className="w-full py-4 bg-neutral-900 text-white rounded-2xl font-bold text-lg shadow-lg shadow-neutral-900/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
                         >
                             {t("sendRequest")}
@@ -119,7 +125,18 @@ const AbsenceRequestView = ({
 
 const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => void }) => {
     const t = useTranslations("dashboard");
+    const { formatDate, formatTime } = useFormattedDate();
+    const { formatHours } = useFormattedNumber();
     const [confirmed, setConfirmed] = useState(false);
+
+    // Demo dates — would come from real data in production
+    const todayScheduleStart = new Date(2024, 9, 13, 8, 30);
+    const todayScheduleEnd = new Date(2024, 9, 13, 18, 30);
+    const upcomingDays = [
+        { date: new Date(2024, 9, 14), type: "rest" as const, icon: Palmtree, color: "bg-neutral-100 text-neutral-500" },
+        { date: new Date(2024, 9, 15), type: "surgery" as const, icon: Briefcase, color: "bg-indigo-50 text-indigo-600" },
+        { date: new Date(2024, 9, 16), type: "vacation" as const, icon: Plane, color: "bg-emerald-50 text-emerald-600", status: t("validated") },
+    ];
 
     return (
         <div className="max-w-md mx-auto space-y-8 pb-20 animate-in fade-in">
@@ -143,7 +160,7 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
                     </div>
                     <div className="z-10">
                         <span className="text-neutral-400 text-xs font-bold uppercase">{t("thisWeek")}</span>
-                        <div className="text-3xl font-bold mt-1">35h</div>
+                        <div className="text-3xl font-bold mt-1">{formatHours(35)}</div>
                     </div>
                     <div className="z-10">
                         <div className="h-1.5 bg-neutral-700 rounded-full overflow-hidden">
@@ -183,7 +200,7 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
                     </div>
                     <div className="flex-1">
                         <h4 className="font-bold text-xl text-neutral-900">{t("scheduleTypes.surgery")}</h4>
-                        <p className="text-neutral-500">Dr. Martin • 8h30 - 18h30</p>
+                        <p className="text-neutral-500">{t("doctorSchedule", { doctor: "Dr. Martin", time: t("timeRange", { start: formatTime(todayScheduleStart), end: formatTime(todayScheduleEnd) }) })}</p>
                     </div>
                     {!confirmed ? (
                         <button
@@ -203,21 +220,17 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
             <div>
                 <h3 className="font-bold text-lg mb-4 text-neutral-400">{t("upcomingDays")}</h3>
                 <div className="space-y-3">
-                    {[
-                        { d: "Mer 14", t: t("scheduleTypes.rest"), i: Palmtree, c: "bg-neutral-100 text-neutral-500" },
-                        { d: "Jeu 15", t: t("scheduleTypes.surgery"), i: Briefcase, c: "bg-indigo-50 text-indigo-600" },
-                        { d: "Ven 16", t: t("scheduleTypes.vacation"), i: Plane, c: "bg-emerald-50 text-emerald-600", status: t("validated") },
-                    ].map((item) => (
+                    {upcomingDays.map((item) => (
                         <div
-                            key={item.d}
+                            key={item.date.toISOString()}
                             className="flex items-center justify-between p-4 bg-white rounded-2xl border border-neutral-50 hover:border-neutral-200 transition-colors"
                         >
                             <div className="flex items-center gap-4">
-                                <span className="font-bold text-sm w-12 text-neutral-400">{item.d}</span>
-                                <div className={`p-2 rounded-lg ${item.c}`}>
-                                    <item.i size={18} />
+                                <span className="font-bold text-sm w-12 text-neutral-400">{formatDate(item.date, { weekday: 'short', day: 'numeric' })}</span>
+                                <div className={`p-2 rounded-lg ${item.color}`}>
+                                    <item.icon size={18} />
                                 </div>
-                                <span className="font-bold text-neutral-900">{item.t}</span>
+                                <span className="font-bold text-neutral-900">{t(`scheduleTypes.${item.type}`)}</span>
                             </div>
                             {item.status && <Badge color="emerald">{item.status}</Badge>}
                         </div>
@@ -237,6 +250,12 @@ export const DashboardClient = () => {
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans text-neutral-900">
+            {/* Header with Language Switcher */}
+            <header className="sticky top-0 z-50 bg-[#FDFDFD]/90 backdrop-blur-xl border-b border-neutral-100">
+                <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-end">
+                    <LanguageSwitcher />
+                </div>
+            </header>
             <main className="max-w-5xl mx-auto p-4 md:p-6 pt-8">
                 {employeeView === "dashboard" ? (
                     <EmployeeDashboard navigateToRequest={() => setEmployeeView("request")} />

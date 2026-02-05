@@ -5,7 +5,24 @@
     "error": "Une erreur est survenue",
     "sslConnection": "Connexion SSL",
     "multiTenant": "Multi-tenant",
-    "backToLogin": "Retour à la connexion"
+    "backToLogin": "Retour à la connexion",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "noResults": "Aucun résultat",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "language": {
+      "label": "Langue",
+      "fr": "Français",
+      "en": "English",
+      "switchTo": "Changer la langue"
+    }
   },
   "auth": {
     "login": {
@@ -75,7 +92,7 @@
       "vetAndAsv": "Vétos & ASV",
       "quickSummary": "Synthèse rapide",
       "week": "Semaine {number}",
-      "noBlockingConflict": "Aucun conflit bloquant détecté. {count} avertissements soft à surveiller.",
+      "noBlockingConflict": "Aucun conflit bloquant détecté. {count, plural, =0 {Aucun avertissement} one {# avertissement soft} other {# avertissements soft}} à surveiller.",
       "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
     }
   },
@@ -149,7 +166,7 @@
     "title": "Tableau de bord",
     "greeting": "Bonjour,",
     "thisWeek": "Cette semaine",
-    "targetReached": "Objectif atteint ✅",
+    "targetReached": "Objectif atteint",
     "requestAbsence": "Demander une absence",
     "absenceTypes": "Congés, Maladie...",
     "today": "Aujourd'hui",
@@ -170,6 +187,91 @@
       "rest": "Repos",
       "surgery": "Chirurgie",
       "vacation": "Congés"
+    },
+    "hoursUnit": "{hours}h",
+    "timeRange": "{start} - {end}",
+    "doctorSchedule": "{doctor} • {time}"
+  },
+  "forms": {
+    "validation": {
+      "required": "Ce champ est requis",
+      "email": "Email invalide",
+      "minLength": "Minimum {min, plural, one {# caractère} other {# caractères}}",
+      "maxLength": "Maximum {max, plural, one {# caractère} other {# caractères}}",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "invalidDate": "Date invalide",
+      "dateInPast": "La date ne peut pas être dans le passé",
+      "dateInFuture": "La date ne peut pas être dans le futur"
+    },
+    "labels": {
+      "email": "Email",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "name": "Nom",
+      "firstName": "Prénom",
+      "lastName": "Nom de famille",
+      "phone": "Téléphone",
+      "address": "Adresse",
+      "city": "Ville",
+      "postalCode": "Code postal",
+      "country": "Pays",
+      "startDate": "Date de début",
+      "endDate": "Date de fin",
+      "description": "Description",
+      "notes": "Notes"
+    },
+    "placeholders": {
+      "email": "votre@email.com",
+      "password": "Entrez votre mot de passe",
+      "search": "Rechercher...",
+      "name": "Entrez votre nom",
+      "phone": "+33 6 12 34 56 78"
     }
+  },
+  "dates": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "tomorrow": "Demain",
+    "thisWeek": "Cette semaine",
+    "lastWeek": "La semaine dernière",
+    "nextWeek": "La semaine prochaine",
+    "thisMonth": "Ce mois-ci",
+    "lastMonth": "Le mois dernier",
+    "nextMonth": "Le mois prochain",
+    "days": {
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi",
+      "sunday": "Dimanche"
+    },
+    "months": {
+      "january": "Janvier",
+      "february": "Février",
+      "march": "Mars",
+      "april": "Avril",
+      "may": "Mai",
+      "june": "Juin",
+      "july": "Juillet",
+      "august": "Août",
+      "september": "Septembre",
+      "october": "Octobre",
+      "november": "Novembre",
+      "december": "Décembre"
+    }
+  },
+  "errors": {
+    "generic": "Une erreur est survenue",
+    "network": "Erreur de connexion au serveur",
+    "notFound": "Page non trouvée",
+    "unauthorized": "Non autorisé",
+    "forbidden": "Accès refusé",
+    "timeout": "La requête a expiré",
+    "serverError": "Erreur serveur",
+    "validationError": "Erreur de validation",
+    "unknownError": "Erreur inconnue",
+    "tryAgain": "Veuillez réessayer"
   }
 }

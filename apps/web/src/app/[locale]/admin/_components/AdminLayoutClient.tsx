@@ -6,6 +6,7 @@ import { Bell, Calendar, CheckCircle2, FileText, LogOut, PawPrint } from "lucide
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -35,7 +36,8 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                         <span className="font-extrabold text-lg tracking-tight">{t("title")}</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <LanguageSwitcher />
                         <button className="relative p-2 text-neutral-400 hover:text-neutral-900 transition-colors">
                             <Bell size={20} />
                         </button>

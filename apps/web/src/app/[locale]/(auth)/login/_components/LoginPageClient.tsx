@@ -8,6 +8,7 @@ import { Check, Mail, Lock } from "lucide-react";
 import { MagicLinkForm } from "./MagicLinkForm";
 import { PasswordForm } from "./PasswordForm";
 import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export const LoginPageClient = () => {
     const [activeTab, setActiveTab] = useState("magic");
@@ -17,6 +18,11 @@ export const LoginPageClient = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden">
+            {/* Language Switcher - Top Right */}
+            <div className="absolute top-4 right-4 z-20">
+                <LanguageSwitcher />
+            </div>
+
             {/* Background Ambient Layers */}
             <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
