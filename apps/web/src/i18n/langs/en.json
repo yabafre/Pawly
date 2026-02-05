@@ -5,7 +5,24 @@
     "error": "An error occurred",
     "sslConnection": "SSL Connection",
     "multiTenant": "Multi-tenant",
-    "backToLogin": "Back to login"
+    "backToLogin": "Back to login",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "noResults": "No results",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "language": {
+      "label": "Language",
+      "fr": "Français",
+      "en": "English",
+      "switchTo": "Switch language"
+    }
   },
   "auth": {
     "login": {
@@ -75,7 +92,7 @@
       "vetAndAsv": "Vets & ASV",
       "quickSummary": "Quick summary",
       "week": "Week {number}",
-      "noBlockingConflict": "No blocking conflict detected. {count} soft warnings to monitor.",
+      "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
       "apprenticesSchoolDays": "Apprentices have entered their school days."
     }
   },
@@ -149,7 +166,7 @@
     "title": "Dashboard",
     "greeting": "Hello,",
     "thisWeek": "This week",
-    "targetReached": "Target reached ✅",
+    "targetReached": "Target reached",
     "requestAbsence": "Request an absence",
     "absenceTypes": "Vacation, Sick leave...",
     "today": "Today",
@@ -170,6 +187,91 @@
       "rest": "Rest",
       "surgery": "Surgery",
       "vacation": "Vacation"
+    },
+    "hoursUnit": "{hours}h",
+    "timeRange": "{start} - {end}",
+    "doctorSchedule": "{doctor} • {time}"
+  },
+  "forms": {
+    "validation": {
+      "required": "This field is required",
+      "email": "Invalid email",
+      "minLength": "Minimum {min, plural, one {# character} other {# characters}}",
+      "maxLength": "Maximum {max, plural, one {# character} other {# characters}}",
+      "passwordMismatch": "Passwords do not match",
+      "invalidDate": "Invalid date",
+      "dateInPast": "Date cannot be in the past",
+      "dateInFuture": "Date cannot be in the future"
+    },
+    "labels": {
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "name": "Name",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone",
+      "address": "Address",
+      "city": "City",
+      "postalCode": "Postal code",
+      "country": "Country",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "description": "Description",
+      "notes": "Notes"
+    },
+    "placeholders": {
+      "email": "your@email.com",
+      "password": "Enter your password",
+      "search": "Search...",
+      "name": "Enter your name",
+      "phone": "+1 234 567 8900"
     }
+  },
+  "dates": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "nextWeek": "Next week",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "nextMonth": "Next month",
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    },
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    }
+  },
+  "errors": {
+    "generic": "An error occurred",
+    "network": "Server connection error",
+    "notFound": "Page not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Access denied",
+    "timeout": "Request timed out",
+    "serverError": "Server error",
+    "validationError": "Validation error",
+    "unknownError": "Unknown error",
+    "tryAgain": "Please try again"
   }
 }

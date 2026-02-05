@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Mock scrollIntoView for Radix UI components (not available in jsdom)
+Element.prototype.scrollIntoView = vi.fn();
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
