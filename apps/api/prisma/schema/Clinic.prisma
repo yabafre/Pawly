@@ -1,5 +1,5 @@
 model Clinic {
-  id                  String   @id @default(cuid())
+  id                  String   @id @default(uuid())
   name                String
   slug                String   @unique
   onboardingCompleted Boolean  @default(false) @map("onboarding_completed")

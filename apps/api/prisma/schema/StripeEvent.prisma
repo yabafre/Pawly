@@ -1,5 +1,5 @@
 model StripeEvent {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   stripeEventId String   @unique @map("stripe_event_id")
   type          String
   processedAt   DateTime @default(now()) @map("processed_at")
