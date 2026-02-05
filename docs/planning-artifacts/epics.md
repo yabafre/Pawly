@@ -292,7 +292,7 @@ So that all application pages support FR/EN navigation with clean URLs.
 **And** `proxy.ts` handles locale detection from `Accept-Language` header with redirect
 **And** `routing.ts` is configured with `defaultLocale: 'fr'` and `localePrefix: 'as-needed'` (/ = FR, /en = EN)
 **And** `request.ts` provides `getRequestConfig` for server-side locale resolution
-**And** base translation files exist at `src/i18n/messages/fr.json` and `en.json`
+**And** base translation files exist at `src/i18n/langs/fr.json` and `en.json`
 **And** the proxy excludes `/api`, `/trpc`, `/_next`, `/_vercel`, static files, and files with dots
 **And** the proxy runs BEFORE auth guards (auth/subscription checks remain in route layouts).
 

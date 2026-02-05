@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-04'
+updated: '2026-02-05'
+# 2026-02-05: Story 2-1 implemented → review. i18n foundation with next-intl routing. 21 static pages for FR/EN. 43 API tests pass.
+# 2026-02-04: Story 2-1 created (ready-for-dev). i18n foundation — next-intl routing & proxy. Epic 2 → in-progress.
 # 2026-02-04: Story 1-5 code review completed. 9 issues found (4 HIGH, 4 MEDIUM, 1 LOW), 8 fixed.
 #   113 tests passing (44 API + 69 Web). Build green. Story 1-5 → done. Epic 1 → done.
 # 2026-02-04: Story 1-5 created (ready-for-dev). Auth refactor — remove clinicId from login, resolve from DB.
@@ -83,8 +85,8 @@ development_status:
   # NFRs: NFR20
   # Dependency: Epic 1 (routing prerequisite). Must be done before Epics 3-4.
   # ===========================================================================
-  epic-2: backlog
-  2-1-i18n-foundation-next-intl-routing-proxy: backlog
+  epic-2: in-progress
+  2-1-i18n-foundation-next-intl-routing-proxy: done
   2-2-application-translation-language-switching: backlog
   epic-2-retrospective: optional
 

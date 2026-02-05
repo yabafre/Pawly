@@ -170,7 +170,7 @@ Every REST API endpoint MUST have Swagger decorators. This is **not optional**.
 - **Patterns**: Next.js 16.1.6 App Router with PWA (`next-pwa`).
 - **Components**: Local separation (`_components`) vs global (`components`).
 - **UI**: Tailwind CSS 4 + shadcn/ui with "Clinique Zen" aesthetic.
-- **i18n**: `next-intl` with `[locale]` dynamic segment. Config in `src/i18n/routing.ts`. Messages in `src/i18n/messages/{fr,en}.json`. Versioned translation files only (no dynamic CMS).
+- **i18n**: `next-intl` with `[locale]` dynamic segment. Config in `src/i18n/routing.ts`. Messages in `src/i18n/langs/{fr,en}.json`. Versioned translation files only (no dynamic CMS).
 - **Proxy Order**: `next-intl` proxy handles locale detection/redirect FIRST. Auth guards and subscription checks happen in route layouts (server-side), not in the proxy.
 - **Proxy Matcher**: Excludes `/api`, `/trpc`, `/_next`, `/_vercel`, `/favicon.ico`, `/robots.txt`, `/sitemap.xml`, and all files with dots.
 - **Landing Page (SSG)**: `app/[locale]/page.tsx` (home) and `app/[locale]/pricing/page.tsx` pre-rendered with `generateStaticParams` for `['fr', 'en']`. SEO metadata per locale with `alternates.languages` for hreflang. `sitemap.xml` and `robots.txt` at root.
@@ -369,7 +369,7 @@ Pawly/
 │   │   │   ├── i18n/
 │   │   │   │   ├── routing.ts (defineRouting config)
 │   │   │   │   ├── request.ts (getRequestConfig)
-│   │   │   │   └── messages/
+│   │   │   │   └── langs/
 │   │   │   │       ├── fr.json
 │   │   │   │       └── en.json
 │   │   │   ├── components/ (Global UI - shadcn)
@@ -421,7 +421,7 @@ Pawly/
 ### Requirements to Structure Mapping
 
 - **Epic 1: Technical Foundation** -> `apps/api/src/auth`, `apps/web/src/app/[locale]/(auth)/login`, `prisma/schema/Clinic.prisma`, `prisma/schema/Subscription.prisma`, `prisma/schema/StripeEvent.prisma`.
-- **Epic 2: i18n (FR11)** -> `apps/web/src/i18n/`, `proxy.ts`, `messages/{fr,en}.json`.
+- **Epic 2: i18n (FR11)** -> `apps/web/src/i18n/`, `proxy.ts`, `langs/{fr,en}.json`.
 - **Epic 3: Stripe + Registration (FR13, FR17, FR18)** -> `apps/api/src/stripe/`, `apps/web/src/app/[locale]/admin/billing/`, `apps/web/src/app/[locale]/admin/onboarding/`.
 - **Epic 4: Landing Page (FR12)** -> `apps/web/src/app/[locale]/page.tsx` & `pricing/page.tsx` (SSG, pre-checkout form).
 - **Epic 5: Staff Management** -> `apps/api/src/employees` & `apps/web/src/app/[locale]/admin/employees`.
