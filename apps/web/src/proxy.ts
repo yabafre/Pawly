@@ -1,29 +1,19 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import createMiddleware from 'next-intl/middleware';
+import { routing } from '@/i18n/routing';
 
-const PROTECTED_ROUTES = ['/admin', '/dashboard'];
-const AUTH_ROUTES = ['/login'];
-
-export function proxy(request: NextRequest) {
-    const token = request.cookies.get('auth-token')?.value;
-    const { pathname } = request.nextUrl;
-
-    const isProtectedRoute = PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
-    const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
-
-    if (isProtectedRoute && !token) {
-        const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('from', pathname);
-        return NextResponse.redirect(loginUrl);
-    }
-
-    if (isAuthRoute && token) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-
-    return NextResponse.next();
-}
+/**
+ * i18n Locale Middleware (Next.js 16 proxy)
+ *
+ * CRITICAL: This middleware ONLY handles locale detection and routing.
+ * Auth/subscription checks MUST remain in route layouts (admin/layout.tsx).
+ *
+ * @see docs/planning-artifacts/architecture.md - "Proxy Order" section
+ */
+export default createMiddleware(routing);
 
 export const config = {
-    matcher: ['/admin/:path*', '/dashboard/:path*', '/login'],
+    // Match all pathnames except for:
+    // - /api, /trpc, /_next, /_vercel
+    // - All files with dots (e.g., favicon.ico, robots.txt, sitemap.xml)
+    matcher: '/((?!api|trpc|_next|_vercel|.*\\..*).*)'
 };

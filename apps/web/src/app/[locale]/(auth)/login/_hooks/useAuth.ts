@@ -1,0 +1,88 @@
+"use client";
+
+import { QueryKeyFactory, useServerActionMutation } from "@/lib/hooks/server-action-hooks";
+import { loginAction, requestMagicLinkAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
+import { toast } from "sonner";
+import { useRouter } from "@/i18n/navigation";
+import { z } from "@pawly/zod";
+import { loginSchema } from "@pawly/validators";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+export const useAuth = () => {
+    const router = useRouter();
+    const queryClient = useQueryClient();
+    const t = useTranslations("auth.toast");
+
+    const invalidateAuthQueries = async () => {
+        await queryClient.invalidateQueries({ queryKey: QueryKeyFactory.auth() });
+    };
+
+    const loginMutation = useServerActionMutation(loginAction, {
+        returnError: true,
+        onSettled: invalidateAuthQueries,
+    });
+    const magicLinkMutation = useServerActionMutation(requestMagicLinkAction, {
+        returnError: true,
+        onSettled: invalidateAuthQueries,
+    });
+
+    const login = async (values: LoginFormValues) => {
+        try {
+            const [data, err] = await loginMutation.mutateAsync(values);
+
+            if (err) {
+                toast.error(err.message || t("loginError"));
+                return;
+            }
+
+            if (data) {
+                toast.success(t("loginSuccess"));
+
+                if (data.user.role === "ADMIN") {
+                    router.push("/admin/planning");
+                } else {
+                    router.push("/dashboard");
+                }
+            }
+        } catch (error) {
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error(t("serverError"));
+            } else {
+                toast.error(t("unexpectedError"));
+            }
+        }
+    };
+
+    const requestMagicLink = async (email: string) => {
+        try {
+            const [data, err] = await magicLinkMutation.mutateAsync({ email });
+
+            if (err) {
+                toast.error(err.message || t("magicLinkError"));
+                return;
+            }
+
+            if (data) {
+                toast.success(t("magicLinkSent"));
+            }
+        } catch (error) {
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error(t("serverError"));
+            } else {
+                toast.error(t("magicLinkError"));
+            }
+        }
+    };
+
+    return {
+        login,
+        requestMagicLink,
+        resetMagicLink: () => magicLinkMutation.reset(),
+        isLoginPending: loginMutation.isPending,
+        isMagicPending: magicLinkMutation.isPending,
+        isMagicSuccess: magicLinkMutation.isSuccess,
+    };
+};
