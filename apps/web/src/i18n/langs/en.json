@@ -1,0 +1,175 @@
+{
+  "common": {
+    "logout": "Log out",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "sslConnection": "SSL Connection",
+    "multiTenant": "Multi-tenant",
+    "backToLogin": "Back to login"
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome",
+      "subtitle": "Sign in to your Pawly account",
+      "tagline": "The intelligent planning for your clinic.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinic.com",
+      "passwordLabel": "Password",
+      "submitButton": "Sign in",
+      "submitting": "Signing in...",
+      "forgotPassword": "Forgot?",
+      "magicLinkTab": "Magic Link",
+      "passwordTab": "Password"
+    },
+    "magicLink": {
+      "emailLabel": "Professional email",
+      "emailPlaceholder": "name@clinic.com",
+      "submitButton": "Get my link",
+      "submitting": "Sending...",
+      "helper": "Recommended for employees. No password, more secure.",
+      "checkEmail": "Check your emails",
+      "linkSent": "A login link has been sent to",
+      "resendLink": "Resend link"
+    },
+    "callback": {
+      "invalidLink": "Invalid link",
+      "linkExpiredMessage": "The link has expired or has already been used. Please request a new magic link.",
+      "connectionValidated": "Connection validated",
+      "validationInProgress": "Validation in progress",
+      "redirecting": "Redirecting...",
+      "verifyingLink": "We are verifying your secure link.",
+      "preparingSession": "Preparing your session..."
+    },
+    "toast": {
+      "loginSuccess": "Successfully logged in!",
+      "loginError": "Invalid email or password",
+      "magicLinkSent": "Login link sent!",
+      "magicLinkError": "Unable to send the link",
+      "serverError": "Server connection issue",
+      "unexpectedError": "An unexpected error occurred"
+    },
+    "errors": {
+      "generic": "An error occurred",
+      "invalidEmail": "Invalid email",
+      "passwordRequired": "Password required"
+    }
+  },
+  "admin": {
+    "nav": {
+      "title": "Pawly Admin",
+      "dashboard": "Dashboard",
+      "planning": "Planning",
+      "requests": "Requests",
+      "employees": "Employees",
+      "absences": "Absences"
+    },
+    "dashboard": {
+      "overview": "Overview",
+      "weeklyTracking": "Weekly tracking and request status",
+      "autoGenerate": "Auto-Generate",
+      "weekPlanning": "Week planning",
+      "targetReached": "Target {hours}h reached",
+      "pendingRequests": "Pending requests",
+      "validateQuickly": "To validate quickly",
+      "activeTeam": "Active team",
+      "vetAndAsv": "Vets & ASV",
+      "quickSummary": "Quick summary",
+      "week": "Week {number}",
+      "noBlockingConflict": "No blocking conflict detected. {count} soft warnings to monitor.",
+      "apprenticesSchoolDays": "Apprentices have entered their school days."
+    }
+  },
+  "brand": {
+    "name": "Pawly",
+    "copyright": "Pawly © 2026 — Clinique Zen Experience",
+    "boardTitle": "Brand Board.",
+    "version": "v1.1 • \"Clean Care\"",
+    "description": "A visual identity that inspires hygiene and competence. \"Vet Teal\" reassures, Black/White structures, Orange humanizes.",
+    "atmosphere": "\"Clinique Zen\" Atmosphere",
+    "hygiene": "Hygiene",
+    "precision": "Precision",
+    "gentleness": "Gentleness",
+    "sections": {
+      "logotype": "Logotype & Construction",
+      "colors": "Color Palette",
+      "typography": "Typography",
+      "texture": "Texture & Sensations",
+      "components": "Interface Components",
+      "iconography": "Iconography"
+    },
+    "logotype": {
+      "authorized": "Authorized",
+      "authorizedDesc": "Use the logo in Black (#171717) on a white background for maximum readability. The white version on \"Vet Teal\" background is accepted for strong branding.",
+      "forbidden": "Forbidden",
+      "forbiddenDesc": "Do not use gradients on the logo. It must remain flat and clinical.",
+      "cornerRadius": "Corner Radius: 35%"
+    },
+    "colors": {
+      "surfacesAndStates": "Surfaces & States"
+    },
+    "typography": {
+      "displayH1": "Display H1",
+      "headingH2": "Heading H2",
+      "bodyLarge": "Body Large",
+      "healBetter": "Heal better.",
+      "clinicManagement": "Clinic management.",
+      "bodyDescription": "Pawly simplifies life for veterinary clinics. A clean sans-serif typography (Inter) ensures perfect readability of medical records.",
+      "fontFamily": "Font Family",
+      "styleGuide": "Style Guide",
+      "medicalClarity": "Medical Clarity:",
+      "medicalClarityDesc": "Avoid decorative fonts. Everything must be instantly readable.",
+      "colorHierarchy": "Color Hierarchy:",
+      "colorHierarchyDesc": "Titles in Black, Paragraphs in Neutral Gray, Medical labels in Vet Teal."
+    },
+    "texture": {
+      "description": "The Pawly interface breathes clinical cleanliness without being cold. White dominates, enhanced by soft colored shadows that indicate interactivity.",
+      "softShadow": "Soft Shadow (Teal hint)",
+      "solidBorder": "Solid Border"
+    },
+    "components": {
+      "inputs": "Inputs",
+      "actions": "Actions",
+      "cards": "Cards",
+      "searchPlaceholder": "Search for a patient...",
+      "emergencies": "Emergencies",
+      "newAppointment": "New Appointment",
+      "adminPortal": "Admin Portal",
+      "viewFullPlanning": "View full planning"
+    },
+    "iconography": {
+      "guidelines": "Icon Guidelines (Lucide React)",
+      "linearStyle": "Linear Style:",
+      "linearStyleDesc": "Fine strokes (1.5px) for elegance.",
+      "colorsRule": "Colors:",
+      "colorsRuleDesc": "Dark gray (Neutral-900) by default. Vet Teal (#009588) is used to emphasize the medical/care aspect."
+    },
+    "designSystem": "Pawly Design System • v1.1"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "greeting": "Hello,",
+    "thisWeek": "This week",
+    "targetReached": "Target reached ✅",
+    "requestAbsence": "Request an absence",
+    "absenceTypes": "Vacation, Sick leave...",
+    "today": "Today",
+    "upcomingDays": "Upcoming Days",
+    "newRequest": "New Request",
+    "absenceType": "Absence type",
+    "dates": "Date(s)",
+    "allDay": "All day",
+    "sendRequest": "Send request",
+    "validated": "Validated",
+    "requestTypes": {
+      "vacation": "Paid Leave",
+      "sick": "Sick Leave",
+      "school": "School / Training",
+      "child": "Sick Child"
+    },
+    "scheduleTypes": {
+      "rest": "Rest",
+      "surgery": "Surgery",
+      "vacation": "Vacation"
+    }
+  }
+}

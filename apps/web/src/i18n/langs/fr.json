@@ -1,0 +1,175 @@
+{
+  "common": {
+    "logout": "Déconnexion",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "sslConnection": "Connexion SSL",
+    "multiTenant": "Multi-tenant",
+    "backToLogin": "Retour à la connexion"
+  },
+  "auth": {
+    "login": {
+      "title": "Bienvenue",
+      "subtitle": "Connectez-vous à votre espace Pawly",
+      "tagline": "Le planning intelligent pour votre clinique.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinique.fr",
+      "passwordLabel": "Mot de passe",
+      "submitButton": "Se connecter",
+      "submitting": "Connexion...",
+      "forgotPassword": "Oublié ?",
+      "magicLinkTab": "Magic Link",
+      "passwordTab": "Mot de passe"
+    },
+    "magicLink": {
+      "emailLabel": "Email professionnel",
+      "emailPlaceholder": "nom@clinique.fr",
+      "submitButton": "Recevoir mon lien",
+      "submitting": "Envoi en cours...",
+      "helper": "Recommandé pour les employés. Sans mot de passe, plus sécurisé.",
+      "checkEmail": "Vérifiez vos emails",
+      "linkSent": "Un lien de connexion a été envoyé à",
+      "resendLink": "Renvoyer le lien"
+    },
+    "callback": {
+      "invalidLink": "Lien invalide",
+      "linkExpiredMessage": "Le lien est expiré ou déjà utilisé. Veuillez redemander un magic link.",
+      "connectionValidated": "Connexion validée",
+      "validationInProgress": "Validation en cours",
+      "redirecting": "Redirection en cours...",
+      "verifyingLink": "Nous vérifions votre lien sécurisé.",
+      "preparingSession": "Préparation de votre session..."
+    },
+    "toast": {
+      "loginSuccess": "Connexion réussie !",
+      "loginError": "Email ou mot de passe incorrect",
+      "magicLinkSent": "Lien de connexion envoyé !",
+      "magicLinkError": "Impossible d'envoyer le lien",
+      "serverError": "Problème de connexion au serveur",
+      "unexpectedError": "Une erreur inattendue est survenue"
+    },
+    "errors": {
+      "generic": "Une erreur est survenue",
+      "invalidEmail": "Email invalide",
+      "passwordRequired": "Mot de passe requis"
+    }
+  },
+  "admin": {
+    "nav": {
+      "title": "Pawly Admin",
+      "dashboard": "Dashboard",
+      "planning": "Planning",
+      "requests": "Demandes",
+      "employees": "Employés",
+      "absences": "Absences"
+    },
+    "dashboard": {
+      "overview": "Vue d'ensemble",
+      "weeklyTracking": "Suivi hebdomadaire et état des demandes",
+      "autoGenerate": "Auto-Générer",
+      "weekPlanning": "Planning de la semaine",
+      "targetReached": "Objectif {hours}h atteint",
+      "pendingRequests": "Demandes en attente",
+      "validateQuickly": "À valider rapidement",
+      "activeTeam": "Équipe active",
+      "vetAndAsv": "Vétos & ASV",
+      "quickSummary": "Synthèse rapide",
+      "week": "Semaine {number}",
+      "noBlockingConflict": "Aucun conflit bloquant détecté. {count} avertissements soft à surveiller.",
+      "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
+    }
+  },
+  "brand": {
+    "name": "Pawly",
+    "copyright": "Pawly © 2026 — Clinique Zen Experience",
+    "boardTitle": "Brand Board.",
+    "version": "v1.1 • \"Clean Care\"",
+    "description": "Une identité visuelle qui inspire l'hygiène et la compétence. Le \"Vert Vétérinaire\" rassure, le Noir/Blanc structure, l'Orange humanise.",
+    "atmosphere": "Atmosphère \"Clinique Zen\"",
+    "hygiene": "Hygiène",
+    "precision": "Précision",
+    "gentleness": "Douceur",
+    "sections": {
+      "logotype": "Logotype & Construction",
+      "colors": "Palette Chromatique",
+      "typography": "Typographie",
+      "texture": "Texture & Sensations",
+      "components": "Composants Interface",
+      "iconography": "Iconographie"
+    },
+    "logotype": {
+      "authorized": "Autorisé",
+      "authorizedDesc": "Utiliser le logo en Noir (#171717) sur fond blanc pour une lisibilité maximale. La version blanche sur fond \"Vert Vétérinaire\" est acceptée pour le branding fort.",
+      "forbidden": "Interdit",
+      "forbiddenDesc": "Ne pas utiliser de dégradés sur le logo. Il doit rester plat et clinique.",
+      "cornerRadius": "Corner Radius: 35%"
+    },
+    "colors": {
+      "surfacesAndStates": "Surfaces & États"
+    },
+    "typography": {
+      "displayH1": "Display H1",
+      "headingH2": "Heading H2",
+      "bodyLarge": "Body Large",
+      "healBetter": "Soigner mieux.",
+      "clinicManagement": "Gestion clinique.",
+      "bodyDescription": "Pawly simplifie la vie des cliniques vétérinaires. Une typographie sans-serif propre (Inter) assure une lisibilité parfaite des dossiers médicaux.",
+      "fontFamily": "Font Family",
+      "styleGuide": "Guide de Style",
+      "medicalClarity": "Clarté Médicale :",
+      "medicalClarityDesc": "Éviter les polices décoratives. Tout doit être lisible instantanément.",
+      "colorHierarchy": "Hiérarchie par la couleur :",
+      "colorHierarchyDesc": "Titres en Noir, Paragraphes en Gris Neutre, Labels médicaux en Vert Vétérinaire."
+    },
+    "texture": {
+      "description": "L'interface Pawly respire la propreté clinique sans être froide. Le blanc domine, rehaussé par des ombres portées douces et colorées qui indiquent l'interactivité.",
+      "softShadow": "Soft Shadow (Teal hint)",
+      "solidBorder": "Solid Border"
+    },
+    "components": {
+      "inputs": "Inputs",
+      "actions": "Actions",
+      "cards": "Cartes",
+      "searchPlaceholder": "Chercher un patient...",
+      "emergencies": "Urgences",
+      "newAppointment": "Nouveau Rendez-vous",
+      "adminPortal": "Portail Admin",
+      "viewFullPlanning": "Voir le planning complet"
+    },
+    "iconography": {
+      "guidelines": "Guidelines Icônes (Lucide React)",
+      "linearStyle": "Style Linéaire :",
+      "linearStyleDesc": "Traits fins (1.5px) pour l'élégance.",
+      "colorsRule": "Couleurs :",
+      "colorsRuleDesc": "Gris foncé (Neutral-900) par défaut. Le Vert Vétérinaire (#009588) est utilisé pour souligner l'aspect médical/soin."
+    },
+    "designSystem": "Pawly Design System • v1.1"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "greeting": "Bonjour,",
+    "thisWeek": "Cette semaine",
+    "targetReached": "Objectif atteint ✅",
+    "requestAbsence": "Demander une absence",
+    "absenceTypes": "Congés, Maladie...",
+    "today": "Aujourd'hui",
+    "upcomingDays": "Prochains Jours",
+    "newRequest": "Nouvelle Demande",
+    "absenceType": "Type d'absence",
+    "dates": "Date(s)",
+    "allDay": "Toute la journée",
+    "sendRequest": "Envoyer la demande",
+    "validated": "Validé",
+    "requestTypes": {
+      "vacation": "Congés Payés",
+      "sick": "Arrêt Maladie",
+      "school": "École / Formation",
+      "child": "Enfant Malade"
+    },
+    "scheduleTypes": {
+      "rest": "Repos",
+      "surgery": "Chirurgie",
+      "vacation": "Congés"
+    }
+  }
+}
