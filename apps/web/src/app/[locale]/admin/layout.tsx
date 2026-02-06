@@ -36,8 +36,21 @@ export default async function AdminLayout({ children, params }: Props) {
         if (status.onboardingCompleted && isOnboardingRoute) {
             redirect(`/${locale}/admin/dashboard`);
         }
-    } catch {
-        // If tRPC call fails (e.g., clinic not yet created), allow access
+    } catch (err) {
+        // Only allow access if clinic truly doesn't exist yet (first-time login)
+        // All other errors (network, auth, validation, corruption) should bubble up
+        if (
+            err &&
+            typeof err === "object" &&
+            "message" in err &&
+            typeof err.message === "string" &&
+            err.message.toLowerCase().includes("not found")
+        ) {
+            // Clinic not created yet - allow access for first-time setup
+            return;
+        }
+        // Re-throw all other errors to prevent silent failures
+        throw err;
     }
 
     return <AdminLayoutClient>{children}</AdminLayoutClient>;

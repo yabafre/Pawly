@@ -115,48 +115,63 @@ export class ClinicService {
       throw new NotFoundException(`Clinic ${clinicId} not found`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      // Update clinic name + slug
-      await tx.clinic.update({
-        where: { id: clinicId },
-        data: {
-          name: data.clinicName,
-          slug: generateSlug(data.clinicName),
-          onboardingCompleted: true,
-        },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Update clinic name + slug
+        await tx.clinic.update({
+          where: { id: clinicId },
+          data: {
+            name: data.clinicName,
+            slug: generateSlug(data.clinicName),
+            onboardingCompleted: true,
+          },
+        });
 
-      // Upsert clinic config
-      await tx.clinicConfig.upsert({
-        where: { clinicId },
-        create: {
-          clinicId,
-          workDays: data.workDays,
-          defaultStartTime: data.defaultStartTime,
-          defaultEndTime: data.defaultEndTime,
-        },
-        update: {
-          workDays: data.workDays,
-          defaultStartTime: data.defaultStartTime,
-          defaultEndTime: data.defaultEndTime,
-        },
-      });
+        // Upsert clinic config
+        await tx.clinicConfig.upsert({
+          where: { clinicId },
+          create: {
+            clinicId,
+            workDays: data.workDays,
+            defaultStartTime: data.defaultStartTime,
+            defaultEndTime: data.defaultEndTime,
+          },
+          update: {
+            workDays: data.workDays,
+            defaultStartTime: data.defaultStartTime,
+            defaultEndTime: data.defaultEndTime,
+          },
+        });
 
-      // Delete existing + create shift types
-      await tx.clinicShiftType.deleteMany({ where: { clinicId } });
-      await tx.clinicShiftType.createMany({
-        data: data.shiftTypes.map((st) => ({
-          clinicId,
-          name: st.name,
-          code: st.code,
-          startTime: st.startTime,
-          endTime: st.endTime,
-          color: st.color,
-        })),
-      });
+        // Delete existing + create shift types
+        await tx.clinicShiftType.deleteMany({ where: { clinicId } });
+        await tx.clinicShiftType.createMany({
+          data: data.shiftTypes.map((st) => ({
+            clinicId,
+            name: st.name,
+            code: st.code,
+            startTime: st.startTime,
+            endTime: st.endTime,
+            color: st.color,
+          })),
+        });
 
-      return { onboardingCompleted: true };
-    });
+        return { onboardingCompleted: true };
+      });
+    } catch (err) {
+      // Handle duplicate shift type code error (P2002 unique constraint violation)
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Duplicate shift type code found. Each shift type must have a unique code.',
+        );
+      }
+      throw err;
+    }
   }
 
   async getOnboardingStatus(clinicId: string) {

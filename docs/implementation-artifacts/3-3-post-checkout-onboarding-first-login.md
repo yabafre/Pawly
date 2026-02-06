@@ -464,12 +464,31 @@ Claude Opus 4.6 (claude-opus-4-6)
 ### Completion Notes List
 
 1. All 10 tasks completed successfully
-2. 266 tests passing (91 API + 125 web + 50 validators), zero regressions
+2. 270 tests passing (93 API + 125 web + 52 validators), zero regressions
 3. `generateSlug` extracted from stripe-webhook.controller.ts to shared utility at `common/utils/slug.ts`
 4. Prisma model `ClinicShiftType` (not `ShiftType`) to avoid naming conflict with existing enum
 5. Onboarding guard uses `x-pathname` header approach for server-side path detection in RSC layouts
 6. All user-facing strings have FR/EN translations (~40 keys each)
 7. Build passes with zero TypeScript errors
+
+### Code Review Fixes (Applied 2026-02-06)
+
+**Issue #1 - Empty Catch Block in Onboarding Guard (HIGH)**
+- **File:** `apps/web/src/app/[locale]/admin/layout.tsx`
+- **Fix:** Replaced empty catch block with specific error handling. Now only allows access if clinic truly doesn't exist (first-time login), re-throws all other errors (network, auth, validation) to prevent silent failures.
+- **Validation:** Critical Rule #4 compliance restored.
+
+**Issue #2 - Missing Time Validation in completeOnboardingSchema (HIGH)**
+- **File:** `packages/validators/src/clinic/onboarding.schema.ts`
+- **Fix:** Added `.refine()` validation to ensure `defaultEndTime > defaultStartTime`. This matches the validation already present in `updateWorkHoursSchema` and `updateClinicConfigSchema`.
+- **Tests Added:** 2 new test cases in `onboarding.schema.test.ts` to verify rejection of invalid time ranges (inverted times, equal times).
+- **Validation:** Server-side validation now prevents bypassing client-side checks.
+
+**Issue #3 - Missing P2002 Error Handling in completeOnboarding (HIGH)**
+- **File:** `apps/api/src/modules/clinic/clinic.service.ts`
+- **Fix:** Wrapped `completeOnboarding` transaction in try/catch to handle P2002 duplicate shift code errors gracefully. Now throws user-friendly `ConflictException` instead of raw Prisma error.
+- **Tests Added:** 2 new test cases in `clinic.service.spec.ts` to verify P2002 handling and non-P2002 error re-throwing.
+- **Validation:** Critical Rule #9 compliance restored, matches error handling pattern in `createShiftTypes`.
 
 ### Change Log
 
@@ -480,20 +499,20 @@ Claude Opus 4.6 (claude-opus-4-6)
 | `apps/api/prisma/schema/Clinic.prisma` | MODIFIED | Added `config` and `shiftTypes` relations |
 | `apps/api/src/common/utils/slug.ts` | NEW | Shared `generateSlug()` utility extracted from webhook controller |
 | `apps/api/src/modules/clinic/clinic.module.ts` | NEW | NestJS ClinicModule |
-| `apps/api/src/modules/clinic/clinic.service.ts` | NEW | ClinicService with 6 methods |
-| `apps/api/src/modules/clinic/clinic.service.spec.ts` | NEW | 14 unit tests for ClinicService |
+| `apps/api/src/modules/clinic/clinic.service.ts` | NEW | ClinicService with 6 methods (CODE REVIEW: added P2002 error handling in completeOnboarding) |
+| `apps/api/src/modules/clinic/clinic.service.spec.ts` | NEW | 16 unit tests for ClinicService (CODE REVIEW: +2 tests for P2002 handling) |
 | `apps/api/src/trpc/routers/clinic.router.ts` | NEW | tRPC clinic router with 5 protected procedures |
 | `apps/api/src/trpc/context.ts` | MODIFIED | Added clinicService to TRPCServices |
 | `apps/api/src/trpc/trpc.module.ts` | MODIFIED | Imported ClinicModule, injected ClinicService |
 | `apps/api/src/trpc/routers/_app.ts` | MODIFIED | Added clinicRouter to appRouter |
 | `apps/api/src/app.module.ts` | MODIFIED | Registered ClinicModule |
 | `apps/api/src/modules/stripe/stripe-webhook.controller.ts` | MODIFIED | Extracted generateSlug to shared utility |
-| `packages/validators/src/clinic/onboarding.schema.ts` | NEW | 8 Zod schemas for onboarding validation |
-| `packages/validators/src/clinic/onboarding.schema.test.ts` | NEW | 50 unit tests for Zod validators |
+| `packages/validators/src/clinic/onboarding.schema.ts` | NEW | 8 Zod schemas for onboarding validation (CODE REVIEW: added .refine() to completeOnboardingSchema) |
+| `packages/validators/src/clinic/onboarding.schema.test.ts` | NEW | 52 unit tests for Zod validators (CODE REVIEW: +2 tests for time validation) |
 | `packages/validators/src/clinic/index.ts` | NEW | Re-exports all schemas and types |
 | `packages/validators/src/index.ts` | MODIFIED | Added clinic export |
 | `apps/web/src/proxy.ts` | MODIFIED | Added x-pathname header for RSC path detection |
-| `apps/web/src/app/[locale]/admin/layout.tsx` | MODIFIED | Added server-side onboarding guard |
+| `apps/web/src/app/[locale]/admin/layout.tsx` | MODIFIED | Added server-side onboarding guard (CODE REVIEW: improved error handling in catch block) |
 | `apps/web/src/app/[locale]/admin/onboarding/page.tsx` | NEW | Server component fetching initial data |
 | `apps/web/src/app/[locale]/admin/onboarding/_actions/onboarding-actions.ts` | NEW | 5 Zsa server actions |
 | `apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx` | NEW | Multi-step wizard with @tanstack/react-form |

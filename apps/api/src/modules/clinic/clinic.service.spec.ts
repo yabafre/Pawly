@@ -373,6 +373,33 @@ describe('ClinicService', () => {
 
       expect(generateSlug).toHaveBeenCalledWith('Pawly Clinic');
     });
+
+    it('should throw ConflictException on P2002 duplicate shift code error', async () => {
+      const prismaError = { code: 'P2002', message: 'Unique constraint failed' };
+
+      mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
+      mockPrismaService.$transaction.mockRejectedValue(prismaError);
+
+      await expect(
+        service.completeOnboarding(clinicId, onboardingData),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        service.completeOnboarding(clinicId, onboardingData),
+      ).rejects.toThrow(
+        'Duplicate shift type code found. Each shift type must have a unique code.',
+      );
+    });
+
+    it('should re-throw non-P2002 errors from completeOnboarding transaction', async () => {
+      const genericError = new Error('Database connection lost');
+
+      mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
+      mockPrismaService.$transaction.mockRejectedValue(genericError);
+
+      await expect(
+        service.completeOnboarding(clinicId, onboardingData),
+      ).rejects.toThrow('Database connection lost');
+    });
   });
 
   // ---------------------------------------------------------------------------

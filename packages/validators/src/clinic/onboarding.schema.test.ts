@@ -373,6 +373,36 @@ describe("completeOnboardingSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("should reject when end time is before start time", () => {
+    const result = completeOnboardingSchema.safeParse({
+      ...validCompleteOnboarding,
+      defaultStartTime: "18:00",
+      defaultEndTime: "08:00",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const endTimeIssue = result.error.issues.find((i) =>
+        i.path.includes("defaultEndTime"),
+      );
+      expect(endTimeIssue?.message).toBe("End time must be after start time");
+    }
+  });
+
+  it("should reject when end time equals start time", () => {
+    const result = completeOnboardingSchema.safeParse({
+      ...validCompleteOnboarding,
+      defaultStartTime: "09:00",
+      defaultEndTime: "09:00",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const endTimeIssue = result.error.issues.find((i) =>
+        i.path.includes("defaultEndTime"),
+      );
+      expect(endTimeIssue?.message).toBe("End time must be after start time");
+    }
+  });
+
   it("should accept valid complete onboarding data", () => {
     const result = completeOnboardingSchema.safeParse(validCompleteOnboarding);
     expect(result.success).toBe(true);

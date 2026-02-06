@@ -66,12 +66,17 @@ export const createShiftTypesSchema = z.object({
 
 export type CreateShiftTypesInput = z.infer<typeof createShiftTypesSchema>;
 
-export const completeOnboardingSchema = z.object({
-  clinicName: z.string().min(2).max(100),
-  workDays: z.array(z.enum(WORK_DAYS)).min(1),
-  defaultStartTime: z.string().regex(timeRegex),
-  defaultEndTime: z.string().regex(timeRegex),
-  shiftTypes: z.array(shiftTypeSchema).min(1),
-});
+export const completeOnboardingSchema = z
+  .object({
+    clinicName: z.string().min(2).max(100),
+    workDays: z.array(z.enum(WORK_DAYS)).min(1),
+    defaultStartTime: z.string().regex(timeRegex),
+    defaultEndTime: z.string().regex(timeRegex),
+    shiftTypes: z.array(shiftTypeSchema).min(1),
+  })
+  .refine((data) => data.defaultEndTime > data.defaultStartTime, {
+    message: "End time must be after start time",
+    path: ["defaultEndTime"],
+  });
 
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingSchema>;
