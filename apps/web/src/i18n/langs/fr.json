@@ -284,6 +284,72 @@
       "spamNote": "Si vous ne trouvez pas l'email, vérifiez votre dossier spam."
     }
   },
+  "onboarding": {
+    "title": "Configuration de votre clinique",
+    "subtitle": "Quelques étapes pour préparer votre espace Pawly",
+    "progress": "Étape {current} sur {total}",
+    "steps": {
+      "clinicName": {
+        "title": "Nom de la clinique",
+        "description": "Confirmez ou modifiez le nom de votre clinique",
+        "label": "Nom de la clinique",
+        "placeholder": "Clinique Vétérinaire des Lilas",
+        "help": "Ce nom sera affiché dans votre espace d'administration"
+      },
+      "workDays": {
+        "title": "Jours de travail",
+        "description": "Sélectionnez les jours d'ouverture de votre clinique",
+        "label": "Jours d'ouverture",
+        "help": "Vous pourrez modifier ces paramètres plus tard"
+      },
+      "workHours": {
+        "title": "Horaires de travail",
+        "description": "Définissez les horaires par défaut de votre clinique",
+        "startTime": "Heure d'ouverture",
+        "endTime": "Heure de fermeture",
+        "help": "Ces horaires servent de base pour la planification"
+      },
+      "shiftTypes": {
+        "title": "Types de postes",
+        "description": "Définissez les différents types de postes de votre clinique",
+        "name": "Nom du poste",
+        "namePlaceholder": "Chirurgie",
+        "code": "Code",
+        "codePlaceholder": "CHIR",
+        "startTime": "Début",
+        "endTime": "Fin",
+        "color": "Couleur",
+        "addShiftType": "Ajouter un type de poste",
+        "removeShiftType": "Supprimer",
+        "help": "Chaque poste doit avoir un code unique",
+        "minRequired": "Au moins un type de poste est requis"
+      }
+    },
+    "navigation": {
+      "previous": "Précédent",
+      "next": "Suivant",
+      "complete": "Terminer la configuration",
+      "completing": "Configuration en cours..."
+    },
+    "completion": {
+      "title": "Clinique configurée !",
+      "description": "Votre clinique est prête. Vous allez être redirigé vers votre tableau de bord.",
+      "toast": "Clinique configurée avec succès !"
+    },
+    "errors": {
+      "saveFailed": "Impossible de sauvegarder la configuration",
+      "duplicateCode": "Ce code de poste existe déjà"
+    },
+    "days": {
+      "MONDAY": "Lundi",
+      "TUESDAY": "Mardi",
+      "WEDNESDAY": "Mercredi",
+      "THURSDAY": "Jeudi",
+      "FRIDAY": "Vendredi",
+      "SATURDAY": "Samedi",
+      "SUNDAY": "Dimanche"
+    }
+  },
   "errors": {
     "generic": "Une erreur est survenue",
     "network": "Erreur de connexion au serveur",

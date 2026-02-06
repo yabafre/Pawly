@@ -284,6 +284,72 @@
       "spamNote": "If you don't see the email, please check your spam folder."
     }
   },
+  "onboarding": {
+    "title": "Configure your clinic",
+    "subtitle": "A few steps to set up your Pawly workspace",
+    "progress": "Step {current} of {total}",
+    "steps": {
+      "clinicName": {
+        "title": "Clinic name",
+        "description": "Confirm or edit your clinic name",
+        "label": "Clinic name",
+        "placeholder": "Sunny Paws Veterinary Clinic",
+        "help": "This name will be displayed in your admin dashboard"
+      },
+      "workDays": {
+        "title": "Work days",
+        "description": "Select the days your clinic is open",
+        "label": "Opening days",
+        "help": "You can change these settings later"
+      },
+      "workHours": {
+        "title": "Work hours",
+        "description": "Set the default hours for your clinic",
+        "startTime": "Opening time",
+        "endTime": "Closing time",
+        "help": "These hours serve as the baseline for planning"
+      },
+      "shiftTypes": {
+        "title": "Shift types",
+        "description": "Define the different shift types at your clinic",
+        "name": "Shift name",
+        "namePlaceholder": "Surgery",
+        "code": "Code",
+        "codePlaceholder": "SURG",
+        "startTime": "Start",
+        "endTime": "End",
+        "color": "Color",
+        "addShiftType": "Add shift type",
+        "removeShiftType": "Remove",
+        "help": "Each shift must have a unique code",
+        "minRequired": "At least one shift type is required"
+      }
+    },
+    "navigation": {
+      "previous": "Previous",
+      "next": "Next",
+      "complete": "Complete setup",
+      "completing": "Setting up..."
+    },
+    "completion": {
+      "title": "Clinic configured!",
+      "description": "Your clinic is ready. You will be redirected to your dashboard.",
+      "toast": "Clinic configured successfully!"
+    },
+    "errors": {
+      "saveFailed": "Unable to save configuration",
+      "duplicateCode": "This shift code already exists"
+    },
+    "days": {
+      "MONDAY": "Monday",
+      "TUESDAY": "Tuesday",
+      "WEDNESDAY": "Wednesday",
+      "THURSDAY": "Thursday",
+      "FRIDAY": "Friday",
+      "SATURDAY": "Saturday",
+      "SUNDAY": "Sunday"
+    }
+  },
   "errors": {
     "generic": "An error occurred",
     "network": "Server connection error",

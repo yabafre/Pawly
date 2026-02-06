@@ -1,6 +1,7 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
+import { trpc } from "@/lib/trpc/client";
 import { AdminLayoutClient } from "./_components/AdminLayoutClient";
 
 type Props = {
@@ -20,11 +21,24 @@ export default async function AdminLayout({ children, params }: Props) {
         redirect(`/${locale}/login`);
     }
 
-    // TODO (Epic 3): Add subscription guard here
-    // const subscription = await trpc.subscription.getStatus.query();
-    // if (!subscription.active || !subscription.onboardingCompleted) {
-    //     redirect(`/${locale}/onboarding`);
-    // }
+    // Onboarding guard: server-side check
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") ?? "";
+    const isOnboardingRoute = pathname.includes("/admin/onboarding");
+
+    try {
+        const status = await trpc.clinic.getOnboardingStatus.query();
+
+        if (!status.onboardingCompleted && !isOnboardingRoute) {
+            redirect(`/${locale}/admin/onboarding`);
+        }
+
+        if (status.onboardingCompleted && isOnboardingRoute) {
+            redirect(`/${locale}/admin/dashboard`);
+        }
+    } catch {
+        // If tRPC call fails (e.g., clinic not yet created), allow access
+    }
 
     return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }
