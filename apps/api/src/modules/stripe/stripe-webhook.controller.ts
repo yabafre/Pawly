@@ -87,51 +87,9 @@ export class StripeWebhookController {
       throw new BadRequestException('Webhook signature verification failed');
     }
 
-    // Idempotency: reject duplicate events
-    const alreadyProcessed = await this.stripeService.isEventProcessed(
-      event.id,
-    );
-    if (alreadyProcessed) {
-      this.logger.log(`Duplicate event ${event.id} — skipping`);
-      return { received: true };
-    }
-
-    // Event routing with business logic
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        await this.handleCheckoutSessionCompleted(
-          event.data.object as Stripe.Checkout.Session,
-        );
-        break;
-      }
-
-      case 'customer.subscription.updated': {
-        await this.handleSubscriptionUpdated(
-          event.data.object as Stripe.Subscription,
-        );
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        await this.handleSubscriptionDeleted(
-          event.data.object as Stripe.Subscription,
-        );
-        break;
-      }
-
-      case 'invoice.payment_failed': {
-        await this.handleInvoicePaymentFailed(
-          event.data.object as Stripe.Invoice,
-        );
-        break;
-      }
-
-      default:
-        this.logger.log(`Unhandled event type: ${event.type}`);
-    }
-
-    // Mark event as processed after successful handling
-    // Catch unique constraint violation (P2002) for concurrent duplicate deliveries
+    // Idempotency: atomically claim the event before processing
+    // This prevents the check-then-act race condition where concurrent
+    // deliveries both pass an isProcessed check and duplicate business logic.
     try {
       await this.stripeService.markEventProcessed(event.id, event.type);
     } catch (err) {
@@ -141,11 +99,49 @@ export class StripeWebhookController {
         'code' in err &&
         (err as { code: string }).code === 'P2002'
       ) {
-        this.logger.log(
-          `Concurrent duplicate event ${event.id} — already saved`,
-        );
+        this.logger.log(`Duplicate event ${event.id} — skipping`);
         return { received: true };
       }
+      throw err;
+    }
+
+    // Event routing — only one thread reaches here per event
+    try {
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          await this.handleCheckoutSessionCompleted(
+            event.data.object as Stripe.Checkout.Session,
+          );
+          break;
+        }
+
+        case 'customer.subscription.updated': {
+          await this.handleSubscriptionUpdated(
+            event.data.object as Stripe.Subscription,
+          );
+          break;
+        }
+
+        case 'customer.subscription.deleted': {
+          await this.handleSubscriptionDeleted(
+            event.data.object as Stripe.Subscription,
+          );
+          break;
+        }
+
+        case 'invoice.payment_failed': {
+          await this.handleInvoicePaymentFailed(
+            event.data.object as Stripe.Invoice,
+          );
+          break;
+        }
+
+        default:
+          this.logger.log(`Unhandled event type: ${event.type}`);
+      }
+    } catch (err) {
+      // Unclaim event to allow Stripe retry on processing failure
+      await this.stripeService.deleteEvent(event.id).catch(() => {});
       throw err;
     }
 
@@ -222,29 +218,59 @@ export class StripeWebhookController {
     this.logger.log(`customer.subscription.updated: ${stripeSubscriptionId}`);
 
     const firstItem = subscription.items.data[0];
-    await this.prisma.subscription.update({
-      where: { stripeSubscriptionId },
-      data: {
-        status: mapSubscriptionStatus(subscription.status),
-        planKey: firstItem?.price.lookup_key ?? 'default',
-        currentPeriodEnd: firstItem
-          ? new Date(firstItem.current_period_end * 1000)
-          : null,
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      },
-    });
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: mapSubscriptionStatus(subscription.status),
+          planKey: firstItem?.price.lookup_key ?? 'default',
+          currentPeriodEnd: firstItem
+            ? new Date(firstItem.current_period_end * 1000)
+            : null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `customer.subscription.updated: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const stripeSubscriptionId = subscription.id;
     this.logger.log(`customer.subscription.deleted: ${stripeSubscriptionId}`);
 
-    await this.prisma.subscription.update({
-      where: { stripeSubscriptionId },
-      data: {
-        status: 'canceled',
-      },
-    });
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: 'canceled',
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `customer.subscription.deleted: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -264,11 +290,26 @@ export class StripeWebhookController {
       return;
     }
 
-    await this.prisma.subscription.update({
-      where: { stripeSubscriptionId },
-      data: {
-        status: 'past_due',
-      },
-    });
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: 'past_due',
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `invoice.payment_failed: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 }

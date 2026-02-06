@@ -85,4 +85,10 @@ export class StripeService {
       data: { stripeEventId, type },
     });
   }
+
+  async deleteEvent(stripeEventId: string): Promise<void> {
+    await this.prisma.stripeEvent.delete({
+      where: { stripeEventId },
+    });
+  }
 }

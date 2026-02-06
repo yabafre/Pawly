@@ -14,6 +14,7 @@ describe('StripeWebhookController', () => {
     constructWebhookEvent: jest.fn(),
     isEventProcessed: jest.fn(),
     markEventProcessed: jest.fn(),
+    deleteEvent: jest.fn(),
     stripe: {
       subscriptions: {
         retrieve: jest.fn(),
@@ -100,10 +101,10 @@ describe('StripeWebhookController', () => {
     });
   });
 
-  describe('handleWebhook — idempotency', () => {
+  describe('handleWebhook — idempotency (claim-then-process)', () => {
     const validSignature = 'test-signature';
 
-    it('should return { received: true } for duplicate events', async () => {
+    it('should skip duplicate events via P2002 on claim', async () => {
       const req = createMockRequest(Buffer.from('payload'));
       const mockEvent = {
         id: 'evt_dup',
@@ -111,23 +112,6 @@ describe('StripeWebhookController', () => {
         data: { object: { id: 'cs_123' } },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
-      mockStripeService.isEventProcessed.mockResolvedValue(true);
-
-      const result = await controller.handleWebhook(req, validSignature);
-
-      expect(result).toEqual({ received: true });
-      expect(mockStripeService.markEventProcessed).not.toHaveBeenCalled();
-    });
-
-    it('should handle P2002 unique constraint violation gracefully', async () => {
-      const req = createMockRequest(Buffer.from('payload'));
-      const mockEvent = {
-        id: 'evt_concurrent',
-        type: 'some.unknown.event',
-        data: { object: {} },
-      };
-      mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
 
       const p2002Error = Object.assign(
         new Error('Unique constraint failed'),
@@ -138,6 +122,7 @@ describe('StripeWebhookController', () => {
       const result = await controller.handleWebhook(req, validSignature);
 
       expect(result).toEqual({ received: true });
+      expect(mockTransaction).not.toHaveBeenCalled();
     });
 
     it('should rethrow non-P2002 errors from markEventProcessed', async () => {
@@ -148,7 +133,6 @@ describe('StripeWebhookController', () => {
         data: { object: {} },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockRejectedValue(
         new Error('Database connection failed'),
       );
@@ -156,6 +140,37 @@ describe('StripeWebhookController', () => {
       await expect(
         controller.handleWebhook(req, validSignature),
       ).rejects.toThrow('Database connection failed');
+    });
+
+    it('should unclaim event and rethrow when business logic fails', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const mockEvent = {
+        id: 'evt_fail',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_fail',
+            customer: 'cus_fail',
+            subscription: 'sub_fail',
+            metadata: {
+              clinicName: 'Fail Clinic',
+              adminEmail: 'fail@test.com',
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockRejectedValue(
+        new Error('Stripe API error'),
+      );
+      mockStripeService.deleteEvent.mockResolvedValue(undefined);
+
+      await expect(
+        controller.handleWebhook(req, validSignature),
+      ).rejects.toThrow('Stripe API error');
+
+      expect(mockStripeService.deleteEvent).toHaveBeenCalledWith('evt_fail');
     });
   });
 
@@ -202,7 +217,6 @@ describe('StripeWebhookController', () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEvent();
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         mockSubscription,
@@ -279,7 +293,6 @@ describe('StripeWebhookController', () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEvent({ payment_intent: null });
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         mockSubscription,
@@ -316,7 +329,6 @@ describe('StripeWebhookController', () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEvent();
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue({
         ...mockSubscription,
@@ -361,7 +373,6 @@ describe('StripeWebhookController', () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEvent({ metadata: null });
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
 
       const result = await controller.handleWebhook(req, validSignature);
@@ -377,7 +388,6 @@ describe('StripeWebhookController', () => {
         metadata: { adminEmail: 'admin@test.com' },
       });
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
 
       const result = await controller.handleWebhook(req, validSignature);
@@ -392,7 +402,6 @@ describe('StripeWebhookController', () => {
         metadata: { clinicName: 'Test Clinic' },
       });
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
 
       const result = await controller.handleWebhook(req, validSignature);
@@ -427,7 +436,6 @@ describe('StripeWebhookController', () => {
         },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockPrismaService.subscription.update.mockResolvedValue({});
 
@@ -467,7 +475,6 @@ describe('StripeWebhookController', () => {
         },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockPrismaService.subscription.update.mockResolvedValue({});
 
@@ -479,6 +486,41 @@ describe('StripeWebhookController', () => {
           status: 'unpaid',
         }),
       });
+    });
+
+    it('should skip gracefully when subscription not found (out-of-order webhook)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_sub_ooo',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub_not_exists',
+            status: 'active',
+            cancel_at_period_end: false,
+            items: {
+              data: [
+                {
+                  price: { lookup_key: 'starter_monthly' },
+                  current_period_end: 1738368000,
+                },
+              ],
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+
+      const p2025Error = Object.assign(
+        new Error('Record to update not found'),
+        { code: 'P2025' },
+      );
+      mockPrismaService.subscription.update.mockRejectedValue(p2025Error);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
     });
   });
 
@@ -500,7 +542,6 @@ describe('StripeWebhookController', () => {
         },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockPrismaService.subscription.update.mockResolvedValue({});
 
@@ -511,6 +552,34 @@ describe('StripeWebhookController', () => {
         where: { stripeSubscriptionId: 'sub_test_789' },
         data: { status: 'canceled' },
       });
+    });
+
+    it('should skip gracefully when subscription not found (out-of-order webhook)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_sub_del_ooo',
+        type: 'customer.subscription.deleted',
+        data: {
+          object: {
+            id: 'sub_not_exists',
+            status: 'canceled',
+            cancel_at_period_end: false,
+            items: { data: [] },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+
+      const p2025Error = Object.assign(
+        new Error('Record to update not found'),
+        { code: 'P2025' },
+      );
+      mockPrismaService.subscription.update.mockRejectedValue(p2025Error);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
     });
   });
 
@@ -534,7 +603,6 @@ describe('StripeWebhookController', () => {
         },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
       mockPrismaService.subscription.update.mockResolvedValue({});
 
@@ -560,13 +628,42 @@ describe('StripeWebhookController', () => {
         },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
 
       const result = await controller.handleWebhook(req, validSignature);
 
       expect(result).toEqual({ received: true });
       expect(mockPrismaService.subscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip gracefully when subscription not found (out-of-order webhook)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_invoice_ooo',
+        type: 'invoice.payment_failed',
+        data: {
+          object: {
+            id: 'in_test_ooo',
+            parent: {
+              subscription_details: {
+                subscription: 'sub_not_exists',
+              },
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+
+      const p2025Error = Object.assign(
+        new Error('Record to update not found'),
+        { code: 'P2025' },
+      );
+      mockPrismaService.subscription.update.mockRejectedValue(p2025Error);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
     });
   });
 
@@ -581,16 +678,11 @@ describe('StripeWebhookController', () => {
         data: { object: { id: 'obj_123' } },
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
-      mockStripeService.isEventProcessed.mockResolvedValue(false);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
 
       const result = await controller.handleWebhook(req, validSignature);
 
       expect(result).toEqual({ received: true });
-      expect(mockStripeService.markEventProcessed).toHaveBeenCalledWith(
-        'evt_unknown',
-        'some.unknown.event',
-      );
     });
   });
 });

@@ -3,7 +3,19 @@ import { PreCheckoutForm } from "./_components/PreCheckoutForm";
 
 export default function PricingPage() {
   const t = useTranslations("pricing");
-  const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ?? "";
+  const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID;
+
+  if (!priceId) {
+    return (
+      <div className="min-h-screen bg-neutral-50 py-16 px-4">
+        <div className="max-w-lg mx-auto text-center py-20">
+          <p className="text-red-600 font-medium">
+            Configuration error: Missing Stripe Price ID
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 py-16 px-4">

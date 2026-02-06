@@ -13,7 +13,8 @@
     "db:migrate:dev": "dotenv -- pnpm --filter @pawly/api db:migrate:dev",
     "db:migrate:deploy": "dotenv -- pnpm --filter @pawly/api db:migrate:deploy",
     "db:studio": "dotenv -- pnpm --filter @pawly/api db:studio",
-    "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed"
+    "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed",
+    "test": "dotenv -- turbo run test"
   },
   "devDependencies": {
     "turbo": "^2.8.1",
