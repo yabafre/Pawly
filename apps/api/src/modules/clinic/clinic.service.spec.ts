@@ -375,7 +375,7 @@ describe('ClinicService', () => {
     });
 
     it('should throw ConflictException on P2002 duplicate shift code error', async () => {
-      const prismaError = { code: 'P2002', message: 'Unique constraint failed' };
+      const prismaError = { code: 'P2002', message: 'Unique constraint failed', meta: { target: ['clinicId', 'code'] } };
 
       mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
       mockPrismaService.$transaction.mockRejectedValue(prismaError);
@@ -387,6 +387,22 @@ describe('ClinicService', () => {
         service.completeOnboarding(clinicId, onboardingData),
       ).rejects.toThrow(
         'Duplicate shift type code found. Each shift type must have a unique code.',
+      );
+    });
+
+    it('should throw ConflictException with slug message on P2002 slug collision', async () => {
+      const prismaError = { code: 'P2002', message: 'Unique constraint failed', meta: { target: ['slug'] } };
+
+      mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
+      mockPrismaService.$transaction.mockRejectedValue(prismaError);
+
+      await expect(
+        service.completeOnboarding(clinicId, onboardingData),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        service.completeOnboarding(clinicId, onboardingData),
+      ).rejects.toThrow(
+        'A clinic with this name already exists. Please choose a different name.',
       );
     });
 

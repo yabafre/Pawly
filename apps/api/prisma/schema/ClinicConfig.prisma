@@ -1,7 +1,7 @@
 model ClinicConfig {
   id               String   @id @default(uuid())
   clinicId         String   @unique @map("clinic_id")
-  clinic           Clinic   @relation(fields: [clinicId], references: [id])
+  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   workDays         String[] @map("work_days")
   defaultStartTime String   @map("default_start_time")
   defaultEndTime   String   @map("default_end_time")

@@ -5,6 +5,7 @@ export {
   updateWorkHoursSchema,
   workHoursFieldsSchema,
   updateClinicConfigSchema,
+  shiftTypeFieldsSchema,
   shiftTypeSchema,
   createShiftTypesSchema,
   completeOnboardingSchema,

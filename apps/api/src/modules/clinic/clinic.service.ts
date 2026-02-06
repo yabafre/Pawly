@@ -102,6 +102,7 @@ export class ClinicService {
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
+      this.logger.error(`Failed to create shift types for clinic ${clinicId}`, err);
       throw err;
     }
   }
@@ -159,17 +160,24 @@ export class ClinicService {
         return { onboardingCompleted: true };
       });
     } catch (err) {
-      // Handle duplicate shift type code error (P2002 unique constraint violation)
       if (
         err &&
         typeof err === 'object' &&
         'code' in err &&
         (err as { code: string }).code === 'P2002'
       ) {
+        const meta = (err as { meta?: { target?: string[] } }).meta;
+        const target = meta?.target ?? [];
+        if (target.includes('slug')) {
+          throw new ConflictException(
+            'A clinic with this name already exists. Please choose a different name.',
+          );
+        }
         throw new ConflictException(
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
+      this.logger.error(`Failed to complete onboarding for clinic ${clinicId}`, err);
       throw err;
     }
   }

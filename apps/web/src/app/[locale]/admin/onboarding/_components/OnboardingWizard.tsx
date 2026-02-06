@@ -163,6 +163,7 @@ export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
               st.code.length > 0 &&
               /^\d{2}:\d{2}$/.test(st.startTime) &&
               /^\d{2}:\d{2}$/.test(st.endTime) &&
+              st.endTime > st.startTime &&
               /^#[0-9A-Fa-f]{6}$/.test(st.color),
           )
         );

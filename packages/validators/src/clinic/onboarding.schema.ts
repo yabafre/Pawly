@@ -50,13 +50,18 @@ export const updateClinicConfigSchema = updateWorkDaysSchema
 
 export type UpdateClinicConfigInput = z.infer<typeof updateClinicConfigSchema>;
 
-export const shiftTypeSchema = z.object({
+export const shiftTypeFieldsSchema = z.object({
   name: z.string().min(1).max(50),
   code: z.string().min(1).max(10).toUpperCase(),
   startTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
   endTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color"),
 });
+
+export const shiftTypeSchema = shiftTypeFieldsSchema.refine(
+  (data) => data.endTime > data.startTime,
+  { message: "End time must be after start time", path: ["endTime"] },
+);
 
 export const createShiftTypesSchema = z.object({
   shiftTypes: z

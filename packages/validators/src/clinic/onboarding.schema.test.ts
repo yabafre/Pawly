@@ -3,6 +3,7 @@ import {
   updateClinicNameSchema,
   updateWorkDaysSchema,
   updateWorkHoursSchema,
+  shiftTypeSchema,
   createShiftTypesSchema,
   completeOnboardingSchema,
   updateClinicConfigSchema,
@@ -198,6 +199,41 @@ describe("updateWorkHoursSchema", () => {
 });
 
 // ---------------------------------------------------------------------------
+// shiftTypeSchema (time ordering validation)
+// ---------------------------------------------------------------------------
+
+describe("shiftTypeSchema", () => {
+  it("should reject when endTime is before startTime", () => {
+    const result = shiftTypeSchema.safeParse({
+      ...validShiftType,
+      startTime: "14:00",
+      endTime: "08:00",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const endTimeIssue = result.error.issues.find((i) =>
+        i.path.includes("endTime"),
+      );
+      expect(endTimeIssue?.message).toBe("End time must be after start time");
+    }
+  });
+
+  it("should reject when endTime equals startTime", () => {
+    const result = shiftTypeSchema.safeParse({
+      ...validShiftType,
+      startTime: "10:00",
+      endTime: "10:00",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should accept when endTime is after startTime", () => {
+    const result = shiftTypeSchema.safeParse(validShiftType);
+    expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // createShiftTypesSchema
 // ---------------------------------------------------------------------------
 
@@ -311,6 +347,13 @@ describe("createShiftTypesSchema", () => {
     });
     expect(result.success).toBe(true);
     expect(result.data!.shiftTypes[0].code).toBe("AM");
+  });
+
+  it("should reject a shift type where endTime is before startTime", () => {
+    const result = createShiftTypesSchema.safeParse({
+      shiftTypes: [{ ...validShiftType, startTime: "18:00", endTime: "08:00" }],
+    });
+    expect(result.success).toBe(false);
   });
 });
 
