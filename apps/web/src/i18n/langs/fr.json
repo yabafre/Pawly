@@ -262,6 +262,28 @@
       "december": "Décembre"
     }
   },
+  "pricing": {
+    "title": "Commencez à gérer votre clinique",
+    "subtitle": "Abonnez-vous pour démarrer avec Pawly pour votre cabinet vétérinaire.",
+    "preCheckout": {
+      "clinicNameLabel": "Nom de la clinique",
+      "clinicNamePlaceholder": "Clinique Vétérinaire des Lilas",
+      "adminNameLabel": "Votre nom",
+      "adminNamePlaceholder": "Dr. Dupont",
+      "adminEmailLabel": "Email professionnel",
+      "adminEmailPlaceholder": "admin@clinique.fr",
+      "submitButton": "S'abonner",
+      "submitting": "Redirection vers le paiement...",
+      "error": "Impossible de créer la session de paiement"
+    },
+    "success": {
+      "title": "Compte créé avec succès !",
+      "description": "Votre clinique a été enregistrée. Vous allez recevoir un email pour accéder à votre espace.",
+      "checkEmail": "Vérifiez vos emails",
+      "checkEmailDescription": "Un lien de connexion sécurisé a été envoyé à l'adresse email que vous avez renseignée lors de l'inscription.",
+      "spamNote": "Si vous ne trouvez pas l'email, vérifiez votre dossier spam."
+    }
+  },
   "errors": {
     "generic": "Une erreur est survenue",
     "network": "Erreur de connexion au serveur",

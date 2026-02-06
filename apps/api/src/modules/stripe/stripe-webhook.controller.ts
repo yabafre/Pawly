@@ -11,8 +11,44 @@ import { ApiTags, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type Stripe from 'stripe';
+import * as crypto from 'crypto';
 import { Public } from '@/common/decorators/public.decorator';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
+
+type SubscriptionStatus =
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'unpaid';
+
+const SUBSCRIPTION_STATUS_MAP: Record<string, SubscriptionStatus> = {
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  canceled: 'canceled',
+  unpaid: 'unpaid',
+  incomplete: 'unpaid',
+  incomplete_expired: 'canceled',
+  paused: 'active',
+};
+
+function mapSubscriptionStatus(stripeStatus: string): SubscriptionStatus {
+  return SUBSCRIPTION_STATUS_MAP[stripeStatus] ?? 'unpaid';
+}
+
+function generateSlug(clinicName: string): string {
+  const base = clinicName
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const suffix = crypto.randomBytes(4).toString('hex');
+  return `${base}-${suffix}`;
+}
 
 @ApiTags('Stripe')
 @SkipThrottle()
@@ -20,7 +56,11 @@ import { StripeService } from './stripe.service';
 export class StripeWebhookController {
   private readonly logger = new Logger(StripeWebhookController.name);
 
-  constructor(private readonly stripeService: StripeService) {}
+  constructor(
+    private readonly stripeService: StripeService,
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Public()
   @Post('webhook')
@@ -47,47 +87,9 @@ export class StripeWebhookController {
       throw new BadRequestException('Webhook signature verification failed');
     }
 
-    // Idempotency: reject duplicate events
-    const alreadyProcessed = await this.stripeService.isEventProcessed(
-      event.id,
-    );
-    if (alreadyProcessed) {
-      this.logger.log(`Duplicate event ${event.id} — skipping`);
-      return { received: true };
-    }
-
-    // Event routing skeleton — business logic delegated to Story 3.2+
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        this.logger.log(`checkout.session.completed: ${session.id}`);
-        break;
-      }
-
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        this.logger.log(`customer.subscription.updated: ${subscription.id}`);
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        this.logger.log(`customer.subscription.deleted: ${subscription.id}`);
-        break;
-      }
-
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        this.logger.log(`invoice.payment_failed: ${invoice.id}`);
-        break;
-      }
-
-      default:
-        this.logger.log(`Unhandled event type: ${event.type}`);
-    }
-
-    // Mark event as processed after successful handling
-    // Catch unique constraint violation (P2002) for concurrent duplicate deliveries
+    // Idempotency: atomically claim the event before processing
+    // This prevents the check-then-act race condition where concurrent
+    // deliveries both pass an isProcessed check and duplicate business logic.
     try {
       await this.stripeService.markEventProcessed(event.id, event.type);
     } catch (err) {
@@ -97,14 +99,217 @@ export class StripeWebhookController {
         'code' in err &&
         (err as { code: string }).code === 'P2002'
       ) {
-        this.logger.log(
-          `Concurrent duplicate event ${event.id} — already saved`,
-        );
+        this.logger.log(`Duplicate event ${event.id} — skipping`);
         return { received: true };
       }
       throw err;
     }
 
+    // Event routing — only one thread reaches here per event
+    try {
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          await this.handleCheckoutSessionCompleted(
+            event.data.object as Stripe.Checkout.Session,
+          );
+          break;
+        }
+
+        case 'customer.subscription.updated': {
+          await this.handleSubscriptionUpdated(
+            event.data.object as Stripe.Subscription,
+          );
+          break;
+        }
+
+        case 'customer.subscription.deleted': {
+          await this.handleSubscriptionDeleted(
+            event.data.object as Stripe.Subscription,
+          );
+          break;
+        }
+
+        case 'invoice.payment_failed': {
+          await this.handleInvoicePaymentFailed(
+            event.data.object as Stripe.Invoice,
+          );
+          break;
+        }
+
+        default:
+          this.logger.log(`Unhandled event type: ${event.type}`);
+      }
+    } catch (err) {
+      // Unclaim event to allow Stripe retry on processing failure
+      await this.stripeService.deleteEvent(event.id).catch(() => {});
+      throw err;
+    }
+
     return { received: true };
+  }
+
+  private async handleCheckoutSessionCompleted(
+    session: Stripe.Checkout.Session,
+  ) {
+    const metadata = session.metadata;
+    if (!metadata?.clinicName || !metadata?.adminEmail) {
+      this.logger.error(
+        `checkout.session.completed ${session.id}: missing required metadata (clinicName or adminEmail)`,
+      );
+      return;
+    }
+
+    const { clinicName, adminName, adminEmail } = metadata;
+    const stripeCustomerId = session.customer as string;
+    const stripeSubscriptionId = session.subscription as string;
+
+    this.logger.log(
+      `checkout.session.completed: ${session.id} — creating clinic for ${adminEmail}`,
+    );
+
+    // Retrieve subscription for full details
+    const subscription =
+      await this.stripeService.stripe.subscriptions.retrieve(
+        stripeSubscriptionId,
+      );
+
+    // Atomic: create Clinic + Admin User + Subscription in a single transaction
+    await this.prisma.$transaction(async (tx) => {
+      const clinic = await tx.clinic.create({
+        data: {
+          name: clinicName,
+          slug: generateSlug(clinicName),
+          onboardingCompleted: false,
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          email: adminEmail,
+          name: adminName || null,
+          role: 'ADMIN',
+          clinicId: clinic.id,
+        },
+      });
+
+      const firstItem = subscription.items.data[0];
+      await tx.subscription.create({
+        data: {
+          clinicId: clinic.id,
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: mapSubscriptionStatus(subscription.status),
+          planKey: firstItem?.price.lookup_key ?? 'default',
+          entitlementTier: 'starter',
+          currentPeriodEnd: firstItem
+            ? new Date(firstItem.current_period_end * 1000)
+            : null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        },
+      });
+    });
+
+    // Send Magic Link (outside transaction — email is non-reversible)
+    await this.authService.requestMagicLink(adminEmail);
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const stripeSubscriptionId = subscription.id;
+    this.logger.log(`customer.subscription.updated: ${stripeSubscriptionId}`);
+
+    const firstItem = subscription.items.data[0];
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: mapSubscriptionStatus(subscription.status),
+          planKey: firstItem?.price.lookup_key ?? 'default',
+          currentPeriodEnd: firstItem
+            ? new Date(firstItem.current_period_end * 1000)
+            : null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `customer.subscription.updated: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const stripeSubscriptionId = subscription.id;
+    this.logger.log(`customer.subscription.deleted: ${stripeSubscriptionId}`);
+
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: 'canceled',
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `customer.subscription.deleted: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+    this.logger.log(`invoice.payment_failed: ${invoice.id}`);
+
+    const subscriptionRef =
+      invoice.parent?.subscription_details?.subscription;
+    const stripeSubscriptionId =
+      typeof subscriptionRef === 'string'
+        ? subscriptionRef
+        : subscriptionRef?.id;
+
+    if (!stripeSubscriptionId) {
+      this.logger.warn(
+        `invoice.payment_failed ${invoice.id} has no subscription — skipping`,
+      );
+      return;
+    }
+
+    try {
+      await this.prisma.subscription.update({
+        where: { stripeSubscriptionId },
+        data: {
+          status: 'past_due',
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `invoice.payment_failed: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 }

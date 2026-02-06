@@ -1,11 +1,13 @@
 import type { CreateExpressContextOptions } from '@trpc/server/adapters/express';
 import type { AuthService } from '@/modules/auth/auth.service';
+import type { StripeService } from '@/modules/stripe/stripe.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { AuthenticatedUser } from '@pawly/types';
 
 export interface TRPCServices {
   authService: AuthService;
+  stripeService: StripeService;
   jwtService: JwtService;
   prisma: PrismaService;
 }

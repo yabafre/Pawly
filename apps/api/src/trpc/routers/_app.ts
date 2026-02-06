@@ -8,6 +8,7 @@
  */
 import { router } from '../trpc';
 import { authRouter } from './auth.router';
+import { stripeRouter } from './stripe.router';
 
 /**
  * Main application router
@@ -17,6 +18,7 @@ import { authRouter } from './auth.router';
  */
 export const appRouter = router({
   auth: authRouter,
+  stripe: stripeRouter,
 });
 
 /**
