@@ -262,6 +262,28 @@
       "december": "December"
     }
   },
+  "pricing": {
+    "title": "Start managing your clinic",
+    "subtitle": "Subscribe to get started with Pawly for your veterinary practice.",
+    "preCheckout": {
+      "clinicNameLabel": "Clinic name",
+      "clinicNamePlaceholder": "Sunny Paws Veterinary Clinic",
+      "adminNameLabel": "Your name",
+      "adminNamePlaceholder": "Dr. Smith",
+      "adminEmailLabel": "Professional email",
+      "adminEmailPlaceholder": "admin@clinic.com",
+      "submitButton": "Subscribe",
+      "submitting": "Redirecting to payment...",
+      "error": "Unable to create checkout session"
+    },
+    "success": {
+      "title": "Account created successfully!",
+      "description": "Your clinic has been registered. You will receive an email to access your dashboard.",
+      "checkEmail": "Check your email",
+      "checkEmailDescription": "A secure login link has been sent to the email address you provided during registration.",
+      "spamNote": "If you don't see the email, please check your spam folder."
+    }
+  },
   "errors": {
     "generic": "An error occurred",
     "network": "Server connection error",

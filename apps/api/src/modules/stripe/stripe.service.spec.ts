@@ -6,12 +6,24 @@ import Stripe from 'stripe';
 
 jest.mock('stripe', () => {
   const mockConstructEvent = jest.fn();
+  const mockCheckoutSessionsCreate = jest.fn();
+  const mockSubscriptionsRetrieve = jest.fn();
   const MockStripe = jest.fn().mockImplementation(() => ({
     webhooks: {
       constructEvent: mockConstructEvent,
     },
+    checkout: {
+      sessions: {
+        create: mockCheckoutSessionsCreate,
+      },
+    },
+    subscriptions: {
+      retrieve: mockSubscriptionsRetrieve,
+    },
   }));
   (MockStripe as any).mockConstructEvent = mockConstructEvent;
+  (MockStripe as any).mockCheckoutSessionsCreate = mockCheckoutSessionsCreate;
+  (MockStripe as any).mockSubscriptionsRetrieve = mockSubscriptionsRetrieve;
   return { default: MockStripe, __esModule: true };
 });
 
@@ -19,6 +31,7 @@ describe('StripeService', () => {
   let service: StripeService;
   let prisma: PrismaService;
   let mockConstructEvent: jest.Mock;
+  let mockCheckoutSessionsCreate: jest.Mock;
 
   const mockPrismaService = {
     stripeEvent: {
@@ -32,6 +45,7 @@ describe('StripeService', () => {
       const config: Record<string, string> = {
         STRIPE_SECRET_KEY: 'sk_test_mock',
         STRIPE_WEBHOOK_SECRET: 'whsec_test_mock',
+        WEB_APP_URL: 'http://localhost:3000',
       };
       return config[key];
     }),
@@ -40,6 +54,8 @@ describe('StripeService', () => {
   beforeEach(async () => {
     mockConstructEvent = (Stripe as any).mockConstructEvent;
     mockConstructEvent.mockReset();
+    mockCheckoutSessionsCreate = (Stripe as any).mockCheckoutSessionsCreate;
+    mockCheckoutSessionsCreate.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,6 +75,13 @@ describe('StripeService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('stripe getter', () => {
+    it('should return the Stripe client instance', () => {
+      expect(service.stripe).toBeDefined();
+      expect(service.stripe.webhooks).toBeDefined();
+    });
   });
 
   describe('constructWebhookEvent', () => {
@@ -136,6 +159,90 @@ describe('StripeService', () => {
           stripeEventId: 'evt_123',
           type: 'checkout.session.completed',
         },
+      });
+    });
+  });
+
+  describe('createCheckoutSession', () => {
+    const input = {
+      clinicName: 'Clinique Test',
+      adminName: 'Dr. Test',
+      adminEmail: 'admin@test.com',
+      priceId: 'price_test_123',
+      locale: 'fr' as const,
+    };
+
+    it('should create a Stripe Checkout Session with correct params', async () => {
+      mockCheckoutSessionsCreate.mockResolvedValue({
+        id: 'cs_test_session',
+        url: 'https://checkout.stripe.com/pay/cs_test_session',
+      });
+
+      const result = await service.createCheckoutSession(input);
+
+      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith({
+        mode: 'subscription',
+        line_items: [{ price: 'price_test_123', quantity: 1 }],
+        success_url:
+          'http://localhost:3000/fr/pricing/success?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url: 'http://localhost:3000/fr/pricing',
+        customer_email: 'admin@test.com',
+        allow_promotion_codes: true,
+        metadata: {
+          clinicName: 'Clinique Test',
+          adminName: 'Dr. Test',
+          adminEmail: 'admin@test.com',
+        },
+        subscription_data: {
+          metadata: {
+            clinicName: 'Clinique Test',
+            adminName: 'Dr. Test',
+            adminEmail: 'admin@test.com',
+          },
+        },
+      });
+
+      expect(result).toEqual({
+        sessionId: 'cs_test_session',
+        url: 'https://checkout.stripe.com/pay/cs_test_session',
+      });
+    });
+
+    it('should use the locale in success and cancel URLs', async () => {
+      mockCheckoutSessionsCreate.mockResolvedValue({
+        id: 'cs_test',
+        url: 'https://checkout.stripe.com/pay/cs_test',
+      });
+
+      await service.createCheckoutSession({ ...input, locale: 'en' });
+
+      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success_url:
+            'http://localhost:3000/en/pricing/success?session_id={CHECKOUT_SESSION_ID}',
+          cancel_url: 'http://localhost:3000/en/pricing',
+        }),
+      );
+    });
+
+    it('should pass metadata to both session and subscription_data', async () => {
+      mockCheckoutSessionsCreate.mockResolvedValue({
+        id: 'cs_test',
+        url: 'https://checkout.stripe.com/pay/cs_test',
+      });
+
+      await service.createCheckoutSession(input);
+
+      const callArgs = mockCheckoutSessionsCreate.mock.calls[0][0];
+      expect(callArgs.metadata).toEqual({
+        clinicName: 'Clinique Test',
+        adminName: 'Dr. Test',
+        adminEmail: 'admin@test.com',
+      });
+      expect(callArgs.subscription_data.metadata).toEqual({
+        clinicName: 'Clinique Test',
+        adminName: 'Dr. Test',
+        adminEmail: 'admin@test.com',
       });
     });
   });

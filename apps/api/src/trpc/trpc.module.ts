@@ -10,6 +10,8 @@ import * as trpcExpress from '@trpc/server/adapters/express';
 import { JwtService } from '@nestjs/jwt';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { AuthService } from '@/modules/auth/auth.service';
+import { StripeModule } from '@/modules/stripe/stripe.module';
+import { StripeService } from '@/modules/stripe/stripe.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
@@ -26,11 +28,13 @@ export class TRPCMiddleware implements NestMiddleware {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly stripeService: StripeService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {
     const services: TRPCServices = {
       authService: this.authService,
+      stripeService: this.stripeService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -53,6 +57,7 @@ export class TRPCMiddleware implements NestMiddleware {
 export class TRPCService {
   constructor(
     private readonly authService: AuthService,
+    private readonly stripeService: StripeService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) { }
@@ -63,6 +68,7 @@ export class TRPCService {
   getServices(): TRPCServices {
     return {
       authService: this.authService,
+      stripeService: this.stripeService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -84,6 +90,7 @@ export class TRPCService {
 @Module({
   imports: [
     AuthModule,
+    StripeModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],
