@@ -184,6 +184,35 @@ describe('StripeWebhookController', () => {
       expect(result).toEqual({ received: true });
     });
 
+    it('should handle P2002 unique constraint violation gracefully (concurrent duplicate)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
+      mockStripeService.isEventProcessed.mockResolvedValue(false);
+
+      const p2002Error = Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+      });
+      mockStripeService.markEventProcessed.mockRejectedValue(p2002Error);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+    });
+
+    it('should rethrow non-P2002 errors from markEventProcessed', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      mockStripeService.constructWebhookEvent.mockReturnValue(mockEvent);
+      mockStripeService.isEventProcessed.mockResolvedValue(false);
+
+      mockStripeService.markEventProcessed.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      await expect(
+        controller.handleWebhook(req, validSignature),
+      ).rejects.toThrow('Database connection failed');
+    });
+
     it('should handle unrecognized event types gracefully', async () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = {

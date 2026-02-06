@@ -58,29 +58,29 @@ export class StripeWebhookController {
 
     // Event routing skeleton — business logic delegated to Story 3.2+
     switch (event.type) {
-      case 'checkout.session.completed':
-        this.logger.log(
-          `checkout.session.completed: ${(event.data.object as { id: string }).id}`,
-        );
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        this.logger.log(`checkout.session.completed: ${session.id}`);
         break;
+      }
 
-      case 'customer.subscription.updated':
-        this.logger.log(
-          `customer.subscription.updated: ${(event.data.object as { id: string }).id}`,
-        );
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        this.logger.log(`customer.subscription.updated: ${subscription.id}`);
         break;
+      }
 
-      case 'customer.subscription.deleted':
-        this.logger.log(
-          `customer.subscription.deleted: ${(event.data.object as { id: string }).id}`,
-        );
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        this.logger.log(`customer.subscription.deleted: ${subscription.id}`);
         break;
+      }
 
-      case 'invoice.payment_failed':
-        this.logger.log(
-          `invoice.payment_failed: ${(event.data.object as { id: string }).id}`,
-        );
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        this.logger.log(`invoice.payment_failed: ${invoice.id}`);
         break;
+      }
 
       default:
         this.logger.log(`Unhandled event type: ${event.type}`);
