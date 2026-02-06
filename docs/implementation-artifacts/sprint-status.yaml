@@ -113,7 +113,7 @@ development_status:
   epic-3: in-progress
   3-1-stripe-module-foundation-webhook-security: done
   3-2-stripe-checkout-clinic-registration: done
-  3-3-post-checkout-onboarding-first-login: review
+  3-3-post-checkout-onboarding-first-login: done
   3-4-subscription-management-billing-portal: backlog
   3-5-promotion-codes-100-discount-support: backlog
   3-6-subscription-based-access-control: backlog
