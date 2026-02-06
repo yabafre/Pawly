@@ -5,6 +5,7 @@ import { AppConfigModule } from '@/config/index';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { MailModule } from '@/modules/mail/mail.module';
+import { StripeModule } from '@/modules/stripe/stripe.module';
 import { TRPCModule } from '@/trpc/trpc.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
@@ -15,6 +16,7 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
     PrismaModule,
     AuthModule,
     MailModule,
+    StripeModule,
     TRPCModule,
     ThrottlerModule.forRoot({
       throttlers: [

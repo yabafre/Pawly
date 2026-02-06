@@ -10,6 +10,8 @@ export const envSchema = z.object({
   WEB_APP_URL: z.string().url().default('http://localhost:3000'),
   RESEND_API_KEY: z.string().min(1),
   MAIL_FROM: z.string().default('Pawly <noreply@pawly.app>'),
+  STRIPE_SECRET_KEY: z.string().startsWith('sk_'),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

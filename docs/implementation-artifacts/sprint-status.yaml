@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-05'
+updated: '2026-02-06'
+# 2026-02-06: Story 3-1 code review done → done. 7 issues found (1 HIGH, 4 MEDIUM, 2 LOW), all fixed. @SkipThrottle() for webhook, signature validation, P2002 race condition. 60 API tests pass, build green.
+# 2026-02-06: Story 3-1 created (ready-for-dev). Stripe module foundation & webhook security. NestJS Stripe module, HMAC webhook verification, idempotency. Epic 3 → in-progress.
 # 2026-02-05: Story 2-2 code review done → done. 4 CRITICAL + 3 HIGH fixed. 215 translation keys, ICU syntax, 125 web tests pass. Epic 2 → done.
 # 2026-02-05: Story 2-2 implemented → review. LanguageSwitcher component, date/number formatting hooks, 212 translation keys, validation script. 109 web + 43 API tests pass.
 # 2026-02-05: Story 2-2 created (ready-for-dev). Application translation & language switching. LanguageSwitcher component, useFormatter for date/number formatting.
@@ -105,8 +107,8 @@ development_status:
   # NFRs: NFR18, NFR19
   # Dependency: Epic 1 (auth + models) and Epic 2 (i18n routing).
   # ===========================================================================
-  epic-3: backlog
-  3-1-stripe-module-foundation-webhook-security: backlog
+  epic-3: in-progress
+  3-1-stripe-module-foundation-webhook-security: done
   3-2-stripe-checkout-clinic-registration: backlog
   3-3-post-checkout-onboarding-first-login: backlog
   3-4-subscription-management-billing-portal: backlog
