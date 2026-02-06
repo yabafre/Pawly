@@ -1,6 +1,7 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
+import { trpc } from "@/lib/trpc/client";
 import { AdminLayoutClient } from "./_components/AdminLayoutClient";
 
 type Props = {
@@ -20,11 +21,37 @@ export default async function AdminLayout({ children, params }: Props) {
         redirect(`/${locale}/login`);
     }
 
-    // TODO (Epic 3): Add subscription guard here
-    // const subscription = await trpc.subscription.getStatus.query();
-    // if (!subscription.active || !subscription.onboardingCompleted) {
-    //     redirect(`/${locale}/onboarding`);
-    // }
+    // Onboarding guard: server-side check
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") ?? "";
+    const isOnboardingRoute = pathname.includes("/admin/onboarding");
+
+    try {
+        const status = await trpc.clinic.getOnboardingStatus.query();
+
+        if (!status.onboardingCompleted && !isOnboardingRoute) {
+            redirect(`/${locale}/admin/onboarding`);
+        }
+
+        if (status.onboardingCompleted && isOnboardingRoute) {
+            redirect(`/${locale}/admin/dashboard`);
+        }
+    } catch (err) {
+        // Only allow access if clinic truly doesn't exist yet (first-time login)
+        // All other errors (network, auth, validation, corruption) should bubble up
+        if (
+            err &&
+            typeof err === "object" &&
+            "message" in err &&
+            typeof err.message === "string" &&
+            err.message.toLowerCase().includes("not found")
+        ) {
+            // Clinic not created yet - allow access for first-time setup
+            return;
+        }
+        // Re-throw all other errors to prevent silent failures
+        throw err;
+    }
 
     return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }

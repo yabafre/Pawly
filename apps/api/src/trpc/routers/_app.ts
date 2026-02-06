@@ -9,6 +9,7 @@
 import { router } from '../trpc';
 import { authRouter } from './auth.router';
 import { stripeRouter } from './stripe.router';
+import { clinicRouter } from './clinic.router';
 
 /**
  * Main application router
@@ -19,6 +20,7 @@ import { stripeRouter } from './stripe.router';
 export const appRouter = router({
   auth: authRouter,
   stripe: stripeRouter,
+  clinic: clinicRouter,
 });
 
 /**

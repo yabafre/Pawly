@@ -4,10 +4,11 @@ import {
   setupServerActionHooks,
 } from "zsa-react-query";
 
-export const QueryKeyFactory = createServerActionsKeyFactory({ 
+export const QueryKeyFactory = createServerActionsKeyFactory({
   auth: () => ["auth"],
   planning: () => ["planning"],
   employees: () => ["employees"],
+  clinic: () => ["clinic"],
 });
 
 export const {

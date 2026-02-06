@@ -13,6 +13,8 @@ model Clinic {
   planningTemplates   PlanningTemplate[]
   varianceEvents      VarianceEvent[]
   subscription        Subscription?
+  config              ClinicConfig?
+  shiftTypes          ClinicShiftType[]
 
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

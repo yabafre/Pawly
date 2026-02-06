@@ -11,8 +11,8 @@ import { ApiTags, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type Stripe from 'stripe';
-import * as crypto from 'crypto';
 import { Public } from '@/common/decorators/public.decorator';
+import { generateSlug } from '@/common/utils/slug';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
@@ -37,17 +37,6 @@ const SUBSCRIPTION_STATUS_MAP: Record<string, SubscriptionStatus> = {
 
 function mapSubscriptionStatus(stripeStatus: string): SubscriptionStatus {
   return SUBSCRIPTION_STATUS_MAP[stripeStatus] ?? 'unpaid';
-}
-
-function generateSlug(clinicName: string): string {
-  const base = clinicName
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const suffix = crypto.randomBytes(4).toString('hex');
-  return `${base}-${suffix}`;
 }
 
 @ApiTags('Stripe')

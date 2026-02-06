@@ -29,6 +29,7 @@
 
 generated: '2026-02-02'
 updated: '2026-02-06'
+# 2026-02-06: Story 3-3 created (ready-for-dev). Post-Checkout Onboarding & First Login. Multi-step wizard (clinic name, work days, hours, shift types), onboarding guard in admin layout, ClinicModule + tRPC router, ClinicConfig + ShiftType Prisma models.
 # 2026-02-06: Story 3-2 code review done → done. 10 issues found (3 HIGH, 4 MEDIUM, 3 LOW), all fixed. Missing pricing page, User.name field, metadata null guard, type-safe status mapping, slug entropy. 72 API tests pass, build green.
 # 2026-02-06: Story 3-2 created (ready-for-dev). Stripe Checkout & Clinic Registration. tRPC procedure, hosted checkout with metadata, checkout.session.completed webhook creates Clinic+Admin+Subscription, Magic Link email, $0 promo support.
 # 2026-02-06: Story 3-1 code review done → done. 7 issues found (1 HIGH, 4 MEDIUM, 2 LOW), all fixed. @SkipThrottle() for webhook, signature validation, P2002 race condition. 60 API tests pass, build green.
@@ -112,7 +113,7 @@ development_status:
   epic-3: in-progress
   3-1-stripe-module-foundation-webhook-security: done
   3-2-stripe-checkout-clinic-registration: done
-  3-3-post-checkout-onboarding-first-login: backlog
+  3-3-post-checkout-onboarding-first-login: review
   3-4-subscription-management-billing-portal: backlog
   3-5-promotion-codes-100-discount-support: backlog
   3-6-subscription-based-access-control: backlog
