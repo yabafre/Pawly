@@ -125,6 +125,13 @@ export class StripeWebhookController {
           break;
         }
 
+        case 'invoice.paid': {
+          await this.handleInvoicePaid(
+            event.data.object as Stripe.Invoice,
+          );
+          break;
+        }
+
         default:
           this.logger.log(`Unhandled event type: ${event.type}`);
       }
@@ -244,6 +251,7 @@ export class StripeWebhookController {
         where: { stripeSubscriptionId },
         data: {
           status: 'canceled',
+          cancelAtPeriodEnd: false,
         },
       });
     } catch (err) {
@@ -255,6 +263,62 @@ export class StripeWebhookController {
       ) {
         this.logger.warn(
           `customer.subscription.deleted: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async handleInvoicePaid(invoice: Stripe.Invoice) {
+    this.logger.log(`invoice.paid: ${invoice.id}`);
+
+    const subscriptionRef =
+      invoice.parent?.subscription_details?.subscription;
+    const stripeSubscriptionId =
+      typeof subscriptionRef === 'string'
+        ? subscriptionRef
+        : subscriptionRef?.id;
+
+    if (!stripeSubscriptionId) {
+      this.logger.warn(
+        `invoice.paid ${invoice.id} has no subscription — skipping`,
+      );
+      return;
+    }
+
+    try {
+      // Only recover from past_due — don't update if already active
+      const existing = await this.prisma.subscription.findUnique({
+        where: { stripeSubscriptionId },
+        select: { status: true },
+      });
+
+      if (!existing) {
+        this.logger.warn(
+          `invoice.paid: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
+        );
+        return;
+      }
+
+      if (existing.status === 'past_due') {
+        await this.prisma.subscription.update({
+          where: { stripeSubscriptionId },
+          data: { status: 'active' },
+        });
+        this.logger.log(
+          `invoice.paid: recovered subscription ${stripeSubscriptionId} from past_due to active`,
+        );
+      }
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
+        this.logger.warn(
+          `invoice.paid: subscription ${stripeSubscriptionId} not found — may arrive out of order`,
         );
         return;
       }

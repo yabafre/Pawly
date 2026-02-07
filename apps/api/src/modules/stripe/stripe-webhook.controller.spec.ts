@@ -27,6 +27,7 @@ describe('StripeWebhookController', () => {
     $transaction: mockTransaction,
     subscription: {
       update: jest.fn(),
+      findUnique: jest.fn(),
     },
   };
 
@@ -550,7 +551,7 @@ describe('StripeWebhookController', () => {
       expect(result).toEqual({ received: true });
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
         where: { stripeSubscriptionId: 'sub_test_789' },
-        data: { status: 'canceled' },
+        data: { status: 'canceled', cancelAtPeriodEnd: false },
       });
     });
 
@@ -664,6 +665,123 @@ describe('StripeWebhookController', () => {
       const result = await controller.handleWebhook(req, validSignature);
 
       expect(result).toEqual({ received: true });
+    });
+  });
+
+  describe('handleWebhook — invoice.paid', () => {
+    const validSignature = 'test-signature';
+
+    it('should recover subscription from past_due to active', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_invoice_paid',
+        type: 'invoice.paid',
+        data: {
+          object: {
+            id: 'in_test_paid',
+            parent: {
+              subscription_details: {
+                subscription: 'sub_test_recover',
+              },
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockPrismaService.subscription.findUnique.mockResolvedValue({
+        status: 'past_due',
+      });
+      mockPrismaService.subscription.update.mockResolvedValue({});
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+      expect(mockPrismaService.subscription.findUnique).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_test_recover' },
+        select: { status: true },
+      });
+      expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_test_recover' },
+        data: { status: 'active' },
+      });
+    });
+
+    it('should not update when subscription is already active', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_invoice_paid_active',
+        type: 'invoice.paid',
+        data: {
+          object: {
+            id: 'in_test_already_active',
+            parent: {
+              subscription_details: {
+                subscription: 'sub_test_active',
+              },
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockPrismaService.subscription.findUnique.mockResolvedValue({
+        status: 'active',
+      });
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+      expect(mockPrismaService.subscription.findUnique).toHaveBeenCalled();
+      expect(mockPrismaService.subscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip when invoice has no subscription', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_invoice_paid_no_sub',
+        type: 'invoice.paid',
+        data: {
+          object: {
+            id: 'in_test_no_sub_paid',
+            parent: null,
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+      expect(mockPrismaService.subscription.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.subscription.update).not.toHaveBeenCalled();
+    });
+
+    it('should skip gracefully when subscription not found', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_invoice_paid_ooo',
+        type: 'invoice.paid',
+        data: {
+          object: {
+            id: 'in_test_ooo_paid',
+            parent: {
+              subscription_details: {
+                subscription: 'sub_not_exists_paid',
+              },
+            },
+          },
+        },
+      };
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockPrismaService.subscription.findUnique.mockResolvedValue(null);
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+      expect(mockPrismaService.subscription.update).not.toHaveBeenCalled();
     });
   });
 

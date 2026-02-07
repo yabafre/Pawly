@@ -9,6 +9,7 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   planning: () => ["planning"],
   employees: () => ["employees"],
   clinic: () => ["clinic"],
+  billing: () => ["billing"],
 });
 
 export const {

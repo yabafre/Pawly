@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkDay } from "@pawly/validators";
 import { completeOnboardingAction } from "../_actions/onboarding-actions";
+import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
 import { StepClinicName } from "./steps/StepClinicName";
 import { StepWorkDays } from "./steps/StepWorkDays";
@@ -40,27 +41,54 @@ export interface OnboardingFormValues {
   }>;
 }
 
-interface OnboardingWizardProps {
-  initialData: {
-    clinicName: string;
-    config: {
-      workDays: string[];
-      defaultStartTime: string;
-      defaultEndTime: string;
-    } | null;
-    shiftTypes: Array<{
-      name: string;
-      code: string;
-      startTime: string;
-      endTime: string;
-      color: string;
-    }>;
-  };
+interface OnboardingInitialData {
+  clinicName: string;
+  config: {
+    workDays: string[];
+    defaultStartTime: string;
+    defaultEndTime: string;
+  } | null;
+  shiftTypes: Array<{
+    name: string;
+    code: string;
+    startTime: string;
+    endTime: string;
+    color: string;
+  }>;
 }
 
 const TOTAL_STEPS = 4;
 
-export function OnboardingWizard({ initialData }: OnboardingWizardProps) {
+export function OnboardingWizard() {
+  const t = useTranslations("onboarding");
+  const { initialData, isLoading, isError } = useOnboardingStatus();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !initialData) {
+    return (
+      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
+        <div className="max-w-2xl mx-auto">
+          <div className="rounded-2xl bg-[#F43F5E]/10 px-6 py-4 text-sm text-[#F43F5E] font-medium">
+            {t("errors.loadFailed")}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <OnboardingWizardForm initialData={initialData} />;
+}
+
+function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialData }) {
   const t = useTranslations("onboarding");
   const tNav = useTranslations("onboarding.navigation");
   const router = useRouter();
