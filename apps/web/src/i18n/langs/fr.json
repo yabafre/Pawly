@@ -396,6 +396,19 @@
         "year": "an"
       }
     },
+    "promotion": {
+      "title": "Promotion active",
+      "code": "Code : {code}",
+      "discount": "Réduction de {value}",
+      "discountPercent": "-{value}%",
+      "discountAmount": "-{value}",
+      "type": {
+        "partner": "Partenaire",
+        "internal": "Interne",
+        "lifetime": "À vie"
+      },
+      "fullDiscount": "100% — Accès offert"
+    },
     "errors": {
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",

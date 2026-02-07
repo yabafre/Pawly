@@ -23,6 +23,11 @@ describe('stripeRouter — getBillingOverview', () => {
     entitlementTier: 'starter',
     currentPeriodEnd: new Date(),
     cancelAtPeriodEnd: false,
+    promotionCodeId: null,
+    couponId: null,
+    discountType: null,
+    discountValue: null,
+    couponMetadataType: null,
   };
 
   const mockDetails = {
@@ -36,6 +41,7 @@ describe('stripeRouter — getBillingOverview', () => {
     priceAmount: 2900,
     priceCurrency: 'eur',
     priceInterval: 'month',
+    promotionCodeName: null,
   };
 
   const mockInvoices = [
@@ -132,7 +138,14 @@ describe('stripeRouter — getBillingOverview', () => {
     const result = await caller.getBillingOverview();
 
     expect(result).toEqual({
-      subscription: mockDetails,
+      subscription: {
+        ...mockDetails,
+        promotionCodeId: null,
+        couponId: null,
+        discountType: null,
+        discountValue: null,
+        couponMetadataType: null,
+      },
       invoices: mockInvoices,
     });
     expect(mockStripeService.getSubscriptionWithDetails).toHaveBeenCalledWith(
@@ -160,6 +173,58 @@ describe('stripeRouter — getBillingOverview', () => {
     expect(mockPrisma.subscription.findUnique).toHaveBeenCalledWith({
       where: { clinicId: 'clinic_secure' },
     });
+  });
+
+  it('should return promotion details when subscription has promo data', async () => {
+    const promoSubscription = {
+      ...mockSubscription,
+      promotionCodeId: 'promo_partner1',
+      couponId: 'coupon_25off',
+      discountType: 'percent',
+      discountValue: 25,
+      couponMetadataType: 'partner',
+    };
+    mockPrisma.subscription.findUnique.mockResolvedValue(promoSubscription);
+    mockStripeService.getSubscriptionWithDetails.mockResolvedValue({
+      ...mockDetails,
+      promotionCodeName: 'PARTNER25',
+    });
+    mockStripeService.listInvoices.mockResolvedValue(mockInvoices);
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    const result = await caller.getBillingOverview();
+
+    expect(result.subscription.promotionCodeId).toBe('promo_partner1');
+    expect(result.subscription.couponId).toBe('coupon_25off');
+    expect(result.subscription.discountType).toBe('percent');
+    expect(result.subscription.discountValue).toBe(25);
+    expect(result.subscription.couponMetadataType).toBe('partner');
+    expect(result.subscription.promotionCodeName).toBe('PARTNER25');
+  });
+
+  it('should return null promotion fields when no promo applied', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(mockSubscription);
+    mockStripeService.getSubscriptionWithDetails.mockResolvedValue(mockDetails);
+    mockStripeService.listInvoices.mockResolvedValue(mockInvoices);
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    const result = await caller.getBillingOverview();
+
+    expect(result.subscription.promotionCodeId).toBeNull();
+    expect(result.subscription.couponId).toBeNull();
+    expect(result.subscription.discountType).toBeNull();
+    expect(result.subscription.discountValue).toBeNull();
+    expect(result.subscription.couponMetadataType).toBeNull();
   });
 });
 

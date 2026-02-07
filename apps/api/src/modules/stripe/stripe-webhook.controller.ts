@@ -16,6 +16,7 @@ import { generateSlug } from '@/common/utils/slug';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
+import { deriveEntitlementTier } from './stripe.utils';
 
 type SubscriptionStatus =
   | 'trialing'
@@ -169,6 +170,79 @@ export class StripeWebhookController {
         stripeSubscriptionId,
       );
 
+    // Retrieve full session with expanded discounts for promotion data
+    let promotionData: {
+      promotionCodeId: string | null;
+      couponId: string | null;
+      discountType: string | null;
+      discountValue: number | null;
+      couponMetadataType: string | null;
+    } = {
+      promotionCodeId: null,
+      couponId: null,
+      discountType: null,
+      discountValue: null,
+      couponMetadataType: null,
+    };
+
+    try {
+      const fullSession =
+        await this.stripeService.stripe.checkout.sessions.retrieve(
+          session.id,
+          { expand: ['discounts', 'discounts.promotion_code'] },
+        );
+
+      const discount = fullSession.discounts?.[0];
+      if (discount) {
+        const couponObj =
+          typeof discount.coupon === 'object' ? discount.coupon : null;
+        const promoCodeObj =
+          discount.promotion_code &&
+          typeof discount.promotion_code === 'object'
+            ? discount.promotion_code
+            : null;
+
+        promotionData.promotionCodeId = promoCodeObj
+          ? promoCodeObj.id
+          : typeof discount.promotion_code === 'string'
+            ? discount.promotion_code
+            : null;
+
+        if (couponObj) {
+          promotionData.couponId = couponObj.id;
+          if (couponObj.percent_off !== null && couponObj.percent_off !== undefined) {
+            promotionData.discountType = 'percent';
+            promotionData.discountValue = couponObj.percent_off;
+          } else if (couponObj.amount_off !== null && couponObj.amount_off !== undefined) {
+            promotionData.discountType = 'amount';
+            promotionData.discountValue = couponObj.amount_off;
+          }
+
+          // Retrieve coupon metadata for type classification
+          try {
+            const couponDetail =
+              await this.stripeService.stripe.coupons.retrieve(couponObj.id);
+            const metadataType = couponDetail.metadata?.type;
+            if (
+              metadataType === 'partner' ||
+              metadataType === 'internal' ||
+              metadataType === 'lifetime'
+            ) {
+              promotionData.couponMetadataType = metadataType;
+            }
+          } catch {
+            this.logger.warn(
+              `checkout.session.completed ${session.id}: failed to retrieve coupon metadata for ${couponObj.id}`,
+            );
+          }
+        }
+      }
+    } catch {
+      this.logger.warn(
+        `checkout.session.completed ${session.id}: failed to retrieve expanded session for discounts`,
+      );
+    }
+
     // Atomic: create Clinic + Admin User + Subscription in a single transaction
     await this.prisma.$transaction(async (tx) => {
       const clinic = await tx.clinic.create({
@@ -196,11 +270,12 @@ export class StripeWebhookController {
           stripeSubscriptionId,
           status: mapSubscriptionStatus(subscription.status),
           planKey: firstItem?.price.lookup_key ?? 'default',
-          entitlementTier: 'starter',
+          entitlementTier: deriveEntitlementTier(subscription),
           currentPeriodEnd: firstItem
             ? new Date(firstItem.current_period_end * 1000)
             : null,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          ...promotionData,
         },
       });
     });
@@ -220,6 +295,7 @@ export class StripeWebhookController {
         data: {
           status: mapSubscriptionStatus(subscription.status),
           planKey: firstItem?.price.lookup_key ?? 'default',
+          entitlementTier: deriveEntitlementTier(subscription),
           currentPeriodEnd: firstItem
             ? new Date(firstItem.current_period_end * 1000)
             : null,

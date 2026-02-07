@@ -18,6 +18,13 @@ model Subscription {
   cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
   trialEnd             DateTime?          @map("trial_end")
 
+  // Promotion/discount tracking (from Stripe webhook data)
+  promotionCodeId      String?            @map("promotion_code_id")
+  couponId             String?            @map("coupon_id")
+  discountType         String?            @map("discount_type")    // 'percent' | 'amount'
+  discountValue        Int?               @map("discount_value")   // percentage (0-100) or amount in cents
+  couponMetadataType   String?            @map("coupon_metadata_type") // 'partner' | 'internal' | 'lifetime'
+
   clinic               Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt            DateTime           @default(now()) @map("created_at")

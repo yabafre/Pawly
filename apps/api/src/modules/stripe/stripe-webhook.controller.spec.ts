@@ -19,6 +19,14 @@ describe('StripeWebhookController', () => {
       subscriptions: {
         retrieve: jest.fn(),
       },
+      checkout: {
+        sessions: {
+          retrieve: jest.fn(),
+        },
+      },
+      coupons: {
+        retrieve: jest.fn(),
+      },
     },
   };
 
@@ -222,6 +230,10 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         mockSubscription,
       );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_test_123',
+        discounts: [],
+      });
       mockAuthService.requestMagicLink.mockResolvedValue({
         message: 'If an account exists, a magic link has been sent',
       });
@@ -298,6 +310,10 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         mockSubscription,
       );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_test_123',
+        discounts: [],
+      });
       mockAuthService.requestMagicLink.mockResolvedValue({
         message: 'If an account exists, a magic link has been sent',
       });
@@ -341,6 +357,10 @@ describe('StripeWebhookController', () => {
             },
           ],
         },
+      });
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_test_123',
+        discounts: [],
       });
       mockAuthService.requestMagicLink.mockResolvedValue({
         message: 'If an account exists, a magic link has been sent',
@@ -448,6 +468,7 @@ describe('StripeWebhookController', () => {
         data: {
           status: 'past_due',
           planKey: 'pro_monthly',
+          entitlementTier: 'pro',
           currentPeriodEnd: new Date(1738368000 * 1000),
           cancelAtPeriodEnd: true,
         },
@@ -485,6 +506,7 @@ describe('StripeWebhookController', () => {
         where: { stripeSubscriptionId: 'sub_test_inc' },
         data: expect.objectContaining({
           status: 'unpaid',
+          entitlementTier: 'starter',
         }),
       });
     });
@@ -782,6 +804,488 @@ describe('StripeWebhookController', () => {
 
       expect(result).toEqual({ received: true });
       expect(mockPrismaService.subscription.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleWebhook — checkout.session.completed with promotion', () => {
+    const validSignature = 'test-signature';
+
+    function createCheckoutEventForPromo(
+      overrides: Record<string, any> = {},
+    ) {
+      return {
+        id: 'evt_promo_1',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_promo_123',
+            customer: 'cus_promo_123',
+            subscription: 'sub_promo_123',
+            metadata: {
+              clinicName: 'Clinique Partner',
+              adminName: 'Dr. Partner',
+              adminEmail: 'partner@clinique.fr',
+            },
+            ...overrides,
+          },
+        },
+      };
+    }
+
+    const mockSubscriptionPromo = {
+      id: 'sub_promo_123',
+      status: 'active',
+      cancel_at_period_end: false,
+      items: {
+        data: [
+          {
+            price: { lookup_key: 'starter_monthly' },
+            current_period_end: 1735689600,
+          },
+        ],
+      },
+    };
+
+    it('should store promotion data when promo code is applied (percent discount)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: {
+              id: 'coupon_25off',
+              percent_off: 25,
+              amount_off: null,
+            },
+            promotion_code: {
+              id: 'promo_partner1',
+              code: 'PARTNER25',
+            },
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockResolvedValue({
+        id: 'coupon_25off',
+        metadata: { type: 'partner' },
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-1',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-1' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-1' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_partner1',
+          couponId: 'coupon_25off',
+          discountType: 'percent',
+          discountValue: 25,
+          couponMetadataType: 'partner',
+          entitlementTier: 'starter',
+        }),
+      });
+    });
+
+    it('should store 100% discount promotion data', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo({
+        payment_status: 'no_payment_required',
+      });
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: {
+              id: 'coupon_100off',
+              percent_off: 100,
+              amount_off: null,
+            },
+            promotion_code: {
+              id: 'promo_lifetime1',
+              code: 'LIFETIME100',
+            },
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockResolvedValue({
+        id: 'coupon_100off',
+        metadata: { type: 'lifetime' },
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-2',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-2' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-2' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      // Verify Clinic + Admin + Subscription are created identically
+      expect(mockTx.clinic.create).toHaveBeenCalled();
+      expect(mockTx.user.create).toHaveBeenCalled();
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_lifetime1',
+          couponId: 'coupon_100off',
+          discountType: 'percent',
+          discountValue: 100,
+          couponMetadataType: 'lifetime',
+          entitlementTier: 'starter',
+        }),
+      });
+      expect(mockAuthService.requestMagicLink).toHaveBeenCalledWith(
+        'partner@clinique.fr',
+      );
+    });
+
+    it('should store null promotion fields when no promo code applied', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [],
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-3',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-3' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-3' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null,
+          discountValue: null,
+          couponMetadataType: null,
+        }),
+      });
+    });
+
+    it('should store amount discount data for fixed amount coupon', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: {
+              id: 'coupon_20eur',
+              percent_off: null,
+              amount_off: 2000,
+            },
+            promotion_code: {
+              id: 'promo_20eur',
+              code: '20EUROFF',
+            },
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockResolvedValue({
+        id: 'coupon_20eur',
+        metadata: { type: 'internal' },
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-4',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-4' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-4' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          discountType: 'amount',
+          discountValue: 2000,
+          couponMetadataType: 'internal',
+        }),
+      });
+    });
+
+    it('should derive dynamic entitlementTier from pro_monthly lookup_key', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue({
+        ...mockSubscriptionPromo,
+        items: {
+          data: [
+            {
+              price: { lookup_key: 'pro_monthly' },
+              current_period_end: 1735689600,
+            },
+          ],
+        },
+      });
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [],
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-5',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-5' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-5' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          entitlementTier: 'pro',
+        }),
+      });
+    });
+
+    it('should handle promotion_code as string ID (non-expanded)', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: {
+              id: 'coupon_str',
+              percent_off: 50,
+              amount_off: null,
+            },
+            promotion_code: 'promo_string_id',
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockResolvedValue({
+        id: 'coupon_str',
+        metadata: { type: 'internal' },
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-str',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-str' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-str' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_string_id',
+          couponId: 'coupon_str',
+          discountType: 'percent',
+          discountValue: 50,
+          couponMetadataType: 'internal',
+        }),
+      });
+    });
+
+    it('should preserve promo data when coupons.retrieve fails', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: {
+              id: 'coupon_fail',
+              percent_off: 30,
+              amount_off: null,
+            },
+            promotion_code: {
+              id: 'promo_fail1',
+              code: 'FAILCODE',
+            },
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockRejectedValue(
+        new Error('Stripe API error'),
+      );
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-fail',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-fail' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-fail' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      // Should preserve couponId, discountType, discountValue but couponMetadataType remains null
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_fail1',
+          couponId: 'coupon_fail',
+          discountType: 'percent',
+          discountValue: 30,
+          couponMetadataType: null,
+        }),
+      });
+    });
+
+    it('should gracefully handle session expand failure', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockRejectedValue(
+        new Error('Stripe API error'),
+      );
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-6',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: { create: jest.fn().mockResolvedValue({ id: 'user-promo-6' }) },
+        subscription: {
+          create: jest.fn().mockResolvedValue({ id: 'sub-promo-db-6' }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      const result = await controller.handleWebhook(req, validSignature);
+
+      expect(result).toEqual({ received: true });
+      // Should still create records with null promotion data
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null,
+          discountValue: null,
+          couponMetadataType: null,
+        }),
+      });
     });
   });
 

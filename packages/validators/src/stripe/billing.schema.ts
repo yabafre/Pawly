@@ -31,6 +31,13 @@ export const subscriptionDetailsSchema = z.object({
   priceAmount: z.number().nullable(),
   priceCurrency: z.string().nullable(),
   priceInterval: z.string().nullable(),
+  // Promotion/discount fields
+  promotionCodeId: z.string().nullable().optional(),
+  promotionCodeName: z.string().nullable().optional(),
+  couponId: z.string().nullable().optional(),
+  discountType: z.string().nullable().optional(),
+  discountValue: z.number().nullable().optional(),
+  couponMetadataType: z.string().nullable().optional(),
 });
 
 export type SubscriptionDetails = z.infer<typeof subscriptionDetailsSchema>;

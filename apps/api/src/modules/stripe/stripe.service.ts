@@ -5,6 +5,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import type { EnvConfig } from '@/config/index';
 import type { CreateCheckoutSessionInput } from '@pawly/validators';
 import type { SubscriptionDetails, Invoice } from '@pawly/validators';
+import { deriveEntitlementTier } from './stripe.utils';
 
 @Injectable()
 export class StripeService {
@@ -125,6 +126,8 @@ export class StripeService {
           'latest_invoice',
           'default_payment_method',
           'items.data.price.product',
+          'discounts',
+          'discounts.promotion_code',
         ],
       },
     );
@@ -137,11 +140,28 @@ export class StripeService {
         ? product.name
         : 'Unknown';
 
+    // Extract promotion code name from discount if available
+    let promotionCodeName: string | null = null;
+    const firstDiscount = subscription.discounts?.[0];
+    if (firstDiscount && typeof firstDiscount === 'object') {
+      const promoCode = (firstDiscount as Stripe.Discount).promotion_code;
+      if (promoCode && typeof promoCode === 'object' && 'code' in promoCode) {
+        promotionCodeName = promoCode.code;
+      } else if (typeof promoCode === 'string') {
+        try {
+          const promoObj = await this.stripeClient.promotionCodes.retrieve(promoCode);
+          promotionCodeName = promoObj.code;
+        } catch {
+          this.logger.warn(`Failed to retrieve promotion code ${promoCode}`);
+        }
+      }
+    }
+
     return {
       status: subscription.status as SubscriptionDetails['status'],
       planKey: price?.lookup_key ?? 'default',
       planName: productName,
-      entitlementTier: 'starter',
+      entitlementTier: deriveEntitlementTier(subscription),
       currentPeriodEnd: firstItem
         ? new Date(firstItem.current_period_end * 1000).toISOString()
         : null,
@@ -152,6 +172,7 @@ export class StripeService {
       priceAmount: price?.unit_amount ?? null,
       priceCurrency: price?.currency ?? null,
       priceInterval: price?.recurring?.interval ?? null,
+      promotionCodeName,
     };
   }
 
