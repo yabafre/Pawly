@@ -78,7 +78,8 @@
       "planning": "Planning",
       "requests": "Requests",
       "employees": "Employees",
-      "absences": "Absences"
+      "absences": "Absences",
+      "billing": "Billing"
     },
     "dashboard": {
       "overview": "Overview",
@@ -348,6 +349,57 @@
       "FRIDAY": "Friday",
       "SATURDAY": "Saturday",
       "SUNDAY": "Sunday"
+    }
+  },
+  "billing": {
+    "title": "Billing",
+    "subtitle": "Manage your subscription and view your invoices",
+    "plan": {
+      "label": "Subscription",
+      "name": "{planName} Plan",
+      "price": "{amount} / {interval}",
+      "renewalDate": "Renews on {date}",
+      "trialEnd": "Trial until {date}",
+      "cancelPending": "Your subscription will cancel on {date}",
+      "noPlan": "No active subscription"
+    },
+    "status": {
+      "active": "Active",
+      "trialing": "Trial",
+      "past_due": "Past Due",
+      "canceled": "Canceled",
+      "unpaid": "Unpaid"
+    },
+    "invoices": {
+      "title": "Invoice History",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions",
+      "downloadPdf": "Download PDF",
+      "viewInvoice": "View Invoice",
+      "noInvoices": "No invoices yet",
+      "paid": "Paid",
+      "open": "Open",
+      "void": "Void",
+      "uncollectible": "Uncollectible"
+    },
+    "actions": {
+      "manageSubscription": "Manage Subscription",
+      "redirecting": "Redirecting to portal..."
+    },
+    "labels": {
+      "currentPlan": "Current Plan",
+      "entitlementTier": "Tier",
+      "interval": {
+        "month": "month",
+        "year": "year"
+      }
+    },
+    "errors": {
+      "loadFailed": "Unable to load billing information",
+      "portalFailed": "Unable to open the management portal",
+      "noSubscription": "No subscription found for your clinic"
     }
   },
   "errors": {

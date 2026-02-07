@@ -78,7 +78,8 @@
       "planning": "Planning",
       "requests": "Demandes",
       "employees": "Employés",
-      "absences": "Absences"
+      "absences": "Absences",
+      "billing": "Facturation"
     },
     "dashboard": {
       "overview": "Vue d'ensemble",
@@ -348,6 +349,57 @@
       "FRIDAY": "Vendredi",
       "SATURDAY": "Samedi",
       "SUNDAY": "Dimanche"
+    }
+  },
+  "billing": {
+    "title": "Facturation",
+    "subtitle": "Gérez votre abonnement et consultez vos factures",
+    "plan": {
+      "label": "Abonnement",
+      "name": "Plan {planName}",
+      "price": "{amount} / {interval}",
+      "renewalDate": "Renouvellement le {date}",
+      "trialEnd": "Période d'essai jusqu'au {date}",
+      "cancelPending": "Votre abonnement sera annulé le {date}",
+      "noPlan": "Aucun abonnement actif"
+    },
+    "status": {
+      "active": "Actif",
+      "trialing": "Essai",
+      "past_due": "Impayé",
+      "canceled": "Annulé",
+      "unpaid": "Impayé"
+    },
+    "invoices": {
+      "title": "Historique des factures",
+      "date": "Date",
+      "amount": "Montant",
+      "status": "Statut",
+      "actions": "Actions",
+      "downloadPdf": "Télécharger PDF",
+      "viewInvoice": "Voir la facture",
+      "noInvoices": "Aucune facture pour le moment",
+      "paid": "Payée",
+      "open": "En attente",
+      "void": "Annulée",
+      "uncollectible": "Irrécouvrable"
+    },
+    "actions": {
+      "manageSubscription": "Gérer l'abonnement",
+      "redirecting": "Redirection vers le portail..."
+    },
+    "labels": {
+      "currentPlan": "Plan actuel",
+      "entitlementTier": "Niveau",
+      "interval": {
+        "month": "mois",
+        "year": "an"
+      }
+    },
+    "errors": {
+      "loadFailed": "Impossible de charger les informations de facturation",
+      "portalFailed": "Impossible d'ouvrir le portail de gestion",
+      "noSubscription": "Aucun abonnement trouvé pour votre clinique"
     }
   },
   "errors": {

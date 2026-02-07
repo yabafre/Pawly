@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-06'
+updated: '2026-02-07'
+# 2026-02-07: Story 3-4 adversarial code review completed. 8 issues found (3 HIGH, 3 MEDIUM, 2 LOW), all fixed. Added 10 tRPC router tests. 324 total tests (120 API + 79 validators + 125 web). Build green.
+# 2026-02-07: Story 3-4 created (ready-for-dev). Subscription Management & Billing Portal. Stripe hosted portal session, subscription details display, invoice history, webhook enhancements (invoice.paid recovery), billing page UI with Clinique Zen aesthetic.
 # 2026-02-06: Story 3-3 created (ready-for-dev). Post-Checkout Onboarding & First Login. Multi-step wizard (clinic name, work days, hours, shift types), onboarding guard in admin layout, ClinicModule + tRPC router, ClinicConfig + ShiftType Prisma models.
 # 2026-02-06: Story 3-2 code review done → done. 10 issues found (3 HIGH, 4 MEDIUM, 3 LOW), all fixed. Missing pricing page, User.name field, metadata null guard, type-safe status mapping, slug entropy. 72 API tests pass, build green.
 # 2026-02-06: Story 3-2 created (ready-for-dev). Stripe Checkout & Clinic Registration. tRPC procedure, hosted checkout with metadata, checkout.session.completed webhook creates Clinic+Admin+Subscription, Magic Link email, $0 promo support.
@@ -114,7 +116,7 @@ development_status:
   3-1-stripe-module-foundation-webhook-security: done
   3-2-stripe-checkout-clinic-registration: done
   3-3-post-checkout-onboarding-first-login: done
-  3-4-subscription-management-billing-portal: backlog
+  3-4-subscription-management-billing-portal: review
   3-5-promotion-codes-100-discount-support: backlog
   3-6-subscription-based-access-control: backlog
   epic-3-retrospective: optional
