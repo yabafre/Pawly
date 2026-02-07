@@ -276,7 +276,9 @@ export class StripeWebhookController {
     const subscriptionRef =
       invoice.parent?.subscription_details?.subscription;
     const stripeSubscriptionId =
-      typeof subscriptionRef === 'string' ? subscriptionRef : undefined;
+      typeof subscriptionRef === 'string'
+        ? subscriptionRef
+        : subscriptionRef?.id;
 
     if (!stripeSubscriptionId) {
       this.logger.warn(
@@ -330,7 +332,9 @@ export class StripeWebhookController {
     const subscriptionRef =
       invoice.parent?.subscription_details?.subscription;
     const stripeSubscriptionId =
-      typeof subscriptionRef === 'string' ? subscriptionRef : undefined;
+      typeof subscriptionRef === 'string'
+        ? subscriptionRef
+        : subscriptionRef?.id;
 
     if (!stripeSubscriptionId) {
       this.logger.warn(
