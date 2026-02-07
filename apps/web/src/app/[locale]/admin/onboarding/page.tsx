@@ -1,6 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
-import { trpc } from "@/lib/trpc/client";
 import { OnboardingWizard } from "./_components/OnboardingWizard";
+import { getOnboardingStatusAction } from "./_actions/onboarding-actions";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -28,24 +28,26 @@ export default async function OnboardingPage({ params }: Props) {
   };
 
   try {
-    const status = await trpc.clinic.getOnboardingStatus.query();
-    initialData = {
-      clinicName: status.clinicName,
-      config: status.config
-        ? {
-            workDays: status.config.workDays,
-            defaultStartTime: status.config.defaultStartTime,
-            defaultEndTime: status.config.defaultEndTime,
-          }
-        : null,
-      shiftTypes: status.shiftTypes.map((st) => ({
-        name: st.name,
-        code: st.code,
-        startTime: st.startTime,
-        endTime: st.endTime,
-        color: st.color,
-      })),
-    };
+    const [status, actionErr] = await getOnboardingStatusAction();
+    if (!actionErr) {
+      initialData = {
+        clinicName: status.clinicName,
+        config: status.config
+          ? {
+              workDays: status.config.workDays,
+              defaultStartTime: status.config.defaultStartTime,
+              defaultEndTime: status.config.defaultEndTime,
+            }
+          : null,
+        shiftTypes: status.shiftTypes.map((st) => ({
+          name: st.name,
+          code: st.code,
+          startTime: st.startTime,
+          endTime: st.endTime,
+          color: st.color,
+        })),
+      };
+    }
   } catch {
     // If fetching fails, proceed with empty defaults
   }

@@ -1,6 +1,6 @@
 import { setRequestLocale, getTranslations } from "next-intl/server";
-import { trpc } from "@/lib/trpc/client";
 import { BillingOverview } from "./_components/BillingOverview";
+import { getBillingOverviewAction } from "./_actions/billing-actions";
 import type { BillingOverview as BillingOverviewType } from "@pawly/validators";
 
 type Props = {
@@ -17,10 +17,13 @@ export default async function BillingPage({ params }: Props) {
   let error: string | null = null;
 
   try {
-    const overview = await trpc.stripe.getBillingOverview.query();
+    const [result, actionErr] = await getBillingOverviewAction();
+    if (actionErr) {
+      throw actionErr;
+    }
     billingData = {
-      subscription: { ...overview.subscription },
-      invoices: overview.invoices.map((inv) => ({ ...inv })),
+      subscription: { ...result.subscription },
+      invoices: result.invoices.map((inv) => ({ ...inv })),
     };
   } catch (err) {
     console.error("[BillingPage] Failed to load billing data:", err);
