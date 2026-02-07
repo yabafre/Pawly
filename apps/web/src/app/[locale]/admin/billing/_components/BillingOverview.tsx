@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,11 +18,9 @@ import {
   FileText,
   AlertCircle,
   Clock,
+  Loader2,
 } from "lucide-react";
-import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
-import { createBillingPortalSessionAction } from "../_actions/billing-actions";
-import { toast } from "sonner";
-import type { BillingOverview as BillingOverviewType } from "@pawly/validators";
+import { useBilling } from "../_hooks/useBilling";
 
 type StatusVariant = "active" | "trialing" | "past_due" | "canceled" | "unpaid";
 type InvoiceStatusVariant = "paid" | "open" | "void" | "uncollectible";
@@ -50,36 +47,21 @@ const getInvoiceStatusStyle = (status: string): string =>
   INVOICE_STATUS_STYLES[status as InvoiceStatusVariant] ?? "bg-neutral-400 text-white";
 
 interface BillingOverviewProps {
-  data: BillingOverviewType;
   locale: string;
 }
 
-export function BillingOverview({ data, locale }: BillingOverviewProps) {
+export function BillingOverview({ locale }: BillingOverviewProps) {
   const t = useTranslations("billing");
   const format = useFormatter();
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const { mutate: createPortalSession } = useServerActionMutation(
-    createBillingPortalSessionAction,
-    {
-      onSuccess: ({ data: result }) => {
-        if (result?.url) {
-          setIsRedirecting(true);
-          window.location.href = result.url;
-        }
-      },
-      onError: () => {
-        toast.error(t("errors.portalFailed"));
-        setIsRedirecting(false);
-      },
-    },
-  );
-
-  const handleManageSubscription = () => {
-    setIsRedirecting(true);
-    const returnUrl = `${window.location.origin}/${locale}/admin/billing`;
-    createPortalSession({ returnUrl, locale: locale as "fr" | "en" });
-  };
+  const {
+    subscription,
+    invoices,
+    isLoading,
+    errorMessage,
+    openBillingPortal,
+    isPortalPending,
+  } = useBilling(locale);
 
   const formatCurrency = (amount: number, currency: string) => {
     return format.number(amount / 100, {
@@ -92,7 +74,21 @@ export function BillingOverview({ data, locale }: BillingOverviewProps) {
     return format.dateTime(new Date(dateStr), { dateStyle: "medium" });
   };
 
-  const { subscription, invoices } = data;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
+      </div>
+    );
+  }
+
+  if (errorMessage || !subscription) {
+    return (
+      <div className="rounded-2xl bg-[#F43F5E]/10 px-6 py-4 text-sm text-[#F43F5E] font-medium">
+        {errorMessage ?? t("errors.loadFailed")}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -175,11 +171,11 @@ export function BillingOverview({ data, locale }: BillingOverviewProps) {
 
         <CardFooter className="pt-2">
           <Button
-            onClick={handleManageSubscription}
-            disabled={isRedirecting}
+            onClick={openBillingPortal}
+            disabled={isPortalPending}
             className="bg-[#009588] hover:bg-[#00796B] text-white rounded-xl px-6"
           >
-            {isRedirecting ? (
+            {isPortalPending ? (
               t("actions.redirecting")
             ) : (
               <>
