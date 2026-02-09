@@ -413,6 +413,36 @@
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",
       "noSubscription": "No subscription found for your clinic"
+    },
+    "guard": {
+      "inactive": {
+        "title": "Subscription Inactive",
+        "description": "Your subscription is no longer active. Please update your billing information to continue using Pawly."
+      },
+      "pastDue": {
+        "title": "Payment Past Due",
+        "description": "Your last payment failed. Please update your payment method to avoid service interruption.",
+        "action": "Update Payment Method"
+      },
+      "canceled": {
+        "title": "Subscription Canceled",
+        "description": "Your subscription has been canceled. Resubscribe to regain access to all features.",
+        "action": "Resubscribe"
+      },
+      "unpaid": {
+        "title": "Payment Required",
+        "description": "Your account has unpaid invoices. Please contact support to resolve this issue.",
+        "action": "Contact Support"
+      },
+      "upgrade": {
+        "title": "Feature Unavailable",
+        "description": "This feature requires a higher subscription tier. Upgrade your plan to unlock it.",
+        "action": "Upgrade Plan"
+      },
+      "noSubscription": {
+        "title": "No Subscription",
+        "description": "No active subscription found. Subscribe to start using Pawly."
+      }
     }
   },
   "errors": {

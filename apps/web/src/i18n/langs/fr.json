@@ -413,6 +413,36 @@
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",
       "noSubscription": "Aucun abonnement trouvé pour votre clinique"
+    },
+    "guard": {
+      "inactive": {
+        "title": "Abonnement inactif",
+        "description": "Votre abonnement n'est plus actif. Veuillez mettre à jour vos informations de facturation pour continuer à utiliser Pawly."
+      },
+      "pastDue": {
+        "title": "Paiement en retard",
+        "description": "Votre dernier paiement a échoué. Veuillez mettre à jour votre moyen de paiement pour éviter une interruption de service.",
+        "action": "Mettre à jour le paiement"
+      },
+      "canceled": {
+        "title": "Abonnement annulé",
+        "description": "Votre abonnement a été annulé. Réabonnez-vous pour retrouver l'accès à toutes les fonctionnalités.",
+        "action": "Se réabonner"
+      },
+      "unpaid": {
+        "title": "Paiement requis",
+        "description": "Votre compte a des factures impayées. Veuillez contacter le support pour résoudre ce problème.",
+        "action": "Contacter le support"
+      },
+      "upgrade": {
+        "title": "Fonctionnalité indisponible",
+        "description": "Cette fonctionnalité nécessite un niveau d'abonnement supérieur. Améliorez votre plan pour y accéder.",
+        "action": "Améliorer le plan"
+      },
+      "noSubscription": {
+        "title": "Aucun abonnement",
+        "description": "Aucun abonnement actif trouvé. Abonnez-vous pour commencer à utiliser Pawly."
+      }
     }
   },
   "errors": {

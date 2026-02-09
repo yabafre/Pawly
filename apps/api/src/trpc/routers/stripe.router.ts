@@ -10,6 +10,31 @@ const protectedProcedure = publicProcedure.use(isAuthed);
 const DEFAULT_INVOICE_LIMIT = 10;
 
 export const stripeRouter = router({
+  getSubscriptionStatus: protectedProcedure.query(async ({ ctx }) => {
+    const subscription = await ctx.prisma.subscription.findUnique({
+      where: { clinicId: ctx.user.clinicId },
+      select: {
+        status: true,
+        entitlementTier: true,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: true,
+      },
+    });
+
+    if (!subscription) {
+      return null;
+    }
+
+    return {
+      status: subscription.status,
+      entitlementTier: subscription.entitlementTier,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      currentPeriodEnd: subscription.currentPeriodEnd
+        ? subscription.currentPeriodEnd.toISOString()
+        : null,
+    };
+  }),
+
   createCheckoutSession: publicProcedure
     .input(createCheckoutSessionSchema)
     .mutation(async ({ input, ctx }) => {
@@ -50,9 +75,16 @@ export const stripeRouter = router({
         ...details,
         promotionCodeId: subscription.promotionCodeId ?? null,
         couponId: subscription.couponId ?? null,
-        discountType: subscription.discountType ?? null,
+        discountType: (subscription.discountType ?? null) as
+          | 'percent'
+          | 'amount'
+          | null,
         discountValue: subscription.discountValue ?? null,
-        couponMetadataType: subscription.couponMetadataType ?? null,
+        couponMetadataType: (subscription.couponMetadataType ?? null) as
+          | 'partner'
+          | 'internal'
+          | 'lifetime'
+          | null,
       },
       invoices,
     };

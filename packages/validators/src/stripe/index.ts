@@ -32,3 +32,15 @@ export type {
   DiscountType,
   PromotionDetails,
 } from "./promotion.schema";
+
+export {
+  ACTIVE_SUBSCRIPTION_STATUSES,
+  TIER_HIERARCHY,
+  subscriptionStatusSchema,
+  subscriptionGuardResponseSchema,
+} from "./subscription-status.schema";
+export type {
+  EntitlementTier,
+  SubscriptionStatus,
+  SubscriptionGuardResponse,
+} from "./subscription-status.schema";
