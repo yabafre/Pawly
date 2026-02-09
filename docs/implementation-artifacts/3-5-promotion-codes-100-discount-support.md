@@ -1,6 +1,6 @@
 # Story 3.5: Promotion Codes (100% Discount Support)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

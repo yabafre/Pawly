@@ -118,7 +118,7 @@ development_status:
   3-2-stripe-checkout-clinic-registration: done
   3-3-post-checkout-onboarding-first-login: done
   3-4-subscription-management-billing-portal: done
-  3-5-promotion-codes-100-discount-support: review
+  3-5-promotion-codes-100-discount-support: done
   3-6-subscription-based-access-control: backlog
   epic-3-retrospective: optional
 
