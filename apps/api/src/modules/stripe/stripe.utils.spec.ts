@@ -73,4 +73,10 @@ describe('deriveEntitlementTier', () => {
   it('should handle lookup_key with no underscore', () => {
     expect(deriveEntitlementTier(makeSubscription({ lookupKey: 'enterprise' }))).toBe('enterprise');
   });
+
+  it('should extract only first segment for multi-underscore lookup_key', () => {
+    expect(
+      deriveEntitlementTier(makeSubscription({ lookupKey: 'enterprise_premium_yearly' })),
+    ).toBe('enterprise');
+  });
 });

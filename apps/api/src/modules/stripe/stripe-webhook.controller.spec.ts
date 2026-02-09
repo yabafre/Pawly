@@ -458,11 +458,24 @@ describe('StripeWebhookController', () => {
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        event.data.object,
+      );
       mockPrismaService.subscription.update.mockResolvedValue({});
 
       const result = await controller.handleWebhook(req, validSignature);
 
       expect(result).toEqual({ received: true });
+      expect(
+        mockStripeService.stripe.subscriptions.retrieve,
+      ).toHaveBeenCalledWith('sub_test_456', {
+        expand: [
+          'items.data.price.product',
+          'discounts',
+          'discounts.source.coupon',
+          'discounts.promotion_code',
+        ],
+      });
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
         where: { stripeSubscriptionId: 'sub_test_456' },
         data: {
@@ -471,6 +484,11 @@ describe('StripeWebhookController', () => {
           entitlementTier: 'pro',
           currentPeriodEnd: new Date(1738368000 * 1000),
           cancelAtPeriodEnd: true,
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null,
+          discountValue: null,
+          couponMetadataType: null,
         },
       });
     });
@@ -498,6 +516,9 @@ describe('StripeWebhookController', () => {
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        event.data.object,
+      );
       mockPrismaService.subscription.update.mockResolvedValue({});
 
       await controller.handleWebhook(req, validSignature);
@@ -507,6 +528,115 @@ describe('StripeWebhookController', () => {
         data: expect.objectContaining({
           status: 'unpaid',
           entitlementTier: 'starter',
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null,
+          discountValue: null,
+          couponMetadataType: null,
+        }),
+      });
+    });
+
+    it('should sync promotion fields on subscription update', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_sub_promo_sync',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub_test_promo_sync',
+            status: 'active',
+            cancel_at_period_end: false,
+            items: {
+              data: [
+                {
+                  price: { lookup_key: 'pro_monthly' },
+                  current_period_end: 1738368000,
+                },
+              ],
+            },
+          },
+        },
+      };
+      const latestSubscription = {
+        ...event.data.object,
+        discounts: [
+          {
+            id: 'di_test_1',
+            promotion_code: { id: 'promo_partner_125', code: 'PARTNER125' },
+            source: {
+              coupon: {
+                id: 'coupon_partner_125',
+                percent_off: 12.5,
+                amount_off: null,
+                metadata: { type: 'partner' },
+              },
+            },
+          },
+        ],
+      };
+
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        latestSubscription,
+      );
+      mockPrismaService.subscription.update.mockResolvedValue({});
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_test_promo_sync' },
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_partner_125',
+          couponId: 'coupon_partner_125',
+          discountType: 'percent',
+          discountValue: 12.5,
+          couponMetadataType: 'partner',
+        }),
+      });
+    });
+
+    it('should clear promotion fields when subscription has no discounts', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = {
+        id: 'evt_sub_clear_promo',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub_test_clear_promo',
+            status: 'active',
+            cancel_at_period_end: false,
+            items: {
+              data: [
+                {
+                  price: { lookup_key: 'starter_monthly' },
+                  current_period_end: 1738368000,
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue({
+        ...event.data.object,
+        discounts: [],
+      });
+      mockPrismaService.subscription.update.mockResolvedValue({});
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_test_clear_promo' },
+        data: expect.objectContaining({
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null,
+          discountValue: null,
+          couponMetadataType: null,
         }),
       });
     });
@@ -534,6 +664,9 @@ describe('StripeWebhookController', () => {
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        event.data.object,
+      );
 
       const p2025Error = Object.assign(
         new Error('Record to update not found'),
@@ -974,6 +1107,73 @@ describe('StripeWebhookController', () => {
       expect(mockAuthService.requestMagicLink).toHaveBeenCalledWith(
         'partner@clinique.fr',
       );
+    });
+
+    it('should resolve coupon details when discount coupon is a string ID', async () => {
+      const req = createMockRequest(Buffer.from('payload'));
+      const event = createCheckoutEventForPromo();
+      mockStripeService.constructWebhookEvent.mockReturnValue(event);
+      mockStripeService.markEventProcessed.mockResolvedValue(undefined);
+      mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
+        mockSubscriptionPromo,
+      );
+      mockStripeService.stripe.checkout.sessions.retrieve.mockResolvedValue({
+        id: 'cs_promo_123',
+        discounts: [
+          {
+            coupon: 'coupon_string_125',
+            promotion_code: {
+              id: 'promo_partner_125',
+              code: 'PARTNER125',
+            },
+          },
+        ],
+      });
+      mockStripeService.stripe.coupons.retrieve.mockResolvedValue({
+        id: 'coupon_string_125',
+        percent_off: 12.5,
+        amount_off: null,
+        metadata: { type: 'partner' },
+      });
+      mockAuthService.requestMagicLink.mockResolvedValue({
+        message: 'If an account exists, a magic link has been sent',
+      });
+
+      const mockTx = {
+        clinic: {
+          create: jest.fn().mockResolvedValue({
+            id: 'clinic-promo-string-coupon',
+            name: 'Clinique Partner',
+            slug: 'clinique-partner-abc123',
+          }),
+        },
+        user: {
+          create: jest.fn().mockResolvedValue({
+            id: 'user-promo-string-coupon',
+          }),
+        },
+        subscription: {
+          create: jest.fn().mockResolvedValue({
+            id: 'sub-promo-string-coupon',
+          }),
+        },
+      };
+      mockTransaction.mockImplementation(async (fn: Function) => fn(mockTx));
+
+      await controller.handleWebhook(req, validSignature);
+
+      expect(mockStripeService.stripe.coupons.retrieve).toHaveBeenCalledWith(
+        'coupon_string_125',
+      );
+      expect(mockTx.subscription.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          promotionCodeId: 'promo_partner_125',
+          couponId: 'coupon_string_125',
+          discountType: 'percent',
+          discountValue: 12.5,
+          couponMetadataType: 'partner',
+        }),
+      });
     });
 
     it('should store null promotion fields when no promo code applied', async () => {

@@ -22,7 +22,7 @@ model Subscription {
   promotionCodeId      String?            @map("promotion_code_id")
   couponId             String?            @map("coupon_id")
   discountType         String?            @map("discount_type")    // 'percent' | 'amount'
-  discountValue        Int?               @map("discount_value")   // percentage (0-100) or amount in cents
+  discountValue        Float?             @map("discount_value")   // percentage (0-100, supports decimals) or amount in cents
   couponMetadataType   String?            @map("coupon_metadata_type") // 'partner' | 'internal' | 'lifetime'
 
   clinic               Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)

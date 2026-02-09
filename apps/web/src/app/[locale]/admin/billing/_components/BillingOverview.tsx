@@ -177,11 +177,11 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
                       <span className="text-lg font-bold text-[#009588]">
                         {t("promotion.fullDiscount")}
                       </span>
-                    ) : subscription.discountType === "percent" && subscription.discountValue != null ? (
+                    ) : subscription.discountType === "percent" && subscription.discountValue !== null && subscription.discountValue !== undefined ? (
                       <span className="text-lg font-bold text-[#009588]">
                         {t("promotion.discountPercent", { value: subscription.discountValue })}
                       </span>
-                    ) : subscription.discountType === "amount" && subscription.discountValue != null && subscription.priceCurrency ? (
+                    ) : subscription.discountType === "amount" && subscription.discountValue !== null && subscription.discountValue !== undefined && subscription.priceCurrency ? (
                       <span className="text-lg font-bold text-[#009588]">
                         {t("promotion.discountAmount", {
                           value: formatCurrency(subscription.discountValue, subscription.priceCurrency),

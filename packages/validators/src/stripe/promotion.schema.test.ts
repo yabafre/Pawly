@@ -116,6 +116,42 @@ describe('promotionDetailsSchema', () => {
     ).toThrow();
   });
 
+  it('should accept fractional percent discountValue', () => {
+    const result = promotionDetailsSchema.parse({
+      promotionCodeId: 'promo_abc123',
+      couponId: 'coupon_xyz',
+      discountType: 'percent',
+      discountValue: 12.5,
+      couponMetadataType: 'partner',
+    });
+
+    expect(result.discountValue).toBe(12.5);
+  });
+
+  it('should reject fractional amount discountValue', () => {
+    expect(() =>
+      promotionDetailsSchema.parse({
+        promotionCodeId: 'promo_abc123',
+        couponId: 'coupon_xyz',
+        discountType: 'amount',
+        discountValue: 1999.5,
+        couponMetadataType: 'internal',
+      }),
+    ).toThrow();
+  });
+
+  it('should reject discountValue when discountType is null', () => {
+    expect(() =>
+      promotionDetailsSchema.parse({
+        promotionCodeId: null,
+        couponId: null,
+        discountType: null,
+        discountValue: 10,
+        couponMetadataType: null,
+      }),
+    ).toThrow();
+  });
+
   it('should accept amount discount type', () => {
     const result = promotionDetailsSchema.parse({
       promotionCodeId: 'promo_abc123',
@@ -127,5 +163,41 @@ describe('promotionDetailsSchema', () => {
 
     expect(result.discountType).toBe('amount');
     expect(result.discountValue).toBe(2000);
+  });
+
+  it('should reject percent discountValue greater than 100', () => {
+    expect(() =>
+      promotionDetailsSchema.parse({
+        promotionCodeId: 'promo_abc123',
+        couponId: 'coupon_xyz',
+        discountType: 'percent',
+        discountValue: 150,
+        couponMetadataType: null,
+      }),
+    ).toThrow();
+  });
+
+  it('should accept percent discountValue at boundary (100)', () => {
+    const result = promotionDetailsSchema.parse({
+      promotionCodeId: 'promo_abc123',
+      couponId: 'coupon_xyz',
+      discountType: 'percent',
+      discountValue: 100,
+      couponMetadataType: 'lifetime',
+    });
+
+    expect(result.discountValue).toBe(100);
+  });
+
+  it('should accept discountValue of 0', () => {
+    const result = promotionDetailsSchema.parse({
+      promotionCodeId: 'promo_abc123',
+      couponId: 'coupon_xyz',
+      discountType: 'percent',
+      discountValue: 0,
+      couponMetadataType: null,
+    });
+
+    expect(result.discountValue).toBe(0);
   });
 });

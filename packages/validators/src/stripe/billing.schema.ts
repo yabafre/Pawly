@@ -1,4 +1,5 @@
 import { z } from "@pawly/zod";
+import { couponMetadataTypeEnum, discountTypeEnum } from "./promotion.schema";
 
 /** Schema for creating a Stripe Billing Portal session */
 export const createBillingPortalSessionSchema = z.object({
@@ -35,9 +36,9 @@ export const subscriptionDetailsSchema = z.object({
   promotionCodeId: z.string().nullable().optional(),
   promotionCodeName: z.string().nullable().optional(),
   couponId: z.string().nullable().optional(),
-  discountType: z.string().nullable().optional(),
-  discountValue: z.number().nullable().optional(),
-  couponMetadataType: z.string().nullable().optional(),
+  discountType: discountTypeEnum.optional(),
+  discountValue: z.number().min(0).nullable().optional(),
+  couponMetadataType: couponMetadataTypeEnum.optional(),
 });
 
 export type SubscriptionDetails = z.infer<typeof subscriptionDetailsSchema>;
