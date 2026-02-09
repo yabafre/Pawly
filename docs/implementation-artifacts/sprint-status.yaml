@@ -135,7 +135,7 @@ development_status:
   # Dependency: Epic 2 (i18n) and Epic 3 (Stripe pricing + checkout).
   # ===========================================================================
   epic-4: in-progress
-  4-1-public-landing-page-ssg-seo-acquisition: review
+  4-1-public-landing-page-ssg-seo-acquisition: done
   4-2-pricing-page-with-pre-checkout-form: backlog
   epic-4-retrospective: optional
 

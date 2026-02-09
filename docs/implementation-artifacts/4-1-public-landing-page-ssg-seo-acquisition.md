@@ -1,6 +1,6 @@
 # Story 4.1: Public Landing Page (SSG, SEO, Acquisition)
 
-Status: review
+Status: done
 
 ## Story
 
