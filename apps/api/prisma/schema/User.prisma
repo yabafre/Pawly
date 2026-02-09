@@ -14,7 +14,8 @@ model User {
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   employee  Employee?
-  magicLinks MagicLink[]
+  magicLinks       MagicLink[]
+  activationTokens ActivationToken[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -5,6 +5,7 @@ import { LoginDto } from './dto/login.dto';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ValidateMagicLinkDto } from './dto/validate-magic-link.dto';
+import { ActivateAccountDto } from './dto/activate-account.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthResponseDto, MagicLinkResponseDto, UserProfileDto } from './dto/auth-response.dto';
 import { JwtAuthGuard } from '@/common/guards';
@@ -63,6 +64,18 @@ export class AuthController {
     @ApiResponse({ status: 500, description: 'Internal server error' })
     async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
         return this.authService.refreshToken(refreshTokenDto.refresh_token);
+    }
+
+    @Public()
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @Post('activate')
+    @ApiOperation({ summary: 'Activate admin account and set password' })
+    @ApiResponse({ status: 200, description: 'Account activated, JWT tokens returned', type: AuthResponseDto })
+    @ApiResponse({ status: 400, description: 'Invalid request body' })
+    @ApiResponse({ status: 401, description: 'Invalid or expired activation token' })
+    @ApiResponse({ status: 429, description: 'Too many requests' })
+    async activateAccount(@Body() dto: ActivateAccountDto) {
+        return this.authService.activateAccount(dto.token, dto.password);
     }
 
     @UseGuards(JwtAuthGuard)

@@ -33,7 +33,8 @@ export const clinicRouter = router({
       return ctx.clinicService.createShiftTypes(ctx.user.clinicId, input);
     }),
 
-  completeOnboarding: subscribedProcedure
+  // completeOnboarding uses protectedProcedure — must work before subscription is active (onboarding deadlock fix)
+  completeOnboarding: protectedProcedure
     .input(completeOnboardingSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.completeOnboarding(ctx.user.clinicId, input);

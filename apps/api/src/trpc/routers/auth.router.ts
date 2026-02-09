@@ -3,6 +3,7 @@ import {
   loginSchema,
   requestMagicLinkSchema,
   validateMagicLinkSchema,
+  activateAccountInputSchema,
 } from '@pawly/validators';
 
 export const authRouter = router({
@@ -20,6 +21,11 @@ export const authRouter = router({
     .input(validateMagicLinkSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.authService.validateMagicLink(input.token);
+    }),
+  activateAccount: publicProcedure
+    .input(activateAccountInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.activateAccount(input.token, input.password);
     }),
 });
 

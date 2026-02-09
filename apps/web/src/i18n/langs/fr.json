@@ -65,6 +65,20 @@
       "serverError": "Problème de connexion au serveur",
       "unexpectedError": "Une erreur inattendue est survenue"
     },
+    "activate": {
+      "title": "Créez votre mot de passe",
+      "subtitle": "Définissez un mot de passe sécurisé pour activer votre compte administrateur.",
+      "passwordLabel": "Mot de passe",
+      "confirmLabel": "Confirmer le mot de passe",
+      "passwordHint": "Min. 8 caractères, majuscule, minuscule et chiffre.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "submitButton": "Activer mon compte",
+      "submitting": "Activation...",
+      "success": "Compte activé ! Redirection...",
+      "error": "Échec de l'activation. Veuillez réessayer.",
+      "invalidToken": "Lien d'activation invalide",
+      "tokenMissing": "Le lien d'activation est manquant ou malformé. Vérifiez votre email."
+    },
     "errors": {
       "generic": "Une erreur est survenue",
       "invalidEmail": "Email invalide",
@@ -456,5 +470,125 @@
     "validationError": "Erreur de validation",
     "unknownError": "Erreur inconnue",
     "tryAgain": "Veuillez réessayer"
+  },
+  "landing": {
+    "meta": {
+      "title": "Pawly — Planning intelligent pour cliniques vétérinaires",
+      "description": "Simplifiez la gestion de votre clinique vétérinaire avec Pawly. Planning intelligent, coordination d'équipe et gestion des abonnements en une seule plateforme."
+    },
+    "header": {
+      "login": "Se connecter",
+      "cta": "Commencer",
+      "navFeatures": "Fonctionnalités",
+      "navPricing": "Tarifs"
+    },
+    "hero": {
+      "title": "Le planning intelligent pour votre clinique vétérinaire",
+      "subtitle": "Pawly simplifie la planification, la gestion d'équipe et les opérations quotidiennes — pour vous concentrer sur l'essentiel : le soin animal.",
+      "cta": "Voir les tarifs",
+      "secondaryCta": "En savoir plus",
+      "badge": "Nouveau : Planning IA automatisé",
+      "trustTitle": "Ils nous font confiance :",
+      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+    },
+    "features": {
+      "title": "Tout ce dont votre clinique a besoin",
+      "subtitle": "Des outils puissants conçus spécifiquement pour la gestion de cabinet vétérinaire.",
+      "badge": "Fonctionnalités",
+      "scheduling": {
+        "title": "Planning intelligent",
+        "description": "Planification automatique des postes avec algorithmes de contraintes. Gérez chirurgies, consultations et repos sans effort."
+      },
+      "team": {
+        "title": "Gestion d'équipe",
+        "description": "Gérez vétérinaires, ASV et apprentis avec accès basé sur les rôles. Suivez contrats, absences et compteurs d'équité."
+      },
+      "billing": {
+        "title": "Abonnement & Facturation",
+        "description": "Tarification transparente avec facturation Stripe. Gérez votre abonnement, consultez vos factures et maîtrisez vos coûts."
+      },
+      "mobile": {
+        "title": "Compatible mobile",
+        "description": "Application Web Progressive pour votre équipe. Les employés consultent leur planning, demandent des absences et confirment leur présence depuis n'importe quel appareil."
+      },
+      "i18n": {
+        "title": "Support bilingue",
+        "description": "Support complet français et anglais. Chaque écran, notification et rapport est disponible dans les deux langues."
+      },
+      "security": {
+        "title": "Sécurisé & Fiable",
+        "description": "Authentification par magic link, tokens JWT et contrôle d'accès basé sur les rôles. Les données de votre clinique sont protégées à chaque niveau."
+      }
+    },
+    "pricing": {
+      "title": "Des tarifs simples et transparents",
+      "subtitle": "Choisissez le plan adapté à votre clinique. Tous les plans incluent un essai gratuit.",
+      "badge": "Tarifs transparents",
+      "starter": {
+        "name": "Starter",
+        "price": "29",
+        "interval": "mois",
+        "description": "Parfait pour les petites cliniques qui démarrent",
+        "features": ["Jusqu'à 5 membres d'équipe", "Planning de base", "Gestion des absences", "Support par email"]
+      },
+      "professional": {
+        "name": "Professionnel",
+        "price": "59",
+        "interval": "mois",
+        "description": "Pour les cliniques en croissance qui ont besoin de plus",
+        "popular": "Le plus populaire",
+        "features": ["Jusqu'à 20 membres d'équipe", "Algorithmes de planning avancés", "Compteurs d'équité", "Support prioritaire", "Types de postes personnalisés"]
+      },
+      "enterprise": {
+        "name": "Entreprise",
+        "price": "99",
+        "interval": "mois",
+        "description": "Pour les opérations multi-cliniques",
+        "features": ["Membres d'équipe illimités", "Gestion multi-cliniques", "Accès API", "Support dédié", "Intégrations personnalisées"]
+      },
+      "cta": "Commencer",
+      "currency": "€",
+      "perMonth": "/mois"
+    },
+    "testimonials": {
+      "title": "La confiance des professionnels vétérinaires",
+      "subtitle": "Découvrez ce que les responsables de cliniques disent de Pawly.",
+      "badge": "Témoignages",
+      "items": {
+        "1": {
+          "quote": "Pawly a transformé notre gestion du planning clinique. Ce qui prenait des heures ne prend plus que quelques minutes.",
+          "author": "Dr. Sophie Laurent",
+          "role": "Directrice de clinique, Vétérinaire des Lilas"
+        },
+        "2": {
+          "quote": "Les fonctionnalités de gestion d'équipe sont exceptionnelles. Enfin un outil qui comprend les flux vétérinaires.",
+          "author": "Dr. Marc Dubois",
+          "role": "Vétérinaire en chef, Clinique des Animaux"
+        },
+        "3": {
+          "quote": "Depuis que nous utilisons Pawly, la satisfaction de notre personnel s'est considérablement améliorée. L'application mobile change tout.",
+          "author": "Julie Martin",
+          "role": "Responsable de cabinet, VetCare Plus"
+        }
+      }
+    },
+    "cta": {
+      "title": "Prêt à simplifier la gestion de votre clinique ?",
+      "subtitle": "Rejoignez les professionnels vétérinaires qui font confiance à Pawly au quotidien.",
+      "button": "Démarrer votre essai gratuit"
+    },
+    "footer": {
+      "description": "La plateforme de planning intelligent pour cliniques vétérinaires.",
+      "product": "Produit",
+      "features": "Fonctionnalités",
+      "pricing": "Tarifs",
+      "company": "Entreprise",
+      "about": "À propos",
+      "contact": "Contact",
+      "legal": "Mentions légales",
+      "privacy": "Politique de confidentialité",
+      "terms": "Conditions d'utilisation",
+      "copyright": "© 2026 Pawly. Tous droits réservés."
+    }
   }
 }

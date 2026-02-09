@@ -41,6 +41,7 @@ describe('StripeWebhookController', () => {
 
   const mockAuthService = {
     requestMagicLink: jest.fn(),
+    createActivationToken: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -234,8 +235,8 @@ describe('StripeWebhookController', () => {
         id: 'cs_test_123',
         discounts: [],
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -297,8 +298,8 @@ describe('StripeWebhookController', () => {
       });
 
       // Verify Magic Link sent after transaction
-      expect(mockAuthService.requestMagicLink).toHaveBeenCalledWith(
-        'admin@clinique.fr',
+      expect(mockAuthService.createActivationToken).toHaveBeenCalledWith(
+        'admin@clinique.fr', 'Dr. Dupont',
       );
     });
 
@@ -314,8 +315,8 @@ describe('StripeWebhookController', () => {
         id: 'cs_test_123',
         discounts: [],
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -339,7 +340,7 @@ describe('StripeWebhookController', () => {
       expect(mockTx.clinic.create).toHaveBeenCalled();
       expect(mockTx.user.create).toHaveBeenCalled();
       expect(mockTx.subscription.create).toHaveBeenCalled();
-      expect(mockAuthService.requestMagicLink).toHaveBeenCalled();
+      expect(mockAuthService.createActivationToken).toHaveBeenCalled();
     });
 
     it('should use default planKey when lookup_key is null', async () => {
@@ -362,8 +363,8 @@ describe('StripeWebhookController', () => {
         id: 'cs_test_123',
         discounts: [],
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -400,7 +401,7 @@ describe('StripeWebhookController', () => {
 
       expect(result).toEqual({ received: true });
       expect(mockTransaction).not.toHaveBeenCalled();
-      expect(mockAuthService.requestMagicLink).not.toHaveBeenCalled();
+      expect(mockAuthService.createActivationToken).not.toHaveBeenCalled();
     });
 
     it('should skip gracefully when clinicName is missing from metadata', async () => {
@@ -1007,8 +1008,8 @@ describe('StripeWebhookController', () => {
         id: 'coupon_25off',
         metadata: { type: 'partner' },
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1070,8 +1071,8 @@ describe('StripeWebhookController', () => {
         id: 'coupon_100off',
         metadata: { type: 'lifetime' },
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1104,8 +1105,8 @@ describe('StripeWebhookController', () => {
           entitlementTier: 'starter',
         }),
       });
-      expect(mockAuthService.requestMagicLink).toHaveBeenCalledWith(
-        'partner@clinique.fr',
+      expect(mockAuthService.createActivationToken).toHaveBeenCalledWith(
+        'partner@clinique.fr', 'Dr. Partner',
       );
     });
 
@@ -1135,8 +1136,8 @@ describe('StripeWebhookController', () => {
         amount_off: null,
         metadata: { type: 'partner' },
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1188,8 +1189,8 @@ describe('StripeWebhookController', () => {
         id: 'cs_promo_123',
         discounts: [],
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1248,8 +1249,8 @@ describe('StripeWebhookController', () => {
         id: 'coupon_20eur',
         metadata: { type: 'internal' },
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1298,8 +1299,8 @@ describe('StripeWebhookController', () => {
         id: 'cs_promo_123',
         discounts: [],
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1351,8 +1352,8 @@ describe('StripeWebhookController', () => {
         id: 'coupon_str',
         metadata: { type: 'internal' },
       });
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1410,8 +1411,8 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.coupons.retrieve.mockRejectedValue(
         new Error('Stripe API error'),
       );
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {
@@ -1454,8 +1455,8 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.checkout.sessions.retrieve.mockRejectedValue(
         new Error('Stripe API error'),
       );
-      mockAuthService.requestMagicLink.mockResolvedValue({
-        message: 'If an account exists, a magic link has been sent',
+      mockAuthService.createActivationToken.mockResolvedValue({
+        message: 'If an account exists, an activation email has been sent',
       });
 
       const mockTx = {

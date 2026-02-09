@@ -46,4 +46,12 @@ vi.mock('next-intl', async () => {
 vi.mock('next-intl/server', () => ({
   setRequestLocale: vi.fn(),
   getRequestConfig: vi.fn(),
+  getTranslations: vi.fn(async () => {
+    const t = (key: string) => key;
+    t.raw = (key: string) => key;
+    t.rich = (key: string) => key;
+    t.markup = (key: string) => key;
+    t.has = () => true;
+    return t;
+  }),
 }));

@@ -1,6 +1,6 @@
 # Story 3.6: Subscription-Based Access Control
 
-Status: review
+Status: done
 
 ## Story
 

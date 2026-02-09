@@ -37,15 +37,17 @@ export default async function LocaleLayout({ children, params }: Props) {
   setRequestLocale(locale);
 
   return (
-    <NextIntlClientProvider>
-      <div
+    <html lang={locale} suppressHydrationWarning>
+      <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
       >
-        <ReactQueryProvider>
-          {children}
-          <Toaster position="top-center" richColors />
-        </ReactQueryProvider>
-      </div>
-    </NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <ReactQueryProvider>
+            {children}
+            <Toaster position="top-center" richColors />
+          </ReactQueryProvider>
+        </NextIntlClientProvider>
+      </body>
+    </html>
   );
 }

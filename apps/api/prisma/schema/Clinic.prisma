@@ -10,6 +10,7 @@ model Clinic {
   absences            Absence[]
   unavailabilities    Unavailability[]
   magicLinks          MagicLink[]
+  activationTokens    ActivationToken[]
   planningTemplates   PlanningTemplate[]
   varianceEvents      VarianceEvent[]
   subscription        Subscription?

@@ -24,9 +24,7 @@ export const useBilling = (locale: string) => {
   const portalMutation = useServerActionMutation(
     createBillingPortalSessionAction,
     {
-      onError: () => {
-        toast.error(t("errors.portalFailed"));
-      },
+      returnError: true,
     },
   );
 
@@ -37,7 +35,12 @@ export const useBilling = (locale: string) => {
       locale: locale as "fr" | "en",
     });
 
-    if (!err && result?.url) {
+    if (err) {
+      toast.error(t("errors.portalFailed"));
+      return;
+    }
+
+    if (result?.url) {
       window.location.href = result.url;
     }
   };
