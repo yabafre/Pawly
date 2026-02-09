@@ -11,7 +11,7 @@ import {
 const featureConfig = {
   scheduling: { icon: Calendar, color: "text-indigo-600", bg: "bg-indigo-50" },
   team: { icon: Users, color: "text-orange-500", bg: "bg-orange-50" },
-  billing: { icon: CreditCard, color: "text-[#009588]", bg: "bg-[#E0F2F1]" },
+  billing: { icon: CreditCard, color: "text-primary", bg: "bg-primary/10" },
   mobile: { icon: Smartphone, color: "text-blue-600", bg: "bg-blue-50" },
   i18n: { icon: Globe, color: "text-purple-600", bg: "bg-purple-50" },
   security: { icon: Shield, color: "text-rose-600", bg: "bg-rose-50" },

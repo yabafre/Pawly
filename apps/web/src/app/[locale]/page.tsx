@@ -14,6 +14,12 @@ type Props = {
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://pawly.com";
 
+const PRICING = {
+  LOW: "29",
+  HIGH: "99",
+  CURRENCY: "EUR",
+} as const;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "landing" });
@@ -28,11 +34,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "Pawly",
       locale: locale === "fr" ? "fr_FR" : "en_US",
       type: "website",
+      images: [
+        {
+          url: `${baseUrl}/og-image.png`,
+          width: 1200,
+          height: 630,
+          alt: "Pawly - Veterinary Practice Management",
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: t("meta.title"),
       description: t("meta.description"),
+      images: [`${baseUrl}/og-image.png`],
     },
     alternates: {
       canonical: locale === "fr" ? baseUrl : `${baseUrl}/en`,
@@ -56,14 +71,15 @@ export default async function LandingPage({ params }: Props) {
     operatingSystem: "Web",
     offers: {
       "@type": "AggregateOffer",
-      priceCurrency: "EUR",
-      lowPrice: "29",
-      highPrice: "99",
+      priceCurrency: PRICING.CURRENCY,
+      lowPrice: PRICING.LOW,
+      highPrice: PRICING.HIGH,
     },
   };
 
   return (
     <>
+      {/* Safe: jsonLd is a static object built from constants, no user input */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

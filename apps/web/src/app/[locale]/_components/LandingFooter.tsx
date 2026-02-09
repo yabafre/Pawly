@@ -47,20 +47,14 @@ export async function LandingFooter() {
           <h3 className="font-bold text-white mb-4">{t("company")}</h3>
           <ul className="space-y-2">
             <li>
-              <a
-                href="#"
-                className="text-sm text-neutral-400 hover:text-primary transition-colors"
-              >
+              <span className="text-sm text-neutral-400 cursor-default">
                 {t("about")}
-              </a>
+              </span>
             </li>
             <li>
-              <a
-                href="#"
-                className="text-sm text-neutral-400 hover:text-primary transition-colors"
-              >
+              <span className="text-sm text-neutral-400 cursor-default">
                 {t("contact")}
-              </a>
+              </span>
             </li>
           </ul>
         </div>
@@ -70,20 +64,14 @@ export async function LandingFooter() {
           <h3 className="font-bold text-white mb-4">{t("legal")}</h3>
           <ul className="space-y-2">
             <li>
-              <a
-                href="#"
-                className="text-sm text-neutral-400 hover:text-primary transition-colors"
-              >
+              <span className="text-sm text-neutral-400 cursor-default">
                 {t("privacy")}
-              </a>
+              </span>
             </li>
             <li>
-              <a
-                href="#"
-                className="text-sm text-neutral-400 hover:text-primary transition-colors"
-              >
+              <span className="text-sm text-neutral-400 cursor-default">
                 {t("terms")}
-              </a>
+              </span>
             </li>
           </ul>
         </div>
