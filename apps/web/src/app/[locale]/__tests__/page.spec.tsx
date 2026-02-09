@@ -64,7 +64,7 @@ describe('LandingPage', () => {
       expect(metadata.alternates?.canonical).toContain('/en');
     });
 
-    it('includes openGraph images', async () => {
+    it('includes openGraph images as empty array (no OG image file yet)', async () => {
       const { generateMetadata } = await import('../page');
       const metadata = await generateMetadata({
         params: Promise.resolve({ locale: 'fr' }),
@@ -73,7 +73,7 @@ describe('LandingPage', () => {
       const ogImages = metadata.openGraph?.images;
       expect(ogImages).toBeDefined();
       expect(Array.isArray(ogImages)).toBe(true);
-      expect((ogImages as any[])[0].url).toContain('og-image.png');
+      expect(ogImages).toHaveLength(0);
     });
 
     it('includes twitter card metadata', async () => {
@@ -84,6 +84,7 @@ describe('LandingPage', () => {
 
       expect(metadata.twitter?.card).toBe('summary_large_image');
       expect(metadata.twitter?.images).toBeDefined();
+      expect(metadata.twitter?.images).toHaveLength(0);
     });
 
     it('sets canonical URL correctly per locale', async () => {

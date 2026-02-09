@@ -23,8 +23,6 @@ export const useActivateAccount = () => {
         }
 
         if (data) {
-            localStorage.setItem("token", data.access_token);
-            localStorage.setItem("user", JSON.stringify(data.user));
             toast.success(t("success"));
             router.replace("/admin/planning");
         }
