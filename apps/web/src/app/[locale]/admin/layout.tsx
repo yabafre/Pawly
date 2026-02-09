@@ -28,19 +28,14 @@ export default async function AdminLayout({ children, params }: Props) {
     const pathname = headersList.get("x-pathname") ?? "";
     const isOnboardingRoute = pathname.includes("/admin/onboarding");
 
+    // Fetch onboarding status — separate data fetching from redirect logic
+    // redirect() throws NEXT_REDIRECT internally and MUST NOT be inside try-catch
+    let onboardingStatus: { onboardingCompleted: boolean } | null = null;
+    let clinicNotFound = false;
+
     try {
-        const status = await trpc.clinic.getOnboardingStatus.query();
-
-        if (!status.onboardingCompleted && !isOnboardingRoute) {
-            redirect(`/${locale}/admin/onboarding`);
-        }
-
-        if (status.onboardingCompleted && isOnboardingRoute) {
-            redirect(`/${locale}/admin/dashboard`);
-        }
+        onboardingStatus = await trpc.clinic.getOnboardingStatus.query();
     } catch (err) {
-        // Only allow access if clinic truly doesn't exist yet (first-time login)
-        // All other errors (network, auth, validation, corruption) should bubble up
         if (
             err &&
             typeof err === "object" &&
@@ -48,15 +43,26 @@ export default async function AdminLayout({ children, params }: Props) {
             typeof err.message === "string" &&
             err.message.toLowerCase().includes("not found")
         ) {
-            // Clinic not created yet - redirect to onboarding unless already there
-            if (!isOnboardingRoute) {
-                redirect(`/${locale}/admin/onboarding`);
-            }
-            // On onboarding route - render layout without subscription context
-            return <AdminLayoutClient>{children}</AdminLayoutClient>;
+            clinicNotFound = true;
+        } else {
+            throw err;
         }
-        // Re-throw all other errors to prevent silent failures
-        throw err;
+    }
+
+    // Redirect logic — outside try-catch so NEXT_REDIRECT propagates correctly
+    if (clinicNotFound) {
+        if (!isOnboardingRoute) {
+            redirect(`/${locale}/admin/onboarding`);
+        }
+        return <AdminLayoutClient>{children}</AdminLayoutClient>;
+    }
+
+    if (onboardingStatus && !onboardingStatus.onboardingCompleted && !isOnboardingRoute) {
+        redirect(`/${locale}/admin/onboarding`);
+    }
+
+    if (onboardingStatus?.onboardingCompleted && isOnboardingRoute) {
+        redirect(`/${locale}/admin/dashboard`);
     }
 
     // Subscription guard: server-side check (after auth + onboarding)
