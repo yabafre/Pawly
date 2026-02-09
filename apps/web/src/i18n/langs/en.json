@@ -396,6 +396,19 @@
         "year": "year"
       }
     },
+    "promotion": {
+      "title": "Active Promotion",
+      "code": "Code: {code}",
+      "discount": "{value} discount",
+      "discountPercent": "-{value}%",
+      "discountAmount": "-{value}",
+      "type": {
+        "partner": "Partner",
+        "internal": "Internal",
+        "lifetime": "Lifetime"
+      },
+      "fullDiscount": "100% — Free Access"
+    },
     "errors": {
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",

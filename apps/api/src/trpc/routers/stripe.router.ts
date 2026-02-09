@@ -46,7 +46,14 @@ export const stripeRouter = router({
     ]);
 
     return {
-      subscription: details,
+      subscription: {
+        ...details,
+        promotionCodeId: subscription.promotionCodeId ?? null,
+        couponId: subscription.couponId ?? null,
+        discountType: subscription.discountType ?? null,
+        discountValue: subscription.discountValue ?? null,
+        couponMetadataType: subscription.couponMetadataType ?? null,
+      },
       invoices,
     };
   }),

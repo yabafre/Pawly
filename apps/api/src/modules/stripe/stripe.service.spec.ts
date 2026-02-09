@@ -354,6 +354,8 @@ describe('StripeService', () => {
           'latest_invoice',
           'default_payment_method',
           'items.data.price.product',
+          'discounts',
+          'discounts.promotion_code',
         ],
       });
       expect(result).toEqual({
@@ -367,6 +369,7 @@ describe('StripeService', () => {
         priceAmount: 2900,
         priceCurrency: 'eur',
         priceInterval: 'month',
+        promotionCodeName: null,
       });
     });
 

@@ -16,6 +16,7 @@ import { generateSlug } from '@/common/utils/slug';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
+import { deriveEntitlementTier } from './stripe.utils';
 
 type SubscriptionStatus =
   | 'trialing'
@@ -23,6 +24,25 @@ type SubscriptionStatus =
   | 'past_due'
   | 'canceled'
   | 'unpaid';
+
+type CouponMetadataType = 'partner' | 'internal' | 'lifetime';
+type DiscountType = 'percent' | 'amount';
+
+type PromotionData = {
+  promotionCodeId: string | null;
+  couponId: string | null;
+  discountType: DiscountType | null;
+  discountValue: number | null;
+  couponMetadataType: CouponMetadataType | null;
+};
+
+const EMPTY_PROMOTION_DATA: PromotionData = {
+  promotionCodeId: null,
+  couponId: null,
+  discountType: null,
+  discountValue: null,
+  couponMetadataType: null,
+};
 
 const SUBSCRIPTION_STATUS_MAP: Record<string, SubscriptionStatus> = {
   trialing: 'trialing',
@@ -169,6 +189,10 @@ export class StripeWebhookController {
         stripeSubscriptionId,
       );
 
+    const promotionData = await this.getPromotionDataFromCheckoutSession(
+      session.id,
+    );
+
     // Atomic: create Clinic + Admin User + Subscription in a single transaction
     await this.prisma.$transaction(async (tx) => {
       const clinic = await tx.clinic.create({
@@ -196,11 +220,12 @@ export class StripeWebhookController {
           stripeSubscriptionId,
           status: mapSubscriptionStatus(subscription.status),
           planKey: firstItem?.price.lookup_key ?? 'default',
-          entitlementTier: 'starter',
+          entitlementTier: deriveEntitlementTier(subscription),
           currentPeriodEnd: firstItem
             ? new Date(firstItem.current_period_end * 1000)
             : null,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          ...promotionData,
         },
       });
     });
@@ -213,17 +238,35 @@ export class StripeWebhookController {
     const stripeSubscriptionId = subscription.id;
     this.logger.log(`customer.subscription.updated: ${stripeSubscriptionId}`);
 
-    const firstItem = subscription.items.data[0];
     try {
+      const latestSubscription =
+        await this.stripeService.stripe.subscriptions.retrieve(
+          stripeSubscriptionId,
+          {
+            expand: [
+              'items.data.price.product',
+              'discounts',
+              'discounts.source.coupon',
+              'discounts.promotion_code',
+            ],
+          },
+        );
+
+      const firstItem = latestSubscription.items.data[0];
+      const promotionData =
+        await this.getPromotionDataFromSubscription(latestSubscription);
+
       await this.prisma.subscription.update({
         where: { stripeSubscriptionId },
         data: {
-          status: mapSubscriptionStatus(subscription.status),
+          status: mapSubscriptionStatus(latestSubscription.status),
           planKey: firstItem?.price.lookup_key ?? 'default',
+          entitlementTier: deriveEntitlementTier(latestSubscription),
           currentPeriodEnd: firstItem
             ? new Date(firstItem.current_period_end * 1000)
             : null,
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          cancelAtPeriodEnd: latestSubscription.cancel_at_period_end,
+          ...promotionData,
         },
       });
     } catch (err) {
@@ -268,6 +311,137 @@ export class StripeWebhookController {
       }
       throw err;
     }
+  }
+
+  private async getPromotionDataFromCheckoutSession(
+    sessionId: string,
+  ): Promise<PromotionData> {
+    try {
+      const fullSession =
+        await this.stripeService.stripe.checkout.sessions.retrieve(sessionId, {
+          expand: ['discounts', 'discounts.coupon', 'discounts.promotion_code'],
+        });
+
+      const discount = fullSession.discounts?.[0];
+      if (!discount) {
+        return { ...EMPTY_PROMOTION_DATA };
+      }
+
+      return this.buildPromotionData(
+        discount.promotion_code,
+        discount.coupon,
+        `checkout.session.completed ${sessionId}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `checkout.session.completed ${sessionId}: failed to retrieve expanded session for discounts — ${(err as Error).message}`,
+      );
+      return { ...EMPTY_PROMOTION_DATA };
+    }
+  }
+
+  private async getPromotionDataFromSubscription(
+    subscription: Stripe.Subscription,
+  ): Promise<PromotionData> {
+    const firstDiscount = subscription.discounts?.[0];
+    if (!firstDiscount) {
+      return { ...EMPTY_PROMOTION_DATA };
+    }
+
+    if (typeof firstDiscount === 'string') {
+      this.logger.warn(
+        `customer.subscription.updated ${subscription.id}: discount ${firstDiscount} is not expanded`,
+      );
+      return { ...EMPTY_PROMOTION_DATA };
+    }
+
+    return this.buildPromotionData(
+      firstDiscount.promotion_code,
+      firstDiscount.source?.coupon ?? null,
+      `customer.subscription.updated ${subscription.id}`,
+    );
+  }
+
+  private async buildPromotionData(
+    promotionCodeRef: string | Stripe.PromotionCode | null | undefined,
+    couponRef: string | Stripe.Coupon | null | undefined,
+    logContext: string,
+  ): Promise<PromotionData> {
+    const promotionCodeId =
+      typeof promotionCodeRef === 'string'
+        ? promotionCodeRef
+        : promotionCodeRef?.id ?? null;
+
+    let couponId =
+      typeof couponRef === 'string' ? couponRef : couponRef?.id ?? null;
+
+    let coupon: Stripe.Coupon | null =
+      couponRef && typeof couponRef === 'object' ? couponRef : null;
+    let couponFetchFailed = false;
+
+    if (typeof couponRef === 'string') {
+      try {
+        coupon = await this.stripeService.stripe.coupons.retrieve(couponRef);
+        couponId = coupon.id;
+      } catch (err) {
+        couponFetchFailed = true;
+        this.logger.warn(
+          `${logContext}: failed to retrieve coupon details for ${couponRef} — ${(err as Error).message}`,
+        );
+      }
+    }
+
+    let discountType: DiscountType | null = null;
+    let discountValue: number | null = null;
+    if (coupon?.percent_off !== null && coupon?.percent_off !== undefined) {
+      discountType = 'percent';
+      discountValue = coupon.percent_off;
+    } else if (coupon?.amount_off !== null && coupon?.amount_off !== undefined) {
+      discountType = 'amount';
+      discountValue = coupon.amount_off;
+    }
+
+    let couponMetadataType = this.parseCouponMetadataType(coupon?.metadata?.type);
+
+    if (
+      !couponMetadataType &&
+      couponId &&
+      typeof couponRef !== 'string' &&
+      !couponFetchFailed
+    ) {
+      try {
+        const couponDetail =
+          await this.stripeService.stripe.coupons.retrieve(couponId);
+        couponMetadataType = this.parseCouponMetadataType(
+          couponDetail?.metadata?.type,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `${logContext}: failed to retrieve coupon metadata for ${couponId} — ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return {
+      promotionCodeId,
+      couponId,
+      discountType,
+      discountValue,
+      couponMetadataType,
+    };
+  }
+
+  private parseCouponMetadataType(
+    metadataType: string | undefined,
+  ): CouponMetadataType | null {
+    if (
+      metadataType === 'partner' ||
+      metadataType === 'internal' ||
+      metadataType === 'lifetime'
+    ) {
+      return metadataType;
+    }
+    return null;
   }
 
   private async handleInvoicePaid(invoice: Stripe.Invoice) {

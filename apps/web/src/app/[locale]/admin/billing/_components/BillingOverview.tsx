@@ -19,6 +19,9 @@ import {
   AlertCircle,
   Clock,
   Loader2,
+  Gift,
+  Percent,
+  Tag,
 } from "lucide-react";
 import { useBilling } from "../_hooks/useBilling";
 
@@ -45,6 +48,17 @@ const getStatusStyle = (status: string): string =>
 
 const getInvoiceStatusStyle = (status: string): string =>
   INVOICE_STATUS_STYLES[status as InvoiceStatusVariant] ?? "bg-neutral-400 text-white";
+
+type CouponMetadataType = "partner" | "internal" | "lifetime";
+
+const COUPON_TYPE_STYLES: Record<CouponMetadataType, string> = {
+  partner: "bg-emerald-500 text-white",
+  internal: "bg-indigo-500 text-white",
+  lifetime: "bg-[#009588] text-white",
+};
+
+const getCouponTypeStyle = (type: string | null | undefined): string =>
+  COUPON_TYPE_STYLES[type as CouponMetadataType] ?? "bg-neutral-400 text-white";
 
 interface BillingOverviewProps {
   locale: string;
@@ -129,6 +143,60 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
                   / {t(`labels.interval.${subscription.priceInterval}`)}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Promotion Applied */}
+          {subscription.promotionCodeId && (
+            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-xl p-4 mt-2">
+              <div className="flex items-center gap-3">
+                {subscription.discountType === "percent" && subscription.discountValue === 100 ? (
+                  <div className="w-9 h-9 rounded-lg bg-[#009588]/20 flex items-center justify-center">
+                    <Gift className="w-5 h-5 text-[#009588]" aria-hidden="true" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-lg bg-[#009588]/10 flex items-center justify-center">
+                    <Percent className="w-5 h-5 text-[#009588]" aria-hidden="true" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-[#171717]">
+                      {t("promotion.title")}
+                    </span>
+                    {subscription.couponMetadataType && (
+                      <span
+                        className={`inline-flex items-center ${getCouponTypeStyle(subscription.couponMetadataType)} px-2 py-0.5 rounded-full text-xs font-medium`}
+                      >
+                        {t(`promotion.type.${subscription.couponMetadataType}`)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {subscription.discountType === "percent" && subscription.discountValue === 100 ? (
+                      <span className="text-lg font-bold text-[#009588]">
+                        {t("promotion.fullDiscount")}
+                      </span>
+                    ) : subscription.discountType === "percent" && subscription.discountValue !== null && subscription.discountValue !== undefined ? (
+                      <span className="text-lg font-bold text-[#009588]">
+                        {t("promotion.discountPercent", { value: subscription.discountValue })}
+                      </span>
+                    ) : subscription.discountType === "amount" && subscription.discountValue !== null && subscription.discountValue !== undefined && subscription.priceCurrency ? (
+                      <span className="text-lg font-bold text-[#009588]">
+                        {t("promotion.discountAmount", {
+                          value: formatCurrency(subscription.discountValue, subscription.priceCurrency),
+                        })}
+                      </span>
+                    ) : null}
+                    {subscription.promotionCodeName && (
+                      <span className="inline-flex items-center gap-1 bg-[#009588] text-white px-3 py-1 rounded-full text-xs font-bold">
+                        <Tag className="w-3 h-3" aria-hidden="true" />
+                        {subscription.promotionCodeName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

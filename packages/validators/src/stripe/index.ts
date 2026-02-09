@@ -21,3 +21,14 @@ export type {
   Invoice,
   BillingOverview,
 } from "./billing.schema";
+
+export {
+  couponMetadataTypeEnum,
+  discountTypeEnum,
+  promotionDetailsSchema,
+} from "./promotion.schema";
+export type {
+  CouponMetadataType,
+  DiscountType,
+  PromotionDetails,
+} from "./promotion.schema";
