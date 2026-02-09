@@ -1,4 +1,4 @@
-import { publicProcedure, router, isAuthed } from '../trpc';
+import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import {
   updateClinicNameSchema,
   updateClinicConfigSchema,
@@ -7,31 +7,33 @@ import {
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
+const subscribedProcedure = protectedProcedure.use(isSubscribed);
 
 export const clinicRouter = router({
+  // getOnboardingStatus stays as protectedProcedure — must work before subscription exists
   getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
     return ctx.clinicService.getOnboardingStatus(ctx.user.clinicId);
   }),
 
-  updateClinicName: protectedProcedure
+  updateClinicName: subscribedProcedure
     .input(updateClinicNameSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.updateClinicName(ctx.user.clinicId, input);
     }),
 
-  updateClinicConfig: protectedProcedure
+  updateClinicConfig: subscribedProcedure
     .input(updateClinicConfigSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.upsertClinicConfig(ctx.user.clinicId, input);
     }),
 
-  createShiftTypes: protectedProcedure
+  createShiftTypes: subscribedProcedure
     .input(createShiftTypesSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.createShiftTypes(ctx.user.clinicId, input);
     }),
 
-  completeOnboarding: protectedProcedure
+  completeOnboarding: subscribedProcedure
     .input(completeOnboardingSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.completeOnboarding(ctx.user.clinicId, input);

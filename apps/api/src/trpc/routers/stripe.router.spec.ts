@@ -228,6 +228,116 @@ describe('stripeRouter — getBillingOverview', () => {
   });
 });
 
+describe('stripeRouter — getSubscriptionStatus', () => {
+  const mockPrisma = {
+    subscription: {
+      findUnique: jest.fn(),
+    },
+  };
+
+  const mockStripeService = {
+    getSubscriptionWithDetails: jest.fn(),
+    listInvoices: jest.fn(),
+    createBillingPortalSession: jest.fn(),
+    createCheckoutSession: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should throw UNAUTHORIZED when user is not authenticated', async () => {
+    const caller = createCaller({
+      user: null,
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    await expect(caller.getSubscriptionStatus()).rejects.toThrow(TRPCError);
+    await expect(caller.getSubscriptionStatus()).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+
+  it('should return null when no subscription exists', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    const result = await caller.getSubscriptionStatus();
+    expect(result).toBeNull();
+  });
+
+  it('should return subscription status for active subscription', async () => {
+    const periodEnd = new Date('2026-03-01T00:00:00.000Z');
+    mockPrisma.subscription.findUnique.mockResolvedValue({
+      status: 'active',
+      entitlementTier: 'starter',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: periodEnd,
+    });
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    const result = await caller.getSubscriptionStatus();
+    expect(result).toEqual({
+      status: 'active',
+      entitlementTier: 'starter',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: '2026-03-01T00:00:00.000Z',
+    });
+  });
+
+  it('should return subscription status for inactive subscription', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue({
+      status: 'past_due',
+      entitlementTier: 'starter',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: new Date('2026-02-15T00:00:00.000Z'),
+    });
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    const result = await caller.getSubscriptionStatus();
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe('past_due');
+  });
+
+  it('should use clinicId from ctx.user for lookup', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+    const caller = createCaller({
+      user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_secure' },
+      prisma: mockPrisma as any,
+      stripeService: mockStripeService as any,
+    } as any);
+
+    await caller.getSubscriptionStatus();
+
+    expect(mockPrisma.subscription.findUnique).toHaveBeenCalledWith({
+      where: { clinicId: 'clinic_secure' },
+      select: {
+        status: true,
+        entitlementTier: true,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: true,
+      },
+    });
+  });
+});
+
 describe('stripeRouter — createBillingPortalSession', () => {
   const mockSubscription = {
     id: 'sub_db_1',

@@ -22,6 +22,8 @@ import {
   Gift,
   Percent,
   Tag,
+  ShieldAlert,
+  AlertTriangle,
 } from "lucide-react";
 import { useBilling } from "../_hooks/useBilling";
 
@@ -104,8 +106,89 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
     );
   }
 
+  const isInactive = subscription.status === "past_due" ||
+    subscription.status === "canceled" ||
+    subscription.status === "unpaid";
+
   return (
     <div className="space-y-6">
+      {/* Inactive Subscription Banner */}
+      {isInactive && subscription.status === "past_due" && (
+        <div className="rounded-2xl bg-[#F97316]/10 border border-[#F97316]/20 p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F97316]/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-[#F97316]" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-[#171717]">
+                {t("guard.pastDue.title")}
+              </h3>
+              <p className="text-sm text-[#737373] mt-1">
+                {t("guard.pastDue.description")}
+              </p>
+              <Button
+                onClick={openBillingPortal}
+                disabled={isPortalPending}
+                className="mt-4 bg-[#F97316] hover:bg-[#EA580C] text-white rounded-xl px-6"
+              >
+                {isPortalPending ? t("actions.redirecting") : t("guard.pastDue.action")}
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isInactive && subscription.status === "canceled" && (
+        <div className="rounded-2xl bg-[#F43F5E]/10 border border-[#F43F5E]/20 p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F43F5E]/20 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-5 h-5 text-[#F43F5E]" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-[#171717]">
+                {t("guard.canceled.title")}
+              </h3>
+              <p className="text-sm text-[#737373] mt-1">
+                {t("guard.canceled.description")}
+              </p>
+              <Button
+                onClick={openBillingPortal}
+                disabled={isPortalPending}
+                className="mt-4 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-xl px-6"
+              >
+                {isPortalPending ? t("actions.redirecting") : t("guard.canceled.action")}
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isInactive && subscription.status === "unpaid" && (
+        <div className="rounded-2xl bg-[#F43F5E]/10 border border-[#F43F5E]/20 p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#F43F5E]/20 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5 text-[#F43F5E]" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-[#171717]">
+                {t("guard.unpaid.title")}
+              </h3>
+              <p className="text-sm text-[#737373] mt-1">
+                {t("guard.unpaid.description")}
+              </p>
+              <Button
+                onClick={openBillingPortal}
+                disabled={isPortalPending}
+                className="mt-4 bg-[#F43F5E] hover:bg-[#E11D48] text-white rounded-xl px-6"
+              >
+                {isPortalPending ? t("actions.redirecting") : t("guard.unpaid.action")}
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Subscription Card */}
       <Card className="rounded-2xl border-0 shadow-[0_4px_20px_-4px_rgba(0,149,136,0.15)] bg-white">
         <CardHeader className="pb-3">

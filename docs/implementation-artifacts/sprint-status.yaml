@@ -28,7 +28,8 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-07'
+updated: '2026-02-09'
+# 2026-02-09: Story 3-6 created (ready-for-dev). Subscription-Based Access Control. tRPC isSubscribed middleware, admin layout subscription guard, SubscriptionContext provider, SubscriptionGate UI component, billing page inactive state, i18n keys, procedure migration.
 # 2026-02-07: Story 3-5 created (ready-for-dev). Promotion Codes & 100% Discount Support. Capture promo/discount data from webhook, fix hardcoded entitlementTier, dynamic tier mapping, promotion display on billing page, 100% discount checkout handling.
 # 2026-02-07: Story 3-4 adversarial code review completed. 8 issues found (3 HIGH, 3 MEDIUM, 2 LOW), all fixed. Added 10 tRPC router tests. 324 total tests (120 API + 79 validators + 125 web). Build green.
 # 2026-02-07: Story 3-4 created (ready-for-dev). Subscription Management & Billing Portal. Stripe hosted portal session, subscription details display, invoice history, webhook enhancements (invoice.paid recovery), billing page UI with Clinique Zen aesthetic.
@@ -119,7 +120,7 @@ development_status:
   3-3-post-checkout-onboarding-first-login: done
   3-4-subscription-management-billing-portal: done
   3-5-promotion-codes-100-discount-support: done
-  3-6-subscription-based-access-control: backlog
+  3-6-subscription-based-access-control: review
   epic-3-retrospective: optional
 
   # ===========================================================================

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { trpc } from "@/lib/trpc/client";
 import { AdminLayoutClient } from "./_components/AdminLayoutClient";
+import { SubscriptionProvider } from "@/lib/contexts/subscription-context";
+import { ACTIVE_SUBSCRIPTION_STATUSES } from "@pawly/validators";
 
 type Props = {
     children: React.ReactNode;
@@ -46,12 +48,34 @@ export default async function AdminLayout({ children, params }: Props) {
             typeof err.message === "string" &&
             err.message.toLowerCase().includes("not found")
         ) {
-            // Clinic not created yet - allow access for first-time setup
-            return;
+            // Clinic not created yet - redirect to onboarding unless already there
+            if (!isOnboardingRoute) {
+                redirect(`/${locale}/admin/onboarding`);
+            }
+            // On onboarding route - render layout without subscription context
+            return <AdminLayoutClient>{children}</AdminLayoutClient>;
         }
         // Re-throw all other errors to prevent silent failures
         throw err;
     }
 
-    return <AdminLayoutClient>{children}</AdminLayoutClient>;
+    // Subscription guard: server-side check (after auth + onboarding)
+    const isBillingPage = pathname.includes("/admin/billing");
+    const subscriptionStatus = await trpc.stripe.getSubscriptionStatus.query();
+
+    const isSubscriptionActive = subscriptionStatus &&
+        (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(subscriptionStatus.status);
+
+    if (!isSubscriptionActive && !isBillingPage && !isOnboardingRoute) {
+        redirect(`/${locale}/admin/billing`);
+    }
+
+    return (
+        <SubscriptionProvider
+            status={subscriptionStatus?.status ?? null}
+            entitlementTier={subscriptionStatus?.entitlementTier ?? "starter"}
+        >
+            <AdminLayoutClient>{children}</AdminLayoutClient>
+        </SubscriptionProvider>
+    );
 }
