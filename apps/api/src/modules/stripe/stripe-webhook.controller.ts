@@ -230,8 +230,9 @@ export class StripeWebhookController {
       });
     });
 
-    // Send Magic Link (outside transaction — email is non-reversible)
-    await this.authService.requestMagicLink(adminEmail);
+    // Send activation email (outside transaction — email is non-reversible)
+    // Admin must set their password to activate their account (Architecture: hybrid auth for admins)
+    await this.authService.createActivationToken(adminEmail, adminName || undefined);
   }
 
   private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {

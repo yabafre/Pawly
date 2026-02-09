@@ -14,6 +14,7 @@ const REFRESH_TOKEN_EXPIRY = '7d';
 const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
 const MAGIC_LINK_MIN_RESPONSE_MS = 300;
+const ACTIVATION_TOKEN_TTL_HOURS = 24;
 
 @Injectable()
 export class AuthService {
@@ -152,6 +153,88 @@ export class AuthService {
         const cutoff = new Date();
         cutoff.setHours(cutoff.getHours() - MAGIC_LINK_CLEANUP_HOURS);
         await this.prisma.magicLink.deleteMany({
+            where: {
+                OR: [
+                    { expiresAt: { lt: cutoff } },
+                    { used: true, createdAt: { lt: cutoff } },
+                ],
+            },
+        });
+    }
+
+    async createActivationToken(email: string, adminName?: string) {
+        const startTime = Date.now();
+        const user = await this.prisma.user.findUnique({ where: { email } });
+
+        if (!user) {
+            await this.delayToMinimumResponse(startTime);
+            return { message: 'If an account exists, an activation email has been sent' };
+        }
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = this.hashToken(rawToken);
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + ACTIVATION_TOKEN_TTL_HOURS);
+
+        await this.prisma.activationToken.create({
+            data: {
+                token: hashedToken,
+                expiresAt,
+                userId: user.id,
+                clinicId: user.clinicId,
+            },
+        });
+
+        const baseUrl = this.configService.get('WEB_APP_URL', { infer: true });
+        const activateUrl = `${baseUrl}/auth/activate?token=${rawToken}`;
+        await this.mailService.sendActivationEmail(user.email, activateUrl, adminName);
+
+        return { message: 'If an account exists, an activation email has been sent' };
+    }
+
+    async activateAccount(token: string, password: string) {
+        const hashedToken = this.hashToken(token);
+
+        const user = await this.prisma.$transaction(async (tx) => {
+            const activationToken = await tx.activationToken.findUnique({
+                where: { token: hashedToken },
+                include: { user: true },
+            });
+
+            const isInvalid = !activationToken || activationToken.used || activationToken.expiresAt < new Date();
+            if (isInvalid) {
+                throw new UnauthorizedException('Invalid or expired activation token');
+            }
+
+            const updated = await tx.activationToken.updateMany({
+                where: { token: hashedToken, used: false },
+                data: { used: true },
+            });
+
+            if (updated.count === 0) {
+                throw new UnauthorizedException('Invalid or expired activation token');
+            }
+
+            const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+            await tx.user.update({
+                where: { id: activationToken.userId },
+                data: { password: hashedPassword },
+            });
+
+            return activationToken.user;
+        });
+
+        this.cleanupExpiredActivationTokens().catch((err) =>
+            this.logger.warn('Failed to cleanup expired activation tokens', err),
+        );
+
+        return this.generateToken(user);
+    }
+
+    private async cleanupExpiredActivationTokens() {
+        const cutoff = new Date();
+        cutoff.setHours(cutoff.getHours() - ACTIVATION_TOKEN_TTL_HOURS);
+        await this.prisma.activationToken.deleteMany({
             where: {
                 OR: [
                     { expiresAt: { lt: cutoff } },

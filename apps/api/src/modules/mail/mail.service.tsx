@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import { MagicLinkEmail } from './templates/MagicLinkEmail';
+import { ActivationEmail } from './templates/ActivationEmail';
 import type { EnvConfig } from '@/config/index';
 
 @Injectable()
@@ -36,6 +37,29 @@ export class MailService {
     } catch (err) {
       this.logger.error('Unexpected error sending magic link email', err);
       throw new InternalServerErrorException('Failed to send authentication email');
+    }
+  }
+
+  async sendActivationEmail(email: string, url: string, adminName?: string) {
+    try {
+      const html = await render(<ActivationEmail url={url} adminName={adminName} />);
+
+      const { data, error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: 'Complete your Pawly account setup',
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send activation email: ${error.message}`);
+        throw new InternalServerErrorException('Failed to send activation email');
+      }
+
+      return data;
+    } catch (err) {
+      this.logger.error('Unexpected error sending activation email', err);
+      throw new InternalServerErrorException('Failed to send activation email');
     }
   }
 }

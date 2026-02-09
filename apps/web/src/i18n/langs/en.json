@@ -65,6 +65,20 @@
       "serverError": "Server connection issue",
       "unexpectedError": "An unexpected error occurred"
     },
+    "activate": {
+      "title": "Set your password",
+      "subtitle": "Create a secure password to activate your admin account.",
+      "passwordLabel": "Password",
+      "confirmLabel": "Confirm password",
+      "passwordHint": "Min. 8 characters, uppercase, lowercase, and number.",
+      "passwordMismatch": "Passwords do not match",
+      "submitButton": "Activate my account",
+      "submitting": "Activating...",
+      "success": "Account activated! Redirecting...",
+      "error": "Activation failed. Please try again.",
+      "invalidToken": "Invalid activation link",
+      "tokenMissing": "The activation link is missing or malformed. Please check your email."
+    },
     "errors": {
       "generic": "An error occurred",
       "invalidEmail": "Invalid email",
@@ -456,5 +470,125 @@
     "validationError": "Validation error",
     "unknownError": "Unknown error",
     "tryAgain": "Please try again"
+  },
+  "landing": {
+    "meta": {
+      "title": "Pawly — Intelligent Planning for Veterinary Clinics",
+      "description": "Simplify your veterinary clinic management with Pawly. Intelligent scheduling, team coordination, and subscription management in one platform."
+    },
+    "header": {
+      "login": "Log in",
+      "cta": "Get Started",
+      "navFeatures": "Features",
+      "navPricing": "Pricing"
+    },
+    "hero": {
+      "title": "Intelligent planning for your veterinary clinic",
+      "subtitle": "Pawly streamlines scheduling, team management, and daily operations — so you can focus on what matters most: animal care.",
+      "cta": "View Pricing",
+      "secondaryCta": "Learn More",
+      "badge": "New: AI-powered Scheduling",
+      "trustTitle": "Trusted by leading clinics:",
+      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+    },
+    "features": {
+      "title": "Everything your clinic needs",
+      "subtitle": "Powerful tools designed specifically for veterinary practice management.",
+      "badge": "Features",
+      "scheduling": {
+        "title": "Smart Scheduling",
+        "description": "Automated shift planning with constraint-based algorithms. Handle surgeries, consultations, and rest periods effortlessly."
+      },
+      "team": {
+        "title": "Team Management",
+        "description": "Manage veterinarians, ASVs, and apprentices with role-based access. Track contracts, absences, and equity counters."
+      },
+      "billing": {
+        "title": "Subscription & Billing",
+        "description": "Transparent pricing with Stripe-powered billing. Manage your subscription, view invoices, and control costs."
+      },
+      "mobile": {
+        "title": "Mobile Ready",
+        "description": "Progressive Web App for your team. Employees can check schedules, request absences, and confirm presence from any device."
+      },
+      "i18n": {
+        "title": "Bilingual Support",
+        "description": "Full French and English support. Every screen, notification, and report is available in both languages."
+      },
+      "security": {
+        "title": "Secure & Reliable",
+        "description": "Magic link authentication, JWT tokens, and role-based access control. Your clinic data is protected at every level."
+      }
+    },
+    "pricing": {
+      "title": "Simple, transparent pricing",
+      "subtitle": "Choose the plan that fits your clinic. All plans include a free trial.",
+      "badge": "Transparent Pricing",
+      "starter": {
+        "name": "Starter",
+        "price": "29",
+        "interval": "month",
+        "description": "Perfect for small clinics getting started",
+        "features": ["Up to 5 team members", "Basic scheduling", "Absence management", "Email support"]
+      },
+      "professional": {
+        "name": "Professional",
+        "price": "59",
+        "interval": "month",
+        "description": "For growing clinics that need more",
+        "popular": "Most Popular",
+        "features": ["Up to 20 team members", "Advanced scheduling algorithms", "Equity counters", "Priority support", "Custom shift types"]
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "price": "99",
+        "interval": "month",
+        "description": "For multi-clinic operations",
+        "features": ["Unlimited team members", "Multi-clinic management", "API access", "Dedicated support", "Custom integrations"]
+      },
+      "cta": "Get Started",
+      "currency": "€",
+      "perMonth": "/month"
+    },
+    "testimonials": {
+      "title": "Trusted by veterinary professionals",
+      "subtitle": "See what clinic managers say about Pawly.",
+      "badge": "Testimonials",
+      "items": {
+        "1": {
+          "quote": "Pawly transformed how we manage our clinic schedule. What used to take hours now takes minutes.",
+          "author": "Dr. Sarah Chen",
+          "role": "Clinic Director, Paws & Claws Veterinary"
+        },
+        "2": {
+          "quote": "The team management features are exceptional. Finally, a tool that understands veterinary workflows.",
+          "author": "Dr. Marc Dubois",
+          "role": "Head Veterinarian, Clinique des Animaux"
+        },
+        "3": {
+          "quote": "Since switching to Pawly, our staff satisfaction has improved dramatically. The mobile app is a game-changer.",
+          "author": "Julie Martin",
+          "role": "Practice Manager, VetCare Plus"
+        }
+      }
+    },
+    "cta": {
+      "title": "Ready to simplify your clinic management?",
+      "subtitle": "Join veterinary professionals who trust Pawly for their daily operations.",
+      "button": "Start Your Free Trial"
+    },
+    "footer": {
+      "description": "The intelligent planning platform for veterinary clinics.",
+      "product": "Product",
+      "features": "Features",
+      "pricing": "Pricing",
+      "company": "Company",
+      "about": "About",
+      "contact": "Contact",
+      "legal": "Legal",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "copyright": "© 2026 Pawly. All rights reserved."
+    }
   }
 }

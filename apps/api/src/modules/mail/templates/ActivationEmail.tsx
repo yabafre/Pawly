@@ -7,29 +7,32 @@ import {
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
 
-interface MagicLinkEmailProps {
+interface ActivationEmailProps {
   url: string;
+  adminName?: string;
 }
 
-export const MagicLinkEmail = ({ url }: MagicLinkEmailProps) => (
-  <EmailLayout previewText="Connexion à Pawly" tag="SÉCURITÉ">
-    <Heading style={h1}>Connexion sécurisée.</Heading>
-    <Text style={subjectText}>Objet: Votre lien magique de connexion</Text>
+export const ActivationEmail = ({ url, adminName }: ActivationEmailProps) => (
+  <EmailLayout previewText="Bienvenue chez Pawly !" tag="COMPTE">
+    <Heading style={h1}>Votre clinique est prête.</Heading>
+    <Text style={subjectText}>Objet: Bienvenue chez Pawly !</Text>
 
     <Text style={text}>
-      Bonjour,
+      Bonjour {adminName ? adminName : 'Docteur'},
       <br /><br />
-      Vous avez demandé à vous connecter à votre espace Pawly. Cliquez sur le bouton ci-dessous pour accéder à votre compte en toute sécurité.
+      Bienvenue dans la famille Pawly ! Votre espace de travail est configuré et prêt à accueillir vos collaborateurs.
+      <br /><br />
+      Vous pouvez dès maintenant définir votre mot de passe et activer votre compte.
     </Text>
 
     <Section style={buttonContainer}>
       <Button href={url} style={button}>
-        Se connecter maintenant
+        Activer mon compte
       </Button>
     </Section>
 
     <Text style={disclaimer}>
-      Ce lien est valide pendant 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+      Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
     </Text>
   </EmailLayout>
 );
@@ -44,7 +47,7 @@ const h1 = {
 };
 
 const subjectText = {
-  color: '#A3A3A3', // Neutral 400
+  color: '#A3A3A3', // Neutral 400/500
   fontSize: '14px',
   fontWeight: '500',
   margin: '0 0 24px',
