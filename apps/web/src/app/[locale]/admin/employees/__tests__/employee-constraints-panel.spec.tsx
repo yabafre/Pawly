@@ -92,4 +92,62 @@ describe("EmployeeConstraintsPanel", () => {
 
     expect(screen.getByText("constraints.form.createTitle")).toBeDefined();
   });
+
+  it("resets edit state when panel closes and reopens for another employee", () => {
+    mockUseEmployeeConstraints.mockReturnValue({
+      constraints: [
+        {
+          id: "c1",
+          type: "SCHOOL",
+          reason: "School day",
+          startDate: "2026-03-01T00:00:00.000Z",
+          endDate: "2026-03-31T23:59:59.999Z",
+          daysOfWeek: [],
+        },
+      ],
+      isPending: false,
+      createConstraint: mockCreateConstraint,
+      updateConstraint: mockUpdateConstraint,
+      deleteConstraint: mockDeleteConstraint,
+      isCreating: false,
+      isUpdating: false,
+      isDeleting: false,
+    });
+
+    const { rerender } = render(
+      <EmployeeConstraintsPanel
+        open
+        onOpenChange={vi.fn()}
+        employee={{ id: "emp-1", firstName: "Jean", lastName: "Dupont" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("constraints.actions.edit"));
+    expect(screen.getByText("constraints.form.editTitle")).toBeDefined();
+
+    rerender(
+      <EmployeeConstraintsPanel open={false} onOpenChange={vi.fn()} employee={null} />,
+    );
+
+    mockUseEmployeeConstraints.mockReturnValue({
+      constraints: [],
+      isPending: false,
+      createConstraint: mockCreateConstraint,
+      updateConstraint: mockUpdateConstraint,
+      deleteConstraint: mockDeleteConstraint,
+      isCreating: false,
+      isUpdating: false,
+      isDeleting: false,
+    });
+
+    rerender(
+      <EmployeeConstraintsPanel
+        open
+        onOpenChange={vi.fn()}
+        employee={{ id: "emp-2", firstName: "Marie", lastName: "Martin" }}
+      />,
+    );
+
+    expect(screen.queryByTestId("constraint-form")).toBeNull();
+  });
 });

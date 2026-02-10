@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmployeeService } from './employee.service';
 import { PrismaService } from '@/prisma/prisma.service';
 
@@ -441,6 +441,21 @@ describe('EmployeeService', () => {
         where: { id: constraintId },
         data: expect.objectContaining({ reason: 'Updated reason' }),
       });
+    });
+
+    it('throws BadRequestException when partial update creates inverted date range', async () => {
+      mockPrismaService.unavailability.findFirst.mockResolvedValue(
+        oneTimeConstraint,
+      );
+
+      await expect(
+        service.updateConstraint(clinicId, {
+          id: constraintId,
+          endDate: '2026-03-09T23:59:59.999Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockPrismaService.unavailability.update).not.toHaveBeenCalled();
     });
 
     it('deletes a constraint scoped to clinic', async () => {

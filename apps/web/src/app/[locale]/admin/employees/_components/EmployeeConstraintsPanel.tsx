@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,22 @@ export function EmployeeConstraintsPanel({
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingConstraint, setEditingConstraint] = useState<ConstraintRecord | null>(null);
 
+  const resetLocalFormState = useCallback(() => {
+    setIsFormVisible(false);
+    setEditingConstraint(null);
+    setFormMode("create");
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      resetLocalFormState();
+    }
+  }, [open, resetLocalFormState]);
+
+  useEffect(() => {
+    resetLocalFormState();
+  }, [employee?.id, resetLocalFormState]);
+
   const {
     constraints,
     isPending,
@@ -86,9 +102,7 @@ export function EmployeeConstraintsPanel({
   };
 
   const closeForm = () => {
-    setIsFormVisible(false);
-    setEditingConstraint(null);
-    setFormMode("create");
+    resetLocalFormState();
   };
 
   const handleDelete = (constraintId: string) => {
@@ -97,10 +111,17 @@ export function EmployeeConstraintsPanel({
     deleteConstraint({ id: constraintId });
   };
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      resetLocalFormState();
+    }
+    onOpenChange(nextOpen);
+  };
+
   if (!employee) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[760px] rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-neutral-900">

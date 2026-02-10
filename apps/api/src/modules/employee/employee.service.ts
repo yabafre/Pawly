@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import type {
   CreateEmployeeInput,
@@ -180,10 +184,25 @@ export class EmployeeService {
 
   async updateConstraint(clinicId: string, data: UpdateUnavailabilityInput) {
     const { id, ...updateData } = data;
-    await this.findConstraintById(clinicId, id);
+    const existingConstraint = await this.findConstraintById(clinicId, id);
 
     if (updateData.employeeId) {
       await this.findById(clinicId, updateData.employeeId);
+    }
+
+    const nextStartDate =
+      updateData.startDate !== undefined
+        ? new Date(updateData.startDate)
+        : existingConstraint.startDate;
+    const nextEndDate =
+      updateData.endDate !== undefined
+        ? new Date(updateData.endDate)
+        : existingConstraint.endDate;
+
+    if (nextEndDate < nextStartDate) {
+      throw new BadRequestException(
+        'End date must be after or equal to start date',
+      );
     }
 
     return this.prisma.unavailability.update({
@@ -194,10 +213,10 @@ export class EmployeeService {
         }),
         ...(updateData.type !== undefined && { type: updateData.type }),
         ...(updateData.startDate !== undefined && {
-          startDate: new Date(updateData.startDate),
+          startDate: nextStartDate,
         }),
         ...(updateData.endDate !== undefined && {
-          endDate: new Date(updateData.endDate),
+          endDate: nextEndDate,
         }),
         ...(updateData.reason !== undefined && {
           reason: updateData.reason || null,
