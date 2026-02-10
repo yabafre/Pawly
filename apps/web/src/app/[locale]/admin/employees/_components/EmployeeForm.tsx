@@ -254,7 +254,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 id="hireDate"
                 type="date"
                 className="h-12 focus-visible:ring-[#009588]/20"
-                value={field.state.value ? field.state.value.split("T")[0] : ""}
+                value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
                 onChange={(e) => {
                   const val = e.target.value;
                   field.handleChange(val ? new Date(val).toISOString() : "");
@@ -272,7 +272,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 id="endDate"
                 type="date"
                 className="h-12 focus-visible:ring-[#009588]/20"
-                value={field.state.value ? field.state.value.split("T")[0] : ""}
+                value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
                 onChange={(e) => {
                   const val = e.target.value;
                   field.handleChange(val ? new Date(val).toISOString() : "");
