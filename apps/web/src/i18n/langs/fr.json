@@ -470,6 +470,81 @@
       }
     }
   },
+  "employees": {
+    "meta": {
+      "title": "Gestion des employés - Pawly",
+      "description": "Gérez votre équipe et les contrats de votre clinique"
+    },
+    "page": {
+      "title": "Employés",
+      "subtitle": "Gérez votre équipe"
+    },
+    "actions": {
+      "add": "Ajouter un employé",
+      "edit": "Modifier",
+      "deactivate": "Désactiver",
+      "activate": "Activer",
+      "save": "Enregistrer",
+      "cancel": "Annuler"
+    },
+    "form": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Email",
+      "phone": "Téléphone",
+      "jobType": "Poste",
+      "contractType": "Type de contrat",
+      "contractHours": "Heures hebdomadaires",
+      "color": "Couleur calendrier",
+      "hireDate": "Date d'embauche",
+      "endDate": "Date de fin",
+      "createTitle": "Nouvel employé",
+      "editTitle": "Modifier l'employé"
+    },
+    "jobTypes": {
+      "VET": "Vétérinaire",
+      "ASV": "Auxiliaire vétérinaire",
+      "APPRENTICE": "Apprenti"
+    },
+    "contractTypes": {
+      "CDI": "CDI",
+      "CDD": "CDD",
+      "APPRENTICESHIP": "Apprentissage"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif"
+    },
+    "empty": {
+      "title": "Aucun employé",
+      "description": "Ajoutez votre premier membre d'équipe pour commencer la planification",
+      "cta": "Ajouter un employé"
+    },
+    "confirm": {
+      "deactivateTitle": "Désactiver l'employé",
+      "deactivateMessage": "Cet employé sera exclu de la planification. Son historique sera conservé.",
+      "activateTitle": "Réactiver l'employé",
+      "activateMessage": "Cet employé sera de nouveau inclus dans la planification."
+    },
+    "toast": {
+      "created": "Employé créé avec succès",
+      "updated": "Employé mis à jour avec succès",
+      "deactivated": "Employé désactivé",
+      "activated": "Employé réactivé"
+    },
+    "validation": {
+      "firstNameRequired": "Le prénom est requis",
+      "lastNameRequired": "Le nom est requis",
+      "invalidEmail": "Adresse email invalide",
+      "hoursRange": "Les heures doivent être entre 1 et 48",
+      "endDateAfterHire": "La date de fin doit être après la date d'embauche"
+    },
+    "filters": {
+      "searchPlaceholder": "Rechercher un employé...",
+      "showInactive": "Afficher les inactifs",
+      "allJobTypes": "Tous les postes"
+    }
+  },
   "errors": {
     "generic": "Une erreur est survenue",
     "network": "Erreur de connexion au serveur",

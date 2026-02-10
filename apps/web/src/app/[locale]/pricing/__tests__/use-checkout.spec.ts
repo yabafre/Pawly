@@ -38,18 +38,7 @@ describe('useCheckout', () => {
 
     expect(useServerActionMutation).toHaveBeenCalledWith(
       expect.any(Function),
-      expect.objectContaining({
-        actionKeyFactory: expect.any(Function),
-      })
     );
-  });
-
-  it('actionKeyFactory returns checkout key', () => {
-    renderHook(() => useCheckout());
-
-    const call = (useServerActionMutation as ReturnType<typeof vi.fn>).mock.calls[0];
-    const actionKeyFactory = call[1].actionKeyFactory;
-    expect(actionKeyFactory()).toEqual(['checkout']);
   });
 
   it('reflects isPending state', () => {

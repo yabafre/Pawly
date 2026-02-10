@@ -1,0 +1,313 @@
+jest.mock('superjson', () => ({
+  __esModule: true,
+  default: {
+    serialize: (v: unknown) => ({ json: v, meta: undefined }),
+    deserialize: (v: { json: unknown }) => v.json ?? v,
+  },
+}));
+
+import { TRPCError } from '@trpc/server';
+import { employeeRouter } from './employee.router';
+import { createCallerFactory } from '../trpc';
+
+const createCaller = createCallerFactory(employeeRouter);
+
+describe('employeeRouter', () => {
+  const mockEmployeeService = {
+    findAll: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    toggleActive: jest.fn(),
+  };
+
+  const mockPrisma = {
+    subscription: {
+      findUnique: jest.fn(),
+    },
+  };
+
+  const activeSubscription = {
+    status: 'active',
+    entitlementTier: 'starter',
+    currentPeriodEnd: new Date('2026-12-31'),
+    cancelAtPeriodEnd: false,
+  };
+
+  const authenticatedUser = {
+    sub: 'user-1',
+    email: 'admin@clinic.fr',
+    role: 'STAFF',
+    clinicId: 'clinic-123',
+  };
+
+  const createAuthenticatedCaller = () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+    return createCaller({
+      user: authenticatedUser,
+      prisma: mockPrisma as any,
+      employeeService: mockEmployeeService as any,
+    } as any);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // ─── Router shape ───────────────────────────────────────────────────
+
+  it('should export all 5 procedures', () => {
+    const procedures = Object.keys(employeeRouter._def.procedures);
+    expect(procedures).toHaveLength(5);
+    expect(procedures).toEqual(
+      expect.arrayContaining([
+        'list',
+        'getById',
+        'create',
+        'update',
+        'toggleActive',
+      ]),
+    );
+  });
+
+  // ─── Auth & subscription guards ─────────────────────────────────────
+
+  it('should throw UNAUTHORIZED when user is not authenticated', async () => {
+    const caller = createCaller({
+      user: null,
+      prisma: mockPrisma as any,
+      employeeService: mockEmployeeService as any,
+    } as any);
+
+    await expect(caller.list()).rejects.toThrow(TRPCError);
+    await expect(caller.list()).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+
+  it('should throw FORBIDDEN when user has no active subscription', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+    const caller = createCaller({
+      user: authenticatedUser,
+      prisma: mockPrisma as any,
+      employeeService: mockEmployeeService as any,
+    } as any);
+
+    await expect(caller.list()).rejects.toThrow(TRPCError);
+    await expect(caller.list()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  // ─── list ───────────────────────────────────────────────────────────
+
+  describe('list', () => {
+    it('calls employeeService.findAll with clinicId and undefined when no input', async () => {
+      const mockResult = [{ id: 'emp-1', firstName: 'Jean' }];
+      mockEmployeeService.findAll.mockResolvedValue(mockResult);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.list();
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.findAll).toHaveBeenCalledWith(
+        'clinic-123',
+        undefined,
+      );
+    });
+
+    it('passes filter input to findAll when provided', async () => {
+      mockEmployeeService.findAll.mockResolvedValue([]);
+
+      const caller = createAuthenticatedCaller();
+      const input = { includeInactive: true, jobType: 'VET' as const };
+      await caller.list(input);
+
+      expect(mockEmployeeService.findAll).toHaveBeenCalledWith(
+        'clinic-123',
+        input,
+      );
+    });
+
+    it('passes search filter to findAll', async () => {
+      mockEmployeeService.findAll.mockResolvedValue([]);
+
+      const caller = createAuthenticatedCaller();
+      await caller.list({ search: 'Dupont' });
+
+      expect(mockEmployeeService.findAll).toHaveBeenCalledWith(
+        'clinic-123',
+        { search: 'Dupont' },
+      );
+    });
+  });
+
+  // ─── getById ────────────────────────────────────────────────────────
+
+  describe('getById', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.findById with clinicId and id', async () => {
+      const mockEmployee = { id: validId, firstName: 'Jean' };
+      mockEmployeeService.findById.mockResolvedValue(mockEmployee);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.getById({ id: validId });
+
+      expect(result).toEqual(mockEmployee);
+      expect(mockEmployeeService.findById).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+    });
+
+    it('rejects invalid UUID input via Zod validation', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(caller.getById({ id: 'not-a-uuid' })).rejects.toThrow();
+    });
+  });
+
+  // ─── create ─────────────────────────────────────────────────────────
+
+  describe('create', () => {
+    const validInput = {
+      firstName: 'Marie',
+      lastName: 'Martin',
+      email: 'marie@clinic.fr',
+      phone: '+33612345678',
+      jobType: 'VET' as const,
+      contractType: 'CDI' as const,
+      contractHours: 35,
+      color: '#3b82f6',
+      hireDate: '2024-01-15T00:00:00.000Z',
+      endDate: '',
+    };
+
+    it('calls employeeService.create with clinicId and validated input', async () => {
+      const mockCreated = { id: 'new-emp', ...validInput, clinicId: 'clinic-123' };
+      mockEmployeeService.create.mockResolvedValue(mockCreated);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.create(validInput);
+
+      expect(result).toEqual(mockCreated);
+      expect(mockEmployeeService.create).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.objectContaining({
+          firstName: 'Marie',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractType: 'CDI',
+        }),
+      );
+    });
+
+    it('rejects input with missing required fields via Zod validation', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.create({ firstName: '' } as any),
+      ).rejects.toThrow();
+    });
+
+    it('rejects input with invalid color format', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.create({ ...validInput, color: 'not-hex' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── update ─────────────────────────────────────────────────────────
+
+  describe('update', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.update with clinicId and input', async () => {
+      const updateInput = { id: validId, firstName: 'Updated' };
+      const mockUpdated = { ...updateInput, lastName: 'Dupont', clinicId: 'clinic-123' };
+      mockEmployeeService.update.mockResolvedValue(mockUpdated);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.update(updateInput);
+
+      expect(result).toEqual(mockUpdated);
+      expect(mockEmployeeService.update).toHaveBeenCalledWith(
+        'clinic-123',
+        updateInput,
+      );
+    });
+
+    it('allows partial updates (only id is required)', async () => {
+      const updateInput = { id: validId, contractHours: 20 };
+      mockEmployeeService.update.mockResolvedValue({ ...updateInput });
+
+      const caller = createAuthenticatedCaller();
+      await caller.update(updateInput);
+
+      expect(mockEmployeeService.update).toHaveBeenCalledWith(
+        'clinic-123',
+        updateInput,
+      );
+    });
+
+    it('rejects update without a valid UUID id', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.update({ id: 'bad-id', firstName: 'Hack' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── toggleActive ──────────────────────────────────────────────────
+
+  describe('toggleActive', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.toggleActive with clinicId and id', async () => {
+      const mockToggled = { id: validId, isActive: false };
+      mockEmployeeService.toggleActive.mockResolvedValue(mockToggled);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.toggleActive({ id: validId });
+
+      expect(result).toEqual(mockToggled);
+      expect(mockEmployeeService.toggleActive).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+    });
+
+    it('rejects invalid UUID input via Zod validation', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.toggleActive({ id: 'invalid' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── clinicId isolation ─────────────────────────────────────────────
+
+  it('always uses clinicId from ctx.user, never from client input', async () => {
+    mockEmployeeService.findAll.mockResolvedValue([]);
+    mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+    const caller = createCaller({
+      user: { ...authenticatedUser, clinicId: 'clinic-secure' },
+      prisma: mockPrisma as any,
+      employeeService: mockEmployeeService as any,
+    } as any);
+
+    await caller.list();
+
+    expect(mockEmployeeService.findAll).toHaveBeenCalledWith(
+      'clinic-secure',
+      undefined,
+    );
+  });
+});

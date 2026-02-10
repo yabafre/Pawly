@@ -470,6 +470,81 @@
       }
     }
   },
+  "employees": {
+    "meta": {
+      "title": "Employee Management - Pawly",
+      "description": "Manage your clinic staff and contracts"
+    },
+    "page": {
+      "title": "Employees",
+      "subtitle": "Manage your team"
+    },
+    "actions": {
+      "add": "Add Employee",
+      "edit": "Edit",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "form": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "phone": "Phone",
+      "jobType": "Job Type",
+      "contractType": "Contract Type",
+      "contractHours": "Weekly Hours",
+      "color": "Calendar Color",
+      "hireDate": "Hire Date",
+      "endDate": "End Date",
+      "createTitle": "New Employee",
+      "editTitle": "Edit Employee"
+    },
+    "jobTypes": {
+      "VET": "Veterinarian",
+      "ASV": "Veterinary Assistant",
+      "APPRENTICE": "Apprentice"
+    },
+    "contractTypes": {
+      "CDI": "Permanent (CDI)",
+      "CDD": "Fixed-term (CDD)",
+      "APPRENTICESHIP": "Apprenticeship"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "empty": {
+      "title": "No employees yet",
+      "description": "Add your first team member to start scheduling",
+      "cta": "Add First Employee"
+    },
+    "confirm": {
+      "deactivateTitle": "Deactivate Employee",
+      "deactivateMessage": "This employee will be excluded from scheduling. Their historical data will be preserved.",
+      "activateTitle": "Reactivate Employee",
+      "activateMessage": "This employee will be included in scheduling again."
+    },
+    "toast": {
+      "created": "Employee created successfully",
+      "updated": "Employee updated successfully",
+      "deactivated": "Employee deactivated",
+      "activated": "Employee reactivated"
+    },
+    "validation": {
+      "firstNameRequired": "First name is required",
+      "lastNameRequired": "Last name is required",
+      "invalidEmail": "Invalid email address",
+      "hoursRange": "Hours must be between 1 and 48",
+      "endDateAfterHire": "End date must be after hire date"
+    },
+    "filters": {
+      "searchPlaceholder": "Search employees...",
+      "showInactive": "Show inactive",
+      "allJobTypes": "All job types"
+    }
+  },
   "errors": {
     "generic": "An error occurred",
     "network": "Server connection error",
