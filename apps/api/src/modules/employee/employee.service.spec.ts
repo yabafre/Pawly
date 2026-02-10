@@ -248,6 +248,29 @@ describe('EmployeeService', () => {
         service.update(otherClinicId, { id: 'emp-1', firstName: 'Hack' }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('forces endDate to null when contractType is changed to CDI', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.employee.update.mockResolvedValue({
+        ...mockEmployee,
+        contractType: 'CDI',
+        endDate: null,
+      });
+
+      await service.update(clinicId, {
+        id: 'emp-1',
+        contractType: 'CDI',
+        endDate: '2026-12-31T00:00:00.000Z',
+      });
+
+      expect(mockPrismaService.employee.update).toHaveBeenCalledWith({
+        where: { id: 'emp-1' },
+        data: expect.objectContaining({
+          contractType: 'CDI',
+          endDate: null,
+        }),
+      });
+    });
   });
 
   describe('toggleActive', () => {

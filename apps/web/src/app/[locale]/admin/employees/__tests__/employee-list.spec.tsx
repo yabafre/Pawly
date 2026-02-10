@@ -10,6 +10,26 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+vi.mock("nuqs", () => {
+  const createParser = (defaultValue: unknown) => ({
+    defaultValue,
+    withOptions: () => ({ defaultValue }),
+  });
+
+  return {
+    parseAsString: {
+      withDefault: (defaultValue: string) => createParser(defaultValue),
+    },
+    parseAsBoolean: {
+      withDefault: (defaultValue: boolean) => createParser(defaultValue),
+    },
+    useQueryState: (_key: string, parser: { defaultValue?: unknown }) => [
+      parser?.defaultValue ?? null,
+      vi.fn(),
+    ],
+  };
+});
+
 // Mock hooks
 const mockEmployees: any[] = [];
 const mockUseEmployees = vi.fn().mockReturnValue({

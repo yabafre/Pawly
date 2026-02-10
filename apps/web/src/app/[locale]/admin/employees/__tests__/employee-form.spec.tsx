@@ -31,11 +31,13 @@ vi.mock("@tanstack/react-form", () => ({
 vi.mock("@pawly/validators", () => ({
   JOB_TYPES: ["VET", "ASV", "APPRENTICE"],
   CONTRACT_TYPES: ["CDI", "CDD", "APPRENTICESHIP"],
-  createEmployeeSchema: {
-    safeParse: vi.fn().mockReturnValue({ success: true, data: {} }),
-  },
-  updateEmployeeSchema: {
-    safeParse: vi.fn().mockReturnValue({ success: true, data: {} }),
+  employeeFieldsSchema: {
+    shape: {
+      firstName: { safeParse: vi.fn().mockReturnValue({ success: true }) },
+      lastName: { safeParse: vi.fn().mockReturnValue({ success: true }) },
+      email: { safeParse: vi.fn().mockReturnValue({ success: true }) },
+      contractHours: { safeParse: vi.fn().mockReturnValue({ success: true }) },
+    },
   },
 }));
 

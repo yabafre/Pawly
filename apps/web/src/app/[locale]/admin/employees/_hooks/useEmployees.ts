@@ -70,9 +70,9 @@ export const useToggleEmployeeActive = () => {
   const { mutate, isPending, error } = useServerActionMutation(
     toggleEmployeeActiveAction,
     {
-      onSuccess: () => {
+      onSuccess: (employee?: { isActive: boolean }) => {
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
-        toast.success(t("deactivated"));
+        toast.success(employee?.isActive ? t("activated") : t("deactivated"));
       },
     },
   );

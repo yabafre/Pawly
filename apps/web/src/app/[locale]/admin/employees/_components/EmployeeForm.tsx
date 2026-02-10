@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { JOB_TYPES, CONTRACT_TYPES } from "@pawly/validators";
-import { createEmployeeSchema, updateEmployeeSchema } from "@pawly/validators";
+import { JOB_TYPES, CONTRACT_TYPES, employeeFieldsSchema } from "@pawly/validators";
 
 type EmployeeFormProps = {
   defaultValues?: {
@@ -58,16 +57,10 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
     },
     onSubmit: async ({ value }) => {
       if (mode === "edit" && defaultValues?.id) {
-        const result = updateEmployeeSchema.safeParse({ ...value, id: defaultValues.id });
-        if (result.success) {
-          onSubmit(result.data);
-        }
-      } else {
-        const result = createEmployeeSchema.safeParse(value);
-        if (result.success) {
-          onSubmit(result.data);
-        }
+        onSubmit({ ...value, id: defaultValues.id });
+        return;
       }
+      onSubmit(value);
     },
   });
 
@@ -81,7 +74,15 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       className="space-y-4"
     >
       <div className="grid grid-cols-2 gap-4">
-        <form.Field name="firstName">
+        <form.Field
+          name="firstName"
+          validators={{
+            onChange: ({ value }) => {
+              const result = employeeFieldsSchema.shape.firstName.safeParse(value);
+              return result.success ? undefined : t("validation.firstNameRequired");
+            },
+          }}
+        >
           {(field: any) => (
             <div className="space-y-1.5">
               <Label htmlFor="firstName">{t("form.firstName")}</Label>
@@ -103,7 +104,15 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
           )}
         </form.Field>
 
-        <form.Field name="lastName">
+        <form.Field
+          name="lastName"
+          validators={{
+            onChange: ({ value }) => {
+              const result = employeeFieldsSchema.shape.lastName.safeParse(value);
+              return result.success ? undefined : t("validation.lastNameRequired");
+            },
+          }}
+        >
           {(field: any) => (
             <div className="space-y-1.5">
               <Label htmlFor="lastName">{t("form.lastName")}</Label>
@@ -127,7 +136,15 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <form.Field name="email">
+        <form.Field
+          name="email"
+          validators={{
+            onChange: ({ value }) => {
+              const result = employeeFieldsSchema.shape.email.safeParse(value);
+              return result.success ? undefined : t("validation.invalidEmail");
+            },
+          }}
+        >
           {(field: any) => (
             <div className="space-y-1.5">
               <Label htmlFor="email">{t("form.email")}</Label>
@@ -209,7 +226,15 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <form.Field name="contractHours">
+        <form.Field
+          name="contractHours"
+          validators={{
+            onChange: ({ value }) => {
+              const result = employeeFieldsSchema.shape.contractHours.safeParse(value);
+              return result.success ? undefined : t("validation.hoursRange");
+            },
+          }}
+        >
           {(field: any) => (
             <div className="space-y-1.5">
               <Label htmlFor="contractHours">{t("form.contractHours")}</Label>
@@ -273,7 +298,26 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
             </form.Field>
 
             {contractType !== "CDI" && (
-              <form.Field name="endDate">
+              <form.Field
+                name="endDate"
+                validators={{
+                  onChangeListenTo: ["hireDate", "contractType"],
+                  onChange: ({ value, fieldApi }) => {
+                    const contractType = fieldApi.form.getFieldValue("contractType");
+                    const hireDate = fieldApi.form.getFieldValue("hireDate");
+                    const endDate = typeof value === "string" ? value : "";
+                    const normalizedHireDate = typeof hireDate === "string" ? hireDate : "";
+
+                    if (contractType === "CDI" || endDate === "" || normalizedHireDate === "") {
+                      return undefined;
+                    }
+
+                    return new Date(endDate) > new Date(normalizedHireDate)
+                      ? undefined
+                      : t("validation.endDateAfterHire");
+                  },
+                }}
+              >
                 {(field: any) => (
                   <div className="space-y-1.5">
                     <Label htmlFor="endDate">{t("form.endDate")}</Label>

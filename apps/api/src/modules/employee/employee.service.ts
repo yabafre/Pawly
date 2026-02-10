@@ -61,6 +61,7 @@ export class EmployeeService {
 
   async update(clinicId: string, data: UpdateEmployeeInput) {
     const { id, ...updateData } = data;
+    const forceClearEndDate = updateData.contractType === 'CDI';
 
     // Verify employee belongs to clinic
     await this.findById(clinicId, id);
@@ -75,14 +76,14 @@ export class EmployeeService {
         ...(updateData.jobType !== undefined && { jobType: updateData.jobType }),
         ...(updateData.contractType !== undefined && {
           contractType: updateData.contractType,
-          ...(updateData.contractType === "CDI" && { endDate: null }),
+          ...(forceClearEndDate && { endDate: null }),
         }),
         ...(updateData.contractHours !== undefined && { contractHours: updateData.contractHours }),
         ...(updateData.color !== undefined && { color: updateData.color }),
         ...(updateData.hireDate !== undefined && {
           hireDate: updateData.hireDate ? new Date(updateData.hireDate) : null,
         }),
-        ...(updateData.endDate !== undefined && {
+        ...(updateData.endDate !== undefined && !forceClearEndDate && {
           endDate: updateData.endDate ? new Date(updateData.endDate) : null,
         }),
       },
