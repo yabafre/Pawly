@@ -12,7 +12,6 @@ import type {
   UpdateWorkHoursInput,
   CreateShiftTypesInput,
   CompleteOnboardingInput,
-  UpdateClinicOperationalConfigInput,
 } from '@pawly/validators';
 
 @Injectable()
@@ -199,114 +198,5 @@ export class ClinicService {
       config: clinic.config,
       shiftTypes: clinic.shiftTypes,
     };
-  }
-
-  async getOperationalConfig(clinicId: string) {
-    const clinic = await this.prisma.clinic.findUnique({
-      where: { id: clinicId },
-      include: {
-        config: true,
-        closedDays: { orderBy: { date: 'asc' } },
-        specialDays: { orderBy: { date: 'asc' } },
-      },
-    });
-
-    if (!clinic) {
-      throw new NotFoundException(`Clinic ${clinicId} not found`);
-    }
-
-    if (!clinic.config) {
-      throw new NotFoundException(`Clinic configuration for ${clinicId} not found`);
-    }
-
-    return {
-      workDays: clinic.config.workDays,
-      defaultStartTime: clinic.config.defaultStartTime,
-      defaultEndTime: clinic.config.defaultEndTime,
-      closedDays: clinic.closedDays.map((entry) => ({
-        id: entry.id,
-        date: entry.date.toISOString().slice(0, 10),
-        reason: entry.reason,
-      })),
-      specialDays: clinic.specialDays.map((entry) => ({
-        id: entry.id,
-        date: entry.date.toISOString().slice(0, 10),
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        label: entry.label,
-      })),
-    };
-  }
-
-  async updateOperationalConfig(
-    clinicId: string,
-    data: UpdateClinicOperationalConfigInput,
-  ) {
-    const clinic = await this.prisma.clinic.findUnique({
-      where: { id: clinicId },
-      select: { id: true },
-    });
-
-    if (!clinic) {
-      throw new NotFoundException(`Clinic ${clinicId} not found`);
-    }
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.clinicConfig.upsert({
-          where: { clinicId },
-          create: {
-            clinicId,
-            workDays: data.workDays,
-            defaultStartTime: data.defaultStartTime,
-            defaultEndTime: data.defaultEndTime,
-          },
-          update: {
-            workDays: data.workDays,
-            defaultStartTime: data.defaultStartTime,
-            defaultEndTime: data.defaultEndTime,
-          },
-        });
-
-        await tx.clinicClosedDay.deleteMany({ where: { clinicId } });
-        if (data.closedDays.length > 0) {
-          await tx.clinicClosedDay.createMany({
-            data: data.closedDays.map((entry) => ({
-              clinicId,
-              date: new Date(`${entry.date}T00:00:00.000Z`),
-              reason: entry.reason?.trim() ? entry.reason.trim() : null,
-            })),
-          });
-        }
-
-        await tx.clinicSpecialDay.deleteMany({ where: { clinicId } });
-        if (data.specialDays.length > 0) {
-          await tx.clinicSpecialDay.createMany({
-            data: data.specialDays.map((entry) => ({
-              clinicId,
-              date: new Date(`${entry.date}T00:00:00.000Z`),
-              startTime: entry.startTime,
-              endTime: entry.endTime,
-              label: entry.label?.trim() ? entry.label.trim() : null,
-            })),
-          });
-        }
-      });
-    } catch (err) {
-      if (
-        err &&
-        typeof err === 'object' &&
-        'code' in err &&
-        (err as { code: string }).code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Duplicate date found in operational configuration. Each date can only appear once per clinic.',
-        );
-      }
-      this.logger.error(`Failed to update operational config for clinic ${clinicId}`, err);
-      throw err;
-    }
-
-    return this.getOperationalConfig(clinicId);
   }
 }

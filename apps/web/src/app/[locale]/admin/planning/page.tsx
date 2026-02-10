@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Calendar, ChevronLeft, ChevronRight, Sparkles, Briefcase, Users, GraduationCap, Plane } from "lucide-react";
-import { ClinicOperationalConfigPanel } from "./_components/ClinicOperationalConfigPanel";
 
 const EMPLOYEES = [
     { id: 1, name: "Dr. Martin", role: "Véto Senior", avatar: "👨‍⚕️" },
@@ -86,8 +85,6 @@ export default function PlanningPage() {
                     </button>
                 </div>
             </div>
-
-            <ClinicOperationalConfigPanel />
 
             <div className="bg-white rounded-[1.5rem] shadow-sm border border-neutral-100 overflow-hidden">
                 <div className="grid grid-cols-[180px_repeat(6,1fr)] border-b border-neutral-100 bg-neutral-50/50">

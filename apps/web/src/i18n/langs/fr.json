@@ -608,66 +608,6 @@
       }
     }
   },
-  "planning": {
-    "operationalConfig": {
-      "title": "Configuration operationnelle de la clinique",
-      "subtitle": "Définissez les paramètres hebdomadaires, les jours fermés et les exceptions journalières utilisées par la planification.",
-      "loading": "Chargement de la configuration operationnelle...",
-      "sections": {
-        "weekly": "Parametres hebdomadaires",
-        "closedDays": "Jours fermes",
-        "specialDays": "Jours speciaux"
-      },
-      "fields": {
-        "workDays": "Jours de travail",
-        "defaultStartTime": "Heure de debut par defaut",
-        "defaultEndTime": "Heure de fin par defaut",
-        "date": "Date",
-        "reason": "Motif",
-        "reasonPlaceholder": "ex : jour ferie, fermeture annuelle",
-        "label": "Libelle",
-        "labelPlaceholder": "ex : ouverture reduite",
-        "startTime": "Heure de debut",
-        "endTime": "Heure de fin"
-      },
-      "actions": {
-        "save": "Enregistrer la configuration operationnelle",
-        "saving": "Enregistrement...",
-        "addClosedDay": "Ajouter un jour ferme",
-        "addSpecialDay": "Ajouter un jour special",
-        "remove": "Supprimer"
-      },
-      "empty": {
-        "closedDays": "Aucun jour ferme configure.",
-        "specialDays": "Aucun jour special configure."
-      },
-      "errors": {
-        "loadFailed": "Impossible de charger la configuration operationnelle de la clinique."
-      },
-      "toast": {
-        "updated": "Configuration operationnelle mise a jour"
-      },
-      "validation": {
-        "workDaysRequired": "Selectionnez au moins un jour de travail.",
-        "invalidTimeFormat": "Utilisez le format horaire HH:MM.",
-        "endTimeAfterStartTime": "L'heure de fin doit etre apres l'heure de debut.",
-        "invalidDateFormat": "Utilisez le format de date YYYY-MM-DD.",
-        "invalidDateValue": "Valeur de date invalide.",
-        "duplicateClosedDay": "Cette date fermee est dupliquee.",
-        "duplicateSpecialDay": "Cette date speciale est dupliquee.",
-        "closedAndSpecialConflict": "Une date ne peut pas etre fermee et speciale."
-      },
-      "days": {
-        "MONDAY": "Lundi",
-        "TUESDAY": "Mardi",
-        "WEDNESDAY": "Mercredi",
-        "THURSDAY": "Jeudi",
-        "FRIDAY": "Vendredi",
-        "SATURDAY": "Samedi",
-        "SUNDAY": "Dimanche"
-      }
-    }
-  },
   "errors": {
     "generic": "Une erreur est survenue",
     "network": "Erreur de connexion au serveur",

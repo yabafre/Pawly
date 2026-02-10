@@ -608,66 +608,6 @@
       }
     }
   },
-  "planning": {
-    "operationalConfig": {
-      "title": "Clinic Operational Configuration",
-      "subtitle": "Define weekly defaults, closure dates, and special-day schedule overrides used by planning.",
-      "loading": "Loading clinic operational configuration...",
-      "sections": {
-        "weekly": "Weekly defaults",
-        "closedDays": "Closed days",
-        "specialDays": "Special days"
-      },
-      "fields": {
-        "workDays": "Work days",
-        "defaultStartTime": "Default start time",
-        "defaultEndTime": "Default end time",
-        "date": "Date",
-        "reason": "Reason",
-        "reasonPlaceholder": "e.g. public holiday, annual closure",
-        "label": "Label",
-        "labelPlaceholder": "e.g. reduced opening hours",
-        "startTime": "Start time",
-        "endTime": "End time"
-      },
-      "actions": {
-        "save": "Save operational settings",
-        "saving": "Saving...",
-        "addClosedDay": "Add closed day",
-        "addSpecialDay": "Add special day",
-        "remove": "Remove"
-      },
-      "empty": {
-        "closedDays": "No closed days configured.",
-        "specialDays": "No special days configured."
-      },
-      "errors": {
-        "loadFailed": "Unable to load clinic operational configuration."
-      },
-      "toast": {
-        "updated": "Operational configuration updated"
-      },
-      "validation": {
-        "workDaysRequired": "Select at least one work day.",
-        "invalidTimeFormat": "Use HH:MM time format.",
-        "endTimeAfterStartTime": "End time must be after start time.",
-        "invalidDateFormat": "Use YYYY-MM-DD date format.",
-        "invalidDateValue": "Invalid date value.",
-        "duplicateClosedDay": "This closed day date is duplicated.",
-        "duplicateSpecialDay": "This special day date is duplicated.",
-        "closedAndSpecialConflict": "A date cannot be both closed and special."
-      },
-      "days": {
-        "MONDAY": "Monday",
-        "TUESDAY": "Tuesday",
-        "WEDNESDAY": "Wednesday",
-        "THURSDAY": "Thursday",
-        "FRIDAY": "Friday",
-        "SATURDAY": "Saturday",
-        "SUNDAY": "Sunday"
-      }
-    }
-  },
   "errors": {
     "generic": "An error occurred",
     "network": "Server connection error",
