@@ -73,7 +73,10 @@ export class EmployeeService {
         ...(updateData.email !== undefined && { email: updateData.email || null }),
         ...(updateData.phone !== undefined && { phone: updateData.phone || null }),
         ...(updateData.jobType !== undefined && { jobType: updateData.jobType }),
-        ...(updateData.contractType !== undefined && { contractType: updateData.contractType }),
+        ...(updateData.contractType !== undefined && {
+          contractType: updateData.contractType,
+          ...(updateData.contractType === "CDI" && { endDate: null }),
+        }),
         ...(updateData.contractHours !== undefined && { contractHours: updateData.contractHours }),
         ...(updateData.color !== undefined && { color: updateData.color }),
         ...(updateData.hireDate !== undefined && {
