@@ -25,6 +25,14 @@ describe('ClinicService', () => {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
     },
+    clinicClosedDay: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    clinicSpecialDay: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -501,6 +509,170 @@ describe('ClinicService', () => {
       );
       await expect(service.getOnboardingStatus(clinicId)).rejects.toThrow(
         `Clinic ${clinicId} not found`,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getOperationalConfig
+  // ---------------------------------------------------------------------------
+  describe('getOperationalConfig', () => {
+    const clinicId = 'clinic-uuid-7';
+
+    it('should return normalized operational config for planning consumption', async () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue({
+        id: clinicId,
+        config: {
+          workDays: ['MONDAY', 'TUESDAY'],
+          defaultStartTime: '08:00',
+          defaultEndTime: '18:00',
+        },
+        closedDays: [
+          {
+            id: 'cd-1',
+            date: new Date('2026-12-25T00:00:00.000Z'),
+            reason: 'Holiday',
+          },
+        ],
+        specialDays: [
+          {
+            id: 'sd-1',
+            date: new Date('2026-12-24T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '14:00',
+            label: 'Half-day',
+          },
+        ],
+      });
+
+      const result = await service.getOperationalConfig(clinicId);
+
+      expect(mockPrismaService.clinic.findUnique).toHaveBeenCalledWith({
+        where: { id: clinicId },
+        include: {
+          config: true,
+          closedDays: { orderBy: { date: 'asc' } },
+          specialDays: { orderBy: { date: 'asc' } },
+        },
+      });
+      expect(result).toEqual({
+        workDays: ['MONDAY', 'TUESDAY'],
+        defaultStartTime: '08:00',
+        defaultEndTime: '18:00',
+        closedDays: [{ id: 'cd-1', date: '2026-12-25', reason: 'Holiday' }],
+        specialDays: [
+          {
+            id: 'sd-1',
+            date: '2026-12-24',
+            startTime: '09:00',
+            endTime: '14:00',
+            label: 'Half-day',
+          },
+        ],
+      });
+    });
+
+    it('should throw NotFoundException when clinic does not exist', async () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue(null);
+
+      await expect(service.getOperationalConfig(clinicId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // updateOperationalConfig
+  // ---------------------------------------------------------------------------
+  describe('updateOperationalConfig', () => {
+    const clinicId = 'clinic-uuid-8';
+    const payload = {
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY'] as WorkDay[],
+      defaultStartTime: '08:30',
+      defaultEndTime: '18:30',
+      closedDays: [{ date: '2026-12-25', reason: 'Christmas' }],
+      specialDays: [
+        {
+          date: '2026-12-24',
+          startTime: '09:00',
+          endTime: '14:00',
+          label: 'Half-day',
+        },
+      ],
+    };
+
+    it('should upsert config and replace closed/special days in one transaction', async () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue({
+        id: clinicId,
+        config: {
+          workDays: payload.workDays,
+          defaultStartTime: payload.defaultStartTime,
+          defaultEndTime: payload.defaultEndTime,
+        },
+        closedDays: [
+          {
+            id: 'cd-1',
+            date: new Date('2026-12-25T00:00:00.000Z'),
+            reason: 'Christmas',
+          },
+        ],
+        specialDays: [
+          {
+            id: 'sd-1',
+            date: new Date('2026-12-24T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '14:00',
+            label: 'Half-day',
+          },
+        ],
+      });
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
+        return cb(mockPrismaService);
+      });
+      mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
+      mockPrismaService.clinicClosedDay.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.clinicClosedDay.createMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.clinicSpecialDay.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.clinicSpecialDay.createMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.updateOperationalConfig(clinicId, payload);
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockPrismaService.clinicConfig.upsert).toHaveBeenCalled();
+      expect(mockPrismaService.clinicClosedDay.deleteMany).toHaveBeenCalledWith({
+        where: { clinicId },
+      });
+      expect(mockPrismaService.clinicClosedDay.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            clinicId,
+            date: new Date('2026-12-25T00:00:00.000Z'),
+            reason: 'Christmas',
+          },
+        ],
+      });
+      expect(mockPrismaService.clinicSpecialDay.deleteMany).toHaveBeenCalledWith({
+        where: { clinicId },
+      });
+      expect(mockPrismaService.clinicSpecialDay.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            clinicId,
+            date: new Date('2026-12-24T00:00:00.000Z'),
+            startTime: '09:00',
+            endTime: '14:00',
+            label: 'Half-day',
+          },
+        ],
+      });
+      expect(result.workDays).toEqual(payload.workDays);
+    });
+
+    it('should throw NotFoundException when clinic does not exist', async () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue(null);
+
+      await expect(service.updateOperationalConfig(clinicId, payload)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

@@ -4,6 +4,7 @@ import {
   updateClinicConfigSchema,
   createShiftTypesSchema,
   completeOnboardingSchema,
+  updateClinicOperationalConfigSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -13,6 +14,10 @@ export const clinicRouter = router({
   // getOnboardingStatus stays as protectedProcedure — must work before subscription exists
   getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
     return ctx.clinicService.getOnboardingStatus(ctx.user.clinicId);
+  }),
+
+  getOperationalConfig: subscribedProcedure.query(async ({ ctx }) => {
+    return ctx.clinicService.getOperationalConfig(ctx.user.clinicId);
   }),
 
   updateClinicName: subscribedProcedure
@@ -31,6 +36,12 @@ export const clinicRouter = router({
     .input(createShiftTypesSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.createShiftTypes(ctx.user.clinicId, input);
+    }),
+
+  updateOperationalConfig: subscribedProcedure
+    .input(updateClinicOperationalConfigSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.clinicService.updateOperationalConfig(ctx.user.clinicId, input);
     }),
 
   // completeOnboarding uses protectedProcedure — must work before subscription is active (onboarding deadlock fix)
