@@ -7,6 +7,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
 import { MailModule } from '@/modules/mail/mail.module';
 import { StripeModule } from '@/modules/stripe/stripe.module';
 import { ClinicModule } from '@/modules/clinic/clinic.module';
+import { EmployeeModule } from '@/modules/employee/employee.module';
 import { TRPCModule } from '@/trpc/trpc.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
@@ -19,6 +20,7 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
     MailModule,
     StripeModule,
     ClinicModule,
+    EmployeeModule,
     TRPCModule,
     ThrottlerModule.forRoot({
       throttlers: [

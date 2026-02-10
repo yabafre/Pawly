@@ -29,6 +29,9 @@
 
 generated: '2026-02-02'
 updated: '2026-02-10'
+# 2026-02-10: Story 5-1 code review done → done. 10 issues found (2 CRITICAL, 5 HIGH, 3 MEDIUM), all fixed. +21 tests (17 router spec + 4 boundary validators). 605 total tests (194 API + 152 validators + 259 web). Build green.
+# 2026-02-10: Story 5-1 implemented → review. 11/11 tasks done. 584 total tests (177 API + 148 validators + 259 web), +60 new tests. Full-stack employee CRUD: Prisma schema, NestJS service, tRPC router (5 procedures), Zod validators, server actions, hooks, admin UI (list, card, form, dialog), i18n FR/EN (74 keys). Build green.
+# 2026-02-10: Story 5-1 created (ready-for-dev). Employee & Contract Management CRUD. Prisma schema enhancement (ContractType enum, new fields), NestJS EmployeeModule + service, tRPC employee router (CRUD), Zod validators, admin employees page with TanStack Form, i18n FR/EN, Clinique Zen design. Epic 5 → in-progress.
 # 2026-02-10: Story 4-2 code review done → done. 12 issues found (5 HIGH, 4 MEDIUM, 3 LOW), all HIGH/MEDIUM fixed. i18n compliance, test coverage (+11 tests), open redirect prevention, state management cleanup. 248 web tests pass. Epic 4 → done.
 # 2026-02-09: Story 4-2 created (ready-for-dev). Pricing Page with Pre-Checkout Form. SSG pricing page, @tanstack/react-form pre-checkout form (clinic name, admin name, email), Stripe Checkout redirect via tRPC, success page, Clinique Zen aesthetic, i18n FR/EN, WCAG AA.
 # 2026-02-09: Story 4-1 created (ready-for-dev). Public Landing Page (SSG, SEO, Acquisition). SSG with generateStaticParams, locale-aware generateMetadata, sitemap.xml, robots.txt, JSON-LD, Clinique Zen sections, Lighthouse>=90, WCAG AA. Epic 4 → in-progress.
@@ -150,8 +153,8 @@ development_status:
   #             monthly school declaration, equity counters.
   # FRs: FR1 (user management), FR3, FR7 (partial), FR8 (partial)
   # ===========================================================================
-  epic-5: backlog
-  5-1-employee-contract-management-crud: backlog
+  epic-5: in-progress
+  5-1-employee-contract-management-crud: done
   5-2-declarative-constraints-configuration: backlog
   5-3-clinic-configuration-hours-days: backlog
   5-4-monthly-school-day-declaration-apprentices: backlog

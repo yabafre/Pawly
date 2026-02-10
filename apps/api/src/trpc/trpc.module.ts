@@ -14,6 +14,8 @@ import { StripeModule } from '@/modules/stripe/stripe.module';
 import { StripeService } from '@/modules/stripe/stripe.service';
 import { ClinicModule } from '@/modules/clinic/clinic.module';
 import { ClinicService } from '@/modules/clinic/clinic.service';
+import { EmployeeModule } from '@/modules/employee/employee.module';
+import { EmployeeService } from '@/modules/employee/employee.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
@@ -32,6 +34,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly authService: AuthService,
     private readonly stripeService: StripeService,
     private readonly clinicService: ClinicService,
+    private readonly employeeService: EmployeeService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {
@@ -39,6 +42,7 @@ export class TRPCMiddleware implements NestMiddleware {
       authService: this.authService,
       stripeService: this.stripeService,
       clinicService: this.clinicService,
+      employeeService: this.employeeService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -63,6 +67,7 @@ export class TRPCService {
     private readonly authService: AuthService,
     private readonly stripeService: StripeService,
     private readonly clinicService: ClinicService,
+    private readonly employeeService: EmployeeService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) { }
@@ -75,6 +80,7 @@ export class TRPCService {
       authService: this.authService,
       stripeService: this.stripeService,
       clinicService: this.clinicService,
+      employeeService: this.employeeService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -98,6 +104,7 @@ export class TRPCService {
     AuthModule,
     StripeModule,
     ClinicModule,
+    EmployeeModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],

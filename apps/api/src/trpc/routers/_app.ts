@@ -10,6 +10,7 @@ import { router } from '../trpc';
 import { authRouter } from './auth.router';
 import { stripeRouter } from './stripe.router';
 import { clinicRouter } from './clinic.router';
+import { employeeRouter } from './employee.router';
 
 /**
  * Main application router
@@ -21,6 +22,7 @@ export const appRouter = router({
   auth: authRouter,
   stripe: stripeRouter,
   clinic: clinicRouter,
+  employee: employeeRouter,
 });
 
 /**

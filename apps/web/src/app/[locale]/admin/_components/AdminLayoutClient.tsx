@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint } from "lucide-react";
+import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Users } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
@@ -16,6 +16,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
 
     const navItems = [
         { href: "/admin/dashboard", icon: FileText, labelKey: "dashboard" as const },
+        { href: "/admin/employees", icon: Users, labelKey: "employees" as const },
         { href: "/admin/planning", icon: Calendar, labelKey: "planning" as const },
         { href: "/admin/requests", icon: CheckCircle2, labelKey: "requests" as const },
         { href: "/admin/billing", icon: CreditCard, labelKey: "billing" as const },
