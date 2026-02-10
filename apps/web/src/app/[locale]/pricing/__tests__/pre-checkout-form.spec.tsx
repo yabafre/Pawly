@@ -170,6 +170,19 @@ describe('PreCheckoutForm', () => {
     expect(screen.getByText('submitting')).toBeInTheDocument();
   });
 
+  it('disables submit button when form fields are empty (canSubmit=false)', async () => {
+    renderWithProviders(<PreCheckoutForm priceId="price_test" />);
+
+    const clinicInput = screen.getByLabelText('clinicNameLabel');
+    fireEvent.change(clinicInput, { target: { value: 'A' } });
+    fireEvent.blur(clinicInput);
+
+    await waitFor(() => {
+      const button = screen.getByRole('button');
+      expect(button).toBeDisabled();
+    });
+  });
+
   it('has accessible form with required fields', () => {
     renderWithProviders(<PreCheckoutForm priceId="price_test" />);
 

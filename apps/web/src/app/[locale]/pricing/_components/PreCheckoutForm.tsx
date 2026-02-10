@@ -173,23 +173,29 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
         )}
       </form.Field>
 
-      <Button
-        type="submit"
-        className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 rounded-xl shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
-        disabled={isPending || isRedirecting}
+      <form.Subscribe
+        selector={(state) => [state.canSubmit, state.isSubmitting]}
       >
-        {isPending || isRedirecting ? (
-          <span className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {t("submitting")}
-          </span>
-        ) : (
-          <span className="flex items-center gap-2">
-            {t("submitButton")}{" "}
-            <ArrowRight className="w-4 h-4" />
-          </span>
+        {([canSubmit, isSubmitting]) => (
+          <Button
+            type="submit"
+            className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 rounded-xl shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
+            disabled={!canSubmit || isSubmitting || isPending || isRedirecting}
+          >
+            {isPending || isRedirecting ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t("submitting")}
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                {t("submitButton")}{" "}
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            )}
+          </Button>
         )}
-      </Button>
+      </form.Subscribe>
     </form>
   );
 };
