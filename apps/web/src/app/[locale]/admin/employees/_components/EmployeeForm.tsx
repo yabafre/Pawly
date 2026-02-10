@@ -245,49 +245,55 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
         <div />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <form.Field name="hireDate">
-          {(field: any) => (
-            <div className="space-y-1.5">
-              <Label htmlFor="hireDate">{t("form.hireDate")}</Label>
-              <Input
-                id="hireDate"
-                type="date"
-                className="h-12 focus-visible:ring-[#009588]/20"
-                value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  field.handleChange(val ? new Date(val).toISOString() : "");
-                }}
-              />
-            </div>
-          )}
-        </form.Field>
-
-        <form.Field name="endDate">
-          {(field: any) => (
-            <div className="space-y-1.5">
-              <Label htmlFor="endDate">{t("form.endDate")}</Label>
-              <Input
-                id="endDate"
-                type="date"
-                className="h-12 focus-visible:ring-[#009588]/20"
-                value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  field.handleChange(val ? new Date(val).toISOString() : "");
-                }}
-                aria-invalid={field.state.meta.errors.length > 0}
-              />
-              {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
-                  {t("validation.endDateAfterHire")}
-                </p>
+      <form.Subscribe selector={(state: any) => state.values.contractType}>
+        {(contractType: any) => (
+          <div className={contractType === "CDI" ? "" : "grid grid-cols-2 gap-4"}>
+            <form.Field name="hireDate">
+              {(field: any) => (
+                <div className="space-y-1.5">
+                  <Label htmlFor="hireDate">{t("form.hireDate")}</Label>
+                  <Input
+                    id="hireDate"
+                    type="date"
+                    className="h-12 focus-visible:ring-[#009588]/20"
+                    value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      field.handleChange(val ? new Date(val).toISOString() : "");
+                    }}
+                  />
+                </div>
               )}
-            </div>
-          )}
-        </form.Field>
-      </div>
+            </form.Field>
+
+            {contractType !== "CDI" && (
+              <form.Field name="endDate">
+                {(field: any) => (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="endDate">{t("form.endDate")}</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      className="h-12 focus-visible:ring-[#009588]/20"
+                      value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        field.handleChange(val ? new Date(val).toISOString() : "");
+                      }}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                    />
+                    {field.state.meta.errors.length > 0 && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {t("validation.endDateAfterHire")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </form.Field>
+            )}
+          </div>
+        )}
+      </form.Subscribe>
 
       <div className="flex justify-end gap-3 pt-4">
         <form.Subscribe selector={(state: any) => [state.canSubmit, state.isSubmitting]}>
