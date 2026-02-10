@@ -7,7 +7,10 @@ import { z } from "@pawly/zod";
 
 const checkoutResponseSchema = z.object({
   sessionId: z.string(),
-  url: z.string().url(),
+  url: z.string().url().refine(
+    (u) => u.startsWith("https://checkout.stripe.com/"),
+    { message: "Invalid checkout URL domain" }
+  ),
 });
 
 export const createCheckoutSessionAction = createServerAction()

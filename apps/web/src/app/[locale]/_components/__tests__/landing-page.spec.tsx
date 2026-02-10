@@ -248,8 +248,9 @@ describe('PricingPreviewSection', () => {
 
     const ctaLinks = screen.getAllByText('cta');
     expect(ctaLinks).toHaveLength(3);
-    ctaLinks.forEach(link => {
-      expect(link.closest('a')).toHaveAttribute('href', '/pricing');
+    const expectedPlans = ['starter', 'professional', 'enterprise'];
+    ctaLinks.forEach((link, i) => {
+      expect(link.closest('a')).toHaveAttribute('href', `/pricing?plan=${expectedPlans[i]}`);
     });
   });
 

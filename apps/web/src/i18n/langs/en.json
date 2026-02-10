@@ -280,6 +280,16 @@
   "pricing": {
     "title": "Start managing your clinic",
     "subtitle": "Subscribe to get started with Pawly for your veterinary practice.",
+    "meta": {
+      "title": "Pricing — Pawly | Veterinary Clinic Management",
+      "description": "Compare Pawly plans for your veterinary clinic. Starter, Professional, and Enterprise options with transparent pricing and no hidden fees."
+    },
+    "page": {
+      "heading": "Complete your registration",
+      "subtitle": "Fill in your details to get started with Pawly.",
+      "changePlan": "Change plan",
+      "missingPriceIdError": "Configuration error: Missing Stripe Price ID"
+    },
     "preCheckout": {
       "clinicNameLabel": "Clinic name",
       "clinicNamePlaceholder": "Sunny Paws Veterinary Clinic",
@@ -296,7 +306,8 @@
       "description": "Your clinic has been registered. You will receive an email to access your dashboard.",
       "checkEmail": "Check your email",
       "checkEmailDescription": "A secure login link has been sent to the email address you provided during registration.",
-      "spamNote": "If you don't see the email, please check your spam folder."
+      "spamNote": "If you don't see the email, please check your spam folder.",
+      "backToHome": "Back to homepage"
     }
   },
   "onboarding": {
