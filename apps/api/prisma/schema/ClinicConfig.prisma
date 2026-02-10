@@ -10,3 +10,33 @@ model ClinicConfig {
 
   @@map("clinic_configs")
 }
+
+model ClinicClosedDay {
+  id        String   @id @default(uuid())
+  clinicId  String   @map("clinic_id")
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  date      DateTime @map("date")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clinicId, date])
+  @@index([clinicId, date])
+  @@map("clinic_closed_days")
+}
+
+model ClinicSpecialDay {
+  id        String   @id @default(uuid())
+  clinicId  String   @map("clinic_id")
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  date      DateTime @map("date")
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  label     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clinicId, date])
+  @@index([clinicId, date])
+  @@map("clinic_special_days")
+}
