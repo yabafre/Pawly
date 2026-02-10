@@ -157,7 +157,7 @@ development_status:
   # ===========================================================================
   epic-5: in-progress
   5-1-employee-contract-management-crud: done
-  5-2-declarative-constraints-configuration: review
+  5-2-declarative-constraints-configuration: done
   5-3-clinic-configuration-hours-days: backlog
   5-4-monthly-school-day-declaration-apprentices: backlog
   5-5-planning-assistance-rules-configurable: backlog
