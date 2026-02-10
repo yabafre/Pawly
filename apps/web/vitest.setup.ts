@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { createElement, type ReactNode } from 'react';
 import { vi } from 'vitest';
 
 // Mock scrollIntoView for Radix UI components (not available in jsdom)
@@ -16,10 +17,9 @@ vi.mock('next/navigation', () => ({
 
 // Mock @/i18n/navigation (next-intl navigation wrappers)
 vi.mock('@/i18n/navigation', () => ({
-  Link: vi.fn(({ children, href }: { children: React.ReactNode; href: string }) => {
-    const React = require('react');
-    return React.createElement('a', { href }, children);
-  }),
+  Link: vi.fn(({ children, href }: { children: ReactNode; href: string }) =>
+    createElement('a', { href }, children),
+  ),
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
@@ -37,7 +37,9 @@ vi.mock('next-intl', async () => {
     ...actual,
     useTranslations: () => (key: string) => key,
     useLocale: () => 'fr',
-    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => { return children; },
+    NextIntlClientProvider: ({ children }: { children: ReactNode }) => {
+      return children;
+    },
     hasLocale: (locales: string[], locale: string) => locales.includes(locale),
   };
 });

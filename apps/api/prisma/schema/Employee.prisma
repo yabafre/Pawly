@@ -49,6 +49,7 @@ model Unavailability {
   startDate DateTime @map("start_date")
   endDate   DateTime @map("end_date")
   reason    String?
+  daysOfWeek Int[]   @default([]) @map("days_of_week")
   
   employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String  @map("employee_id")
@@ -61,6 +62,8 @@ model Unavailability {
 
   @@index([clinicId])
   @@index([employeeId])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 enum UnavailabilityType {

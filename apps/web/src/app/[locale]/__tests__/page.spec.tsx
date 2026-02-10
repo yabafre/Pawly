@@ -46,7 +46,8 @@ describe('LandingPage', () => {
       expect(metadata.description).toBe('meta.description');
       expect(metadata.openGraph?.locale).toBe('fr_FR');
       expect(metadata.openGraph?.siteName).toBe('Pawly');
-      expect(metadata.openGraph?.type).toBe('website');
+      const openGraph = metadata.openGraph;
+      expect(openGraph && 'type' in openGraph ? openGraph.type : undefined).toBe('website');
       expect(metadata.alternates?.languages).toEqual({
         fr: expect.any(String),
         en: expect.any(String),
@@ -82,7 +83,8 @@ describe('LandingPage', () => {
         params: Promise.resolve({ locale: 'fr' }),
       });
 
-      expect(metadata.twitter?.card).toBe('summary_large_image');
+      const twitter = metadata.twitter;
+      expect(twitter && 'card' in twitter ? twitter.card : undefined).toBe('summary_large_image');
       expect(metadata.twitter?.images).toBeDefined();
       expect(metadata.twitter?.images).toHaveLength(0);
     });

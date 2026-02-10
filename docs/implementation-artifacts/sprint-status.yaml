@@ -29,6 +29,8 @@
 
 generated: '2026-02-02'
 updated: '2026-02-10'
+# 2026-02-10: Story 5-2 created (ready-for-dev). Declarative constraints configuration for employee unavailabilities (one-time + recurring), hard-rule projection contract for planning, validators, service/router/UI/testing guardrails.
+# 2026-02-10: Story 5-2 implemented -> review. Declarative employee constraints CRUD shipped (Prisma recurrence metadata, validators, service/router hard-rule projection, web panel/form/hooks/actions, FR/EN i18n, tests). Root gates green: lint/test/build/db:generate/db:push.
 # 2026-02-10: Story 5-1 code review done → done. 10 issues found (2 CRITICAL, 5 HIGH, 3 MEDIUM), all fixed. +21 tests (17 router spec + 4 boundary validators). 605 total tests (194 API + 152 validators + 259 web). Build green.
 # 2026-02-10: Story 5-1 implemented → review. 11/11 tasks done. 584 total tests (177 API + 148 validators + 259 web), +60 new tests. Full-stack employee CRUD: Prisma schema, NestJS service, tRPC router (5 procedures), Zod validators, server actions, hooks, admin UI (list, card, form, dialog), i18n FR/EN (74 keys). Build green.
 # 2026-02-10: Story 5-1 created (ready-for-dev). Employee & Contract Management CRUD. Prisma schema enhancement (ContractType enum, new fields), NestJS EmployeeModule + service, tRPC employee router (CRUD), Zod validators, admin employees page with TanStack Form, i18n FR/EN, Clinique Zen design. Epic 5 → in-progress.
@@ -155,7 +157,7 @@ development_status:
   # ===========================================================================
   epic-5: in-progress
   5-1-employee-contract-management-crud: done
-  5-2-declarative-constraints-configuration: backlog
+  5-2-declarative-constraints-configuration: done
   5-3-clinic-configuration-hours-days: backlog
   5-4-monthly-school-day-declaration-apprentices: backlog
   5-5-planning-assistance-rules-configurable: backlog

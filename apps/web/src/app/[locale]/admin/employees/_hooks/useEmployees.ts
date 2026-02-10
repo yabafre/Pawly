@@ -29,7 +29,7 @@ export const useEmployees = (filters?: ListEmployeesInput) => {
 export const useEmployee = (id: string) => {
   const { data, isPending, error } = useServerActionQuery(getEmployeeAction, {
     input: { id },
-    queryKey: QueryKeyFactory.employees(),
+    queryKey: QueryKeyFactory.employeeById(id),
   });
   return { employee: data, isPending, error };
 };

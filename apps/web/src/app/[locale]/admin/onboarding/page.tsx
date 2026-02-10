@@ -1,4 +1,4 @@
-import { setRequestLocale, getTranslations } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
 import { OnboardingWizard } from "./_components/OnboardingWizard";
 
 type Props = {

@@ -32,7 +32,6 @@ export function StepWorkDays({ form }: StepWorkDaysProps) {
           },
         }}
       >
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(field: any) => (
           <div className="space-y-3">
             <p className="text-sm font-medium text-neutral-900">{t("label")}</p>

@@ -33,7 +33,7 @@ export class AuthService {
 
     private sanitizeUser(user: User | Omit<User, 'password'>): Omit<User, 'password'> {
         if ('password' in user) {
-            const { password, ...safeUser } = user;
+            const { password: _password, ...safeUser } = user;
             return safeUser;
         }
         return user;
@@ -47,7 +47,7 @@ export class AuthService {
         const isValid = await bcrypt.compare(pass, user?.password ?? dummyHash);
 
         if (user && user.password && isValid) {
-            const { password, ...result } = user;
+            const { password: _password, ...result } = user;
             return result;
         }
         return null;

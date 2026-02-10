@@ -32,7 +32,6 @@ export function StepWorkHours({ form }: StepWorkHoursProps) {
             },
           }}
         >
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {(field: any) => (
             <div className="space-y-2">
               <Label
@@ -67,7 +66,6 @@ export function StepWorkHours({ form }: StepWorkHoursProps) {
             },
           }}
         >
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {(field: any) => (
             <div className="space-y-2">
               <Label

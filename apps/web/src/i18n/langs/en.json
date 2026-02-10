@@ -515,6 +515,10 @@
       "active": "Active",
       "inactive": "Inactive"
     },
+    "labels": {
+      "contractHoursPerWeek": "{hours}h/week"
+    },
+    "loading": "Loading employees...",
     "empty": {
       "title": "No employees yet",
       "description": "Add your first team member to start scheduling",
@@ -543,6 +547,65 @@
       "searchPlaceholder": "Search employees...",
       "showInactive": "Show inactive",
       "allJobTypes": "All job types"
+    },
+    "constraints": {
+      "title": "Constraints for {name}",
+      "subtitle": "Define one-time and recurring unavailabilities used as hard rules for planning.",
+      "loading": "Loading constraints...",
+      "labels": {
+        "oneTime": "One-time",
+        "recurring": "Recurring"
+      },
+      "days": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
+        "7": "Sunday"
+      },
+      "types": {
+        "SCHOOL": "School",
+        "VACATION": "Vacation",
+        "SICK": "Sick leave",
+        "OTHER": "Other"
+      },
+      "actions": {
+        "manage": "Manage constraints",
+        "add": "Add constraint",
+        "edit": "Edit constraint",
+        "delete": "Delete constraint"
+      },
+      "empty": {
+        "title": "No constraints yet",
+        "description": "Add constraints so planning blocks unavailable days."
+      },
+      "confirm": {
+        "deleteMessage": "Delete this constraint?"
+      },
+      "toast": {
+        "created": "Constraint created",
+        "updated": "Constraint updated",
+        "deleted": "Constraint deleted"
+      },
+      "form": {
+        "createTitle": "New constraint",
+        "editTitle": "Edit constraint",
+        "type": "Constraint type",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "reason": "Reason (optional)",
+        "reasonPlaceholder": "e.g. school, vacation, medical appointment",
+        "recurring": "Recurring weekly constraint",
+        "daysOfWeek": "Recurring days"
+      },
+      "validation": {
+        "startDateRequired": "Start date is required",
+        "endDateRequired": "End date is required",
+        "endDateAfterStart": "End date must be after or equal to start date",
+        "weekdayRequired": "Select at least one weekday for recurring constraints"
+      }
     }
   },
   "errors": {

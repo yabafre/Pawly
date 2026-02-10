@@ -42,7 +42,6 @@ jest.mock('stripe', () => {
 
 describe('StripeService', () => {
   let service: StripeService;
-  let prisma: PrismaService;
   let mockConstructEvent: jest.Mock;
   let mockCheckoutSessionsCreate: jest.Mock;
   let mockSubscriptionsRetrieve: jest.Mock;
@@ -89,7 +88,6 @@ describe('StripeService', () => {
     }).compile();
 
     service = module.get<StripeService>(StripeService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {

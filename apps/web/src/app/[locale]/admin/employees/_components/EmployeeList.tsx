@@ -28,6 +28,7 @@ import {
 } from "../_hooks/useEmployees";
 import { EmployeeCard } from "./EmployeeCard";
 import { EmployeeDialog } from "./EmployeeDialog";
+import { EmployeeConstraintsPanel } from "./EmployeeConstraintsPanel";
 
 type Employee = {
   id: string;
@@ -74,6 +75,7 @@ export function EmployeeList() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<Employee | null>(null);
+  const [constraintsEmployee, setConstraintsEmployee] = useState<Employee | null>(null);
 
   const { employees, isPending } = useEmployees({
     includeInactive: showInactive,
@@ -114,6 +116,10 @@ export function EmployeeList() {
     setConfirmDialog(employee);
   }, []);
 
+  const handleManageConstraints = useCallback((employee: Employee) => {
+    setConstraintsEmployee(employee);
+  }, []);
+
   const confirmToggle = useCallback(() => {
     if (confirmDialog) {
       toggleActive({ id: confirmDialog.id });
@@ -129,7 +135,7 @@ export function EmployeeList() {
   if (isPending) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-pulse text-neutral-400">Loading...</div>
+        <div className="animate-pulse text-neutral-400">{t("loading")}</div>
       </div>
     );
   }
@@ -207,6 +213,7 @@ export function EmployeeList() {
               employee={employee}
               onEdit={handleEdit}
               onToggleActive={handleToggleActive}
+              onManageConstraints={handleManageConstraints}
             />
           ))}
         </div>
@@ -258,6 +265,22 @@ export function EmployeeList() {
           </DialogContent>
         </Dialog>
       )}
+
+      <EmployeeConstraintsPanel
+        open={!!constraintsEmployee}
+        onOpenChange={(open) => {
+          if (!open) setConstraintsEmployee(null);
+        }}
+        employee={
+          constraintsEmployee
+            ? {
+                id: constraintsEmployee.id,
+                firstName: constraintsEmployee.firstName,
+                lastName: constraintsEmployee.lastName,
+              }
+            : null
+        }
+      />
     </>
   );
 }

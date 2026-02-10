@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, UserCheck, UserX } from "lucide-react";
+import { CalendarClock, Pencil, UserCheck, UserX } from "lucide-react";
 
 type Employee = {
   id: string;
@@ -24,6 +24,7 @@ type EmployeeCardProps = {
   employee: Employee;
   onEdit: (employee: Employee) => void;
   onToggleActive: (employee: Employee) => void;
+  onManageConstraints: (employee: Employee) => void;
 };
 
 const JOB_TYPE_STYLES: Record<string, string> = {
@@ -32,7 +33,12 @@ const JOB_TYPE_STYLES: Record<string, string> = {
   APPRENTICE: "bg-neutral-100 border-neutral-200 text-neutral-600",
 };
 
-export function EmployeeCard({ employee, onEdit, onToggleActive }: EmployeeCardProps) {
+export function EmployeeCard({
+  employee,
+  onEdit,
+  onToggleActive,
+  onManageConstraints,
+}: EmployeeCardProps) {
   const t = useTranslations("employees");
 
   return (
@@ -105,12 +111,26 @@ export function EmployeeCard({ employee, onEdit, onToggleActive }: EmployeeCardP
         <Badge variant="outline" className="text-neutral-600">
           {t(`contractTypes.${employee.contractType}` as Parameters<typeof t>[0])}
         </Badge>
-        <span className="text-xs text-neutral-500">{employee.contractHours}h/sem</span>
+        <span className="text-xs text-neutral-500">
+          {t("labels.contractHoursPerWeek", {
+            hours: employee.contractHours,
+          })}
+        </span>
       </div>
 
       {employee.email && (
         <p className="mt-2 text-xs text-neutral-500 truncate">{employee.email}</p>
       )}
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-3 w-full justify-start rounded-xl text-neutral-700"
+        onClick={() => onManageConstraints(employee)}
+      >
+        <CalendarClock className="mr-2 h-4 w-4" />
+        {t("constraints.actions.manage")}
+      </Button>
     </div>
   );
 }

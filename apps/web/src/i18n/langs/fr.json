@@ -515,6 +515,10 @@
       "active": "Actif",
       "inactive": "Inactif"
     },
+    "labels": {
+      "contractHoursPerWeek": "{hours}h/sem"
+    },
+    "loading": "Chargement des employés...",
     "empty": {
       "title": "Aucun employé",
       "description": "Ajoutez votre premier membre d'équipe pour commencer la planification",
@@ -543,6 +547,65 @@
       "searchPlaceholder": "Rechercher un employé...",
       "showInactive": "Afficher les inactifs",
       "allJobTypes": "Tous les postes"
+    },
+    "constraints": {
+      "title": "Contraintes de {name}",
+      "subtitle": "Définissez les indisponibilités ponctuelles et récurrentes utilisées comme règles bloquantes pour la planification.",
+      "loading": "Chargement des contraintes...",
+      "labels": {
+        "oneTime": "Ponctuelle",
+        "recurring": "Récurrente"
+      },
+      "days": {
+        "1": "Lundi",
+        "2": "Mardi",
+        "3": "Mercredi",
+        "4": "Jeudi",
+        "5": "Vendredi",
+        "6": "Samedi",
+        "7": "Dimanche"
+      },
+      "types": {
+        "SCHOOL": "École",
+        "VACATION": "Congés",
+        "SICK": "Arrêt maladie",
+        "OTHER": "Autre"
+      },
+      "actions": {
+        "manage": "Gérer les contraintes",
+        "add": "Ajouter une contrainte",
+        "edit": "Modifier la contrainte",
+        "delete": "Supprimer la contrainte"
+      },
+      "empty": {
+        "title": "Aucune contrainte",
+        "description": "Ajoutez des contraintes pour bloquer les jours indisponibles dans le planning."
+      },
+      "confirm": {
+        "deleteMessage": "Supprimer cette contrainte ?"
+      },
+      "toast": {
+        "created": "Contrainte créée",
+        "updated": "Contrainte mise à jour",
+        "deleted": "Contrainte supprimée"
+      },
+      "form": {
+        "createTitle": "Nouvelle contrainte",
+        "editTitle": "Modifier la contrainte",
+        "type": "Type de contrainte",
+        "startDate": "Date de début",
+        "endDate": "Date de fin",
+        "reason": "Motif (optionnel)",
+        "reasonPlaceholder": "ex : école, congés, rendez-vous médical",
+        "recurring": "Contrainte hebdomadaire récurrente",
+        "daysOfWeek": "Jours récurrents"
+      },
+      "validation": {
+        "startDateRequired": "La date de début est requise",
+        "endDateRequired": "La date de fin est requise",
+        "endDateAfterStart": "La date de fin doit être après ou égale à la date de début",
+        "weekdayRequired": "Sélectionnez au moins un jour pour une contrainte récurrente"
+      }
     }
   },
   "errors": {
