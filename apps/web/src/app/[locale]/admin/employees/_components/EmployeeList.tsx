@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { useQueryState, parseAsString, parseAsBoolean } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,9 +46,31 @@ type Employee = {
 
 export function EmployeeList() {
   const t = useTranslations("employees");
-  const [showInactive, setShowInactive] = useState(false);
-  const [jobTypeFilter, setJobTypeFilter] = useState<string>("ALL");
-  const [search, setSearch] = useState("");
+
+  // URL-synced filters via nuqs — no focus loss on keystroke
+  const [search, setSearch] = useQueryState(
+    "search",
+    parseAsString.withDefault("").withOptions({
+      shallow: true,       // don't trigger SSR
+      history: "replace",  // don't pollute browser history
+    }),
+  );
+  const [jobTypeFilter, setJobTypeFilter] = useQueryState(
+    "jobType",
+    parseAsString.withDefault("ALL").withOptions({
+      shallow: true,
+      history: "replace",
+    }),
+  );
+  const [showInactive, setShowInactive] = useQueryState(
+    "inactive",
+    parseAsBoolean.withDefault(false).withOptions({
+      shallow: true,
+      history: "replace",
+    }),
+  );
+
+  // Local UI state (not URL-worthy)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<Employee | null>(null);
@@ -121,11 +144,11 @@ export function EmployeeList() {
             className="h-10 pl-9 focus-visible:ring-[#009588]/20"
             placeholder={t("filters.searchPlaceholder")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value || null)}
           />
         </div>
 
-        <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
+        <Select value={jobTypeFilter} onValueChange={(v) => setJobTypeFilter(v === "ALL" ? null : v)}>
           <SelectTrigger className="w-[180px] h-10">
             <SelectValue placeholder={t("filters.allJobTypes")} />
           </SelectTrigger>
@@ -143,7 +166,7 @@ export function EmployeeList() {
           <input
             type="checkbox"
             checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
+            onChange={(e) => setShowInactive(e.target.checked || null)}
             className="rounded border-neutral-300"
           />
           {t("filters.showInactive")}
@@ -238,4 +261,3 @@ export function EmployeeList() {
     </>
   );
 }
-

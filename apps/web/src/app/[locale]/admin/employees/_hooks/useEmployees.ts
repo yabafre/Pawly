@@ -18,11 +18,12 @@ import { useTranslations } from "next-intl";
 import type { ListEmployeesInput } from "@pawly/validators";
 
 export const useEmployees = (filters?: ListEmployeesInput) => {
-  const { data, isPending, error } = useServerActionQuery(listEmployeesAction, {
+  const { data, isPending, isFetching, error } = useServerActionQuery(listEmployeesAction, {
     input: filters ?? {},
-    queryKey: [...QueryKeyFactory.employees(), filters ?? {}],
+    queryKey: [...QueryKeyFactory.employees(), filters ?? {}] as unknown as readonly ["employees"],
+    placeholderData: (prev: unknown) => prev, // keep previous data while refetching — prevents UI unmount
   });
-  return { employees: data ?? [], isPending, error };
+  return { employees: data ?? [], isPending, isFetching, error };
 };
 
 export const useEmployee = (id: string) => {

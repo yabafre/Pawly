@@ -533,4 +533,9 @@ Claude Opus 4.6 (claude-opus-4-6)
 - `apps/web/src/app/[locale]/pricing/_hooks/useCheckout.ts` — Fixed pre-existing actionKeyFactory bug
 - `apps/web/src/app/[locale]/pricing/__tests__/use-checkout.spec.ts` — Updated tests for actionKeyFactory removal
 - `docs/implementation-artifacts/sprint-status.yaml` — Updated story status
+- `apps/web/src/lib/trpc/client.ts` — Added `fetchWithRetry` wrapper with exponential backoff to handle ECONNREFUSED race condition at dev startup *(post-story fix)*
+- `apps/web/src/app/[locale]/layout.tsx` — Added `NuqsAdapter` to provider tree for URL state management *(post-story fix)*
+- `apps/web/src/app/[locale]/admin/employees/_components/EmployeeList.tsx` — Replaced `useState` with nuqs `useQueryState` for search/jobType/showInactive filters to fix input focus loss *(post-story fix)*
+- `apps/web/src/app/[locale]/admin/employees/_hooks/useEmployees.ts` — Added `placeholderData: (prev) => prev` to prevent loading skeleton during refetch + fixed queryKey type cast *(post-story fix)*
+- `apps/web/package.json` — Added `nuqs` dependency *(post-story fix)*
 
