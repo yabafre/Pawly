@@ -37,6 +37,12 @@ type EmployeeFormProps = {
 export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: EmployeeFormProps) {
   const t = useTranslations("employees");
 
+  const toISOString = (val: unknown): string => {
+    if (!val) return "";
+    if (val instanceof Date) return val.toISOString();
+    return String(val);
+  };
+
   const form = useForm({
     defaultValues: {
       firstName: defaultValues?.firstName ?? "",
@@ -47,8 +53,8 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       contractType: defaultValues?.contractType ?? "CDI",
       contractHours: defaultValues?.contractHours ?? 35,
       color: defaultValues?.color ?? "#3b82f6",
-      hireDate: defaultValues?.hireDate ?? "",
-      endDate: defaultValues?.endDate ?? "",
+      hireDate: toISOString(defaultValues?.hireDate),
+      endDate: toISOString(defaultValues?.endDate),
     },
     onSubmit: async ({ value }) => {
       if (mode === "edit" && defaultValues?.id) {
@@ -296,17 +302,13 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       </form.Subscribe>
 
       <div className="flex justify-end gap-3 pt-4">
-        <form.Subscribe selector={(state: any) => [state.canSubmit, state.isSubmitting]}>
-          {(state: any) => (
-            <Button
-              type="submit"
-              disabled={!state[0] || isPending}
-              className="bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 h-12 px-6"
-            >
-              {isPending ? "..." : t("actions.save")}
-            </Button>
-          )}
-        </form.Subscribe>
+        <Button
+          type="submit"
+          disabled={isPending}
+          className="bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 h-12 px-6"
+        >
+          {isPending ? "..." : t("actions.save")}
+        </Button>
       </div>
     </form>
   );
