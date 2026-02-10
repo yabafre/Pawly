@@ -10,6 +10,14 @@ export {
   createShiftTypesSchema,
   completeOnboardingSchema,
 } from "./onboarding.schema";
+export {
+  clinicClosedDayInputSchema,
+  clinicSpecialDayInputSchema,
+  updateClinicOperationalConfigSchema,
+  clinicClosedDaySchema,
+  clinicSpecialDaySchema,
+  clinicOperationalConfigSchema,
+} from "./operational-config.schema";
 
 export type {
   WorkDay,
@@ -20,3 +28,9 @@ export type {
   CreateShiftTypesInput,
   CompleteOnboardingInput,
 } from "./onboarding.schema";
+export type {
+  ClinicClosedDayInput,
+  ClinicSpecialDayInput,
+  UpdateClinicOperationalConfigInput,
+  ClinicOperationalConfig,
+} from "./operational-config.schema";
