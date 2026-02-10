@@ -20,7 +20,7 @@ import type { ListEmployeesInput } from "@pawly/validators";
 export const useEmployees = (filters?: ListEmployeesInput) => {
   const { data, isPending, error } = useServerActionQuery(listEmployeesAction, {
     input: filters ?? {},
-    queryKey: QueryKeyFactory.employees(),
+    queryKey: [...QueryKeyFactory.employees(), filters ?? {}],
   });
   return { employees: data ?? [], isPending, error };
 };
