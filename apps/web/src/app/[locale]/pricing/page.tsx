@@ -1,34 +1,58 @@
-import { useTranslations } from "next-intl";
-import { PreCheckoutForm } from "./_components/PreCheckoutForm";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Suspense } from "react";
+import { LandingHeader } from "@/app/[locale]/_components/LandingHeader";
+import { LandingFooter } from "@/app/[locale]/_components/LandingFooter";
+import { PricingCheckout } from "./_components/PricingCheckout";
+import type { Metadata } from "next";
 
-export default function PricingPage() {
-  const t = useTranslations("pricing");
-  const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID;
+type Props = {
+  params: Promise<{ locale: string }>;
+};
 
-  if (!priceId) {
-    return (
-      <div className="min-h-screen bg-neutral-50 py-16 px-4">
-        <div className="max-w-lg mx-auto text-center py-20">
-          <p className="text-red-600 font-medium">
-            Configuration error: Missing Stripe Price ID
-          </p>
-        </div>
-      </div>
-    );
-  }
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "pricing.meta" });
+  return {
+    title: t("title"),
+    description: t("description"),
+    openGraph: {
+      title: t("title"),
+      description: t("description"),
+      type: "website",
+    },
+    twitter: {
+      card: "summary",
+      title: t("title"),
+      description: t("description"),
+    },
+  };
+}
+
+export default async function PricingPage({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations("pricing.page");
 
   return (
-    <div className="min-h-screen bg-neutral-50 py-16 px-4">
-      <div className="max-w-lg mx-auto">
-        <div className="text-center space-y-3 mb-10">
-          <h1 className="text-3xl font-bold text-neutral-900">{t("title")}</h1>
-          <p className="text-neutral-600">{t("subtitle")}</p>
-        </div>
+    <>
+      <LandingHeader />
+      <main id="main-content" className="min-h-screen bg-[#FDFDFD] pt-24 pb-24 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-8">
+            <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground mb-4 leading-tight">
+              {t("heading")}
+            </h1>
+            <p className="text-lg text-muted-foreground leading-relaxed">
+              {t("subtitle")}
+            </p>
+          </div>
 
-        <div className="bg-white border border-neutral-200 rounded-2xl p-8 shadow-sm">
-          <PreCheckoutForm priceId={priceId} />
+          <Suspense>
+            <PricingCheckout />
+          </Suspense>
         </div>
-      </div>
-    </div>
+      </main>
+      <LandingFooter />
+    </>
   );
 }

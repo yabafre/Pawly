@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-09'
+updated: '2026-02-10'
+# 2026-02-10: Story 4-2 code review done → done. 12 issues found (5 HIGH, 4 MEDIUM, 3 LOW), all HIGH/MEDIUM fixed. i18n compliance, test coverage (+11 tests), open redirect prevention, state management cleanup. 248 web tests pass. Epic 4 → done.
+# 2026-02-09: Story 4-2 created (ready-for-dev). Pricing Page with Pre-Checkout Form. SSG pricing page, @tanstack/react-form pre-checkout form (clinic name, admin name, email), Stripe Checkout redirect via tRPC, success page, Clinique Zen aesthetic, i18n FR/EN, WCAG AA.
 # 2026-02-09: Story 4-1 created (ready-for-dev). Public Landing Page (SSG, SEO, Acquisition). SSG with generateStaticParams, locale-aware generateMetadata, sitemap.xml, robots.txt, JSON-LD, Clinique Zen sections, Lighthouse>=90, WCAG AA. Epic 4 → in-progress.
 # 2026-02-09: Story 3-6 created (ready-for-dev). Subscription-Based Access Control. tRPC isSubscribed middleware, admin layout subscription guard, SubscriptionContext provider, SubscriptionGate UI component, billing page inactive state, i18n keys, procedure migration.
 # 2026-02-07: Story 3-5 created (ready-for-dev). Promotion Codes & 100% Discount Support. Capture promo/discount data from webhook, fix hardcoded entitlementTier, dynamic tier mapping, promotion display on billing page, 100% discount checkout handling.
@@ -134,9 +136,9 @@ development_status:
   # NFRs: NFR21, NFR22
   # Dependency: Epic 2 (i18n) and Epic 3 (Stripe pricing + checkout).
   # ===========================================================================
-  epic-4: in-progress
+  epic-4: done
   4-1-public-landing-page-ssg-seo-acquisition: done
-  4-2-pricing-page-with-pre-checkout-form: backlog
+  4-2-pricing-page-with-pre-checkout-form: done
   epic-4-retrospective: optional
 
   # ===========================================================================

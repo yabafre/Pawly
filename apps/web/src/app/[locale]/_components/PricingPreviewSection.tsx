@@ -82,7 +82,7 @@ export async function PricingPreviewSection() {
                   asChild
                   className="w-full rounded-xl"
                 >
-                  <Link href="/pricing">{t("cta")}</Link>
+                  <Link href={`/pricing?plan=${plan}`}>{t("cta")}</Link>
                 </Button>
               </div>
             );

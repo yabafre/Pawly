@@ -280,6 +280,16 @@
   "pricing": {
     "title": "Commencez à gérer votre clinique",
     "subtitle": "Abonnez-vous pour démarrer avec Pawly pour votre cabinet vétérinaire.",
+    "meta": {
+      "title": "Tarifs — Pawly | Gestion de clinique vétérinaire",
+      "description": "Comparez les offres Pawly pour votre clinique vétérinaire. Options Starter, Professionnel et Entreprise avec des tarifs transparents et sans frais cachés."
+    },
+    "page": {
+      "heading": "Finalisez votre inscription",
+      "subtitle": "Renseignez vos informations pour démarrer avec Pawly.",
+      "changePlan": "Changer de plan",
+      "missingPriceIdError": "Erreur de configuration : identifiant de prix Stripe manquant"
+    },
     "preCheckout": {
       "clinicNameLabel": "Nom de la clinique",
       "clinicNamePlaceholder": "Clinique Vétérinaire des Lilas",
@@ -296,7 +306,8 @@
       "description": "Votre clinique a été enregistrée. Vous allez recevoir un email pour accéder à votre espace.",
       "checkEmail": "Vérifiez vos emails",
       "checkEmailDescription": "Un lien de connexion sécurisé a été envoyé à l'adresse email que vous avez renseignée lors de l'inscription.",
-      "spamNote": "Si vous ne trouvez pas l'email, vérifiez votre dossier spam."
+      "spamNote": "Si vous ne trouvez pas l'email, vérifiez votre dossier spam.",
+      "backToHome": "Retour à l'accueil"
     }
   },
   "onboarding": {

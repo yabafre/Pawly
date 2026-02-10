@@ -9,7 +9,7 @@ import { createCheckoutSessionSchema } from "@pawly/validators";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
-import { createCheckoutSessionAction } from "../_actions/checkout-actions";
+import { useCheckout } from "../_hooks/useCheckout";
 import { useState } from "react";
 
 interface PreCheckoutFormProps {
@@ -20,6 +20,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
   const t = useTranslations("pricing.preCheckout");
   const tErrors = useTranslations("forms.validation");
   const locale = useLocale() as "fr" | "en";
+  const { checkout, isPending } = useCheckout();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   const form = useForm({
@@ -29,23 +30,18 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
       adminEmail: "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        const [result, error] = await createCheckoutSessionAction({
-          ...value,
-          priceId,
-          locale,
-        });
-
-        if (error) {
-          toast.error(t("error"));
-          return;
+      checkout(
+        { ...value, priceId, locale },
+        {
+          onSuccess: (result) => {
+            setIsRedirecting(true);
+            window.location.href = result.url;
+          },
+          onError: () => {
+            toast.error(t("error"));
+          },
         }
-
-        setIsRedirecting(true);
-        window.location.href = result.url;
-      } catch {
-        toast.error(t("error"));
-      }
+      );
     },
   });
 
@@ -86,7 +82,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-teal-500 focus-visible:ring-teal-500/20"
+              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
             />
             {field.state.meta.errors.length > 0 && (
               <p className="text-[11px] text-orange-600" role="alert">
@@ -126,7 +122,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-teal-500 focus-visible:ring-teal-500/20"
+              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
             />
             {field.state.meta.errors.length > 0 && (
               <p className="text-[11px] text-orange-600" role="alert">
@@ -166,7 +162,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-teal-500 focus-visible:ring-teal-500/20"
+              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
             />
             {field.state.meta.errors.length > 0 && (
               <p className="text-[11px] text-orange-600" role="alert">
@@ -177,29 +173,23 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
         )}
       </form.Field>
 
-      <form.Subscribe
-        selector={(state) => [state.canSubmit, state.isSubmitting]}
+      <Button
+        type="submit"
+        className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 rounded-xl shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
+        disabled={isPending || isRedirecting}
       >
-        {([canSubmit, isSubmitting]) => (
-          <Button
-            type="submit"
-            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-12 shadow-lg shadow-teal-600/10 transition-all hover:scale-[1.01]"
-            disabled={!canSubmit || isSubmitting || isRedirecting}
-          >
-            {isSubmitting || isRedirecting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t("submitting")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                {t("submitButton")}{" "}
-                <ArrowRight className="w-4 h-4" />
-              </span>
-            )}
-          </Button>
+        {isPending || isRedirecting ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            {t("submitting")}
+          </span>
+        ) : (
+          <span className="flex items-center gap-2">
+            {t("submitButton")}{" "}
+            <ArrowRight className="w-4 h-4" />
+          </span>
         )}
-      </form.Subscribe>
+      </Button>
     </form>
   );
 };
