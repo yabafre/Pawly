@@ -24,7 +24,6 @@ import { StepWorkDays } from "./steps/StepWorkDays";
 import { StepWorkHours } from "./steps/StepWorkHours";
 import { StepShiftTypes } from "./steps/StepShiftTypes";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type OnboardingForm = any;
 
 export interface OnboardingFormValues {

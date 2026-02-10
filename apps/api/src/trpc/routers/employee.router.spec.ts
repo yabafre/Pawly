@@ -19,6 +19,11 @@ describe('employeeRouter', () => {
     create: jest.fn(),
     update: jest.fn(),
     toggleActive: jest.fn(),
+    listConstraints: jest.fn(),
+    createConstraint: jest.fn(),
+    updateConstraint: jest.fn(),
+    deleteConstraint: jest.fn(),
+    listHardRules: jest.fn(),
   };
 
   const mockPrisma = {
@@ -56,9 +61,9 @@ describe('employeeRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 5 procedures', () => {
+  it('should export all 10 procedures', () => {
     const procedures = Object.keys(employeeRouter._def.procedures);
-    expect(procedures).toHaveLength(5);
+    expect(procedures).toHaveLength(10);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'list',
@@ -66,6 +71,11 @@ describe('employeeRouter', () => {
         'create',
         'update',
         'toggleActive',
+        'listConstraints',
+        'createConstraint',
+        'updateConstraint',
+        'deleteConstraint',
+        'listHardRules',
       ]),
     );
   });
@@ -136,10 +146,9 @@ describe('employeeRouter', () => {
       const caller = createAuthenticatedCaller();
       await caller.list({ search: 'Dupont' });
 
-      expect(mockEmployeeService.findAll).toHaveBeenCalledWith(
-        'clinic-123',
-        { search: 'Dupont' },
-      );
+      expect(mockEmployeeService.findAll).toHaveBeenCalledWith('clinic-123', {
+        search: 'Dupont',
+      });
     });
   });
 
@@ -186,7 +195,11 @@ describe('employeeRouter', () => {
     };
 
     it('calls employeeService.create with clinicId and validated input', async () => {
-      const mockCreated = { id: 'new-emp', ...validInput, clinicId: 'clinic-123' };
+      const mockCreated = {
+        id: 'new-emp',
+        ...validInput,
+        clinicId: 'clinic-123',
+      };
       mockEmployeeService.create.mockResolvedValue(mockCreated);
 
       const caller = createAuthenticatedCaller();
@@ -207,9 +220,7 @@ describe('employeeRouter', () => {
     it('rejects input with missing required fields via Zod validation', async () => {
       const caller = createAuthenticatedCaller();
 
-      await expect(
-        caller.create({ firstName: '' } as any),
-      ).rejects.toThrow();
+      await expect(caller.create({ firstName: '' } as any)).rejects.toThrow();
     });
 
     it('rejects input with invalid color format', async () => {
@@ -228,7 +239,11 @@ describe('employeeRouter', () => {
 
     it('calls employeeService.update with clinicId and input', async () => {
       const updateInput = { id: validId, firstName: 'Updated' };
-      const mockUpdated = { ...updateInput, lastName: 'Dupont', clinicId: 'clinic-123' };
+      const mockUpdated = {
+        ...updateInput,
+        lastName: 'Dupont',
+        clinicId: 'clinic-123',
+      };
       mockEmployeeService.update.mockResolvedValue(mockUpdated);
 
       const caller = createAuthenticatedCaller();
@@ -285,8 +300,160 @@ describe('employeeRouter', () => {
     it('rejects invalid UUID input via Zod validation', async () => {
       const caller = createAuthenticatedCaller();
 
+      await expect(caller.toggleActive({ id: 'invalid' })).rejects.toThrow();
+    });
+  });
+
+  // ─── listConstraints ────────────────────────────────────────────────
+
+  describe('listConstraints', () => {
+    const employeeId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.listConstraints with clinicId and input', async () => {
+      const expected = [{ id: 'c1', employeeId }];
+      mockEmployeeService.listConstraints.mockResolvedValue(expected);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.listConstraints({ employeeId });
+
+      expect(result).toEqual(expected);
+      expect(mockEmployeeService.listConstraints).toHaveBeenCalledWith(
+        'clinic-123',
+        { employeeId },
+      );
+    });
+
+    it('rejects invalid employeeId', async () => {
+      const caller = createAuthenticatedCaller();
+
       await expect(
-        caller.toggleActive({ id: 'invalid' }),
+        caller.listConstraints({ employeeId: 'invalid' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── createConstraint ───────────────────────────────────────────────
+
+  describe('createConstraint', () => {
+    const validInput = {
+      employeeId: '550e8400-e29b-41d4-a716-446655440000',
+      type: 'SCHOOL' as const,
+      startDate: '2026-03-01T00:00:00.000Z',
+      endDate: '2026-03-31T23:59:59.999Z',
+      reason: '',
+      daysOfWeek: [1, 3],
+    };
+
+    it('calls employeeService.createConstraint with validated input', async () => {
+      mockEmployeeService.createConstraint.mockResolvedValue({
+        id: 'c1',
+        ...validInput,
+      });
+
+      const caller = createAuthenticatedCaller();
+      await caller.createConstraint(validInput);
+
+      expect(mockEmployeeService.createConstraint).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput,
+      );
+    });
+
+    it('rejects invalid date range', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.createConstraint({
+          ...validInput,
+          startDate: '2026-03-20T00:00:00.000Z',
+          endDate: '2026-03-10T00:00:00.000Z',
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── updateConstraint ───────────────────────────────────────────────
+
+  describe('updateConstraint', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.updateConstraint', async () => {
+      mockEmployeeService.updateConstraint.mockResolvedValue({
+        id: validId,
+        reason: 'Updated',
+      });
+
+      const caller = createAuthenticatedCaller();
+      await caller.updateConstraint({
+        id: validId,
+        reason: 'Updated',
+      });
+
+      expect(mockEmployeeService.updateConstraint).toHaveBeenCalledWith(
+        'clinic-123',
+        { id: validId, reason: 'Updated' },
+      );
+    });
+
+    it('rejects invalid id', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.updateConstraint({ id: 'invalid' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── deleteConstraint ───────────────────────────────────────────────
+
+  describe('deleteConstraint', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.deleteConstraint with id', async () => {
+      mockEmployeeService.deleteConstraint.mockResolvedValue({ id: validId });
+
+      const caller = createAuthenticatedCaller();
+      await caller.deleteConstraint({ id: validId });
+
+      expect(mockEmployeeService.deleteConstraint).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+    });
+  });
+
+  // ─── listHardRules ─────────────────────────────────────────────────
+
+  describe('listHardRules', () => {
+    const validInput = {
+      startDate: '2026-03-01T00:00:00.000Z',
+      endDate: '2026-03-31T23:59:59.999Z',
+      employeeIds: ['550e8400-e29b-41d4-a716-446655440000'],
+    };
+
+    it('calls employeeService.listHardRules with input', async () => {
+      mockEmployeeService.listHardRules.mockResolvedValue([
+        { ruleType: 'HARD' },
+      ]);
+
+      const caller = createAuthenticatedCaller();
+      await caller.listHardRules(validInput);
+
+      expect(mockEmployeeService.listHardRules).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput,
+      );
+    });
+
+    it('rejects invalid range', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.listHardRules({
+          ...validInput,
+          startDate: '2026-03-31T00:00:00.000Z',
+          endDate: '2026-03-01T00:00:00.000Z',
+        }),
       ).rejects.toThrow();
     });
   });

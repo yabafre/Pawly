@@ -5,7 +5,6 @@ import { PrismaService } from '@/prisma/prisma.service';
 
 describe('EmployeeService', () => {
   let service: EmployeeService;
-  let prisma: PrismaService;
 
   const clinicId = 'clinic-123';
   const otherClinicId = 'clinic-other';
@@ -36,6 +35,13 @@ describe('EmployeeService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    unavailability: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -47,7 +53,6 @@ describe('EmployeeService', () => {
     }).compile();
 
     service = module.get<EmployeeService>(EmployeeService);
-    prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -217,6 +222,37 @@ describe('EmployeeService', () => {
         }),
       });
     });
+
+    it('forces endDate to null for CDI even when payload includes one', async () => {
+      const input = {
+        firstName: 'Test',
+        lastName: 'User',
+        email: '',
+        phone: '',
+        jobType: 'VET' as const,
+        contractType: 'CDI' as const,
+        contractHours: 35,
+        color: '#3b82f6',
+        hireDate: '2024-01-01T00:00:00.000Z',
+        endDate: '2026-12-31T00:00:00.000Z',
+      };
+
+      mockPrismaService.employee.create.mockResolvedValue({
+        ...input,
+        id: 'new-emp',
+        clinicId,
+        endDate: null,
+      });
+
+      await service.create(clinicId, input);
+
+      expect(mockPrismaService.employee.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contractType: 'CDI',
+          endDate: null,
+        }),
+      });
+    });
   });
 
   describe('update', () => {
@@ -227,7 +263,7 @@ describe('EmployeeService', () => {
         firstName: 'Updated',
       });
 
-      const result = await service.update(clinicId, {
+      await service.update(clinicId, {
         id: 'emp-1',
         firstName: 'Updated',
       });
@@ -281,7 +317,7 @@ describe('EmployeeService', () => {
         isActive: false,
       });
 
-      const result = await service.toggleActive(clinicId, 'emp-1');
+      await service.toggleActive(clinicId, 'emp-1');
 
       expect(mockPrismaService.employee.update).toHaveBeenCalledWith({
         where: { id: 'emp-1' },
@@ -311,6 +347,141 @@ describe('EmployeeService', () => {
       await expect(
         service.toggleActive(otherClinicId, 'emp-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('constraints', () => {
+    const constraintId = 'constraint-1';
+    const employeeId = 'emp-1';
+
+    const oneTimeConstraint = {
+      id: constraintId,
+      employeeId,
+      clinicId,
+      type: 'SCHOOL',
+      startDate: new Date('2026-03-10T00:00:00.000Z'),
+      endDate: new Date('2026-03-10T23:59:59.999Z'),
+      reason: 'School day',
+      daysOfWeek: [],
+      createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+    };
+
+    const recurringConstraint = {
+      id: 'constraint-rec',
+      employeeId,
+      clinicId,
+      type: 'VACATION',
+      startDate: new Date('2026-03-01T00:00:00.000Z'),
+      endDate: new Date('2026-03-31T23:59:59.999Z'),
+      reason: null,
+      daysOfWeek: [1, 3],
+      createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+    };
+
+    it('lists constraints scoped by clinic and employee', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        oneTimeConstraint,
+      ]);
+
+      const result = await service.listConstraints(clinicId, { employeeId });
+
+      expect(result).toEqual([oneTimeConstraint]);
+      expect(mockPrismaService.unavailability.findMany).toHaveBeenCalledWith({
+        where: { clinicId, employeeId },
+        orderBy: [{ startDate: 'asc' }, { endDate: 'asc' }],
+      });
+    });
+
+    it('creates a new constraint for an employee in the clinic', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.unavailability.create.mockResolvedValue(
+        oneTimeConstraint,
+      );
+
+      const result = await service.createConstraint(clinicId, {
+        employeeId,
+        type: 'SCHOOL',
+        startDate: '2026-03-10T00:00:00.000Z',
+        endDate: '2026-03-10T23:59:59.999Z',
+        reason: '',
+        daysOfWeek: [],
+      });
+
+      expect(result).toEqual(oneTimeConstraint);
+      expect(mockPrismaService.unavailability.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          clinicId,
+          employeeId,
+          type: 'SCHOOL',
+          reason: null,
+          daysOfWeek: [],
+        }),
+      });
+    });
+
+    it('updates constraint fields', async () => {
+      mockPrismaService.unavailability.findFirst.mockResolvedValue(
+        oneTimeConstraint,
+      );
+      mockPrismaService.unavailability.update.mockResolvedValue({
+        ...oneTimeConstraint,
+        reason: 'Updated reason',
+      });
+
+      const result = await service.updateConstraint(clinicId, {
+        id: constraintId,
+        reason: 'Updated reason',
+      });
+
+      expect(result.reason).toBe('Updated reason');
+      expect(mockPrismaService.unavailability.update).toHaveBeenCalledWith({
+        where: { id: constraintId },
+        data: expect.objectContaining({ reason: 'Updated reason' }),
+      });
+    });
+
+    it('deletes a constraint scoped to clinic', async () => {
+      mockPrismaService.unavailability.findFirst.mockResolvedValue(
+        oneTimeConstraint,
+      );
+      mockPrismaService.unavailability.delete.mockResolvedValue(
+        oneTimeConstraint,
+      );
+
+      const result = await service.deleteConstraint(clinicId, constraintId);
+
+      expect(result).toEqual(oneTimeConstraint);
+      expect(mockPrismaService.unavailability.delete).toHaveBeenCalledWith({
+        where: { id: constraintId },
+      });
+    });
+
+    it('throws NotFoundException when deleting unknown constraint', async () => {
+      mockPrismaService.unavailability.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deleteConstraint(clinicId, 'missing'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('projects one-time and recurring constraints as hard rules', async () => {
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        oneTimeConstraint,
+        recurringConstraint,
+      ]);
+
+      const result = await service.listHardRules(clinicId, {
+        startDate: '2026-03-09T00:00:00.000Z',
+        endDate: '2026-03-12T23:59:59.999Z',
+      });
+
+      expect(result.some((rule) => rule.ruleType === 'HARD')).toBe(true);
+      expect(result.some((rule) => rule.source === 'ONE_TIME')).toBe(true);
+      expect(result.some((rule) => rule.source === 'RECURRING')).toBe(true);
+      expect(result.every((rule) => rule.employeeId === employeeId)).toBe(true);
     });
   });
 });

@@ -22,6 +22,17 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
+    const form = useForm({
+        defaultValues: {
+            password: "",
+            passwordConfirm: "",
+        },
+        onSubmit: async ({ value }) => {
+            if (!token) return;
+            await activateAccount(token, value.password);
+        },
+    });
+
     if (!token) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden px-6">
@@ -43,16 +54,6 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
             </div>
         );
     }
-
-    const form = useForm({
-        defaultValues: {
-            password: "",
-            passwordConfirm: "",
-        },
-        onSubmit: async ({ value }) => {
-            await activateAccount(token, value.password);
-        },
-    });
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden px-6">

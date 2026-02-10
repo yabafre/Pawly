@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { ClinicService } from './clinic.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import type { WorkDay } from '@pawly/validators';
 
 jest.mock('@/common/utils/slug', () => ({
   generateSlug: jest.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}-abcd1234`),
@@ -58,7 +59,17 @@ describe('ClinicService', () => {
         name: 'Happy Paws',
         slug: 'happy-paws-abcd1234',
         onboardingCompleted: false,
-        config: { workDays: [1, 2, 3, 4, 5], defaultStartTime: '08:00', defaultEndTime: '18:00' },
+        config: {
+          workDays: [
+            'MONDAY',
+            'TUESDAY',
+            'WEDNESDAY',
+            'THURSDAY',
+            'FRIDAY',
+          ] as WorkDay[],
+          defaultStartTime: '08:00',
+          defaultEndTime: '18:00',
+        },
         shiftTypes: [
           { id: 'st-1', name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
         ],
@@ -137,7 +148,7 @@ describe('ClinicService', () => {
   describe('upsertClinicConfig', () => {
     const clinicId = 'clinic-uuid-3';
     const configData = {
-      workDays: [1, 2, 3, 4, 5],
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as WorkDay[],
       defaultStartTime: '09:00',
       defaultEndTime: '17:00',
     };
@@ -169,12 +180,12 @@ describe('ClinicService', () => {
       const updatedConfig = {
         id: 'config-1',
         clinicId,
-        workDays: [1, 2, 3],
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY'] as WorkDay[],
         defaultStartTime: '10:00',
         defaultEndTime: '16:00',
       };
       const newData = {
-        workDays: [1, 2, 3],
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY'] as WorkDay[],
         defaultStartTime: '10:00',
         defaultEndTime: '16:00',
       };
@@ -271,7 +282,7 @@ describe('ClinicService', () => {
     const clinicId = 'clinic-uuid-5';
     const onboardingData = {
       clinicName: 'Pawly Clinic',
-      workDays: [1, 2, 3, 4, 5],
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as WorkDay[],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
       shiftTypes: [
@@ -430,7 +441,13 @@ describe('ClinicService', () => {
         name: 'Pawly Clinic',
         onboardingCompleted: true,
         config: {
-          workDays: [1, 2, 3, 4, 5],
+          workDays: [
+            'MONDAY',
+            'TUESDAY',
+            'WEDNESDAY',
+            'THURSDAY',
+            'FRIDAY',
+          ] as WorkDay[],
           defaultStartTime: '08:00',
           defaultEndTime: '18:00',
         },

@@ -28,7 +28,8 @@ describe('PricingPage', () => {
       expect(metadata.description).toBe('description');
       expect(metadata.openGraph?.title).toBe('title');
       expect(metadata.openGraph?.description).toBe('description');
-      expect(metadata.openGraph?.type).toBe('website');
+      const openGraph = metadata.openGraph;
+      expect(openGraph && 'type' in openGraph ? openGraph.type : undefined).toBe('website');
     });
 
     it('returns correct metadata for en locale', async () => {
@@ -47,7 +48,8 @@ describe('PricingPage', () => {
         params: Promise.resolve({ locale: 'fr' }),
       });
 
-      expect(metadata.twitter?.card).toBe('summary');
+      const twitter = metadata.twitter;
+      expect(twitter && 'card' in twitter ? twitter.card : undefined).toBe('summary');
       expect(metadata.twitter?.title).toBe('title');
       expect(metadata.twitter?.description).toBe('description');
     });

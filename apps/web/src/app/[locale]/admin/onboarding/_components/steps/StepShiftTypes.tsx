@@ -37,14 +37,12 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
       <form.Field
         name="shiftTypes"
         validators={{
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange: ({ value }: { value: any[] }) => {
             if (!value || value.length === 0) return t("minRequired");
             return undefined;
           },
         }}
       >
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {(field: any) => (
           <div className="space-y-4">
             {field.state.value.map((_: unknown, index: number) => (

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { withNuqsTestingAdapter } from "nuqs/adapters/testing";
 import { EmployeeList } from "../_components/EmployeeList";
 
 // Mock next-intl
@@ -9,26 +11,6 @@ vi.mock("next-intl", () => ({
     return t;
   },
 }));
-
-vi.mock("nuqs", () => {
-  const createParser = (defaultValue: unknown) => ({
-    defaultValue,
-    withOptions: () => ({ defaultValue }),
-  });
-
-  return {
-    parseAsString: {
-      withDefault: (defaultValue: string) => createParser(defaultValue),
-    },
-    parseAsBoolean: {
-      withDefault: (defaultValue: boolean) => createParser(defaultValue),
-    },
-    useQueryState: (_key: string, parser: { defaultValue?: unknown }) => [
-      parser?.defaultValue ?? null,
-      vi.fn(),
-    ],
-  };
-});
 
 // Mock hooks
 const mockEmployees: any[] = [];
@@ -62,6 +44,9 @@ vi.mock("../_hooks/useEmployees", () => ({
 
 // Mock @tanstack/react-query
 vi.mock("@tanstack/react-query", () => ({
+  useQuery: vi.fn(),
+  useMutation: vi.fn(),
+  useInfiniteQuery: vi.fn(),
   useQueryClient: () => ({
     invalidateQueries: vi.fn(),
   }),
@@ -89,7 +74,16 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
 }));
 
+vi.mock("../_components/EmployeeConstraintsPanel", () => ({
+  EmployeeConstraintsPanel: () => null,
+}));
+
 describe("EmployeeList", () => {
+  const renderWithNuqs = (ui: ReactElement) =>
+    render(ui, {
+      wrapper: withNuqsTestingAdapter(),
+    });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -101,7 +95,7 @@ describe("EmployeeList", () => {
       error: null,
     });
 
-    render(<EmployeeList />);
+    renderWithNuqs(<EmployeeList />);
 
     expect(screen.getByText("empty.title")).toBeDefined();
     expect(screen.getByText("empty.description")).toBeDefined();
@@ -114,9 +108,9 @@ describe("EmployeeList", () => {
       error: null,
     });
 
-    render(<EmployeeList />);
+    renderWithNuqs(<EmployeeList />);
 
-    expect(screen.getByText("Loading...")).toBeDefined();
+    expect(screen.getByText("loading")).toBeDefined();
   });
 
   it("renders employee cards when employees exist", () => {
@@ -157,7 +151,7 @@ describe("EmployeeList", () => {
       error: null,
     });
 
-    render(<EmployeeList />);
+    renderWithNuqs(<EmployeeList />);
 
     expect(screen.getByText("Jean Dupont")).toBeDefined();
     expect(screen.getByText("Marie Martin")).toBeDefined();
@@ -170,7 +164,7 @@ describe("EmployeeList", () => {
       error: null,
     });
 
-    render(<EmployeeList />);
+    renderWithNuqs(<EmployeeList />);
 
     // In empty state, the CTA button text should be present
     expect(screen.getByText("empty.cta")).toBeDefined();

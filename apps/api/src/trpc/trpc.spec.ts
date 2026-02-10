@@ -22,7 +22,7 @@ const testRouter = router({
     .use(isAuthed)
     .use(isSubscribed)
     .use(isEntitled('professional'))
-    .query(({ ctx }) => {
+    .query(() => {
       return { ok: true };
     }),
 });

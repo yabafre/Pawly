@@ -8,6 +8,12 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   auth: () => ["auth"],
   planning: () => ["planning"],
   employees: () => ["employees"],
+  employeeById: (employeeId: string) => ["employees", "detail", employeeId],
+  employeeConstraints: (employeeId?: string) => [
+    "employees",
+    "constraints",
+    employeeId ?? "all",
+  ],
   clinic: () => ["clinic"],
   billing: () => ["billing"],
   checkout: () => ["checkout"],
