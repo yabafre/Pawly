@@ -155,6 +155,7 @@
         },
         "config": {
           "shiftTypeCode": "Shift type",
+          "selectShiftType": "Select a shift type",
           "minStaff": "Minimum staff",
           "jobTypes": "Job types (optional filter)",
           "targetDay": "Target day",
@@ -803,7 +804,56 @@
   "settings": {
     "tabs": {
       "operational": "General",
+      "shiftTypes": "Shift Types",
       "planningRules": "Planning Rules"
+    },
+    "shiftTypes": {
+      "title": "Shift Types",
+      "fields": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Morning, Surgery",
+        "code": "Code",
+        "codePlaceholder": "e.g. MORNING",
+        "startTime": "Start time",
+        "endTime": "End time",
+        "color": "Color"
+      },
+      "form": {
+        "createTitle": "New shift type",
+        "createSubtitle": "Define a new shift type for your clinic schedule.",
+        "editTitle": "Edit shift type",
+        "editSubtitle": "Modify the shift type details."
+      },
+      "actions": {
+        "add": "Add shift type",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "confirm": {
+        "deleteTitle": "Delete shift type",
+        "deleteMessage": "Are you sure you want to delete this shift type? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "empty": {
+        "title": "No shift types",
+        "description": "Add shift types to define your clinic schedule structure.",
+        "cta": "Add first shift type"
+      },
+      "errors": {
+        "loadFailed": "Unable to load shift types.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "created": "Shift type created",
+        "createFailed": "Unable to create shift type",
+        "updated": "Shift type updated",
+        "updateFailed": "Unable to update shift type",
+        "deleted": "Shift type deleted",
+        "deleteFailed": "Unable to delete shift type"
+      }
     },
     "operationalConfig": {
       "title": "Clinic Operational Configuration",

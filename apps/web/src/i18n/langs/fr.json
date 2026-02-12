@@ -155,6 +155,7 @@
         },
         "config": {
           "shiftTypeCode": "Type de créneau",
+          "selectShiftType": "Sélectionnez un type de créneau",
           "minStaff": "Personnel minimum",
           "jobTypes": "Types de poste (filtre optionnel)",
           "targetDay": "Jour cible",
@@ -803,7 +804,56 @@
   "settings": {
     "tabs": {
       "operational": "Général",
+      "shiftTypes": "Types de quarts",
       "planningRules": "Règles de planning"
+    },
+    "shiftTypes": {
+      "title": "Types de quarts",
+      "fields": {
+        "name": "Nom",
+        "namePlaceholder": "ex : Matin, Chirurgie",
+        "code": "Code",
+        "codePlaceholder": "ex : MATIN",
+        "startTime": "Heure de début",
+        "endTime": "Heure de fin",
+        "color": "Couleur"
+      },
+      "form": {
+        "createTitle": "Nouveau type de quart",
+        "createSubtitle": "Définissez un nouveau type de quart pour le planning de votre clinique.",
+        "editTitle": "Modifier le type de quart",
+        "editSubtitle": "Modifiez les détails du type de quart."
+      },
+      "actions": {
+        "add": "Ajouter un type de quart",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "save": "Enregistrer",
+        "cancel": "Annuler"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer le type de quart",
+        "deleteMessage": "Êtes-vous sûr de vouloir supprimer ce type de quart ? Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "empty": {
+        "title": "Aucun type de quart",
+        "description": "Ajoutez des types de quarts pour définir la structure de votre planning.",
+        "cta": "Ajouter le premier type de quart"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les types de quarts.",
+        "retry": "Réessayer"
+      },
+      "toast": {
+        "created": "Type de quart créé",
+        "createFailed": "Impossible de créer le type de quart",
+        "updated": "Type de quart mis à jour",
+        "updateFailed": "Impossible de mettre à jour le type de quart",
+        "deleted": "Type de quart supprimé",
+        "deleteFailed": "Impossible de supprimer le type de quart"
+      }
     },
     "operationalConfig": {
       "title": "Configuration opérationnelle de la clinique",

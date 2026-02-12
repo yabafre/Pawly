@@ -29,6 +29,7 @@ import {
   type PlanningRuleRecord,
 } from "../../planning/rules/_hooks/usePlanningRules";
 import { PlanningRuleConfigEditor } from "./PlanningRuleConfigEditor";
+import { useClinicShiftTypes } from "../_hooks/useClinicShiftTypes";
 import {
   PLANNING_RULE_TYPES,
   PLANNING_RULE_CATEGORIES,
@@ -80,6 +81,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
   const t = useTranslations("admin.planningRules");
   const { createRule, isCreating, updateRule, isUpdating } =
     usePlanningRules();
+  const { shiftTypes } = useClinicShiftTypes();
 
   const form = useForm({
     defaultValues: {
@@ -359,6 +361,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                       category={form.getFieldValue("category")}
                       config={field.state.value}
                       onChange={(cfg) => field.handleChange(cfg)}
+                      shiftTypes={shiftTypes}
                     />
                   </div>
                 )}

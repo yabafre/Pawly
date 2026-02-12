@@ -33,6 +33,22 @@ vi.mock("../../planning/rules/_hooks/usePlanningRules", () => ({
   usePlanningRules: () => mockUsePlanningRules,
 }));
 
+// Mock useClinicShiftTypes hook (used by PlanningRuleFormSheet)
+vi.mock("../_hooks/useClinicShiftTypes", () => ({
+  useClinicShiftTypes: () => ({
+    shiftTypes: [],
+    isPending: false,
+    error: null,
+    refetch: vi.fn(),
+    createShiftType: vi.fn(),
+    isCreating: false,
+    updateShiftType: vi.fn(),
+    isUpdating: false,
+    deleteShiftType: vi.fn(),
+    isDeleting: false,
+  }),
+}));
+
 // Mock @tanstack/react-form
 vi.mock("@tanstack/react-form", () => ({
   useForm: vi.fn().mockImplementation(({ defaultValues }) => ({

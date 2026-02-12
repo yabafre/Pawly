@@ -15,11 +15,13 @@ import {
   TRACKING_PERIODS,
   type PlanningRuleCategory,
 } from "@pawly/validators";
+import type { ShiftTypeRecord } from "../_hooks/useClinicShiftTypes";
 
 type Props = {
   category: PlanningRuleCategory;
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
+  shiftTypes?: ShiftTypeRecord[];
 };
 
 function FieldGroup({
@@ -41,6 +43,7 @@ export function PlanningRuleConfigEditor({
   category,
   config,
   onChange,
+  shiftTypes = [],
 }: Props) {
   const t = useTranslations("admin.planningRules.form");
 
@@ -57,12 +60,30 @@ export function PlanningRuleConfigEditor({
       return (
         <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
           <FieldGroup label={t("config.shiftTypeCode")}>
-            <Input
-              value={(config.shiftTypeCode as string) ?? ""}
-              onChange={(e) => updateField("shiftTypeCode", e.target.value)}
-              placeholder="SURGERY"
-              className={inputClass}
-            />
+            {shiftTypes.length > 0 ? (
+              <Select
+                value={(config.shiftTypeCode as string) ?? ""}
+                onValueChange={(v) => updateField("shiftTypeCode", v)}
+              >
+                <SelectTrigger className={selectTriggerClass}>
+                  <SelectValue placeholder={t("config.selectShiftType")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {shiftTypes.map((st) => (
+                    <SelectItem key={st.code} value={st.code}>
+                      {st.name} ({st.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={(config.shiftTypeCode as string) ?? ""}
+                onChange={(e) => updateField("shiftTypeCode", e.target.value)}
+                placeholder="SURGERY"
+                className={inputClass}
+              />
+            )}
           </FieldGroup>
           <div className="grid grid-cols-2 gap-4">
             <FieldGroup label={t("config.minStaff")}>
@@ -159,12 +180,30 @@ export function PlanningRuleConfigEditor({
       return (
         <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
           <FieldGroup label={t("config.shiftTypeCode")}>
-            <Input
-              value={(config.shiftTypeCode as string) ?? ""}
-              onChange={(e) => updateField("shiftTypeCode", e.target.value)}
-              placeholder="SURGERY"
-              className={inputClass}
-            />
+            {shiftTypes.length > 0 ? (
+              <Select
+                value={(config.shiftTypeCode as string) ?? ""}
+                onValueChange={(v) => updateField("shiftTypeCode", v)}
+              >
+                <SelectTrigger className={selectTriggerClass}>
+                  <SelectValue placeholder={t("config.selectShiftType")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {shiftTypes.map((st) => (
+                    <SelectItem key={st.code} value={st.code}>
+                      {st.name} ({st.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={(config.shiftTypeCode as string) ?? ""}
+                onChange={(e) => updateField("shiftTypeCode", e.target.value)}
+                placeholder="SURGERY"
+                className={inputClass}
+              />
+            )}
           </FieldGroup>
           <FieldGroup label={t("config.requiredJobTypes")}>
             <Input

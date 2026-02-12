@@ -440,6 +440,21 @@ Claude Opus 4.6
 - ShiftTypeCode cross-validation against ClinicShiftType records on rule create/update
 - CONTRACT_COMPLIANCE config uses Zod `.refine()` requiring at least one hour limit
 
+### Post-Review Enhancement: Shift Types CRUD + Dropdown in Planning Rules
+
+Added full Shift Types CRUD management in Settings admin and converted shiftTypeCode text inputs to Select dropdowns:
+
+- **Validators**: `shift-type.schema.ts` — create/update/delete/list schemas (24 tests)
+- **Service**: `clinic.service.ts` — 4 new methods (listShiftTypes, createSingleShiftType, updateSingleShiftType, deleteSingleShiftType) with delete protection when PlanningRules reference the shift type code
+- **tRPC Router**: `clinic.router.ts` — 4 new procedures with ADMIN-only guard (10 new tests)
+- **Server Actions + Hook**: `shift-type-actions.ts` + `useClinicShiftTypes.ts` — React Query integration with invalidation
+- **UI**: ShiftTypesPanel (cards with color dot, name, code, times) + ShiftTypeFormSheet (create/edit with color palette)
+- **Settings Tabs**: Added "Shift Types" tab between General and Planning Rules
+- **PlanningRuleConfigEditor**: shiftTypeCode fields now use `<Select>` dropdown populated from clinic shift types (fallback to Input if no shift types)
+- **i18n**: Full FR/EN translations for shift types section
+- **Tests**: 15 web tests + 24 validator tests + 10 API tests
+- Updated total: `pnpm test` and `pnpm build` both green
+
 ### File List
 
 **Files created:**
@@ -472,9 +487,28 @@ Claude Opus 4.6
 - `apps/api/src/trpc/context.ts` (add PlanningService to TRPCServices)
 - `apps/api/src/trpc/trpc.module.ts` (inject PlanningService)
 - `apps/api/src/trpc/routers/_app.ts` (register planningRouter)
-- `apps/web/src/lib/hooks/server-action-hooks.ts` (add planningRules query key)
+- `apps/web/src/lib/hooks/server-action-hooks.ts` (add planningRules + clinicShiftTypes query keys)
 - `apps/web/src/app/[locale]/admin/_components/AdminLayoutClient.tsx` (add Planning Rules nav link)
-- `apps/web/src/i18n/langs/en.json` (admin.planningRules + admin.nav.planningRules)
-- `apps/web/src/i18n/langs/fr.json` (admin.planningRules + admin.nav.planningRules)
+- `apps/web/src/i18n/langs/en.json` (admin.planningRules + admin.nav.planningRules + settings.shiftTypes)
+- `apps/web/src/i18n/langs/fr.json` (admin.planningRules + admin.nav.planningRules + settings.shiftTypes)
 - `docs/implementation-artifacts/sprint-status.yaml` (status → review)
 - `docs/implementation-artifacts/5-5-planning-assistance-rules-configurable.md` (tasks checked, dev record)
+
+**Files created (post-review — Shift Types CRUD):**
+- `packages/validators/src/clinic/shift-type.schema.ts`
+- `packages/validators/src/clinic/shift-type.schema.test.ts`
+- `apps/web/src/app/[locale]/admin/settings/_actions/shift-type-actions.ts`
+- `apps/web/src/app/[locale]/admin/settings/_hooks/useClinicShiftTypes.ts`
+- `apps/web/src/app/[locale]/admin/settings/_components/ShiftTypesPanel.tsx`
+- `apps/web/src/app/[locale]/admin/settings/_components/ShiftTypeFormSheet.tsx`
+- `apps/web/src/app/[locale]/admin/settings/__tests__/shift-types.spec.tsx`
+
+**Files modified (post-review — Shift Types CRUD):**
+- `packages/validators/src/clinic/index.ts` (export shift-type schemas)
+- `apps/api/src/modules/clinic/clinic.service.ts` (add CRUD shift type methods)
+- `apps/api/src/trpc/routers/clinic.router.ts` (add 4 shift type procedures)
+- `apps/api/src/trpc/routers/clinic.router.spec.ts` (add shift type tests)
+- `apps/web/src/app/[locale]/admin/settings/_components/SettingsTabs.tsx` (add Shift Types tab)
+- `apps/web/src/app/[locale]/admin/settings/_components/PlanningRuleConfigEditor.tsx` (shiftTypeCode → Select dropdown)
+- `apps/web/src/app/[locale]/admin/settings/_components/PlanningRuleFormSheet.tsx` (pass shiftTypes to config editor)
+- `apps/web/src/app/[locale]/admin/settings/__tests__/planning-rules.spec.tsx` (add useClinicShiftTypes mock)
