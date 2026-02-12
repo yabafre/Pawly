@@ -51,6 +51,16 @@ export class EmployeeService {
     private readonly authService: AuthService,
   ) {}
 
+  async validateEmployeeOwnership(userId: string, employeeId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { employee: { select: { id: true } } },
+    });
+    if (!user?.employee || user.employee.id !== employeeId) {
+      throw new ForbiddenException('You can only manage your own employee record');
+    }
+  }
+
   async findAll(clinicId: string, filters?: ListEmployeesInput) {
     return this.prisma.employee.findMany({
       where: {
@@ -138,12 +148,13 @@ export class EmployeeService {
         });
       });
 
-      // Fire-and-forget: send welcome magic link (24h) — employees never set a password
       this.authService
         .createWelcomeMagicLink(email)
         .then((url) => {
           if (url) {
-            return this.mailService.sendEmployeeInvitationEmail(email, url, data.firstName);
+            return this.mailService
+              .sendEmployeeInvitationEmail(email, url, data.firstName)
+              .then(() => this.logger.log(`Sent invitation email to ${email}`));
           }
         })
         .catch((err) =>
@@ -533,6 +544,39 @@ export class EmployeeService {
     return apprentices.filter((a) => a.unavailabilities.length === 0).map(
       ({ unavailabilities: _, ...rest }) => rest,
     );
+  }
+
+  async listAllUndeclaredApprentices(clinicIds: string[], month: string) {
+    const [year, m] = month.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(year, m - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
+
+    const apprentices = await this.prisma.employee.findMany({
+      where: {
+        clinicId: { in: clinicIds },
+        jobType: 'APPRENTICE',
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        clinicId: true,
+        unavailabilities: {
+          where: {
+            type: 'SCHOOL',
+            startDate: { gte: monthStart },
+            endDate: { lte: monthEnd },
+          },
+          select: { id: true },
+        },
+      },
+    });
+
+    return apprentices
+      .filter((a) => a.unavailabilities.length === 0)
+      .map(({ unavailabilities: _, ...rest }) => rest);
   }
 
   private async findConstraintById(clinicId: string, id: string) {

@@ -235,7 +235,8 @@
         "error": "Unable to submit school day declaration"
       },
       "errors": {
-        "loadFailed": "Unable to load school day data",
+        "loadFailed": "Failed to load school days",
+        "retry": "Try again",
         "notApprentice": "Only apprentice employees can declare school days"
       },
       "admin": {

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, CheckCircle2, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { cn } from "@/lib/utils";
 import { useEmployeeContext } from "../../_components/EmployeeContext";
 import { useSchoolDays, useDeclareSchoolDays } from "../_hooks/useSchoolDays";
 import { SchoolDayReminderBanner } from "./SchoolDayReminderBanner";
@@ -26,6 +27,7 @@ function getMonthLabel(year: number, month: number, locale: string): string {
 
 export function SchoolDayCalendar() {
     const t = useTranslations("dashboard.schoolDays");
+    const locale = useLocale();
     const { employeeId, jobType } = useEmployeeContext();
     const { year, month, key: monthKey } = useMemo(() => getNextMonth(), []);
 
@@ -34,16 +36,17 @@ export function SchoolDayCalendar() {
 
     const [selectedDates, setSelectedDates] = useState<Date[]>([]);
     const [hasSubmitted, setHasSubmitted] = useState(false);
+    const hasInitialized = useRef(false);
 
-    // Sync existing school days from server into local state
     useEffect(() => {
-        if (schoolDays.length > 0) {
+        if (schoolDays.length > 0 && !hasInitialized.current) {
             const dates = schoolDays.map((sd: { startDate: string | Date }) => {
                 const d = typeof sd.startDate === "string" ? new Date(sd.startDate) : sd.startDate;
                 return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
             });
             setSelectedDates(dates);
             setHasSubmitted(true);
+            hasInitialized.current = true;
         }
     }, [schoolDays]);
 
@@ -56,8 +59,8 @@ export function SchoolDayCalendar() {
     }, [hasSubmitted]);
 
     const monthLabel = useMemo(
-        () => getMonthLabel(year, month, "fr"),
-        [year, month],
+        () => getMonthLabel(year, month, locale),
+        [year, month, locale],
     );
 
     const handleSubmit = useCallback(() => {
@@ -126,6 +129,16 @@ export function SchoolDayCalendar() {
                                 classNames={{
                                     selected:
                                         "bg-neutral-100 text-neutral-600 border border-neutral-200 hover:bg-neutral-200 rounded-md",
+                                }}
+                                components={{
+                                    DayButton: ({ day, modifiers, className, children, ...btnProps }: any) => (
+                                        <button className={cn(className, modifiers?.selected ? "relative" : "")} {...btnProps}>
+                                            {children}
+                                            {modifiers?.selected && (
+                                                <GraduationCap className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-neutral-400" />
+                                            )}
+                                        </button>
+                                    ),
                                 }}
                             />
                         </div>

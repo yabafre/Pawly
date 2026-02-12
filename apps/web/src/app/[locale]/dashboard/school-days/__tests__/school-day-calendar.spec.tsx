@@ -11,6 +11,7 @@ vi.mock("next-intl", () => ({
     };
     return t;
   },
+  useLocale: () => "fr",
 }));
 
 // Mock EmployeeContext

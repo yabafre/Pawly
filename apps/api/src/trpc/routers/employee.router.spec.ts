@@ -27,6 +27,8 @@ describe('employeeRouter', () => {
     declareSchoolDays: jest.fn(),
     listSchoolDays: jest.fn(),
     resendInvitation: jest.fn(),
+    validateEmployeeOwnership: jest.fn(),
+    listUndeclaredApprentices: jest.fn(),
   };
 
   const mockPrisma = {
@@ -64,9 +66,9 @@ describe('employeeRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 13 procedures', () => {
+  it('should export all 14 procedures', () => {
     const procedures = Object.keys(employeeRouter._def.procedures);
-    expect(procedures).toHaveLength(13);
+    expect(procedures).toHaveLength(14);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'list',
@@ -82,6 +84,7 @@ describe('employeeRouter', () => {
         'listHardRules',
         'declareSchoolDays',
         'listSchoolDays',
+        'listUndeclaredApprentices',
       ]),
     );
   });
@@ -545,26 +548,21 @@ describe('employeeRouter', () => {
 
     it('enforces self-service for EMPLOYEE role — validates linked employee', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-
-      const mockPrismaWithUser = {
-        ...mockPrisma,
-        user: {
-          findUnique: jest.fn().mockResolvedValue({
-            employee: { id: employeeId },
-          }),
-        },
-      };
-
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
       mockEmployeeService.declareSchoolDays.mockResolvedValue([]);
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrismaWithUser as any,
+        prisma: mockPrisma as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
       await caller.declareSchoolDays(validInput);
 
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        employeeId,
+      );
       expect(mockEmployeeService.declareSchoolDays).toHaveBeenCalledWith(
         'clinic-123',
         employeeId,
@@ -574,19 +572,13 @@ describe('employeeRouter', () => {
 
     it('throws FORBIDDEN when EMPLOYEE tries to declare for another employee', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-
-      const mockPrismaWithUser = {
-        ...mockPrisma,
-        user: {
-          findUnique: jest.fn().mockResolvedValue({
-            employee: { id: 'different-employee-id' },
-          }),
-        },
-      };
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrismaWithUser as any,
+        prisma: mockPrisma as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -638,26 +630,21 @@ describe('employeeRouter', () => {
 
     it('enforces self-service for EMPLOYEE role', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-
-      const mockPrismaWithUser = {
-        ...mockPrisma,
-        user: {
-          findUnique: jest.fn().mockResolvedValue({
-            employee: { id: employeeId },
-          }),
-        },
-      };
-
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
       mockEmployeeService.listSchoolDays.mockResolvedValue([]);
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrismaWithUser as any,
+        prisma: mockPrisma as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
       await caller.listSchoolDays(validInput);
 
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        employeeId,
+      );
       expect(mockEmployeeService.listSchoolDays).toHaveBeenCalledWith(
         'clinic-123',
         validInput,
@@ -666,19 +653,13 @@ describe('employeeRouter', () => {
 
     it('throws FORBIDDEN when EMPLOYEE queries another employee', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-
-      const mockPrismaWithUser = {
-        ...mockPrisma,
-        user: {
-          findUnique: jest.fn().mockResolvedValue({
-            employee: { id: 'different-employee-id' },
-          }),
-        },
-      };
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrismaWithUser as any,
+        prisma: mockPrisma as any,
         employeeService: mockEmployeeService as any,
       } as any);
 

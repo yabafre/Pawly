@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 interface EmployeeContextValue {
     employeeId: string;
@@ -18,8 +18,9 @@ export function EmployeeProvider({
     employeeId: string;
     jobType: string;
 }) {
+    const value = useMemo(() => ({ employeeId, jobType }), [employeeId, jobType]);
     return (
-        <EmployeeContext.Provider value={{ employeeId, jobType }}>
+        <EmployeeContext.Provider value={value}>
             {children}
         </EmployeeContext.Provider>
     );

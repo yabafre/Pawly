@@ -235,7 +235,8 @@
         "error": "Impossible de soumettre la déclaration"
       },
       "errors": {
-        "loadFailed": "Impossible de charger les données",
+        "loadFailed": "Échec du chargement des jours d'école",
+        "retry": "Réessayer",
         "notApprentice": "Seuls les apprentis peuvent déclarer des jours d'école"
       },
       "admin": {

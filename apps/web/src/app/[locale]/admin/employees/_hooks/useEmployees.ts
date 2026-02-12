@@ -12,6 +12,7 @@ import {
   updateEmployeeAction,
   toggleEmployeeActiveAction,
   resendInvitationAction,
+  listUndeclaredApprenticesAction,
 } from "../_actions/employee-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -94,4 +95,12 @@ export const useResendInvitation = () => {
     },
   );
   return { resendInvitation: mutate, isPending, error };
+};
+
+export const useUndeclaredApprentices = (month: string) => {
+  const { data, isPending } = useServerActionQuery(listUndeclaredApprenticesAction, {
+    input: { month },
+    queryKey: QueryKeyFactory.undeclaredApprentices(month),
+  });
+  return { undeclaredIds: new Set((data ?? []).map((a: { id: string }) => a.id)), isPending };
 };

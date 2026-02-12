@@ -1,3 +1,4 @@
+import { z } from '@pawly/zod';
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import {
@@ -87,17 +88,11 @@ export const employeeRouter = router({
   declareSchoolDays: subscribedProcedure
     .input(declareSchoolDaysSchema)
     .mutation(async ({ input, ctx }) => {
-      // Self-service enforcement: EMPLOYEE can only declare for their own linked employee record
       if (ctx.user.role === 'EMPLOYEE') {
-        const linkedEmployee = await ctx.prisma.user.findUnique({
-          where: { id: ctx.user.sub },
-          select: { employee: { select: { id: true } } },
-        });
-        if (!linkedEmployee?.employee || linkedEmployee.employee.id !== input.employeeId) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'You can only declare school days for your own record',
-          });
+        try {
+          await ctx.employeeService.validateEmployeeOwnership(ctx.user.sub, input.employeeId);
+        } catch {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' });
         }
       }
       return ctx.employeeService.declareSchoolDays(
@@ -110,20 +105,23 @@ export const employeeRouter = router({
   listSchoolDays: subscribedProcedure
     .input(listSchoolDaysSchema)
     .query(async ({ input, ctx }) => {
-      // Self-service enforcement: EMPLOYEE can only view their own school days
       if (ctx.user.role === 'EMPLOYEE') {
-        const linkedEmployee = await ctx.prisma.user.findUnique({
-          where: { id: ctx.user.sub },
-          select: { employee: { select: { id: true } } },
-        });
-        if (!linkedEmployee?.employee || linkedEmployee.employee.id !== input.employeeId) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'You can only view your own school days',
-          });
+        try {
+          await ctx.employeeService.validateEmployeeOwnership(ctx.user.sub, input.employeeId);
+        } catch {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' });
         }
       }
       return ctx.employeeService.listSchoolDays(ctx.user.clinicId, input);
+    }),
+
+  listUndeclaredApprentices: subscribedProcedure
+    .input(z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }))
+    .query(async ({ input, ctx }) => {
+      return ctx.employeeService.listUndeclaredApprentices(
+        ctx.user.clinicId,
+        input.month,
+      );
     }),
 });
 

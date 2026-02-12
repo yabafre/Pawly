@@ -19,11 +19,15 @@ export class SchedulerService {
     timeZone: 'Europe/Paris',
   })
   async handleSchoolDaysReminder() {
+    if (process.env.CRON_ENABLED === 'false') {
+      this.logger.log('Cron disabled on this instance, skipping');
+      return;
+    }
+
     this.logger.log('Running school days reminder cron job');
 
     const nextMonth = this.getNextMonth();
 
-    // Find all clinics with active subscriptions
     const activeSubscriptions = await this.prisma.subscription.findMany({
       where: {
         status: { in: ['active', 'trialing'] },
@@ -31,41 +35,57 @@ export class SchedulerService {
       select: { clinicId: true },
     });
 
-    for (const sub of activeSubscriptions) {
+    const clinicIds = activeSubscriptions.map((s) => s.clinicId);
+
+    if (clinicIds.length === 0) {
+      this.logger.log('No active clinics found, skipping');
+      return;
+    }
+
+    const allUndeclared =
+      await this.employeeService.listAllUndeclaredApprentices(
+        clinicIds,
+        nextMonth,
+      );
+
+    for (const apprentice of allUndeclared) {
+      if (!apprentice.email) continue;
+
       try {
-        const undeclared = await this.employeeService.listUndeclaredApprentices(
-          sub.clinicId,
+        await this.mailService.sendSchoolDaysReminder(
+          apprentice.email,
+          `${apprentice.firstName} ${apprentice.lastName}`,
           nextMonth,
         );
-
-        for (const apprentice of undeclared) {
-          if (!apprentice.email) continue;
-
-          await this.mailService.sendSchoolDaysReminder(
-            apprentice.email,
-            `${apprentice.firstName} ${apprentice.lastName}`,
-            nextMonth,
-          );
-
-          this.logger.log(
-            `Sent school days reminder to ${apprentice.email} for ${nextMonth}`,
-          );
-        }
+        this.logger.log(
+          `Sent school days reminder to ${apprentice.email} for ${nextMonth}`,
+        );
       } catch (err) {
         this.logger.error(
-          `Error processing reminders for clinic ${sub.clinicId}`,
+          `Error sending reminder to ${apprentice.email}`,
           err,
         );
       }
     }
 
-    this.logger.log('School days reminder cron job completed');
+    this.logger.log(
+      `School days reminder cron job completed: ${allUndeclared.length} apprentices processed`,
+    );
   }
 
   private getNextMonth(): string {
-    const now = new Date();
-    const year = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-    const month = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
-    return `${year}-${String(month).padStart(2, '0')}`;
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Paris',
+      year: 'numeric',
+      month: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parseInt(parts.find((p) => p.type === 'year')!.value);
+    const month = parseInt(parts.find((p) => p.type === 'month')!.value);
+
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+
+    return `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
   }
 }

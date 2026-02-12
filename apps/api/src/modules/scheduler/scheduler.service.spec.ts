@@ -14,7 +14,7 @@ describe('SchedulerService', () => {
   };
 
   const mockEmployeeService = {
-    listUndeclaredApprentices: jest.fn(),
+    listAllUndeclaredApprentices: jest.fn(),
   };
 
   const mockMailService = {
@@ -40,12 +40,13 @@ describe('SchedulerService', () => {
       mockPrismaService.subscription.findMany.mockResolvedValue([
         { clinicId: 'clinic-1' },
       ]);
-      mockEmployeeService.listUndeclaredApprentices.mockResolvedValue([
+      mockEmployeeService.listAllUndeclaredApprentices.mockResolvedValue([
         {
           id: 'a-1',
           firstName: 'Léa',
           lastName: 'Bernard',
           email: 'lea@clinic.fr',
+          clinicId: 'clinic-1',
         },
       ]);
 
@@ -55,8 +56,8 @@ describe('SchedulerService', () => {
         where: { status: { in: ['active', 'trialing'] } },
         select: { clinicId: true },
       });
-      expect(mockEmployeeService.listUndeclaredApprentices).toHaveBeenCalledWith(
-        'clinic-1',
+      expect(mockEmployeeService.listAllUndeclaredApprentices).toHaveBeenCalledWith(
+        ['clinic-1'],
         expect.stringMatching(/^\d{4}-\d{2}$/),
       );
       expect(mockMailService.sendSchoolDaysReminder).toHaveBeenCalledWith(
@@ -70,12 +71,13 @@ describe('SchedulerService', () => {
       mockPrismaService.subscription.findMany.mockResolvedValue([
         { clinicId: 'clinic-1' },
       ]);
-      mockEmployeeService.listUndeclaredApprentices.mockResolvedValue([
+      mockEmployeeService.listAllUndeclaredApprentices.mockResolvedValue([
         {
           id: 'a-1',
           firstName: 'Léa',
           lastName: 'Bernard',
           email: null,
+          clinicId: 'clinic-1',
         },
       ]);
 
@@ -84,44 +86,41 @@ describe('SchedulerService', () => {
       expect(mockMailService.sendSchoolDaysReminder).not.toHaveBeenCalled();
     });
 
-    it('processes multiple clinics independently', async () => {
+    it('processes apprentices from multiple clinics in a single batch', async () => {
       mockPrismaService.subscription.findMany.mockResolvedValue([
         { clinicId: 'clinic-1' },
         { clinicId: 'clinic-2' },
       ]);
-      mockEmployeeService.listUndeclaredApprentices
-        .mockResolvedValueOnce([
-          { id: 'a-1', firstName: 'Léa', lastName: 'B', email: 'lea@a.fr' },
-        ])
-        .mockResolvedValueOnce([
-          { id: 'a-2', firstName: 'Tom', lastName: 'M', email: 'tom@b.fr' },
-        ]);
+      mockEmployeeService.listAllUndeclaredApprentices.mockResolvedValue([
+        { id: 'a-1', firstName: 'Léa', lastName: 'B', email: 'lea@a.fr', clinicId: 'clinic-1' },
+        { id: 'a-2', firstName: 'Tom', lastName: 'M', email: 'tom@b.fr', clinicId: 'clinic-2' },
+      ]);
 
       await service.handleSchoolDaysReminder();
 
-      expect(mockEmployeeService.listUndeclaredApprentices).toHaveBeenCalledTimes(2);
+      expect(mockEmployeeService.listAllUndeclaredApprentices).toHaveBeenCalledTimes(1);
+      expect(mockEmployeeService.listAllUndeclaredApprentices).toHaveBeenCalledWith(
+        ['clinic-1', 'clinic-2'],
+        expect.stringMatching(/^\d{4}-\d{2}$/),
+      );
       expect(mockMailService.sendSchoolDaysReminder).toHaveBeenCalledTimes(2);
     });
 
-    it('continues processing other clinics when one fails', async () => {
+    it('continues sending emails when one fails', async () => {
       mockPrismaService.subscription.findMany.mockResolvedValue([
         { clinicId: 'clinic-1' },
-        { clinicId: 'clinic-2' },
       ]);
-      mockEmployeeService.listUndeclaredApprentices
-        .mockRejectedValueOnce(new Error('DB error'))
-        .mockResolvedValueOnce([
-          { id: 'a-2', firstName: 'Tom', lastName: 'M', email: 'tom@b.fr' },
-        ]);
+      mockEmployeeService.listAllUndeclaredApprentices.mockResolvedValue([
+        { id: 'a-1', firstName: 'Léa', lastName: 'B', email: 'lea@a.fr', clinicId: 'clinic-1' },
+        { id: 'a-2', firstName: 'Tom', lastName: 'M', email: 'tom@b.fr', clinicId: 'clinic-1' },
+      ]);
+      mockMailService.sendSchoolDaysReminder
+        .mockRejectedValueOnce(new Error('Email error'))
+        .mockResolvedValueOnce(undefined);
 
       await service.handleSchoolDaysReminder();
 
-      expect(mockMailService.sendSchoolDaysReminder).toHaveBeenCalledTimes(1);
-      expect(mockMailService.sendSchoolDaysReminder).toHaveBeenCalledWith(
-        'tom@b.fr',
-        'Tom M',
-        expect.any(String),
-      );
+      expect(mockMailService.sendSchoolDaysReminder).toHaveBeenCalledTimes(2);
     });
 
     it('does nothing when no active subscriptions exist', async () => {
@@ -129,8 +128,18 @@ describe('SchedulerService', () => {
 
       await service.handleSchoolDaysReminder();
 
-      expect(mockEmployeeService.listUndeclaredApprentices).not.toHaveBeenCalled();
+      expect(mockEmployeeService.listAllUndeclaredApprentices).not.toHaveBeenCalled();
       expect(mockMailService.sendSchoolDaysReminder).not.toHaveBeenCalled();
+    });
+
+    it('skips execution when CRON_ENABLED is false', async () => {
+      process.env.CRON_ENABLED = 'false';
+
+      await service.handleSchoolDaysReminder();
+
+      expect(mockPrismaService.subscription.findMany).not.toHaveBeenCalled();
+
+      delete process.env.CRON_ENABLED;
     });
   });
 });

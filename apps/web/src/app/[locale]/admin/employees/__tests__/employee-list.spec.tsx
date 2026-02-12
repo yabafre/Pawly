@@ -45,6 +45,10 @@ vi.mock("../_hooks/useEmployees", () => ({
     isPending: false,
     error: null,
   }),
+  useUndeclaredApprentices: () => ({
+    undeclaredIds: new Set(),
+    isPending: false,
+  }),
 }));
 
 // Mock @tanstack/react-query

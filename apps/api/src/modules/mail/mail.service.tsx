@@ -70,7 +70,7 @@ export class MailService {
     try {
       const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
 
-      const { data, error } = await this.resend.emails.send({
+      const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
         subject: `${firstName}, bienvenue dans l'équipe Pawly !`,
@@ -79,13 +79,9 @@ export class MailService {
 
       if (error) {
         this.logger.error(`Failed to send employee invitation email: ${error.message}`);
-        throw new InternalServerErrorException('Failed to send employee invitation email');
       }
-
-      return data;
     } catch (err) {
       this.logger.error('Unexpected error sending employee invitation email', err);
-      throw new InternalServerErrorException('Failed to send employee invitation email');
     }
   }
 
@@ -127,7 +123,8 @@ export class MailService {
     month: string,
   ) {
     try {
-      const dashboardUrl = this.configService.get('WEB_APP_URL', { infer: true }) + '/dashboard/school-days';
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
       const html = await render(
         <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} />,
       );
