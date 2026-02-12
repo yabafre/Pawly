@@ -67,8 +67,8 @@ async function bootstrap() {
       credentials: true,
     });
 
-    // tRPC rate limiting (10 req/60s per IP — matches global ThrottlerModule config)
-    app.use('/trpc', createTrpcRateLimiter(10, 60_000));
+    // tRPC rate limiting (60 req/60s per IP — allows normal SPA multi-query usage)
+    app.use('/trpc', createTrpcRateLimiter(60, 60_000));
 
     // tRPC Middleware Setup
     const trpcService = app.get(TRPCService);

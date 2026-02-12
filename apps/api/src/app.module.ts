@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from '@/config/index';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { AuthModule } from '@/modules/auth/auth.module';
@@ -8,6 +9,7 @@ import { MailModule } from '@/modules/mail/mail.module';
 import { StripeModule } from '@/modules/stripe/stripe.module';
 import { ClinicModule } from '@/modules/clinic/clinic.module';
 import { EmployeeModule } from '@/modules/employee/employee.module';
+import { SchedulerModule } from '@/modules/scheduler/scheduler.module';
 import { TRPCModule } from '@/trpc/trpc.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
@@ -21,6 +23,8 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
     StripeModule,
     ClinicModule,
     EmployeeModule,
+    ScheduleModule.forRoot(),
+    SchedulerModule,
     TRPCModule,
     ThrottlerModule.forRoot({
       throttlers: [

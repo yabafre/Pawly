@@ -11,6 +11,8 @@ import {
   createEmployeeAction,
   updateEmployeeAction,
   toggleEmployeeActiveAction,
+  resendInvitationAction,
+  listUndeclaredApprenticesAction,
 } from "../_actions/employee-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -77,4 +79,28 @@ export const useToggleEmployeeActive = () => {
     },
   );
   return { toggleActive: mutate, isPending, error };
+};
+
+export const useResendInvitation = () => {
+  const t = useTranslations("employees.toast");
+  const { mutate, isPending, error } = useServerActionMutation(
+    resendInvitationAction,
+    {
+      onSuccess: () => {
+        toast.success(t("invitationResent"));
+      },
+      onError: () => {
+        toast.error(t("invitationFailed"));
+      },
+    },
+  );
+  return { resendInvitation: mutate, isPending, error };
+};
+
+export const useUndeclaredApprentices = (month: string) => {
+  const { data, isPending } = useServerActionQuery(listUndeclaredApprenticesAction, {
+    input: { month },
+    queryKey: QueryKeyFactory.undeclaredApprentices(month),
+  });
+  return { undeclaredIds: new Set((data ?? []).map((a: { id: string }) => a.id)), isPending };
 };

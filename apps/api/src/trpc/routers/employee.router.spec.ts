@@ -24,6 +24,11 @@ describe('employeeRouter', () => {
     updateConstraint: jest.fn(),
     deleteConstraint: jest.fn(),
     listHardRules: jest.fn(),
+    declareSchoolDays: jest.fn(),
+    listSchoolDays: jest.fn(),
+    resendInvitation: jest.fn(),
+    validateEmployeeOwnership: jest.fn(),
+    listUndeclaredApprentices: jest.fn(),
   };
 
   const mockPrisma = {
@@ -61,9 +66,9 @@ describe('employeeRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 10 procedures', () => {
+  it('should export all 14 procedures', () => {
     const procedures = Object.keys(employeeRouter._def.procedures);
-    expect(procedures).toHaveLength(10);
+    expect(procedures).toHaveLength(14);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'list',
@@ -71,11 +76,15 @@ describe('employeeRouter', () => {
         'create',
         'update',
         'toggleActive',
+        'resendInvitation',
         'listConstraints',
         'createConstraint',
         'updateConstraint',
         'deleteConstraint',
         'listHardRules',
+        'declareSchoolDays',
+        'listSchoolDays',
+        'listUndeclaredApprentices',
       ]),
     );
   });
@@ -304,6 +313,35 @@ describe('employeeRouter', () => {
     });
   });
 
+  // ─── resendInvitation ──────────────────────────────────────────────
+
+  describe('resendInvitation', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('calls employeeService.resendInvitation with clinicId and id', async () => {
+      mockEmployeeService.resendInvitation.mockResolvedValue({
+        message: 'Invitation resent',
+      });
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.resendInvitation({ id: validId });
+
+      expect(result).toEqual({ message: 'Invitation resent' });
+      expect(mockEmployeeService.resendInvitation).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+    });
+
+    it('rejects invalid UUID input via Zod validation', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.resendInvitation({ id: 'not-a-uuid' }),
+      ).rejects.toThrow();
+    });
+  });
+
   // ─── listConstraints ────────────────────────────────────────────────
 
   describe('listConstraints', () => {
@@ -476,5 +514,166 @@ describe('employeeRouter', () => {
       'clinic-secure',
       undefined,
     );
+  });
+
+  // ─── declareSchoolDays ────────────────────────────────────────────
+
+  describe('declareSchoolDays', () => {
+    const employeeId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const validInput = {
+      employeeId,
+      month: '2026-04',
+      dates: ['2026-04-07', '2026-04-14'],
+    };
+
+    it('calls employeeService.declareSchoolDays for ADMIN role', async () => {
+      mockEmployeeService.declareSchoolDays.mockResolvedValue([]);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.declareSchoolDays(validInput);
+
+      expect(mockEmployeeService.declareSchoolDays).toHaveBeenCalledWith(
+        'clinic-123',
+        employeeId,
+        validInput,
+      );
+    });
+
+    it('enforces self-service for EMPLOYEE role — validates linked employee', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
+      mockEmployeeService.declareSchoolDays.mockResolvedValue([]);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.declareSchoolDays(validInput);
+
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        employeeId,
+      );
+      expect(mockEmployeeService.declareSchoolDays).toHaveBeenCalledWith(
+        'clinic-123',
+        employeeId,
+        validInput,
+      );
+    });
+
+    it('throws FORBIDDEN when EMPLOYEE tries to declare for another employee', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.declareSchoolDays(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid month format', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.declareSchoolDays({
+          ...validInput,
+          month: '2026-13',
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── listSchoolDays ──────────────────────────────────────────────
+
+  describe('listSchoolDays', () => {
+    const employeeId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const validInput = {
+      employeeId,
+      month: '2026-04',
+    };
+
+    it('calls employeeService.listSchoolDays for ADMIN role', async () => {
+      mockEmployeeService.listSchoolDays.mockResolvedValue([]);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.listSchoolDays(validInput);
+
+      expect(result).toEqual([]);
+      expect(mockEmployeeService.listSchoolDays).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput,
+      );
+    });
+
+    it('enforces self-service for EMPLOYEE role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
+      mockEmployeeService.listSchoolDays.mockResolvedValue([]);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.listSchoolDays(validInput);
+
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        employeeId,
+      );
+      expect(mockEmployeeService.listSchoolDays).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput,
+      );
+    });
+
+    it('throws FORBIDDEN when EMPLOYEE queries another employee', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.listSchoolDays(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid employeeId', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.listSchoolDays({ ...validInput, employeeId: 'not-uuid' }),
+      ).rejects.toThrow();
+    });
   });
 });

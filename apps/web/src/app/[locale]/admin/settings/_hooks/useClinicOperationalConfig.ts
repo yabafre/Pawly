@@ -26,7 +26,7 @@ export const useClinicOperationalConfig = () => {
       staleTime: 0,
       refetchOnMount: "always",
       refetchOnReconnect: true,
-      placeholderData: (prev: unknown) => prev,
+      placeholderData: (prev) => prev,
     },
   );
 

@@ -34,3 +34,13 @@ export type {
   ListUnavailabilitiesInput,
   HardRuleRangeInput,
 } from "./unavailability.schema";
+
+export {
+  declareSchoolDaysSchema,
+  listSchoolDaysSchema,
+} from "./school-days.schema";
+
+export type {
+  DeclareSchoolDaysInput,
+  ListSchoolDaysInput,
+} from "./school-days.schema";

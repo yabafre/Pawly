@@ -25,6 +25,8 @@ import {
   useCreateEmployee,
   useUpdateEmployee,
   useToggleEmployeeActive,
+  useResendInvitation,
+  useUndeclaredApprentices,
 } from "../_hooks/useEmployees";
 import { EmployeeCard } from "./EmployeeCard";
 import { EmployeeDialog } from "./EmployeeDialog";
@@ -87,6 +89,17 @@ export function EmployeeList() {
   const { createEmployee, isPending: isCreating } = useCreateEmployee();
   const { updateEmployee, isPending: isUpdating } = useUpdateEmployee();
   const { toggleActive, isPending: isToggling } = useToggleEmployeeActive();
+  const { resendInvitation, isPending: isResending } = useResendInvitation();
+
+  const getNextMonthKey = () => {
+    const now = new Date();
+    const year = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+    const month = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+    return `${year}-${String(month).padStart(2, '0')}`;
+  };
+
+  const nextMonthKey = getNextMonthKey();
+  const { undeclaredIds } = useUndeclaredApprentices(nextMonthKey);
 
   const handleCreate = useCallback(
     (data: Record<string, unknown>) => {
@@ -120,6 +133,13 @@ export function EmployeeList() {
   const handleManageConstraints = useCallback((employee: Employee) => {
     setConstraintsEmployee(employee);
   }, []);
+
+  const handleResendInvitation = useCallback(
+    (employee: Employee) => {
+      resendInvitation({ id: employee.id });
+    },
+    [resendInvitation],
+  );
 
   const confirmToggle = useCallback(() => {
     if (confirmDialog) {
@@ -211,6 +231,13 @@ export function EmployeeList() {
               onEdit={handleEdit}
               onToggleActive={handleToggleActive}
               onManageConstraints={handleManageConstraints}
+              onResendInvitation={handleResendInvitation}
+              isResendingInvitation={isResending}
+              schoolDaysDeclared={
+                employee.jobType === "APPRENTICE"
+                  ? !undeclaredIds.has(employee.id)
+                  : undefined
+              }
             />
           ))}
         </div>

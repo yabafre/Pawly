@@ -203,6 +203,48 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "nav": {
+      "title": "Pawly Employee",
+      "home": "Home",
+      "schoolDays": "School Days"
+    },
+    "schoolDays": {
+      "title": "School Days Declaration",
+      "subtitle": "Declare your school days for the upcoming month so planning can account for your availability.",
+      "calendar": {
+        "instructions": "Select your school days for {month}",
+        "selectedCount": "{count, plural, =0 {No days selected} one {# day selected} other {# days selected}}"
+      },
+      "reminder": {
+        "title": "Reminder",
+        "message": "You have not yet declared your school days for {month}. Please submit before the end of the month."
+      },
+      "submit": "Submit my school days",
+      "submitting": "Submitting...",
+      "success": {
+        "title": "Declaration submitted",
+        "message": "Your school days for {month} have been recorded. You can modify them at any time.",
+        "modify": "Modify declaration"
+      },
+      "empty": {
+        "title": "No school days declared",
+        "description": "Select dates on the calendar to declare your school days."
+      },
+      "toast": {
+        "declared": "School days declared successfully",
+        "error": "Unable to submit school day declaration"
+      },
+      "errors": {
+        "loadFailed": "Failed to load school days",
+        "retry": "Try again",
+        "notApprentice": "Only apprentice employees can declare school days"
+      },
+      "admin": {
+        "declared": "Declared",
+        "notDeclared": "Not declared",
+        "schoolDaysFor": "School days for {month}"
+      }
+    },
     "title": "Dashboard",
     "greeting": "Hello,",
     "thisWeek": "This week",
@@ -511,7 +553,8 @@
       "deactivate": "Deactivate",
       "activate": "Activate",
       "save": "Save",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "resendInvitation": "Resend invitation"
     },
     "form": {
       "firstName": "First Name",
@@ -565,7 +608,9 @@
       "created": "Employee created successfully",
       "updated": "Employee updated successfully",
       "deactivated": "Employee deactivated",
-      "activated": "Employee reactivated"
+      "activated": "Employee reactivated",
+      "invitationResent": "Invitation email resent successfully",
+      "invitationFailed": "Failed to resend invitation"
     },
     "validation": {
       "firstNameRequired": "First name is required",
@@ -578,6 +623,10 @@
       "searchPlaceholder": "Search employees...",
       "showInactive": "Show inactive",
       "allJobTypes": "All job types"
+    },
+    "schoolDays": {
+      "declared": "Declared",
+      "notDeclared": "Not declared"
     },
     "constraints": {
       "title": "Constraints for {name}",

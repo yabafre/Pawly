@@ -1,4 +1,4 @@
-import { publicProcedure, router } from '../trpc';
+import { publicProcedure, router, isAuthed } from '../trpc';
 import {
   loginSchema,
   requestMagicLinkSchema,
@@ -6,7 +6,23 @@ import {
   activateAccountInputSchema,
 } from '@pawly/validators';
 
+const protectedProcedure = publicProcedure.use(isAuthed);
+
 export const authRouter = router({
+  getMe: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: ctx.user.sub },
+      select: { employee: { select: { id: true, jobType: true } } },
+    });
+    return {
+      role: ctx.user.role,
+      clinicId: ctx.user.clinicId,
+      email: ctx.user.email,
+      employeeId: user?.employee?.id ?? null,
+      jobType: user?.employee?.jobType ?? null,
+    };
+  }),
+
   login: publicProcedure
     .input(loginSchema)
     .mutation(async ({ input, ctx }) => {

@@ -25,6 +25,12 @@ describe('AuthService', () => {
       updateMany: jest.fn(),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    activationToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     $transaction: jest.fn(),
   };
 
@@ -35,6 +41,7 @@ describe('AuthService', () => {
 
   const mockMailService = {
     sendMagicLink: jest.fn().mockResolvedValue(undefined),
+    sendActivationEmail: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockConfigService = {
@@ -509,6 +516,127 @@ describe('AuthService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('createWelcomeMagicLink', () => {
+    const email = 'employee@clinic.fr';
+    const clinicId = '00000000-0000-4000-8000-000000000001';
+
+    it('should create a magic link with 24h validity and return callback URL', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email,
+        clinicId,
+      });
+      mockPrismaService.magicLink.create.mockResolvedValue({});
+
+      const result = await service.createWelcomeMagicLink(email);
+
+      expect(result).toMatch(/^http:\/\/localhost:3000\/auth\/callback\?token=[a-f0-9]{64}$/);
+      expect(mockPrismaService.magicLink.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          clinicId,
+          token: expect.any(String),
+        }),
+      });
+
+      // Verify 24h TTL (not 15 minutes)
+      const createCall = mockPrismaService.magicLink.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt as Date;
+      const minExpected = Date.now() + 23 * 60 * 60 * 1000;
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(minExpected);
+    });
+
+    it('should return null when user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.createWelcomeMagicLink(email);
+
+      expect(result).toBeNull();
+      expect(mockPrismaService.magicLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should use /auth/callback route (not /auth/activate)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email,
+        clinicId,
+      });
+      mockPrismaService.magicLink.create.mockResolvedValue({});
+
+      const result = await service.createWelcomeMagicLink(email);
+
+      expect(result).toContain('/auth/callback?token=');
+      expect(result).not.toContain('/auth/activate');
+    });
+  });
+
+  describe('createActivationTokenAndGetUrl', () => {
+    const email = 'test@example.com';
+    const clinicId = '00000000-0000-4000-8000-000000000001';
+
+    it('should return activation URL when user exists', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email,
+        clinicId,
+      });
+      mockPrismaService.activationToken.create.mockResolvedValue({});
+
+      const result = await service.createActivationTokenAndGetUrl(email);
+
+      expect(result).toMatch(/^http:\/\/localhost:3000\/auth\/activate\?token=[a-f0-9]{64}$/);
+      expect(mockPrismaService.activationToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          clinicId,
+          token: expect.any(String),
+        }),
+      });
+    });
+
+    it('should return null when user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.createActivationTokenAndGetUrl(email);
+
+      expect(result).toBeNull();
+      expect(mockPrismaService.activationToken.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createActivationToken', () => {
+    const email = 'doctor@clinic.fr';
+    const clinicId = '00000000-0000-4000-8000-000000000001';
+
+    it('should create token and send activation email with admin name', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email,
+        clinicId,
+      });
+      mockPrismaService.activationToken.create.mockResolvedValue({});
+
+      await service.createActivationToken(email, 'Dr. Dupont');
+
+      expect(mockMailService.sendActivationEmail).toHaveBeenCalledWith(
+        email,
+        expect.stringMatching(/token=[a-f0-9]{64}/),
+        'Dr. Dupont',
+      );
+    });
+
+    it('should return generic message when user does not exist (prevent enumeration)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.createActivationToken(email);
+
+      expect(result).toEqual({
+        message: 'If an account exists, an activation email has been sent',
+      });
+      expect(mockMailService.sendActivationEmail).not.toHaveBeenCalled();
     });
   });
 
