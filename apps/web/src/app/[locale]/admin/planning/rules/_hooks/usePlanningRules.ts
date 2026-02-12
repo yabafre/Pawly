@@ -54,8 +54,10 @@ export const usePlanningRules = (filters?: ListPlanningRulesInput) => {
         invalidateRules();
         toast.success(t("created"));
       },
-      onError: () => {
-        toast.error(t("createFailed"));
+      onError: (err: { message?: string }) => {
+        toast.error(t("createFailed"), {
+          description: err?.message,
+        });
       },
     });
 
@@ -65,8 +67,10 @@ export const usePlanningRules = (filters?: ListPlanningRulesInput) => {
         invalidateRules();
         toast.success(t("updated"));
       },
-      onError: () => {
-        toast.error(t("updateFailed"));
+      onError: (err: { message?: string }) => {
+        toast.error(t("updateFailed"), {
+          description: err?.message,
+        });
       },
     });
 
@@ -76,8 +80,10 @@ export const usePlanningRules = (filters?: ListPlanningRulesInput) => {
         invalidateRules();
         toast.success(t("deleted"));
       },
-      onError: () => {
-        toast.error(t("deleteFailed"));
+      onError: (err: { message?: string }) => {
+        toast.error(t("deleteFailed"), {
+          description: err?.message,
+        });
       },
     });
 
@@ -87,8 +93,10 @@ export const usePlanningRules = (filters?: ListPlanningRulesInput) => {
         invalidateRules();
         toast.success(t("toggled"));
       },
-      onError: () => {
-        toast.error(t("toggleFailed"));
+      onError: (err: { message?: string }) => {
+        toast.error(t("toggleFailed"), {
+          description: err?.message,
+        });
       },
     });
 
