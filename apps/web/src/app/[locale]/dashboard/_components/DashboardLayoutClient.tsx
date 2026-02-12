@@ -27,17 +27,21 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans text-neutral-900">
             <nav className="sticky top-0 z-50 w-full bg-[#FDFDFD]/90 backdrop-blur-xl border-b border-neutral-100">
-                <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-neutral-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-neutral-900/10">
-                            <PawPrint size={18} />
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 bg-neutral-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-neutral-900/10">
+                            <PawPrint size={16} className="sm:hidden" />
+                            <PawPrint size={18} className="hidden sm:block" />
                         </div>
-                        <span className="font-extrabold text-lg tracking-tight">{t("title")}</span>
+                        <span className="font-extrabold text-base sm:text-lg tracking-tight">{t("title")}</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                         <LanguageSwitcher />
-                        <Button variant="ghost" className="text-neutral-500 hover:text-neutral-900" onClick={handleLogout}>
+                        <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-neutral-900 sm:hidden" onClick={handleLogout}>
+                            <LogOut className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" className="text-neutral-500 hover:text-neutral-900 hidden sm:inline-flex" onClick={handleLogout}>
                             <LogOut className="w-4 h-4 mr-2" />
                             {tCommon("logout")}
                         </Button>
@@ -45,8 +49,8 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
                 </div>
             </nav>
 
-            <main className="max-w-4xl mx-auto p-4 md:p-6 pt-8 space-y-6">
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-8 space-y-4 sm:space-y-6">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                     {navItems.map((item) => {
                         const isActive = item.exact
                             ? pathname === item.href
@@ -56,7 +60,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
                                 key={item.href}
                                 href={item.href}
                                 className={cn(
-                                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all",
+                                    "flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
                                     isActive
                                         ? "bg-neutral-900 text-white shadow-md"
                                         : "text-neutral-500 hover:bg-neutral-100",

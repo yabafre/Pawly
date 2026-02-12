@@ -5,7 +5,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, CheckCircle2, Loader2 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
-import { cn } from "@/lib/utils";
 import { useEmployeeContext } from "../../_components/EmployeeContext";
 import { useSchoolDays, useDeclareSchoolDays } from "../_hooks/useSchoolDays";
 import { SchoolDayReminderBanner } from "./SchoolDayReminderBanner";
@@ -78,31 +77,41 @@ export function SchoolDayCalendar() {
 
     if (jobType !== "APPRENTICE") {
         return (
-            <div className="rounded-3xl bg-white p-8 shadow-sm border border-neutral-100 text-center">
-                <GraduationCap className="mx-auto h-12 w-12 text-neutral-300 mb-4" />
-                <p className="text-neutral-500">{t("errors.notApprentice")}</p>
+            <div className="rounded-2xl sm:rounded-3xl bg-white p-4 sm:p-6 md:p-8 shadow-sm border border-neutral-100 text-center">
+                <GraduationCap className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-neutral-300 mb-3 sm:mb-4" />
+                <p className="text-sm sm:text-base text-neutral-500">{t("errors.notApprentice")}</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-neutral-900">
                     {t("title")}
                 </h1>
-                <p className="text-neutral-500 mt-1">{t("subtitle")}</p>
+                <p className="text-sm sm:text-base text-neutral-500 mt-1">{t("subtitle")}</p>
             </div>
 
             {/* Reminder banner */}
             {isReminderVisible && <SchoolDayReminderBanner month={monthLabel} />}
 
+            {/* Success badge */}
+            {hasSubmitted && selectedDates.length > 0 && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 sm:px-4 sm:py-2.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <p className="text-xs sm:text-sm font-medium text-emerald-700">
+                        {t("success.title")} — {t("success.message", { month: monthLabel })}
+                    </p>
+                </div>
+            )}
+
             {/* Calendar card */}
-            <div className="rounded-3xl bg-white p-6 shadow-sm border border-neutral-100">
-                <div className="flex items-center gap-2 mb-4">
-                    <GraduationCap className="h-5 w-5 text-neutral-600" />
-                    <h2 className="text-lg font-bold text-neutral-900">
+            <div className="rounded-2xl sm:rounded-3xl bg-white p-4 sm:p-6 shadow-sm border border-neutral-100">
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                    <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-600 shrink-0" />
+                    <h2 className="text-base sm:text-lg font-bold text-neutral-900">
                         {t("calendar.instructions", { month: monthLabel })}
                     </h2>
                 </div>
@@ -130,32 +139,22 @@ export function SchoolDayCalendar() {
                                     selected:
                                         "bg-neutral-100 text-neutral-600 border border-neutral-200 hover:bg-neutral-200 rounded-md",
                                 }}
-                                components={{
-                                    DayButton: ({ day, modifiers, className, children, ...btnProps }: any) => (
-                                        <button className={cn(className, modifiers?.selected ? "relative" : "")} {...btnProps}>
-                                            {children}
-                                            {modifiers?.selected && (
-                                                <GraduationCap className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-neutral-400" />
-                                            )}
-                                        </button>
-                                    ),
-                                }}
                             />
                         </div>
 
                         {/* Selection count */}
-                        <div className="mt-4 text-center">
-                            <p className="text-sm text-neutral-500">
+                        <div className="mt-3 sm:mt-4 text-center">
+                            <p className="text-xs sm:text-sm text-neutral-500">
                                 {t("calendar.selectedCount", { count: selectedDates.length })}
                             </p>
                         </div>
 
                         {/* Submit button */}
-                        <div className="mt-6 flex justify-center">
+                        <div className="mt-4 sm:mt-6 flex justify-center">
                             <Button
                                 onClick={handleSubmit}
                                 disabled={isSubmitting}
-                                className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-2xl px-8 py-3 shadow-md"
+                                className="w-full sm:w-auto bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl sm:rounded-2xl px-6 py-2.5 sm:px-8 sm:py-3 shadow-md"
                             >
                                 {isSubmitting ? (
                                     <>
@@ -170,19 +169,6 @@ export function SchoolDayCalendar() {
                     </>
                 )}
             </div>
-
-            {/* Success state */}
-            {hasSubmitted && selectedDates.length > 0 && (
-                <div className="rounded-3xl bg-white p-6 shadow-sm border border-neutral-100">
-                    <div className="flex items-center gap-3 mb-2">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                        <h3 className="font-bold text-neutral-900">{t("success.title")}</h3>
-                    </div>
-                    <p className="text-sm text-neutral-500">
-                        {t("success.message", { month: monthLabel })}
-                    </p>
-                </div>
-            )}
         </div>
     );
 }

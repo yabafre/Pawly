@@ -152,7 +152,7 @@ describe("SchoolDayCalendar", () => {
     fireEvent.click(screen.getByText("submit"));
 
     await waitFor(() => {
-      expect(screen.getByText("success.title")).toBeDefined();
+      expect(screen.getByText(/success\.title/)).toBeDefined();
     });
   });
 
