@@ -1,6 +1,6 @@
 # Story 5.3: Clinic Configuration (Hours & Days)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -344,13 +344,13 @@ Codex GPT-5
 - `apps/api/src/modules/clinic/clinic.service.spec.ts`
 - `apps/api/src/trpc/routers/clinic.router.ts`
 - `apps/api/src/trpc/routers/clinic.router.spec.ts`
-- `apps/web/src/app/[locale]/admin/planning/page.tsx`
-- `apps/web/src/app/[locale]/admin/planning/_actions/clinic-operational-config-actions.ts`
-- `apps/web/src/app/[locale]/admin/planning/_hooks/useClinicOperationalConfig.ts`
-- `apps/web/src/app/[locale]/admin/planning/_components/ClinicOperationalConfigPanel.tsx`
-- `apps/web/src/app/[locale]/admin/planning/_components/ClosedDaysFieldArray.tsx`
-- `apps/web/src/app/[locale]/admin/planning/_components/SpecialDaysFieldArray.tsx`
-- `apps/web/src/app/[locale]/admin/planning/__tests__/clinic-operational-config-panel.spec.tsx`
+- `apps/web/src/app/[locale]/admin/settings/page.tsx`
+- `apps/web/src/app/[locale]/admin/settings/_actions/clinic-operational-config-actions.ts`
+- `apps/web/src/app/[locale]/admin/settings/_hooks/useClinicOperationalConfig.ts`
+- `apps/web/src/app/[locale]/admin/settings/_components/ClinicOperationalConfigPanel.tsx`
+- `apps/web/src/app/[locale]/admin/settings/_components/ClosedDaysFieldArray.tsx`
+- `apps/web/src/app/[locale]/admin/settings/_components/SpecialDaysFieldArray.tsx`
+- `apps/web/src/app/[locale]/admin/settings/__tests__/clinic-operational-config-panel.spec.tsx`
 - `apps/web/src/i18n/langs/en.json`
 - `apps/web/src/i18n/langs/fr.json`
 - `apps/web/src/lib/hooks/server-action-hooks.ts`
@@ -364,3 +364,4 @@ Codex GPT-5
 
 - 2026-02-10: Implemented Story 5.3 clinic operational configuration across API/web/validators with normalized planning contract and clinic-scoped transactional updates.
 - 2026-02-10: Added comprehensive validator/service/router/web tests and completed root quality gates (`pnpm test`, `pnpm build`, `pnpm lint`).
+- 2026-02-12: [Review] Moved web components from admin/planning/ to admin/settings/. Converted settings page to Server Component with setRequestLocale(). Fixed 25+ French diacritics. Added closed/special conflict test. Fixed useEffect dependency.

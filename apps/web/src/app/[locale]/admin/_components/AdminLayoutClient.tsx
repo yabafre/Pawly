@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Users } from "lucide-react";
+import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Settings2, Users } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
@@ -20,6 +20,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
         { href: "/admin/planning", icon: Calendar, labelKey: "planning" as const },
         { href: "/admin/requests", icon: CheckCircle2, labelKey: "requests" as const },
         { href: "/admin/billing", icon: CreditCard, labelKey: "billing" as const },
+        { href: "/admin/settings", icon: Settings2, labelKey: "settings" as const },
     ];
 
     const handleLogout = async () => {

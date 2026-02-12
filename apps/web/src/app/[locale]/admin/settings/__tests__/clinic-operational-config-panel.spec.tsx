@@ -104,4 +104,20 @@ describe("ClinicOperationalConfigPanel", () => {
       expect(mockUpdateOperationalConfig).not.toHaveBeenCalled();
     });
   });
+
+  it("toggles work day checkbox without duplicate updates", async () => {
+    render(<ClinicOperationalConfigPanel />);
+
+    fireEvent.click(screen.getByLabelText("days.WEDNESDAY"));
+    fireEvent.click(screen.getByText("actions.save"));
+
+    await waitFor(() => {
+      expect(mockUpdateOperationalConfig).toHaveBeenCalledTimes(1);
+      expect(mockUpdateOperationalConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workDays: ["MONDAY", "TUESDAY", "WEDNESDAY"],
+        }),
+      );
+    });
+  });
 });

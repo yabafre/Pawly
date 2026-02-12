@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 export const useClinicOperationalConfig = () => {
   const queryClient = useQueryClient();
-  const t = useTranslations("planning.operationalConfig.toast");
+  const t = useTranslations("settings.operationalConfig.toast");
   const queryKey = QueryKeyFactory.clinicOperationalConfig();
 
   const { data, isPending, error } = useServerActionQuery(

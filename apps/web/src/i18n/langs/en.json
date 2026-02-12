@@ -90,6 +90,7 @@
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
       "planning": "Planning",
+      "settings": "Settings",
       "requests": "Requests",
       "employees": "Employees",
       "absences": "Absences",
@@ -109,6 +110,30 @@
       "week": "Week {number}",
       "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
       "apprenticesSchoolDays": "Apprentices have entered their school days."
+    },
+    "settings": {
+      "badge": "Clinic settings",
+      "title": "Operational Parameters",
+      "subtitle": "Manage clinic availability rules used by planning: weekly defaults, closure days, and special-day schedule overrides.",
+      "surfaceLabel": "Design language",
+      "surfaceValue": "Clinique Zen",
+      "cards": {
+        "rules": {
+          "title": "Validation",
+          "value": "Strict",
+          "helper": "HH:MM format, coherent ranges, duplicate detection."
+        },
+        "closedDays": {
+          "title": "Closure Policy",
+          "value": "Centralized",
+          "helper": "Single clinic-scoped source of truth."
+        },
+        "health": {
+          "title": "Planning Input",
+          "value": "Ready",
+          "helper": "Normalized data for downstream hard rules."
+        }
+      }
     }
   },
   "brand": {
@@ -608,7 +633,7 @@
       }
     }
   },
-  "planning": {
+  "settings": {
     "operationalConfig": {
       "title": "Clinic Operational Configuration",
       "subtitle": "Define weekly defaults, closure dates, and special-day schedule overrides used by planning.",

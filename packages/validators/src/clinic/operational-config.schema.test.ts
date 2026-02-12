@@ -98,4 +98,20 @@ describe("updateClinicOperationalConfigSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a date that is both closed and special", () => {
+    const result = updateClinicOperationalConfigSchema.safeParse({
+      ...validPayload,
+      closedDays: [{ date: "2026-12-25", reason: "Holiday" }],
+      specialDays: [
+        {
+          date: "2026-12-25",
+          startTime: "09:00",
+          endTime: "12:00",
+          label: "Conflict",
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
 });

@@ -58,7 +58,7 @@ export const PasswordForm = ({ onSwitchToMagicLink }: PasswordFormProps) => {
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             onBlur={field.handleBlur}
-                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            className="h-12"
                         />
                         {field.state.meta.errors.length > 0 && (
                             <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">{field.state.meta.errors[0]}</p>
@@ -96,7 +96,7 @@ export const PasswordForm = ({ onSwitchToMagicLink }: PasswordFormProps) => {
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             onBlur={field.handleBlur}
-                            className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            className="h-12"
                         />
                         {field.state.meta.errors.length > 0 && (
                             <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">{field.state.meta.errors[0]}</p>
@@ -108,7 +108,8 @@ export const PasswordForm = ({ onSwitchToMagicLink }: PasswordFormProps) => {
                 {([canSubmit, isSubmitting]) => (
                     <Button
                         type="submit"
-                        className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
+                        size="lg"
+                        className="w-full font-bold"
                         disabled={!canSubmit || isSubmitting || isLoginPending}
                     >
                         {isLoginPending ? t("submitting") : <span className="flex items-center gap-2">{t("submitButton")} <ArrowRight className="w-4 h-4" /></span>}
