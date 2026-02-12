@@ -1,0 +1,36 @@
+enum PlanningRuleType {
+  HARD
+  SOFT
+
+  @@map("planning_rule_type")
+}
+
+enum PlanningRuleCategory {
+  STAFFING_MINIMUM
+  ROTATION_EQUITY
+  SKILL_REQUIREMENT
+  CONTRACT_COMPLIANCE
+
+  @@map("planning_rule_category")
+}
+
+model PlanningRule {
+  id          String               @id @default(uuid())
+  name        String
+  description String?
+  ruleType    PlanningRuleType     @map("rule_type")
+  category    PlanningRuleCategory
+  isActive    Boolean              @default(true) @map("is_active")
+  config      Json
+  priority    Int                  @default(0)
+
+  clinicId    String               @map("clinic_id")
+  clinic      Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@index([clinicId])
+  @@index([clinicId, isActive])
+  @@map("planning_rules")
+}

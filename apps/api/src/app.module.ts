@@ -9,6 +9,7 @@ import { MailModule } from '@/modules/mail/mail.module';
 import { StripeModule } from '@/modules/stripe/stripe.module';
 import { ClinicModule } from '@/modules/clinic/clinic.module';
 import { EmployeeModule } from '@/modules/employee/employee.module';
+import { PlanningModule } from '@/modules/planning/planning.module';
 import { SchedulerModule } from '@/modules/scheduler/scheduler.module';
 import { TRPCModule } from '@/trpc/trpc.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
@@ -23,6 +24,7 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
     StripeModule,
     ClinicModule,
     EmployeeModule,
+    PlanningModule,
     ScheduleModule.forRoot(),
     SchedulerModule,
     TRPCModule,

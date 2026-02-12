@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Stethoscope } from "lucide-react";
-import { ClinicOperationalConfigPanel } from "./_components/ClinicOperationalConfigPanel";
+import { SettingsTabs } from "./_components/SettingsTabs";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -46,7 +46,7 @@ export default async function SettingsPage({ params }: Props) {
       </section>
 
       <div className="relative z-10">
-        <ClinicOperationalConfigPanel />
+        <SettingsTabs />
       </div>
     </div>
   );

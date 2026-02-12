@@ -29,6 +29,8 @@
 
 generated: '2026-02-02'
 updated: '2026-02-12'
+# 2026-02-12: Story 5-5 implemented → review. 10/10 tasks done. PlanningRule Prisma model (HARD/SOFT, 4 categories, Json config), discriminated Zod validators, NestJS PlanningModule + service (CRUD + config validation + shift type cross-check), tRPC planning router (7 procedures), web server actions/hooks, admin rules UI (list/form/config editor/health bar), shadcn switch+sheet, i18n FR/EN, 116 new tests. 862 total tests (310 API + 307 Web + 245 Validators). Build green.
+# 2026-02-12: Story 5-5 created (ready-for-dev). Planning assistance rules (admin configurable). PlanningRule Prisma model (HARD/SOFT ruleType, 4 categories, Json config), PlanningModule + service, tRPC planning router, admin UI with rule CRUD + Health Bar preview, discriminated Zod validators, i18n FR/EN.
 # 2026-02-12: Story 5-4 code review done → done. 22 issues found (3 CRITICAL, 6 HIGH, 5 MEDIUM, 8 TEST GAPS), all fixed. Mobile-first responsive pass. 703 total tests (268 API + 287 Web + 148 Validators). Build green.
 # 2026-02-12: Story 5-4 implemented → review. Monthly school day declaration + employee invitation flow. 12/12 tasks done. 688 total tests (253 API + 287 web + 148 validators). Build green. Employee dashboard, calendar multi-date, batch SCHOOL CRUD, @nestjs/schedule cron, Resend emails, self-service enforcement, auto User+Employee creation on invite, i18n FR/EN.
 # 2026-02-12: Story 5-4 created (ready-for-dev). Monthly school day declaration for apprentices. Employee dashboard route, calendar multi-date selection (react-day-picker), batch SCHOOL Unavailability CRUD, @nestjs/schedule cron reminder (25th), Resend email notifications, self-service enforcement, i18n FR/EN.
@@ -165,7 +167,7 @@ development_status:
   5-2-declarative-constraints-configuration: done
   5-3-clinic-configuration-hours-days: done
   5-4-monthly-school-day-declaration-apprentices: done
-  5-5-planning-assistance-rules-configurable: backlog
+  5-5-planning-assistance-rules-configurable: review
   5-6-equity-counters-management: backlog
   epic-5-retrospective: optional
 

@@ -94,7 +94,8 @@
       "requests": "Demandes",
       "employees": "Employés",
       "absences": "Absences",
-      "billing": "Facturation"
+      "billing": "Facturation",
+      "planningRules": "Règles de planning"
     },
     "dashboard": {
       "overview": "Vue d'ensemble",
@@ -110,6 +111,114 @@
       "week": "Semaine {number}",
       "noBlockingConflict": "Aucun conflit bloquant détecté. {count, plural, =0 {Aucun avertissement} one {# avertissement soft} other {# avertissements soft}} à surveiller.",
       "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
+    },
+    "planningRules": {
+      "title": "Règles de planning",
+      "subtitle": "Configurez les règles qui guident l'algorithme de planning pour des horaires justes et conformes.",
+      "loading": "Chargement des règles de planning...",
+      "ruleTypes": {
+        "HARD": "Règle stricte",
+        "SOFT": "Règle souple"
+      },
+      "categories": {
+        "STAFFING_MINIMUM": "Effectif minimum",
+        "ROTATION_EQUITY": "Équité de rotation",
+        "SKILL_REQUIREMENT": "Compétence requise",
+        "CONTRACT_COMPLIANCE": "Conformité contrat"
+      },
+      "categoryDescriptions": {
+        "STAFFING_MINIMUM": "Personnel minimum requis par type de créneau",
+        "ROTATION_EQUITY": "Rotation équitable de jours spécifiques entre employés",
+        "SKILL_REQUIREMENT": "Rôles requis par type de créneau",
+        "CONTRACT_COMPLIANCE": "Respect des limites d'heures hebdomadaires/mensuelles"
+      },
+      "form": {
+        "createTitle": "Nouvelle règle de planning",
+        "editTitle": "Modifier la règle de planning",
+        "createSubtitle": "Définissez une règle pour guider l'algorithme de planning de votre clinique.",
+        "editSubtitle": "Modifiez les paramètres de cette règle de planning.",
+        "name": "Nom de la règle",
+        "namePlaceholder": "ex. Min 1 ASV pour Chirurgie",
+        "description": "Description (optionnelle)",
+        "descriptionPlaceholder": "Expliquez l'objectif de la règle",
+        "ruleType": "Type de règle",
+        "category": "Catégorie",
+        "priority": "Priorité",
+        "priorityHelp": "Les règles de priorité supérieure sont évaluées en premier",
+        "isActive": "Active",
+        "ruleTypeHint": {
+          "HARD": "Bloque le planning si violée",
+          "SOFT": "Avertissement uniquement"
+        },
+        "sections": {
+          "config": "Paramètres spécifiques"
+        },
+        "config": {
+          "shiftTypeCode": "Type de créneau",
+          "minStaff": "Personnel minimum",
+          "jobTypes": "Types de poste (filtre optionnel)",
+          "targetDay": "Jour cible",
+          "maxPerPeriod": "Max par période",
+          "trackingPeriod": "Période de suivi",
+          "requiredJobTypes": "Types de poste requis",
+          "maxWeeklyHours": "Max heures hebdomadaires",
+          "maxMonthlyHours": "Max heures mensuelles",
+          "overtimeThresholdPercent": "Seuil heures supplémentaires (%)",
+          "days": {
+            "monday": "Lundi",
+            "tuesday": "Mardi",
+            "wednesday": "Mercredi",
+            "thursday": "Jeudi",
+            "friday": "Vendredi",
+            "saturday": "Samedi",
+            "sunday": "Dimanche"
+          }
+        },
+        "trackingPeriods": {
+          "monthly": "Mensuel",
+          "quarterly": "Trimestriel"
+        }
+      },
+      "actions": {
+        "add": "Ajouter une règle",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "toggle": "Activer/Désactiver"
+      },
+      "empty": {
+        "title": "Aucune règle de planning configurée",
+        "description": "Créez votre première règle pour guider l'algorithme de planning.",
+        "cta": "Créer la première règle"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer la règle de planning",
+        "deleteMessage": "Cette règle sera définitivement supprimée. L'algorithme de planning ne l'utilisera plus.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "toast": {
+        "created": "Règle de planning créée",
+        "updated": "Règle de planning mise à jour",
+        "deleted": "Règle de planning supprimée",
+        "toggled": "Règle de planning activée/désactivée",
+        "createFailed": "Impossible de créer la règle de planning",
+        "updateFailed": "Impossible de mettre à jour la règle de planning",
+        "deleteFailed": "Impossible de supprimer la règle de planning",
+        "toggleFailed": "Impossible d'activer/désactiver la règle de planning"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les règles de planning",
+        "retry": "Réessayer"
+      },
+      "healthBar": {
+        "title": "Santé du planning",
+        "conflicts": "{count, plural, =0 {Aucun conflit} one {# conflit} other {# conflits}}",
+        "warnings": "{count, plural, =0 {Aucun avertissement} one {# avertissement} other {# avertissements}}",
+        "ready": "{percent}% prêt",
+        "publish": "Publier",
+        "publishBlocked": "Publication impossible — résolvez les conflits d'abord",
+        "healthy": "Tout est bon — aucune violation détectée"
+      }
     },
     "settings": {
       "badge": "Paramètres clinique",
@@ -692,6 +801,10 @@
     }
   },
   "settings": {
+    "tabs": {
+      "operational": "Général",
+      "planningRules": "Règles de planning"
+    },
     "operationalConfig": {
       "title": "Configuration opérationnelle de la clinique",
       "subtitle": "Définissez les paramètres hebdomadaires, les jours fermés et les exceptions journalières utilisées par la planification.",
