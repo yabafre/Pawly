@@ -23,9 +23,6 @@ export const LoginPageClient = () => {
                 <LanguageSwitcher />
             </div>
 
-            {/* Background Ambient Layers */}
-            <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
 
             <div className="w-full max-w-lg p-6 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="mb-10 text-center flex flex-col items-center">
@@ -33,7 +30,7 @@ export const LoginPageClient = () => {
                     <p className="text-neutral-500 text-lg font-medium">{t("tagline")}</p>
                 </div>
 
-                <Card className="rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-neutral-100 bg-white/90 backdrop-blur-sm overflow-hidden">
+                <Card className="bg-white/90 backdrop-blur-sm overflow-hidden">
                     <CardHeader className="space-y-1 text-center pb-6">
                         <CardTitle className="text-2xl font-bold tracking-tight text-neutral-900">
                             {t("title")}

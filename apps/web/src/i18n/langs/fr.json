@@ -90,6 +90,7 @@
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
       "planning": "Planning",
+      "settings": "Paramètres",
       "requests": "Demandes",
       "employees": "Employés",
       "absences": "Absences",
@@ -109,6 +110,30 @@
       "week": "Semaine {number}",
       "noBlockingConflict": "Aucun conflit bloquant détecté. {count, plural, =0 {Aucun avertissement} one {# avertissement soft} other {# avertissements soft}} à surveiller.",
       "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
+    },
+    "settings": {
+      "badge": "Paramètres clinique",
+      "title": "Paramètres opérationnels",
+      "subtitle": "Gérez les règles de disponibilité de la clinique utilisées par le planning : valeurs hebdomadaires, jours fermés et exceptions journalières.",
+      "surfaceLabel": "Langage visuel",
+      "surfaceValue": "Clinique Zen",
+      "cards": {
+        "rules": {
+          "title": "Validation",
+          "value": "Stricte",
+          "helper": "Format HH:MM, plages cohérentes, détection des doublons."
+        },
+        "closedDays": {
+          "title": "Politique de fermeture",
+          "value": "Centralisée",
+          "helper": "Source de vérité unique, scoped par clinique."
+        },
+        "health": {
+          "title": "Entrée planning",
+          "value": "Prête",
+          "helper": "Données normalisées pour les règles bloquantes."
+        }
+      }
     }
   },
   "brand": {
@@ -437,7 +462,8 @@
     "errors": {
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",
-      "noSubscription": "Aucun abonnement trouvé pour votre clinique"
+      "noSubscription": "Aucun abonnement trouvé pour votre clinique",
+      "retry": "Réessayer"
     },
     "guard": {
       "inactive": {
@@ -519,6 +545,11 @@
       "contractHoursPerWeek": "{hours}h/sem"
     },
     "loading": "Chargement des employés...",
+    "errors": {
+      "loadFailed": "Impossible de charger les employés",
+      "loadFailedDescription": "Une erreur est survenue lors du chargement de la liste des employés. Veuillez rafraîchir la page.",
+      "retry": "Réessayer"
+    },
     "empty": {
       "title": "Aucun employé",
       "description": "Ajoutez votre premier membre d'équipe pour commencer la planification",
@@ -582,7 +613,10 @@
         "description": "Ajoutez des contraintes pour bloquer les jours indisponibles dans le planning."
       },
       "confirm": {
-        "deleteMessage": "Supprimer cette contrainte ?"
+        "deleteTitle": "Supprimer la contrainte",
+        "deleteMessage": "Cette contrainte sera définitivement supprimée. Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
       },
       "toast": {
         "created": "Contrainte créée",
@@ -605,6 +639,68 @@
         "endDateRequired": "La date de fin est requise",
         "endDateAfterStart": "La date de fin doit être après ou égale à la date de début",
         "weekdayRequired": "Sélectionnez au moins un jour pour une contrainte récurrente"
+      }
+    }
+  },
+  "settings": {
+    "operationalConfig": {
+      "title": "Configuration opérationnelle de la clinique",
+      "subtitle": "Définissez les paramètres hebdomadaires, les jours fermés et les exceptions journalières utilisées par la planification.",
+      "loading": "Chargement de la configuration opérationnelle...",
+      "sections": {
+        "weekly": "Paramètres hebdomadaires",
+        "closedDays": "Jours fermés",
+        "specialDays": "Jours spéciaux"
+      },
+      "fields": {
+        "workDays": "Jours de travail",
+        "defaultStartTime": "Heure de début par défaut",
+        "defaultEndTime": "Heure de fin par défaut",
+        "date": "Date",
+        "reason": "Motif",
+        "reasonPlaceholder": "ex : jour férié, fermeture annuelle",
+        "label": "Libellé",
+        "labelPlaceholder": "ex : ouverture réduite",
+        "startTime": "Heure de début",
+        "endTime": "Heure de fin"
+      },
+      "actions": {
+        "save": "Enregistrer la configuration opérationnelle",
+        "saving": "Enregistrement...",
+        "addClosedDay": "Ajouter un jour fermé",
+        "addSpecialDay": "Ajouter un jour spécial",
+        "remove": "Supprimer"
+      },
+      "empty": {
+        "closedDays": "Aucun jour fermé configuré.",
+        "specialDays": "Aucun jour spécial configuré."
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger la configuration opérationnelle de la clinique.",
+        "retry": "Réessayer"
+      },
+      "toast": {
+        "updated": "Configuration opérationnelle mise à jour",
+        "updateFailed": "Impossible de mettre à jour la configuration"
+      },
+      "validation": {
+        "workDaysRequired": "Sélectionnez au moins un jour de travail.",
+        "invalidTimeFormat": "Utilisez le format horaire HH:MM.",
+        "endTimeAfterStartTime": "L'heure de fin doit être après l'heure de début.",
+        "invalidDateFormat": "Utilisez le format de date YYYY-MM-DD.",
+        "invalidDateValue": "Valeur de date invalide.",
+        "duplicateClosedDay": "Cette date fermée est dupliquée.",
+        "duplicateSpecialDay": "Cette date spéciale est dupliquée.",
+        "closedAndSpecialConflict": "Une date ne peut pas être fermée et spéciale."
+      },
+      "days": {
+        "MONDAY": "Lundi",
+        "TUESDAY": "Mardi",
+        "WEDNESDAY": "Mercredi",
+        "THURSDAY": "Jeudi",
+        "FRIDAY": "Vendredi",
+        "SATURDAY": "Samedi",
+        "SUNDAY": "Dimanche"
       }
     }
   },

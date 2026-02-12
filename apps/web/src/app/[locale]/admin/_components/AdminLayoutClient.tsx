@@ -1,18 +1,30 @@
 "use client";
 
+import { QueryKeyFactory } from "@/lib/hooks/server-action-hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Settings2, Users } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { useEffect } from "react";
 
 export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const t = useTranslations("admin.nav");
     const tCommon = useTranslations("common");
+
+    useEffect(() => {
+        if (!pathname.startsWith("/admin/settings")) return;
+        queryClient.invalidateQueries({
+            queryKey: QueryKeyFactory.clinicOperationalConfig(),
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient is stable in RQ v5
+    }, [pathname]);
 
     const navItems = [
         { href: "/admin/dashboard", icon: FileText, labelKey: "dashboard" as const },
@@ -20,6 +32,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
         { href: "/admin/planning", icon: Calendar, labelKey: "planning" as const },
         { href: "/admin/requests", icon: CheckCircle2, labelKey: "requests" as const },
         { href: "/admin/billing", icon: CreditCard, labelKey: "billing" as const },
+        { href: "/admin/settings", icon: Settings2, labelKey: "settings" as const },
     ];
 
     const handleLogout = async () => {

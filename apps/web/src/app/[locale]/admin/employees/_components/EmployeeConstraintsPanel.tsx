@@ -5,6 +5,16 @@ import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -53,11 +63,13 @@ export function EmployeeConstraintsPanel({
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingConstraint, setEditingConstraint] = useState<ConstraintRecord | null>(null);
+  const [deletingConstraintId, setDeletingConstraintId] = useState<string | null>(null);
 
   const resetLocalFormState = useCallback(() => {
     setIsFormVisible(false);
     setEditingConstraint(null);
     setFormMode("create");
+    setDeletingConstraintId(null);
   }, []);
 
   useEffect(() => {
@@ -105,10 +117,10 @@ export function EmployeeConstraintsPanel({
     resetLocalFormState();
   };
 
-  const handleDelete = (constraintId: string) => {
-    const confirmed = window.confirm(t("constraints.confirm.deleteMessage"));
-    if (!confirmed) return;
-    deleteConstraint({ id: constraintId });
+  const handleDeleteConfirm = () => {
+    if (!deletingConstraintId) return;
+    deleteConstraint({ id: deletingConstraintId });
+    setDeletingConstraintId(null);
   };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
@@ -250,7 +262,7 @@ export function EmployeeConstraintsPanel({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-red-600 hover:text-red-700"
-                        onClick={() => handleDelete(constraint.id)}
+                        onClick={() => setDeletingConstraintId(constraint.id)}
                         disabled={isDeleting}
                         aria-label={t("constraints.actions.delete")}
                       >
@@ -264,6 +276,26 @@ export function EmployeeConstraintsPanel({
           )}
         </div>
       </DialogContent>
+
+      <AlertDialog
+        open={!!deletingConstraintId}
+        onOpenChange={(open) => { if (!open) setDeletingConstraintId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("constraints.confirm.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("constraints.confirm.deleteMessage")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("constraints.confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleDeleteConfirm}>
+              {t("constraints.confirm.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

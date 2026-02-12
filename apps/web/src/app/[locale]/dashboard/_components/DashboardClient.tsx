@@ -19,32 +19,8 @@ import {
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useFormattedDate } from "@/lib/hooks/useFormattedDate";
 import { useFormattedNumber } from "@/lib/hooks/useFormattedNumber";
-
-const Card = ({
-    children,
-    className = "",
-    onClick,
-}: {
-    children: React.ReactNode;
-    className?: string;
-    onClick?: () => void;
-}) => (
-    <div
-        onClick={onClick}
-        className={`bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-neutral-100 ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""} ${className}`}
-    >
-        {children}
-    </div>
-);
-
-const Badge = ({ children, color = "neutral" }: { children: React.ReactNode; color?: "neutral" | "emerald" }) => {
-    const styleClass = color === "emerald" ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-600";
-    return (
-        <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wide uppercase ${styleClass}`}>
-            {children}
-        </span>
-    );
-};
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const AbsenceRequestView = ({
     onSubmit,
@@ -172,7 +148,7 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
                     </div>
                 </Card>
 
-                <Card onClick={navigateToRequest} className="p-4 flex flex-col justify-between h-36 hover:bg-neutral-50 border-dashed border-2 border-neutral-200 shadow-none">
+                <Card onClick={navigateToRequest} className="p-4 flex flex-col justify-between h-36 hover:bg-neutral-50 border-dashed border-2 border-neutral-200 shadow-none cursor-pointer">
                     <div className="flex justify-end">
                         <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center">
                             <Plus size={20} className="text-neutral-600" />
@@ -232,7 +208,7 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
                                 </div>
                                 <span className="font-bold text-neutral-900">{t(`scheduleTypes.${item.type}`)}</span>
                             </div>
-                            {item.status && <Badge color="emerald">{item.status}</Badge>}
+                            {item.status && <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">{item.status}</Badge>}
                         </div>
                     ))}
                 </div>

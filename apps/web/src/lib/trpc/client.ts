@@ -10,10 +10,10 @@ const getBaseUrl = () =>
 /**
  * Fetch wrapper with retry logic for server-side calls.
  *
- * When running `pnpm dev`, Turborepo starts Next.js and NestJS simultaneously.
- * Next.js boots faster and may attempt SSR tRPC calls before the API is ready,
- * causing ECONNREFUSED errors. This wrapper retries with exponential backoff
- * to handle the startup race condition gracefully.
+ * Retries on:
+ * 1. Connection errors (ECONNREFUSED, ECONNRESET) — API not yet started
+ * 2. Server errors (5xx) — API overloaded or restarting
+ * 3. Non-JSON responses — API returning error page during hot-reload
  */
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
@@ -26,12 +26,34 @@ async function fetchWithRetry(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await fetch(input, init);
+      const response = await fetch(input, init);
+
+      // Retry on server errors (502, 503, etc. — API restarting or not ready)
+      if (response.status >= 500 && attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[tRPC] Server error ${response.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // Retry on non-JSON responses (API returning HTML error page during hot-reload)
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json') && attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[tRPC] Non-JSON response (content-type: ${contentType || 'none'}) (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      return response;
     } catch (error) {
       lastError = error;
 
-      // Only retry on connection errors (ECONNREFUSED, ECONNRESET, etc.)
-      // Don't retry if the server responded (even with an error status)
+      // Retry on connection errors (ECONNREFUSED, ECONNRESET, etc.)
       const isConnectionError =
         error instanceof TypeError &&
         error.message === 'fetch failed' &&
@@ -47,7 +69,7 @@ async function fetchWithRetry(
         throw error;
       }
 
-      const delay = BASE_DELAY_MS * Math.pow(2, attempt); // 500ms, 1000ms, 2000ms
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt);
       console.warn(
         `[tRPC] API connection failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`,
       );

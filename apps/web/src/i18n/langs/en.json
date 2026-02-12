@@ -90,6 +90,7 @@
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
       "planning": "Planning",
+      "settings": "Settings",
       "requests": "Requests",
       "employees": "Employees",
       "absences": "Absences",
@@ -109,6 +110,30 @@
       "week": "Week {number}",
       "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
       "apprenticesSchoolDays": "Apprentices have entered their school days."
+    },
+    "settings": {
+      "badge": "Clinic settings",
+      "title": "Operational Parameters",
+      "subtitle": "Manage clinic availability rules used by planning: weekly defaults, closure days, and special-day schedule overrides.",
+      "surfaceLabel": "Design language",
+      "surfaceValue": "Clinique Zen",
+      "cards": {
+        "rules": {
+          "title": "Validation",
+          "value": "Strict",
+          "helper": "HH:MM format, coherent ranges, duplicate detection."
+        },
+        "closedDays": {
+          "title": "Closure Policy",
+          "value": "Centralized",
+          "helper": "Single clinic-scoped source of truth."
+        },
+        "health": {
+          "title": "Planning Input",
+          "value": "Ready",
+          "helper": "Normalized data for downstream hard rules."
+        }
+      }
     }
   },
   "brand": {
@@ -437,7 +462,8 @@
     "errors": {
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",
-      "noSubscription": "No subscription found for your clinic"
+      "noSubscription": "No subscription found for your clinic",
+      "retry": "Retry"
     },
     "guard": {
       "inactive": {
@@ -519,6 +545,11 @@
       "contractHoursPerWeek": "{hours}h/week"
     },
     "loading": "Loading employees...",
+    "errors": {
+      "loadFailed": "Unable to load employees",
+      "loadFailedDescription": "An error occurred while loading the employee list. Please try refreshing the page.",
+      "retry": "Retry"
+    },
     "empty": {
       "title": "No employees yet",
       "description": "Add your first team member to start scheduling",
@@ -582,7 +613,10 @@
         "description": "Add constraints so planning blocks unavailable days."
       },
       "confirm": {
-        "deleteMessage": "Delete this constraint?"
+        "deleteTitle": "Delete Constraint",
+        "deleteMessage": "This constraint will be permanently deleted. This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
       },
       "toast": {
         "created": "Constraint created",
@@ -605,6 +639,68 @@
         "endDateRequired": "End date is required",
         "endDateAfterStart": "End date must be after or equal to start date",
         "weekdayRequired": "Select at least one weekday for recurring constraints"
+      }
+    }
+  },
+  "settings": {
+    "operationalConfig": {
+      "title": "Clinic Operational Configuration",
+      "subtitle": "Define weekly defaults, closure dates, and special-day schedule overrides used by planning.",
+      "loading": "Loading clinic operational configuration...",
+      "sections": {
+        "weekly": "Weekly defaults",
+        "closedDays": "Closed days",
+        "specialDays": "Special days"
+      },
+      "fields": {
+        "workDays": "Work days",
+        "defaultStartTime": "Default start time",
+        "defaultEndTime": "Default end time",
+        "date": "Date",
+        "reason": "Reason",
+        "reasonPlaceholder": "e.g. public holiday, annual closure",
+        "label": "Label",
+        "labelPlaceholder": "e.g. reduced opening hours",
+        "startTime": "Start time",
+        "endTime": "End time"
+      },
+      "actions": {
+        "save": "Save operational settings",
+        "saving": "Saving...",
+        "addClosedDay": "Add closed day",
+        "addSpecialDay": "Add special day",
+        "remove": "Remove"
+      },
+      "empty": {
+        "closedDays": "No closed days configured.",
+        "specialDays": "No special days configured."
+      },
+      "errors": {
+        "loadFailed": "Unable to load clinic operational configuration.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "updated": "Operational configuration updated",
+        "updateFailed": "Unable to update configuration"
+      },
+      "validation": {
+        "workDaysRequired": "Select at least one work day.",
+        "invalidTimeFormat": "Use HH:MM time format.",
+        "endTimeAfterStartTime": "End time must be after start time.",
+        "invalidDateFormat": "Use YYYY-MM-DD date format.",
+        "invalidDateValue": "Invalid date value.",
+        "duplicateClosedDay": "This closed day date is duplicated.",
+        "duplicateSpecialDay": "This special day date is duplicated.",
+        "closedAndSpecialConflict": "A date cannot be both closed and special."
+      },
+      "days": {
+        "MONDAY": "Monday",
+        "TUESDAY": "Tuesday",
+        "WEDNESDAY": "Wednesday",
+        "THURSDAY": "Thursday",
+        "FRIDAY": "Friday",
+        "SATURDAY": "Saturday",
+        "SUNDAY": "Sunday"
       }
     }
   },

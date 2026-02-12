@@ -101,16 +101,17 @@ describe("EmployeeList", () => {
     expect(screen.getByText("empty.description")).toBeDefined();
   });
 
-  it("shows loading state when pending", () => {
+  it("shows loading skeleton when pending", () => {
     mockUseEmployees.mockReturnValue({
       employees: [],
       isPending: true,
       error: null,
     });
 
-    renderWithNuqs(<EmployeeList />);
+    const { container } = renderWithNuqs(<EmployeeList />);
 
-    expect(screen.getByText("loading")).toBeDefined();
+    const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it("renders employee cards when employees exist", () => {

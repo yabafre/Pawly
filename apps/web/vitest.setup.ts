@@ -5,6 +5,21 @@ import { vi } from 'vitest';
 // Mock scrollIntoView for Radix UI components (not available in jsdom)
 Element.prototype.scrollIntoView = vi.fn();
 
+// Mock ResizeObserver for Radix UI primitives in jsdom
+class ResizeObserverMock {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+
+if (typeof window !== "undefined" && !window.ResizeObserver) {
+  (window as any).ResizeObserver = ResizeObserverMock;
+}
+
+if (typeof globalThis !== "undefined" && !("ResizeObserver" in globalThis)) {
+  (globalThis as any).ResizeObserver = ResizeObserverMock;
+}
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({

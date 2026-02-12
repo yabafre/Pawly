@@ -26,6 +26,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useBilling } from "../_hooks/useBilling";
+import { BillingOverviewSkeleton } from "./BillingOverviewSkeleton";
 
 type StatusVariant = "active" | "trialing" | "past_due" | "canceled" | "unpaid";
 type InvoiceStatusVariant = "paid" | "open" | "void" | "uncollectible";
@@ -91,11 +92,7 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
-      </div>
-    );
+    return <BillingOverviewSkeleton />;
   }
 
   if (errorMessage || !subscription) {
@@ -231,7 +228,7 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
 
           {/* Promotion Applied */}
           {subscription.promotionCodeId && (
-            <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-xl p-4 mt-2">
+            <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 mt-2">
               <div className="flex items-center gap-3">
                 {subscription.discountType === "percent" && subscription.discountValue === 100 ? (
                   <div className="w-9 h-9 rounded-lg bg-[#009588]/20 flex items-center justify-center">
