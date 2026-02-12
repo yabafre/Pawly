@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EmployeeService } from './employee.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { MailService } from '@/modules/mail/mail.service';
+import { AuthService } from '@/modules/auth/auth.service';
 
 describe('EmployeeService', () => {
   let service: EmployeeService;
@@ -39,9 +41,27 @@ describe('EmployeeService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
+      createMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
+    user: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+
+  const mockMailService = {
+    sendSchoolDaysNotification: jest.fn().mockResolvedValue(undefined),
+    sendSchoolDaysReminder: jest.fn().mockResolvedValue(undefined),
+    sendEmployeeInvitationEmail: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockAuthService = {
+    createWelcomeMagicLink: jest.fn().mockResolvedValue('http://localhost:3000/auth/callback?token=abc123'),
   };
 
   beforeEach(async () => {
@@ -49,6 +69,8 @@ describe('EmployeeService', () => {
       providers: [
         EmployeeService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: MailService, useValue: mockMailService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 
@@ -156,7 +178,7 @@ describe('EmployeeService', () => {
   });
 
   describe('create', () => {
-    it('creates employee with correct clinicId', async () => {
+    it('creates employee with User account when email is provided', async () => {
       const input = {
         firstName: 'Marie',
         lastName: 'Martin',
@@ -170,28 +192,92 @@ describe('EmployeeService', () => {
         endDate: '2024-12-31T00:00:00.000Z',
       };
 
-      mockPrismaService.employee.create.mockResolvedValue({
-        ...input,
-        id: 'new-emp',
-        clinicId,
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const createdEmployee = { ...input, id: 'new-emp', clinicId, userId: 'user-1' };
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          user: {
+            create: jest.fn().mockResolvedValue({ id: 'user-1', email: 'marie@clinic.fr' }),
+          },
+          employee: {
+            create: jest.fn().mockResolvedValue(createdEmployee),
+          },
+        };
+        return fn(tx);
       });
 
       const result = await service.create(clinicId, input);
 
-      expect(mockPrismaService.employee.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          firstName: 'Marie',
-          lastName: 'Martin',
-          clinicId,
-          contractType: 'CDD',
-          email: 'marie@clinic.fr',
-          phone: null,
-        }),
+      expect(result).toEqual(createdEmployee);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'marie@clinic.fr' },
       });
-      expect(result.clinicId).toBe(clinicId);
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
     });
 
-    it('sets null for empty optional fields', async () => {
+    it('sends welcome magic link (not activation token) after creating employee with email', async () => {
+      const input = {
+        firstName: 'Marie',
+        lastName: 'Martin',
+        email: 'marie@clinic.fr',
+        phone: '',
+        jobType: 'ASV' as const,
+        contractType: 'CDD' as const,
+        contractHours: 20,
+        color: '#FF5733',
+        hireDate: '',
+        endDate: '',
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          user: { create: jest.fn().mockResolvedValue({ id: 'user-1' }) },
+          employee: { create: jest.fn().mockResolvedValue({ ...input, id: 'new-emp', clinicId }) },
+        };
+        return fn(tx);
+      });
+
+      await service.create(clinicId, input);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockAuthService.createWelcomeMagicLink).toHaveBeenCalledWith('marie@clinic.fr');
+      expect(mockMailService.sendEmployeeInvitationEmail).toHaveBeenCalledWith(
+        'marie@clinic.fr',
+        'http://localhost:3000/auth/callback?token=abc123',
+        'Marie',
+      );
+    });
+
+    it('throws BadRequestException when email already exists in User table', async () => {
+      const input = {
+        firstName: 'Marie',
+        lastName: 'Martin',
+        email: 'existing@clinic.fr',
+        phone: '',
+        jobType: 'ASV' as const,
+        contractType: 'CDD' as const,
+        contractHours: 20,
+        color: '#FF5733',
+        hireDate: '',
+        endDate: '',
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'existing-user',
+        email: 'existing@clinic.fr',
+      });
+
+      await expect(service.create(clinicId, input)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('creates employee without User account when email is empty', async () => {
       const input = {
         firstName: 'Test',
         lastName: 'User',
@@ -221,6 +307,9 @@ describe('EmployeeService', () => {
           endDate: null,
         }),
       });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(mockAuthService.createWelcomeMagicLink).not.toHaveBeenCalled();
+      expect(mockMailService.sendEmployeeInvitationEmail).not.toHaveBeenCalled();
     });
 
     it('forces endDate to null for CDI even when payload includes one', async () => {
@@ -252,6 +341,179 @@ describe('EmployeeService', () => {
           endDate: null,
         }),
       });
+    });
+
+    it('creates User with EMPLOYEE role and correct name in transaction', async () => {
+      const input = {
+        firstName: 'Léa',
+        lastName: 'Bernard',
+        email: 'lea@clinic.fr',
+        phone: '',
+        jobType: 'APPRENTICE' as const,
+        contractType: 'APPRENTICESHIP' as const,
+        contractHours: 35,
+        color: '#3b82f6',
+        hireDate: '',
+        endDate: '',
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      let userCreateCalledWith: any = null;
+      let employeeCreateCalledWith: any = null;
+
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          user: {
+            create: jest.fn().mockImplementation((args: any) => {
+              userCreateCalledWith = args;
+              return { id: 'user-lea' };
+            }),
+          },
+          employee: {
+            create: jest.fn().mockImplementation((args: any) => {
+              employeeCreateCalledWith = args;
+              return { ...input, id: 'emp-lea', clinicId, userId: 'user-lea' };
+            }),
+          },
+        };
+        return fn(tx);
+      });
+
+      await service.create(clinicId, input);
+
+      expect(userCreateCalledWith.data).toEqual({
+        email: 'lea@clinic.fr',
+        name: 'Léa Bernard',
+        role: 'EMPLOYEE',
+        clinicId,
+      });
+      expect(employeeCreateCalledWith.data.userId).toBe('user-lea');
+    });
+  });
+
+  describe('resendInvitation', () => {
+    it('sends welcome magic link email for employee with linked user', async () => {
+      const employee = {
+        ...mockEmployee,
+        email: 'jean@clinic.fr',
+        userId: 'user-1',
+        firstName: 'Jean',
+      };
+      mockPrismaService.employee.findFirst.mockResolvedValue(employee);
+
+      const result = await service.resendInvitation(clinicId, 'emp-1');
+
+      expect(result).toEqual({ message: 'Invitation resent' });
+      expect(mockAuthService.createWelcomeMagicLink).toHaveBeenCalledWith('jean@clinic.fr');
+      expect(mockMailService.sendEmployeeInvitationEmail).toHaveBeenCalledWith(
+        'jean@clinic.fr',
+        'http://localhost:3000/auth/callback?token=abc123',
+        'Jean',
+      );
+    });
+
+    it('throws BadRequestException when employee has no email', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        email: null,
+        userId: null,
+      });
+
+      await expect(service.resendInvitation(clinicId, 'emp-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockAuthService.createWelcomeMagicLink).not.toHaveBeenCalled();
+    });
+
+    it('creates User account and sends invitation when employee has no userId (legacy)', async () => {
+      const legacyEmployee = {
+        ...mockEmployee,
+        id: 'legacy-emp',
+        email: 'legacy@clinic.fr',
+        firstName: 'Legacy',
+        lastName: 'Worker',
+        userId: null,
+      };
+      mockPrismaService.employee.findFirst.mockResolvedValue(legacyEmployee);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      let txUserCreateData: any = null;
+      let txEmployeeUpdateData: any = null;
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          user: {
+            create: jest.fn().mockImplementation((args: any) => {
+              txUserCreateData = args.data;
+              return { id: 'new-user-id', email: 'legacy@clinic.fr' };
+            }),
+          },
+          employee: {
+            update: jest.fn().mockImplementation((args: any) => {
+              txEmployeeUpdateData = args;
+              return { ...legacyEmployee, userId: 'new-user-id' };
+            }),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.resendInvitation(clinicId, 'legacy-emp');
+
+      expect(result).toEqual({ message: 'Invitation resent' });
+      expect(txUserCreateData).toEqual({
+        email: 'legacy@clinic.fr',
+        name: 'Legacy Worker',
+        role: 'EMPLOYEE',
+        clinicId,
+      });
+      expect(txEmployeeUpdateData).toEqual({
+        where: { id: 'legacy-emp' },
+        data: { userId: 'new-user-id' },
+      });
+      expect(mockAuthService.createWelcomeMagicLink).toHaveBeenCalledWith('legacy@clinic.fr');
+      expect(mockMailService.sendEmployeeInvitationEmail).toHaveBeenCalledWith(
+        'legacy@clinic.fr',
+        'http://localhost:3000/auth/callback?token=abc123',
+        'Legacy',
+      );
+    });
+
+    it('links existing User when employee has no userId but User with email exists', async () => {
+      const legacyEmployee = {
+        ...mockEmployee,
+        id: 'legacy-emp-2',
+        email: 'existing@clinic.fr',
+        firstName: 'Existing',
+        userId: null,
+      };
+      mockPrismaService.employee.findFirst.mockResolvedValue(legacyEmployee);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'existing-user-id',
+        email: 'existing@clinic.fr',
+      });
+      mockPrismaService.employee.update.mockResolvedValue({
+        ...legacyEmployee,
+        userId: 'existing-user-id',
+      });
+
+      const result = await service.resendInvitation(clinicId, 'legacy-emp-2');
+
+      expect(result).toEqual({ message: 'Invitation resent' });
+      expect(mockPrismaService.employee.update).toHaveBeenCalledWith({
+        where: { id: 'legacy-emp-2' },
+        data: { userId: 'existing-user-id' },
+      });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(mockAuthService.createWelcomeMagicLink).toHaveBeenCalledWith('existing@clinic.fr');
+    });
+
+    it('throws NotFoundException when employee not found', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resendInvitation(clinicId, 'nonexistent'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -497,6 +759,312 @@ describe('EmployeeService', () => {
       expect(result.some((rule) => rule.source === 'ONE_TIME')).toBe(true);
       expect(result.some((rule) => rule.source === 'RECURRING')).toBe(true);
       expect(result.every((rule) => rule.employeeId === employeeId)).toBe(true);
+    });
+  });
+
+  describe('declareSchoolDays', () => {
+    const apprentice = {
+      ...mockEmployee,
+      id: 'apprentice-1',
+      jobType: 'APPRENTICE',
+      firstName: 'Léa',
+      lastName: 'Bernard',
+    };
+
+    const input = {
+      month: '2026-04',
+      dates: ['2026-04-07', '2026-04-14', '2026-04-21'],
+      employeeId: 'apprentice-1',
+    };
+
+    const createdRecords = input.dates.map((d, i) => ({
+      id: `unavail-${i}`,
+      clinicId,
+      employeeId: 'apprentice-1',
+      type: 'SCHOOL',
+      startDate: new Date(`${d}T00:00:00.000Z`),
+      endDate: new Date(`${d}T00:00:00.000Z`),
+      daysOfWeek: [],
+    }));
+
+    it('creates SCHOOL unavailabilities via transaction', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(apprentice);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          unavailability: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: jest.fn().mockResolvedValue({ count: 3 }),
+            findMany: jest.fn().mockResolvedValue(createdRecords),
+          },
+        };
+        return fn(tx);
+      });
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+
+      const result = await service.declareSchoolDays(clinicId, 'apprentice-1', input);
+
+      expect(result).toEqual(createdRecords);
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('deletes existing SCHOOL records before creating new ones (replace semantics)', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(apprentice);
+
+      let deleteManyCalledWith: any = null;
+      let createManyCalledWith: any = null;
+
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          unavailability: {
+            deleteMany: jest.fn().mockImplementation((args: any) => {
+              deleteManyCalledWith = args;
+              return { count: 2 };
+            }),
+            createMany: jest.fn().mockImplementation((args: any) => {
+              createManyCalledWith = args;
+              return { count: 3 };
+            }),
+            findMany: jest.fn().mockResolvedValue(createdRecords),
+          },
+        };
+        return fn(tx);
+      });
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+
+      await service.declareSchoolDays(clinicId, 'apprentice-1', input);
+
+      expect(deleteManyCalledWith).toBeDefined();
+      expect(deleteManyCalledWith.where.type).toBe('SCHOOL');
+      expect(deleteManyCalledWith.where.employeeId).toBe('apprentice-1');
+      expect(deleteManyCalledWith.where.clinicId).toBe(clinicId);
+      expect(createManyCalledWith).toBeDefined();
+      expect(createManyCalledWith.data).toHaveLength(3);
+    });
+
+    it('rejects non-APPRENTICE employees with BadRequestException', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee); // VET jobType
+
+      await expect(
+        service.declareSchoolDays(clinicId, 'emp-1', {
+          ...input,
+          employeeId: 'emp-1',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for employee from another clinic', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.declareSchoolDays(otherClinicId, 'apprentice-1', input),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns empty array when dates list is empty', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(apprentice);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          unavailability: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: jest.fn(),
+            findMany: jest.fn(),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.declareSchoolDays(clinicId, 'apprentice-1', {
+        ...input,
+        dates: [],
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it('sends admin notification after successful declaration', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(apprentice);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          unavailability: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: jest.fn().mockResolvedValue({ count: 3 }),
+            findMany: jest.fn().mockResolvedValue(createdRecords),
+          },
+        };
+        return fn(tx);
+      });
+      mockPrismaService.user.findMany.mockResolvedValue([
+        { email: 'admin@clinic.fr', name: 'Admin' },
+      ]);
+
+      await service.declareSchoolDays(clinicId, 'apprentice-1', input);
+
+      // Wait for fire-and-forget promise
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { clinicId, role: 'ADMIN' },
+        select: { email: true, name: true },
+      });
+      expect(mockMailService.sendSchoolDaysNotification).toHaveBeenCalledWith(
+        'admin@clinic.fr',
+        'Admin',
+        'Léa Bernard',
+        '2026-04',
+        3,
+      );
+    });
+
+    it('does not send notification when declaration is empty', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(apprentice);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          unavailability: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createMany: jest.fn(),
+            findMany: jest.fn(),
+          },
+        };
+        return fn(tx);
+      });
+
+      await service.declareSchoolDays(clinicId, 'apprentice-1', {
+        ...input,
+        dates: [],
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendSchoolDaysNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listSchoolDays', () => {
+    it('returns SCHOOL unavailabilities for the specified month', async () => {
+      const schoolRecords = [
+        {
+          id: 'u-1',
+          clinicId,
+          employeeId: 'emp-1',
+          type: 'SCHOOL',
+          startDate: new Date('2026-04-07T00:00:00.000Z'),
+          endDate: new Date('2026-04-07T00:00:00.000Z'),
+        },
+      ];
+
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.unavailability.findMany.mockResolvedValue(schoolRecords);
+
+      const result = await service.listSchoolDays(clinicId, {
+        employeeId: 'emp-1',
+        month: '2026-04',
+      });
+
+      expect(result).toEqual(schoolRecords);
+      expect(mockPrismaService.unavailability.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId,
+            employeeId: 'emp-1',
+            type: 'SCHOOL',
+          }),
+        }),
+      );
+    });
+
+    it('scopes query to month boundaries', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+
+      await service.listSchoolDays(clinicId, {
+        employeeId: 'emp-1',
+        month: '2026-02',
+      });
+
+      const call = mockPrismaService.unavailability.findMany.mock.calls[0][0];
+      const startGte = call.where.startDate.gte;
+      const endLte = call.where.endDate.lte;
+
+      expect(startGte.toISOString()).toBe('2026-02-01T00:00:00.000Z');
+      expect(endLte.getUTCMonth()).toBe(1); // February
+      expect(endLte.getUTCDate()).toBe(28);
+    });
+
+    it('throws NotFoundException for employee from another clinic', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.listSchoolDays(otherClinicId, {
+          employeeId: 'emp-1',
+          month: '2026-04',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listUndeclaredApprentices', () => {
+    it('returns apprentices without SCHOOL declarations for the month', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'a-1',
+          firstName: 'Léa',
+          lastName: 'Bernard',
+          email: 'lea@clinic.fr',
+          unavailabilities: [],
+        },
+        {
+          id: 'a-2',
+          firstName: 'Tom',
+          lastName: 'Martin',
+          email: 'tom@clinic.fr',
+          unavailabilities: [{ id: 'u-1' }],
+        },
+      ]);
+
+      const result = await service.listUndeclaredApprentices(clinicId, '2026-04');
+
+      expect(result).toEqual([
+        {
+          id: 'a-1',
+          firstName: 'Léa',
+          lastName: 'Bernard',
+          email: 'lea@clinic.fr',
+        },
+      ]);
+    });
+
+    it('only queries active APPRENTICE employees', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+
+      await service.listUndeclaredApprentices(clinicId, '2026-04');
+
+      expect(mockPrismaService.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId,
+            jobType: 'APPRENTICE',
+            isActive: true,
+          }),
+        }),
+      );
+    });
+
+    it('returns empty when all apprentices have declared', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'a-1',
+          firstName: 'Léa',
+          lastName: 'Bernard',
+          email: 'lea@clinic.fr',
+          unavailabilities: [{ id: 'u-1' }],
+        },
+      ]);
+
+      const result = await service.listUndeclaredApprentices(clinicId, '2026-04');
+
+      expect(result).toEqual([]);
     });
   });
 });

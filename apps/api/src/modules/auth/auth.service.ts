@@ -15,6 +15,7 @@ const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
 const MAGIC_LINK_MIN_RESPONSE_MS = 300;
 const ACTIVATION_TOKEN_TTL_HOURS = 24;
+const WELCOME_MAGIC_LINK_TTL_HOURS = 24;
 
 @Injectable()
 export class AuthService {
@@ -162,13 +163,36 @@ export class AuthService {
         });
     }
 
-    async createActivationToken(email: string, adminName?: string) {
-        const startTime = Date.now();
+    async createWelcomeMagicLink(email: string): Promise<string | null> {
         const user = await this.prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-            await this.delayToMinimumResponse(startTime);
-            return { message: 'If an account exists, an activation email has been sent' };
+            return null;
+        }
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = this.hashToken(rawToken);
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + WELCOME_MAGIC_LINK_TTL_HOURS);
+
+        await this.prisma.magicLink.create({
+            data: {
+                token: hashedToken,
+                expiresAt,
+                userId: user.id,
+                clinicId: user.clinicId,
+            },
+        });
+
+        const baseUrl = this.configService.get('WEB_APP_URL', { infer: true });
+        return `${baseUrl}/auth/callback?token=${rawToken}`;
+    }
+
+    async createActivationTokenAndGetUrl(email: string): Promise<string | null> {
+        const user = await this.prisma.user.findUnique({ where: { email } });
+
+        if (!user) {
+            return null;
         }
 
         const rawToken = crypto.randomBytes(32).toString('hex');
@@ -186,8 +210,19 @@ export class AuthService {
         });
 
         const baseUrl = this.configService.get('WEB_APP_URL', { infer: true });
-        const activateUrl = `${baseUrl}/auth/activate?token=${rawToken}`;
-        await this.mailService.sendActivationEmail(user.email, activateUrl, adminName);
+        return `${baseUrl}/auth/activate?token=${rawToken}`;
+    }
+
+    async createActivationToken(email: string, adminName?: string) {
+        const startTime = Date.now();
+        const activateUrl = await this.createActivationTokenAndGetUrl(email);
+
+        if (!activateUrl) {
+            await this.delayToMinimumResponse(startTime);
+            return { message: 'If an account exists, an activation email has been sent' };
+        }
+
+        await this.mailService.sendActivationEmail(email, activateUrl, adminName);
 
         return { message: 'If an account exists, an activation email has been sent' };
     }

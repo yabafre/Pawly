@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarClock, Pencil, UserCheck, UserX } from "lucide-react";
+import { CalendarClock, GraduationCap, Mail, Pencil, UserCheck, UserX } from "lucide-react";
 
 type Employee = {
   id: string;
@@ -25,6 +25,9 @@ type EmployeeCardProps = {
   onEdit: (employee: Employee) => void;
   onToggleActive: (employee: Employee) => void;
   onManageConstraints: (employee: Employee) => void;
+  onResendInvitation?: (employee: Employee) => void;
+  isResendingInvitation?: boolean;
+  schoolDaysDeclared?: boolean;
 };
 
 const JOB_TYPE_STYLES: Record<string, string> = {
@@ -38,6 +41,9 @@ export function EmployeeCard({
   onEdit,
   onToggleActive,
   onManageConstraints,
+  onResendInvitation,
+  isResendingInvitation,
+  schoolDaysDeclared,
 }: EmployeeCardProps) {
   const t = useTranslations("employees");
 
@@ -116,21 +122,51 @@ export function EmployeeCard({
             hours: employee.contractHours,
           })}
         </span>
+        {employee.jobType === "APPRENTICE" && schoolDaysDeclared !== undefined && (
+          <Badge
+            variant="outline"
+            className={
+              schoolDaysDeclared
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-amber-50 border-amber-200 text-amber-700"
+            }
+          >
+            <GraduationCap className="mr-1 h-3 w-3" />
+            {schoolDaysDeclared
+              ? t("schoolDays.declared")
+              : t("schoolDays.notDeclared")}
+          </Badge>
+        )}
       </div>
 
       {employee.email && (
         <p className="mt-2 text-xs text-neutral-500 truncate">{employee.email}</p>
       )}
 
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-3 w-full justify-start rounded-xl text-neutral-700"
-        onClick={() => onManageConstraints(employee)}
-      >
-        <CalendarClock className="mr-2 h-4 w-4" />
-        {t("constraints.actions.manage")}
-      </Button>
+      <div className="mt-3 flex flex-col gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start rounded-xl text-neutral-700"
+          onClick={() => onManageConstraints(employee)}
+        >
+          <CalendarClock className="mr-2 h-4 w-4" />
+          {t("constraints.actions.manage")}
+        </Button>
+
+        {employee.email && onResendInvitation && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start rounded-xl text-neutral-700"
+            onClick={() => onResendInvitation(employee)}
+            disabled={isResendingInvitation}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            {t("actions.resendInvitation")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

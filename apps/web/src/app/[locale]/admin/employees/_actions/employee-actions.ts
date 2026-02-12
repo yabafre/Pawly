@@ -38,3 +38,9 @@ export const toggleEmployeeActiveAction = createServerAction()
   .handler(async ({ input }) => {
     return trpc.employee.toggleActive.mutate(input);
   });
+
+export const resendInvitationAction = createServerAction()
+  .input(employeeIdSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.resendInvitation.mutate(input);
+  });

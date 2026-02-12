@@ -203,6 +203,47 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "nav": {
+      "title": "Pawly Employé",
+      "home": "Accueil",
+      "schoolDays": "Jours d'école"
+    },
+    "schoolDays": {
+      "title": "Déclaration des jours d'école",
+      "subtitle": "Déclarez vos jours d'école pour le mois à venir afin que le planning puisse tenir compte de vos disponibilités.",
+      "calendar": {
+        "instructions": "Sélectionnez vos jours d'école pour {month}",
+        "selectedCount": "{count, plural, =0 {Aucun jour sélectionné} one {# jour sélectionné} other {# jours sélectionnés}}"
+      },
+      "reminder": {
+        "title": "Rappel",
+        "message": "Vous n'avez pas encore déclaré vos jours d'école pour {month}. Veuillez soumettre avant la fin du mois."
+      },
+      "submit": "Soumettre mes jours d'école",
+      "submitting": "Envoi en cours...",
+      "success": {
+        "title": "Déclaration soumise",
+        "message": "Vos jours d'école pour {month} ont été enregistrés. Vous pouvez les modifier à tout moment.",
+        "modify": "Modifier la déclaration"
+      },
+      "empty": {
+        "title": "Aucun jour d'école déclaré",
+        "description": "Sélectionnez des dates sur le calendrier pour déclarer vos jours d'école."
+      },
+      "toast": {
+        "declared": "Jours d'école déclarés avec succès",
+        "error": "Impossible de soumettre la déclaration"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les données",
+        "notApprentice": "Seuls les apprentis peuvent déclarer des jours d'école"
+      },
+      "admin": {
+        "declared": "Déclaré",
+        "notDeclared": "Non déclaré",
+        "schoolDaysFor": "Jours d'école pour {month}"
+      }
+    },
     "title": "Tableau de bord",
     "greeting": "Bonjour,",
     "thisWeek": "Cette semaine",
@@ -511,7 +552,8 @@
       "deactivate": "Désactiver",
       "activate": "Activer",
       "save": "Enregistrer",
-      "cancel": "Annuler"
+      "cancel": "Annuler",
+      "resendInvitation": "Renvoyer l'invitation"
     },
     "form": {
       "firstName": "Prénom",
@@ -565,7 +607,9 @@
       "created": "Employé créé avec succès",
       "updated": "Employé mis à jour avec succès",
       "deactivated": "Employé désactivé",
-      "activated": "Employé réactivé"
+      "activated": "Employé réactivé",
+      "invitationResent": "Invitation renvoyée avec succès",
+      "invitationFailed": "Échec du renvoi de l'invitation"
     },
     "validation": {
       "firstNameRequired": "Le prénom est requis",
@@ -578,6 +622,10 @@
       "searchPlaceholder": "Rechercher un employé...",
       "showInactive": "Afficher les inactifs",
       "allJobTypes": "Tous les postes"
+    },
+    "schoolDays": {
+      "declared": "Déclaré",
+      "notDeclared": "Non déclaré"
     },
     "constraints": {
       "title": "Contraintes de {name}",

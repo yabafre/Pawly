@@ -14,6 +14,7 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
     "constraints",
     employeeId ?? "all",
   ],
+  schoolDays: (month?: string) => ["employees", "school-days", month ?? "all"],
   clinicOperationalConfig: () => ["clinic", "operational-config"],
   clinic: () => ["clinic"],
   billing: () => ["billing"],

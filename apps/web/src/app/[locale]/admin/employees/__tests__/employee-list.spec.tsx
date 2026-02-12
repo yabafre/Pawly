@@ -40,6 +40,11 @@ vi.mock("../_hooks/useEmployees", () => ({
     isPending: false,
     error: null,
   }),
+  useResendInvitation: () => ({
+    resendInvitation: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
 }));
 
 // Mock @tanstack/react-query

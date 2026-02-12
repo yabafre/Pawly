@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import {
   createEmployeeSchema,
@@ -9,6 +10,8 @@ import {
   unavailabilityIdSchema,
   listUnavailabilitiesSchema,
   hardRuleRangeSchema,
+  declareSchoolDaysSchema,
+  listSchoolDaysSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -45,6 +48,12 @@ export const employeeRouter = router({
       return ctx.employeeService.toggleActive(ctx.user.clinicId, input.id);
     }),
 
+  resendInvitation: subscribedProcedure
+    .input(employeeIdSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.employeeService.resendInvitation(ctx.user.clinicId, input.id);
+    }),
+
   listConstraints: subscribedProcedure
     .input(listUnavailabilitiesSchema)
     .query(async ({ input, ctx }) => {
@@ -73,6 +82,48 @@ export const employeeRouter = router({
     .input(hardRuleRangeSchema)
     .query(async ({ input, ctx }) => {
       return ctx.employeeService.listHardRules(ctx.user.clinicId, input);
+    }),
+
+  declareSchoolDays: subscribedProcedure
+    .input(declareSchoolDaysSchema)
+    .mutation(async ({ input, ctx }) => {
+      // Self-service enforcement: EMPLOYEE can only declare for their own linked employee record
+      if (ctx.user.role === 'EMPLOYEE') {
+        const linkedEmployee = await ctx.prisma.user.findUnique({
+          where: { id: ctx.user.sub },
+          select: { employee: { select: { id: true } } },
+        });
+        if (!linkedEmployee?.employee || linkedEmployee.employee.id !== input.employeeId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You can only declare school days for your own record',
+          });
+        }
+      }
+      return ctx.employeeService.declareSchoolDays(
+        ctx.user.clinicId,
+        input.employeeId,
+        input,
+      );
+    }),
+
+  listSchoolDays: subscribedProcedure
+    .input(listSchoolDaysSchema)
+    .query(async ({ input, ctx }) => {
+      // Self-service enforcement: EMPLOYEE can only view their own school days
+      if (ctx.user.role === 'EMPLOYEE') {
+        const linkedEmployee = await ctx.prisma.user.findUnique({
+          where: { id: ctx.user.sub },
+          select: { employee: { select: { id: true } } },
+        });
+        if (!linkedEmployee?.employee || linkedEmployee.employee.id !== input.employeeId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You can only view your own school days',
+          });
+        }
+      }
+      return ctx.employeeService.listSchoolDays(ctx.user.clinicId, input);
     }),
 });
 

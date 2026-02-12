@@ -25,6 +25,7 @@ import {
   useCreateEmployee,
   useUpdateEmployee,
   useToggleEmployeeActive,
+  useResendInvitation,
 } from "../_hooks/useEmployees";
 import { EmployeeCard } from "./EmployeeCard";
 import { EmployeeDialog } from "./EmployeeDialog";
@@ -87,6 +88,7 @@ export function EmployeeList() {
   const { createEmployee, isPending: isCreating } = useCreateEmployee();
   const { updateEmployee, isPending: isUpdating } = useUpdateEmployee();
   const { toggleActive, isPending: isToggling } = useToggleEmployeeActive();
+  const { resendInvitation, isPending: isResending } = useResendInvitation();
 
   const handleCreate = useCallback(
     (data: Record<string, unknown>) => {
@@ -120,6 +122,13 @@ export function EmployeeList() {
   const handleManageConstraints = useCallback((employee: Employee) => {
     setConstraintsEmployee(employee);
   }, []);
+
+  const handleResendInvitation = useCallback(
+    (employee: Employee) => {
+      resendInvitation({ id: employee.id });
+    },
+    [resendInvitation],
+  );
 
   const confirmToggle = useCallback(() => {
     if (confirmDialog) {
@@ -211,6 +220,8 @@ export function EmployeeList() {
               onEdit={handleEdit}
               onToggleActive={handleToggleActive}
               onManageConstraints={handleManageConstraints}
+              onResendInvitation={handleResendInvitation}
+              isResendingInvitation={isResending}
             />
           ))}
         </div>
