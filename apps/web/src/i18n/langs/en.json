@@ -613,7 +613,10 @@
         "description": "Add constraints so planning blocks unavailable days."
       },
       "confirm": {
-        "deleteMessage": "Delete this constraint?"
+        "deleteTitle": "Delete Constraint",
+        "deleteMessage": "This constraint will be permanently deleted. This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
       },
       "toast": {
         "created": "Constraint created",
@@ -677,7 +680,8 @@
         "retry": "Retry"
       },
       "toast": {
-        "updated": "Operational configuration updated"
+        "updated": "Operational configuration updated",
+        "updateFailed": "Unable to update configuration"
       },
       "validation": {
         "workDaysRequired": "Select at least one work day.",

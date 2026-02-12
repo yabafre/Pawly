@@ -613,7 +613,10 @@
         "description": "Ajoutez des contraintes pour bloquer les jours indisponibles dans le planning."
       },
       "confirm": {
-        "deleteMessage": "Supprimer cette contrainte ?"
+        "deleteTitle": "Supprimer la contrainte",
+        "deleteMessage": "Cette contrainte sera définitivement supprimée. Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
       },
       "toast": {
         "created": "Contrainte créée",
@@ -677,7 +680,8 @@
         "retry": "Réessayer"
       },
       "toast": {
-        "updated": "Configuration opérationnelle mise à jour"
+        "updated": "Configuration opérationnelle mise à jour",
+        "updateFailed": "Impossible de mettre à jour la configuration"
       },
       "validation": {
         "workDaysRequired": "Sélectionnez au moins un jour de travail.",

@@ -76,6 +76,52 @@ describe('clinicRouter', () => {
     });
   });
 
+  it('should throw FORBIDDEN when getOperationalConfig is called without active subscription', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+    const caller = createCaller({
+      user: authenticatedUser,
+      prisma: mockPrisma as any,
+      clinicService: mockClinicService as any,
+    } as any);
+
+    await expect(caller.getOperationalConfig()).rejects.toThrow(TRPCError);
+    await expect(caller.getOperationalConfig()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('should throw FORBIDDEN when updateOperationalConfig is called without active subscription', async () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+
+    const caller = createCaller({
+      user: authenticatedUser,
+      prisma: mockPrisma as any,
+      clinicService: mockClinicService as any,
+    } as any);
+
+    await expect(
+      caller.updateOperationalConfig({
+        workDays: ['MONDAY'],
+        defaultStartTime: '08:00',
+        defaultEndTime: '18:00',
+        closedDays: [],
+        specialDays: [],
+      }),
+    ).rejects.toThrow(TRPCError);
+    await expect(
+      caller.updateOperationalConfig({
+        workDays: ['MONDAY'],
+        defaultStartTime: '08:00',
+        defaultEndTime: '18:00',
+        closedDays: [],
+        specialDays: [],
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
   it('calls clinicService.getOperationalConfig with clinicId from ctx.user', async () => {
     const expected = {
       workDays: ['MONDAY'],
@@ -132,5 +178,31 @@ describe('clinicRouter', () => {
         specialDays: [],
       }),
     ).rejects.toThrow();
+  });
+
+  // ─── clinicId isolation ─────────────────────────────────────────────
+
+  it('always uses clinicId from ctx.user, never from client input', async () => {
+    const expected = {
+      workDays: ['MONDAY'],
+      defaultStartTime: '08:00',
+      defaultEndTime: '18:00',
+      closedDays: [],
+      specialDays: [],
+    };
+    mockClinicService.getOperationalConfig.mockResolvedValue(expected);
+    mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+    const caller = createCaller({
+      user: { ...authenticatedUser, clinicId: 'clinic-secure' },
+      prisma: mockPrisma as any,
+      clinicService: mockClinicService as any,
+    } as any);
+
+    await caller.getOperationalConfig();
+
+    expect(mockClinicService.getOperationalConfig).toHaveBeenCalledWith(
+      'clinic-secure',
+    );
   });
 });

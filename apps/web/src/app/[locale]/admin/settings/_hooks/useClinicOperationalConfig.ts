@@ -26,6 +26,7 @@ export const useClinicOperationalConfig = () => {
       staleTime: 0,
       refetchOnMount: "always",
       refetchOnReconnect: true,
+      placeholderData: (prev: unknown) => prev,
     },
   );
 
@@ -36,6 +37,9 @@ export const useClinicOperationalConfig = () => {
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.clinic() });
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.planning() });
         toast.success(t("updated"));
+      },
+      onError: () => {
+        toast.error(t("updateFailed"));
       },
     });
 

@@ -23,7 +23,8 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
         queryClient.invalidateQueries({
             queryKey: QueryKeyFactory.clinicOperationalConfig(),
         });
-    }, [pathname, queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient is stable in RQ v5
+    }, [pathname]);
 
     const navItems = [
         { href: "/admin/dashboard", icon: FileText, labelKey: "dashboard" as const },
