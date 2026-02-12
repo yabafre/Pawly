@@ -462,7 +462,8 @@
     "errors": {
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",
-      "noSubscription": "No subscription found for your clinic"
+      "noSubscription": "No subscription found for your clinic",
+      "retry": "Retry"
     },
     "guard": {
       "inactive": {
@@ -544,6 +545,11 @@
       "contractHoursPerWeek": "{hours}h/week"
     },
     "loading": "Loading employees...",
+    "errors": {
+      "loadFailed": "Unable to load employees",
+      "loadFailedDescription": "An error occurred while loading the employee list. Please try refreshing the page.",
+      "retry": "Retry"
+    },
     "empty": {
       "title": "No employees yet",
       "description": "Add your first team member to start scheduling",
@@ -667,7 +673,8 @@
         "specialDays": "No special days configured."
       },
       "errors": {
-        "loadFailed": "Unable to load clinic operational configuration."
+        "loadFailed": "Unable to load clinic operational configuration.",
+        "retry": "Retry"
       },
       "toast": {
         "updated": "Operational configuration updated"

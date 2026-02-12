@@ -29,6 +29,7 @@ import {
 import { EmployeeCard } from "./EmployeeCard";
 import { EmployeeDialog } from "./EmployeeDialog";
 import { EmployeeConstraintsPanel } from "./EmployeeConstraintsPanel";
+import { EmployeeListSkeleton } from "./EmployeeListSkeleton";
 
 type Employee = {
   id: string;
@@ -133,11 +134,7 @@ export function EmployeeList() {
   }, []);
 
   if (isPending) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-pulse text-neutral-400">{t("loading")}</div>
-      </div>
-    );
+    return <EmployeeListSkeleton />;
   }
 
   return (

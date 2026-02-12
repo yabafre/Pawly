@@ -44,7 +44,7 @@ describe("ClinicOperationalConfigPanel", () => {
     });
   });
 
-  it("renders loading state when pending and no config", () => {
+  it("renders loading skeleton when pending and no config", () => {
     mockUseClinicOperationalConfig.mockReturnValue({
       config: null,
       isPending: true,
@@ -53,9 +53,10 @@ describe("ClinicOperationalConfigPanel", () => {
       isUpdating: false,
     });
 
-    render(<ClinicOperationalConfigPanel />);
+    const { container } = render(<ClinicOperationalConfigPanel />);
 
-    expect(screen.getByText("loading")).toBeDefined();
+    const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it("renders form values from operational config", async () => {

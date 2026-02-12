@@ -67,7 +67,14 @@ export default async function AdminLayout({ children, params }: Props) {
 
     // Subscription guard: server-side check (after auth + onboarding)
     const isBillingPage = pathname.includes("/admin/billing");
-    const subscriptionStatus = await trpc.stripe.getSubscriptionStatus.query();
+    let subscriptionStatus: { status: string; entitlementTier: string } | null = null;
+
+    try {
+        subscriptionStatus = await trpc.stripe.getSubscriptionStatus.query();
+    } catch {
+        // tRPC call failed (API not ready, transformation error, etc.)
+        // Fall through — treat as no active subscription
+    }
 
     const isSubscriptionActive = subscriptionStatus &&
         (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(subscriptionStatus.status);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import {
   updateClinicOperationalConfigSchema,
@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl";
 import { useClinicOperationalConfig } from "../_hooks/useClinicOperationalConfig";
 import { ClosedDaysFieldArray } from "./ClosedDaysFieldArray";
 import { SpecialDaysFieldArray } from "./SpecialDaysFieldArray";
+import { SettingsSkeleton } from "./SettingsSkeleton";
 
 type FormValues = {
   workDays: string[];
@@ -34,14 +35,6 @@ type FormValues = {
   }>;
 };
 
-const EMPTY_FORM: FormValues = {
-  workDays: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
-  defaultStartTime: "08:30",
-  defaultEndTime: "18:30",
-  closedDays: [],
-  specialDays: [],
-};
-
 const toErrorMap = (
   issues: Array<{ path: PropertyKey[]; message: string }>,
   mapMessage: (message: string) => string,
@@ -54,17 +47,80 @@ const toErrorMap = (
     return acc;
   }, {});
 
+function configToFormValues(config: {
+  workDays: string[];
+  defaultStartTime: string;
+  defaultEndTime: string;
+  closedDays: Array<{ date: string; reason?: string | null }>;
+  specialDays: Array<{
+    date: string;
+    startTime: string;
+    endTime: string;
+    label?: string | null;
+  }>;
+}): FormValues {
+  return {
+    workDays: config.workDays,
+    defaultStartTime: config.defaultStartTime,
+    defaultEndTime: config.defaultEndTime,
+    closedDays: config.closedDays.map((item) => ({
+      date: item.date,
+      reason: item.reason ?? "",
+    })),
+    specialDays: config.specialDays.map((item) => ({
+      date: item.date,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      label: item.label ?? "",
+    })),
+  };
+}
+
 export function ClinicOperationalConfigPanel() {
   const t = useTranslations("settings.operationalConfig");
   const {
     config,
     isPending,
-    error,
     updateOperationalConfig,
     isUpdating,
   } = useClinicOperationalConfig();
+
+  if (isPending || !config) {
+    return <SettingsSkeleton />;
+  }
+
+  return (
+    <ClinicOperationalConfigForm
+      key={JSON.stringify(config)}
+      config={config}
+      updateOperationalConfig={updateOperationalConfig}
+      isUpdating={isUpdating}
+    />
+  );
+}
+
+function ClinicOperationalConfigForm({
+  config,
+  updateOperationalConfig,
+  isUpdating,
+}: {
+  config: {
+    workDays: string[];
+    defaultStartTime: string;
+    defaultEndTime: string;
+    closedDays: Array<{ date: string; reason?: string | null }>;
+    specialDays: Array<{
+      date: string;
+      startTime: string;
+      endTime: string;
+      label?: string | null;
+    }>;
+  };
+  updateOperationalConfig: (data: unknown) => void;
+  isUpdating: boolean;
+}) {
+  const t = useTranslations("settings.operationalConfig");
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
-  const lastHydratedSignatureRef = useRef<string | null>(null);
 
   const mapErrorMessage = (message: string) => {
     const dictionary: Record<string, string> = {
@@ -84,7 +140,7 @@ export function ClinicOperationalConfigPanel() {
   };
 
   const form = useForm({
-    defaultValues: EMPTY_FORM,
+    defaultValues: configToFormValues(config),
     onSubmit: async ({ value }) => {
       const parsed = updateClinicOperationalConfigSchema.safeParse(value);
       if (!parsed.success) {
@@ -97,33 +153,6 @@ export function ClinicOperationalConfigPanel() {
     },
   });
 
-  useEffect(() => {
-    if (!config) return;
-
-    const nextValues: FormValues = {
-      workDays: config.workDays,
-      defaultStartTime: config.defaultStartTime,
-      defaultEndTime: config.defaultEndTime,
-      closedDays: config.closedDays.map((item) => ({
-        date: item.date,
-        reason: item.reason ?? "",
-      })),
-      specialDays: config.specialDays.map((item) => ({
-        date: item.date,
-        startTime: item.startTime,
-        endTime: item.endTime,
-        label: item.label ?? "",
-      })),
-    };
-
-    const nextSignature = JSON.stringify(nextValues);
-    if (lastHydratedSignatureRef.current === nextSignature) return;
-    lastHydratedSignatureRef.current = nextSignature;
-
-    form.reset(nextValues);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- form.reset is stable; depend only on config data
-  }, [config]);
-
   const dayOptions = useMemo(
     () =>
       WORK_DAYS.map((day) => ({
@@ -132,25 +161,6 @@ export function ClinicOperationalConfigPanel() {
       })),
     [t],
   );
-
-  if (error) {
-    return (
-      <div className="rounded-3xl border border-red-100 bg-red-50/60 p-8 text-center">
-        <p className="text-sm font-medium text-red-600">
-          {t("errors.loadFailed")}
-        </p>
-      </div>
-    );
-  }
-
-  if (isPending && !config) {
-    return (
-      <div className="flex items-center justify-center gap-3 rounded-3xl border border-neutral-100 bg-white p-12 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        <Loader2 className="h-5 w-5 animate-spin text-[#009588]" />
-        <p className="text-sm text-neutral-500">{t("loading")}</p>
-      </div>
-    );
-  }
 
   return (
     <form

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useBilling } from "../_hooks/useBilling";
+import { BillingOverviewSkeleton } from "./BillingOverviewSkeleton";
 
 type StatusVariant = "active" | "trialing" | "past_due" | "canceled" | "unpaid";
 type InvoiceStatusVariant = "paid" | "open" | "void" | "uncollectible";
@@ -91,11 +92,7 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
-      </div>
-    );
+    return <BillingOverviewSkeleton />;
   }
 
   if (errorMessage || !subscription) {

@@ -18,11 +18,14 @@ export const useClinicOperationalConfig = () => {
   const t = useTranslations("settings.operationalConfig.toast");
   const queryKey = QueryKeyFactory.clinicOperationalConfig();
 
-  const { data, isPending, error } = useServerActionQuery(
+  const { data, isPending, isLoading, isFetching, error } = useServerActionQuery(
     getClinicOperationalConfigAction,
     {
       input: undefined,
       queryKey,
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnReconnect: true,
     },
   );
 
@@ -38,7 +41,8 @@ export const useClinicOperationalConfig = () => {
 
   return {
     config: data,
-    isPending,
+    isPending: isPending || isLoading,
+    isFetching,
     error,
     updateOperationalConfig,
     isUpdating,

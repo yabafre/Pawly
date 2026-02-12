@@ -462,7 +462,8 @@
     "errors": {
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",
-      "noSubscription": "Aucun abonnement trouvé pour votre clinique"
+      "noSubscription": "Aucun abonnement trouvé pour votre clinique",
+      "retry": "Réessayer"
     },
     "guard": {
       "inactive": {
@@ -544,6 +545,11 @@
       "contractHoursPerWeek": "{hours}h/sem"
     },
     "loading": "Chargement des employés...",
+    "errors": {
+      "loadFailed": "Impossible de charger les employés",
+      "loadFailedDescription": "Une erreur est survenue lors du chargement de la liste des employés. Veuillez rafraîchir la page.",
+      "retry": "Réessayer"
+    },
     "empty": {
       "title": "Aucun employé",
       "description": "Ajoutez votre premier membre d'équipe pour commencer la planification",
@@ -667,7 +673,8 @@
         "specialDays": "Aucun jour spécial configuré."
       },
       "errors": {
-        "loadFailed": "Impossible de charger la configuration opérationnelle de la clinique."
+        "loadFailed": "Impossible de charger la configuration opérationnelle de la clinique.",
+        "retry": "Réessayer"
       },
       "toast": {
         "updated": "Configuration opérationnelle mise à jour"
