@@ -335,6 +335,9 @@ Codex GPT-5
 - Added normalized planning-facing contract output (weekly defaults + closed days + special days) fully scoped by authenticated `clinicId`.
 - Added/updated coverage for validators, clinic service, clinic router, and planning panel behavior; full regression/build/lint gates are green.
 - Story and sprint status are updated to `review`.
+- Refactored loading/error handling to follow Next.js App Router conventions (`loading.tsx`, `error.tsx`, dedicated skeleton components) across employees, billing, and settings routes.
+- Hardened tRPC client retry logic against 5xx and non-JSON responses to resolve intermittent `TRPCClientError: Unable to transform response from server` errors.
+- Fixed settings page data not loading on client-side navigation via query configuration and invalidation on route entry.
 
 ### File List
 
@@ -345,12 +348,28 @@ Codex GPT-5
 - `apps/api/src/trpc/routers/clinic.router.ts`
 - `apps/api/src/trpc/routers/clinic.router.spec.ts`
 - `apps/web/src/app/[locale]/admin/settings/page.tsx`
+- `apps/web/src/app/[locale]/admin/settings/loading.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/settings/error.tsx` *(new)*
 - `apps/web/src/app/[locale]/admin/settings/_actions/clinic-operational-config-actions.ts`
 - `apps/web/src/app/[locale]/admin/settings/_hooks/useClinicOperationalConfig.ts`
 - `apps/web/src/app/[locale]/admin/settings/_components/ClinicOperationalConfigPanel.tsx`
+- `apps/web/src/app/[locale]/admin/settings/_components/SettingsSkeleton.tsx` *(new)*
 - `apps/web/src/app/[locale]/admin/settings/_components/ClosedDaysFieldArray.tsx`
 - `apps/web/src/app/[locale]/admin/settings/_components/SpecialDaysFieldArray.tsx`
 - `apps/web/src/app/[locale]/admin/settings/__tests__/clinic-operational-config-panel.spec.tsx`
+- `apps/web/src/app/[locale]/admin/employees/_components/EmployeeList.tsx`
+- `apps/web/src/app/[locale]/admin/employees/_components/EmployeeListSkeleton.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/employees/loading.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/employees/error.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/employees/__tests__/employee-list.spec.tsx`
+- `apps/web/src/app/[locale]/admin/billing/_components/BillingOverview.tsx`
+- `apps/web/src/app/[locale]/admin/billing/_components/BillingOverviewSkeleton.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/billing/loading.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/billing/error.tsx` *(new)*
+- `apps/web/src/app/[locale]/admin/_components/AdminLayoutClient.tsx`
+- `apps/web/src/app/[locale]/admin/layout.tsx`
+- `apps/web/src/components/ui/skeleton.tsx` *(new)*
+- `apps/web/src/lib/trpc/client.ts`
 - `apps/web/src/i18n/langs/en.json`
 - `apps/web/src/i18n/langs/fr.json`
 - `apps/web/src/lib/hooks/server-action-hooks.ts`
@@ -365,3 +384,4 @@ Codex GPT-5
 - 2026-02-10: Implemented Story 5.3 clinic operational configuration across API/web/validators with normalized planning contract and clinic-scoped transactional updates.
 - 2026-02-10: Added comprehensive validator/service/router/web tests and completed root quality gates (`pnpm test`, `pnpm build`, `pnpm lint`).
 - 2026-02-12: [Review] Moved web components from admin/planning/ to admin/settings/. Converted settings page to Server Component with setRequestLocale(). Fixed 25+ French diacritics. Added closed/special conflict test. Fixed useEffect dependency.
+- 2026-02-12: [UX/DX] Added Next.js App Router `loading.tsx` and `error.tsx` conventions for employees, billing, and settings routes. Extracted dedicated skeleton components (EmployeeListSkeleton, BillingOverviewSkeleton, SettingsSkeleton). Added shadcn Skeleton component. Extended tRPC `fetchWithRetry` to retry on 5xx and non-JSON responses. Added try/catch for subscription status in admin layout. Fixed settings data not loading on client-side navigation (staleTime: 0, refetchOnMount: "always", query invalidation on navigation). Added error/retry i18n keys (EN + FR).
