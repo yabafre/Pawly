@@ -1,6 +1,6 @@
 # Story 5.4: Monthly School Day Declaration (Apprentices)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -403,9 +403,11 @@ Actionable implications for Story 5.4:
 
 ### Story Completion Status
 
-- Story status: `review`.
+- Story status: `done`.
 - All 12 tasks completed with comprehensive test coverage (Task 12 added: employee invitation flow).
-- Quality gates passed: `pnpm test` (688 tests) and `pnpm build` (clean).
+- Quality gates passed: `pnpm test` (703 tests) and `pnpm build` (clean).
+- Adversarial code review completed: 22 issues found (3 CRITICAL, 6 HIGH, 5 MEDIUM, 8 TEST GAPS), all fixed.
+- Mobile-first responsive pass completed: dashboard layout, calendar, loading/error states.
 
 ## Dev Agent Record
 

@@ -29,6 +29,7 @@
 
 generated: '2026-02-02'
 updated: '2026-02-12'
+# 2026-02-12: Story 5-4 code review done → done. 22 issues found (3 CRITICAL, 6 HIGH, 5 MEDIUM, 8 TEST GAPS), all fixed. Mobile-first responsive pass. 703 total tests (268 API + 287 Web + 148 Validators). Build green.
 # 2026-02-12: Story 5-4 implemented → review. Monthly school day declaration + employee invitation flow. 12/12 tasks done. 688 total tests (253 API + 287 web + 148 validators). Build green. Employee dashboard, calendar multi-date, batch SCHOOL CRUD, @nestjs/schedule cron, Resend emails, self-service enforcement, auto User+Employee creation on invite, i18n FR/EN.
 # 2026-02-12: Story 5-4 created (ready-for-dev). Monthly school day declaration for apprentices. Employee dashboard route, calendar multi-date selection (react-day-picker), batch SCHOOL Unavailability CRUD, @nestjs/schedule cron reminder (25th), Resend email notifications, self-service enforcement, i18n FR/EN.
 # 2026-02-10: Story 5-2 created (ready-for-dev). Declarative constraints configuration for employee unavailabilities (one-time + recurring), hard-rule projection contract for planning, validators, service/router/UI/testing guardrails.
@@ -163,7 +164,7 @@ development_status:
   5-1-employee-contract-management-crud: done
   5-2-declarative-constraints-configuration: done
   5-3-clinic-configuration-hours-days: done
-  5-4-monthly-school-day-declaration-apprentices: review
+  5-4-monthly-school-day-declaration-apprentices: done
   5-5-planning-assistance-rules-configurable: backlog
   5-6-equity-counters-management: backlog
   epic-5-retrospective: optional
