@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { CalendarDays, Loader2, Plus, Sparkles } from "lucide-react";
+import { CalendarDays, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { TemplateSlotForm } from "./TemplateSlotForm";
 import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
@@ -163,14 +164,12 @@ export function TemplateEditor({
                 </SheetDescription>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-neutral-400 hover:text-neutral-600 text-xs"
-              onClick={() => onOpenChange(false)}
-            >
-              {t("form.cancel")}
-            </Button>
+            <SheetClose asChild>
+              <button className="rounded-full p-2 text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-900">
+                <X className="h-4 w-4" />
+                <span className="sr-only">{t("form.cancel")}</span>
+              </button>
+            </SheetClose>
           </div>
 
           {/* Name input in header */}
@@ -303,11 +302,10 @@ export function TemplateEditor({
           </div>
 
           {/* Actions */}
-          <div className="flex w-full items-center justify-end gap-2 pt-1">
+          <div className="flex w-full items-center justify-end gap-3 pt-1">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="rounded-xl px-4 text-xs text-neutral-500 hover:text-neutral-700"
               onClick={() => onOpenChange(false)}
             >
               {t("form.cancel")}
@@ -316,7 +314,7 @@ export function TemplateEditor({
               onClick={handleSubmit}
               disabled={!name.trim() || isSaving}
               size="sm"
-              className="rounded-xl bg-[#009588] px-6 text-xs font-semibold text-white shadow-[0_2px_8px_rgba(0,149,136,0.3)] transition-all hover:bg-[#00796B] hover:shadow-[0_4px_12px_rgba(0,149,136,0.4)] disabled:opacity-50 disabled:shadow-none"
+              className="px-6"
             >
               {isSaving && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
               {t("form.save")}

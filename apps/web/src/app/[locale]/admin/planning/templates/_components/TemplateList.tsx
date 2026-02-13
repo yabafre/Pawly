@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Copy, Edit2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, Edit2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
@@ -81,13 +81,13 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-neutral-50/50 py-16 px-8 shadow-none">
+      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-white py-16 px-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
         <div className="text-center space-y-3">
           <h3 className="text-lg font-bold text-neutral-600">{t("emptyState.title")}</h3>
           <p className="text-sm text-neutral-400 max-w-md">{t("emptyState.description")}</p>
           <Button
             onClick={onCreate}
-            className="mt-4 bg-[#009588] hover:bg-[#00796B] text-white rounded-full px-6"
+            className="mt-4 rounded-xl px-6"
           >
             <Plus className="h-4 w-4 mr-2" />
             {t("emptyState.cta")}
@@ -102,7 +102,7 @@ export function TemplateList({
       <div className="flex justify-end mb-4">
         <Button
           onClick={onCreate}
-          className="bg-[#009588] hover:bg-[#00796B] text-white rounded-full px-6 shadow-md shadow-[#009588]/20"
+          className="rounded-xl px-6"
         >
           <Plus className="h-4 w-4 mr-2" />
           {t("emptyState.cta")}
@@ -117,7 +117,7 @@ export function TemplateList({
           return (
             <Card
               key={tmpl.id}
-              className="group relative border-neutral-100 transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1"
+              className="group relative border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:scale-[1.02]"
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-4">
@@ -174,15 +174,22 @@ export function TemplateList({
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent className="rounded-3xl">
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-orange-50 rounded-full text-orange-500 shrink-0">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
+              </div>
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">{t("confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-lg">{t("confirm.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 rounded-xl"
+              className="bg-red-600 hover:bg-red-700 rounded-lg"
               onClick={() => {
                 if (deleteId) onDelete(deleteId);
                 setDeleteId(null);
