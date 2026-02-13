@@ -23,6 +23,12 @@ describe('planningRouter', () => {
     validateShiftsAgainstRules: jest.fn(),
   };
 
+  const mockEquityCounterService = {
+    getCountersForPeriod: jest.fn(),
+    getQuarterlySummary: jest.fn(),
+    recalculateForPeriod: jest.fn(),
+  };
+
   const mockPrisma = {
     subscription: {
       findUnique: jest.fn(),
@@ -56,6 +62,7 @@ describe('planningRouter', () => {
       user: authenticatedAdmin,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      equityCounterService: mockEquityCounterService as any,
     } as any);
   };
 
@@ -65,6 +72,7 @@ describe('planningRouter', () => {
       user: authenticatedEmployee,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      equityCounterService: mockEquityCounterService as any,
     } as any);
   };
 
@@ -74,9 +82,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 7 procedures', () => {
+  it('should export all 10 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(7);
+    expect(procedures).toHaveLength(10);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -86,6 +94,9 @@ describe('planningRouter', () => {
         'deleteRule',
         'toggleRule',
         'validateShifts',
+        'getEquityCounters',
+        'getQuarterlySummary',
+        'recalculateCounters',
       ]),
     );
   });
@@ -97,6 +108,7 @@ describe('planningRouter', () => {
       user: null,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      equityCounterService: mockEquityCounterService as any,
     } as any);
 
     await expect(caller.listRules({})).rejects.toThrow(TRPCError);
@@ -112,6 +124,7 @@ describe('planningRouter', () => {
       user: authenticatedAdmin,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      equityCounterService: mockEquityCounterService as any,
     } as any);
 
     await expect(caller.listRules({})).rejects.toThrow(TRPCError);
@@ -359,6 +372,256 @@ describe('planningRouter', () => {
       });
 
       expect(result.hardViolations).toHaveLength(0);
+    });
+  });
+
+  // ─── getEquityCounters ──────────────────────────────────────────
+
+  describe('getEquityCounters', () => {
+    const validInput = {
+      year: 2026,
+      months: [1, 2, 3],
+    };
+
+    it('returns counters for admin user', async () => {
+      const mockCounters = [
+        {
+          id: 'ec-1',
+          counterType: 'SATURDAY_WORKED',
+          count: 3,
+          year: 2026,
+          month: 1,
+          employeeId: 'emp-1',
+          employee: {
+            id: 'emp-1',
+            firstName: 'Marie',
+            lastName: 'Dupont',
+            color: '#ff0000',
+            jobType: 'VETERINARIAN',
+            contractHours: 35,
+          },
+        },
+      ];
+      mockEquityCounterService.getCountersForPeriod.mockResolvedValue(
+        mockCounters,
+      );
+
+      const caller = createAdminCaller();
+      const result = await caller.getEquityCounters(validInput);
+
+      expect(result).toEqual(mockCounters);
+      expect(
+        mockEquityCounterService.getCountersForPeriod,
+      ).toHaveBeenCalledWith('clinic-123', 2026, [1, 2, 3], undefined);
+    });
+
+    it('passes counterTypes filter to service', async () => {
+      mockEquityCounterService.getCountersForPeriod.mockResolvedValue([]);
+
+      const caller = createAdminCaller();
+      await caller.getEquityCounters({
+        ...validInput,
+        counterTypes: ['SATURDAY_WORKED', 'OVERTIME_HOURS'],
+      });
+
+      expect(
+        mockEquityCounterService.getCountersForPeriod,
+      ).toHaveBeenCalledWith('clinic-123', 2026, [1, 2, 3], [
+        'SATURDAY_WORKED',
+        'OVERTIME_HOURS',
+      ]);
+    });
+
+    it('uses clinicId from context', async () => {
+      mockEquityCounterService.getCountersForPeriod.mockResolvedValue([]);
+
+      const caller = createAdminCaller();
+      await caller.getEquityCounters(validInput);
+
+      expect(
+        mockEquityCounterService.getCountersForPeriod,
+      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Array), undefined);
+    });
+
+    it('throws FORBIDDEN for non-admin user', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(caller.getEquityCounters(validInput)).rejects.toThrow(
+        TRPCError,
+      );
+      await expect(
+        caller.getEquityCounters(validInput),
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('throws UNAUTHORIZED when user is not authenticated', async () => {
+      const caller = createCaller({
+        user: null,
+        prisma: mockPrisma as any,
+        planningService: mockPlanningService as any,
+        equityCounterService: mockEquityCounterService as any,
+      } as any);
+
+      await expect(caller.getEquityCounters(validInput)).rejects.toThrow(
+        TRPCError,
+      );
+      await expect(
+        caller.getEquityCounters(validInput),
+      ).rejects.toMatchObject({
+        code: 'UNAUTHORIZED',
+      });
+    });
+  });
+
+  // ─── getQuarterlySummary ────────────────────────────────────────
+
+  describe('getQuarterlySummary', () => {
+    const validInput = {
+      year: 2026,
+      quarter: 1,
+    };
+
+    it('returns quarterly summary for admin user', async () => {
+      const mockSummary = [
+        {
+          employeeId: 'emp-1',
+          counterType: 'SATURDAY_WORKED',
+          _sum: { count: 5 },
+        },
+      ];
+      mockEquityCounterService.getQuarterlySummary.mockResolvedValue(
+        mockSummary,
+      );
+
+      const caller = createAdminCaller();
+      const result = await caller.getQuarterlySummary(validInput);
+
+      expect(result).toEqual(mockSummary);
+      expect(
+        mockEquityCounterService.getQuarterlySummary,
+      ).toHaveBeenCalledWith('clinic-123', 2026, 1);
+    });
+
+    it('uses clinicId from context', async () => {
+      mockEquityCounterService.getQuarterlySummary.mockResolvedValue([]);
+
+      const caller = createAdminCaller();
+      await caller.getQuarterlySummary(validInput);
+
+      expect(
+        mockEquityCounterService.getQuarterlySummary,
+      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Number));
+    });
+
+    it('throws FORBIDDEN for non-admin user', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.getQuarterlySummary(validInput),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.getQuarterlySummary(validInput),
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('throws UNAUTHORIZED when user is not authenticated', async () => {
+      const caller = createCaller({
+        user: null,
+        prisma: mockPrisma as any,
+        planningService: mockPlanningService as any,
+        equityCounterService: mockEquityCounterService as any,
+      } as any);
+
+      await expect(
+        caller.getQuarterlySummary(validInput),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.getQuarterlySummary(validInput),
+      ).rejects.toMatchObject({
+        code: 'UNAUTHORIZED',
+      });
+    });
+  });
+
+  // ─── recalculateCounters ────────────────────────────────────────
+
+  describe('recalculateCounters', () => {
+    const validInput = {
+      year: 2026,
+      month: 3,
+    };
+
+    it('recalculates counters for admin user', async () => {
+      mockEquityCounterService.recalculateForPeriod.mockResolvedValue({
+        countersUpdated: 16,
+      });
+
+      const caller = createAdminCaller();
+      const result = await caller.recalculateCounters(validInput);
+
+      expect(result).toEqual({ countersUpdated: 16 });
+      expect(
+        mockEquityCounterService.recalculateForPeriod,
+      ).toHaveBeenCalledWith('clinic-123', 2026, 3);
+    });
+
+    it('uses clinicId from context', async () => {
+      mockEquityCounterService.recalculateForPeriod.mockResolvedValue({
+        countersUpdated: 0,
+      });
+
+      const caller = createAdminCaller();
+      await caller.recalculateCounters(validInput);
+
+      expect(
+        mockEquityCounterService.recalculateForPeriod,
+      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Number));
+    });
+
+    it('throws FORBIDDEN for non-admin user', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.recalculateCounters(validInput),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.recalculateCounters(validInput),
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('throws UNAUTHORIZED when user is not authenticated', async () => {
+      const caller = createCaller({
+        user: null,
+        prisma: mockPrisma as any,
+        planningService: mockPlanningService as any,
+        equityCounterService: mockEquityCounterService as any,
+      } as any);
+
+      await expect(
+        caller.recalculateCounters(validInput),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.recalculateCounters(validInput),
+      ).rejects.toMatchObject({
+        code: 'UNAUTHORIZED',
+      });
+    });
+
+    it('propagates service errors', async () => {
+      mockEquityCounterService.recalculateForPeriod.mockRejectedValue(
+        new Error('Database connection lost'),
+      );
+
+      const caller = createAdminCaller();
+      await expect(
+        caller.recalculateCounters(validInput),
+      ).rejects.toThrow('Database connection lost');
     });
   });
 });

@@ -7,6 +7,9 @@ import {
   planningRuleIdSchema,
   listPlanningRulesSchema,
   validateShiftsSchema,
+  getEquityCountersSchema,
+  getQuarterlySummarySchema,
+  recalculateCountersSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -68,6 +71,41 @@ export const planningRouter = router({
       return ctx.planningService.validateShiftsAgainstRules(
         ctx.user.clinicId,
         input,
+      );
+    }),
+
+  // Equity counter procedures
+  getEquityCounters: subscribedProcedure
+    .input(getEquityCountersSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.equityCounterService.getCountersForPeriod(
+        ctx.user.clinicId,
+        input.year,
+        input.months,
+        input.counterTypes as import('@prisma/client').EquityCounterType[] | undefined,
+      );
+    }),
+
+  getQuarterlySummary: subscribedProcedure
+    .input(getQuarterlySummarySchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.equityCounterService.getQuarterlySummary(
+        ctx.user.clinicId,
+        input.year,
+        input.quarter,
+      );
+    }),
+
+  recalculateCounters: subscribedProcedure
+    .input(recalculateCountersSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.equityCounterService.recalculateForPeriod(
+        ctx.user.clinicId,
+        input.year,
+        input.month,
       );
     }),
 });

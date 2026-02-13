@@ -95,7 +95,8 @@
       "employees": "Employés",
       "absences": "Absences",
       "billing": "Facturation",
-      "planningRules": "Règles de planning"
+      "planningRules": "Règles de planning",
+      "equityCounters": "Équité"
     },
     "dashboard": {
       "overview": "Vue d'ensemble",
@@ -219,6 +220,66 @@
         "publish": "Publier",
         "publishBlocked": "Publication impossible — résolvez les conflits d'abord",
         "healthy": "Tout est bon — aucune violation détectée"
+      }
+    },
+    "equityCounters": {
+      "title": "Compteurs d'équité",
+      "subtitle": "Suivez la répartition équitable des créneaux entre les employés pour la période en cours.",
+      "loading": "Chargement des compteurs d'équité...",
+      "counterTypes": {
+        "SATURDAY_WORKED": "Samedi",
+        "WEEKEND_TOTAL": "Week-end",
+        "HOLIDAY_WORKED": "Jour férié",
+        "OVERTIME_HOURS": "Heures supplémentaires"
+      },
+      "period": {
+        "monthly": "Mensuel",
+        "quarterly": "Trimestriel",
+        "month": "Mois",
+        "quarter": "Trimestre"
+      },
+      "table": {
+        "employee": "Employé",
+        "jobType": "Poste",
+        "noData": "Aucune donnée d'équité pour cette période",
+        "noDataDescription": "Les compteurs apparaîtront une fois les créneaux assignés et calculés."
+      },
+      "summary": {
+        "avgSaturdays": "Moy. samedis",
+        "fairnessIndex": "Indice d'équité",
+        "mostLoaded": "Plus chargé",
+        "leastLoaded": "Moins chargé",
+        "noEmployees": "N/A"
+      },
+      "chart": {
+        "title": "Répartition de l'équité",
+        "employees": "Employés"
+      },
+      "actions": {
+        "recalculate": "Recalculer",
+        "recalculating": "Recalcul en cours..."
+      },
+      "confirm": {
+        "recalculateTitle": "Recalculer les compteurs",
+        "recalculateMessage": "Cela recalculera tous les compteurs d'équité à partir des données de créneaux pour la période sélectionnée. Cela peut prendre un moment.",
+        "cancel": "Annuler",
+        "confirm": "Recalculer"
+      },
+      "toast": {
+        "recalculated": "Compteurs d'équité recalculés",
+        "recalculateFailed": "Impossible de recalculer les compteurs d'équité"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les compteurs d'équité",
+        "loadFailedDescription": "Veuillez réessayer ou contacter le support si le problème persiste.",
+        "retry": "Réessayer"
+      },
+      "quarterly": {
+        "title": "Résumé trimestriel"
+      },
+      "badge": {
+        "counter": "{current}/{max}",
+        "noLimit": "{current}"
       }
     },
     "settings": {

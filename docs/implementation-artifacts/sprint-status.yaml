@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-12'
+updated: '2026-02-13'
+# 2026-02-13: Story 5-6 implemented → review. 10/10 tasks done. EquityCounter Prisma model (4 counter types), EquityCounterService (recalculation from Shift+ClinicClosedDay), EquityCounterScheduler (nightly 2AM + monthly 1st 3AM cron), 3 tRPC equity procedures in planning router, server actions/hooks, admin UI (table/chart/period selector/summary cards), improved nav path matching, i18n FR/EN. 111 new tests (37 service + 4 scheduler + 24 validators + 46 web). 1024 total tests (362 API + 369 Web + 293 Validators). Build green.
+# 2026-02-13: Story 5-6 created (ready-for-dev). Equity Counters Management. EquityCounter Prisma model (4 counter types: SATURDAY_WORKED, WEEKEND_TOTAL, HOLIDAY_WORKED, OVERTIME_HOURS), hybrid strategy (computed on-read + nightly cron + monthly finalization), EquityCounterService + scheduler in PlanningModule, tRPC equity procedures, admin UI (table/chart/period selector/summary cards), i18n FR/EN, ~75 tests planned.
 # 2026-02-12: Story 5-5 implemented → review. 10/10 tasks done. PlanningRule Prisma model (HARD/SOFT, 4 categories, Json config), discriminated Zod validators, NestJS PlanningModule + service (CRUD + config validation + shift type cross-check), tRPC planning router (7 procedures), web server actions/hooks, admin rules UI (list/form/config editor/health bar), shadcn switch+sheet, i18n FR/EN, 116 new tests. 862 total tests (310 API + 307 Web + 245 Validators). Build green.
 # 2026-02-12: Story 5-5 created (ready-for-dev). Planning assistance rules (admin configurable). PlanningRule Prisma model (HARD/SOFT ruleType, 4 categories, Json config), PlanningModule + service, tRPC planning router, admin UI with rule CRUD + Health Bar preview, discriminated Zod validators, i18n FR/EN.
 # 2026-02-12: Story 5-4 code review done → done. 22 issues found (3 CRITICAL, 6 HIGH, 5 MEDIUM, 8 TEST GAPS), all fixed. Mobile-first responsive pass. 703 total tests (268 API + 287 Web + 148 Validators). Build green.
@@ -168,7 +170,7 @@ development_status:
   5-3-clinic-configuration-hours-days: done
   5-4-monthly-school-day-declaration-apprentices: done
   5-5-planning-assistance-rules-configurable: done
-  5-6-equity-counters-management: backlog
+  5-6-equity-counters-management: review
   epic-5-retrospective: optional
 
   # ===========================================================================

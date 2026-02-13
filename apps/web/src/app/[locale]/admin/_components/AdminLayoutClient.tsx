@@ -4,7 +4,7 @@ import { QueryKeyFactory } from "@/lib/hooks/server-action-hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Settings2, Users } from "lucide-react";
+import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LogOut, PawPrint, Scale, Settings2, Users } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
@@ -30,6 +30,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
         { href: "/admin/dashboard", icon: FileText, labelKey: "dashboard" as const },
         { href: "/admin/employees", icon: Users, labelKey: "employees" as const },
         { href: "/admin/planning", icon: Calendar, labelKey: "planning" as const },
+        { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters" as const },
         { href: "/admin/requests", icon: CheckCircle2, labelKey: "requests" as const },
         { href: "/admin/billing", icon: CreditCard, labelKey: "billing" as const },
         { href: "/admin/settings", icon: Settings2, labelKey: "settings" as const },
@@ -66,21 +67,31 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
 
             <main className="max-w-6xl mx-auto p-4 md:p-6 pt-8 space-y-6">
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                    {navItems.map((item) => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all",
-                                pathname.startsWith(item.href)
-                                    ? "bg-neutral-900 text-white shadow-md"
-                                    : "text-neutral-500 hover:bg-neutral-100"
-                            )}
-                        >
-                            <item.icon size={16} />
-                            {t(item.labelKey)}
-                        </Link>
-                    ))}
+                    {navItems.map((item) => {
+                        const isActive =
+                            pathname.startsWith(item.href) &&
+                            !navItems.some(
+                                (other) =>
+                                    other.href !== item.href &&
+                                    other.href.startsWith(item.href) &&
+                                    pathname.startsWith(other.href),
+                            );
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
+                                    isActive
+                                        ? "bg-neutral-900 text-white shadow-md"
+                                        : "text-neutral-500 hover:bg-neutral-100"
+                                )}
+                            >
+                                <item.icon size={16} />
+                                {t(item.labelKey)}
+                            </Link>
+                        );
+                    })}
                 </div>
                 {children}
             </main>

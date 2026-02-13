@@ -1,0 +1,32 @@
+enum EquityCounterType {
+  SATURDAY_WORKED
+  WEEKEND_TOTAL
+  HOLIDAY_WORKED
+  OVERTIME_HOURS
+
+  @@map("equity_counter_type")
+}
+
+model EquityCounter {
+  id            String             @id @default(uuid())
+  counterType   EquityCounterType  @map("counter_type")
+  count         Int                @default(0)
+  year          Int
+  month         Int
+
+  employeeId    String             @map("employee_id")
+  employee      Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  clinicId      String             @map("clinic_id")
+  clinic        Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  lastCalculatedAt DateTime?       @map("last_calculated_at")
+
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@unique([clinicId, employeeId, counterType, year, month])
+  @@index([clinicId])
+  @@index([clinicId, year, month])
+  @@map("equity_counters")
+}

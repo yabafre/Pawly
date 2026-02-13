@@ -30,3 +30,18 @@ export type {
   ListPlanningRulesInput,
   ValidateShiftsInput,
 } from "./planning-rule.schema";
+
+export {
+  EQUITY_COUNTER_TYPES,
+  equityCounterTypeSchema,
+  getEquityCountersSchema,
+  getQuarterlySummarySchema,
+  recalculateCountersSchema,
+} from "./equity-counter.schema";
+
+export type {
+  EquityCounterType,
+  GetEquityCountersInput,
+  GetQuarterlySummaryInput,
+  RecalculateCountersInput,
+} from "./equity-counter.schema";

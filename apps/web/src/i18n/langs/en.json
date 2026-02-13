@@ -95,7 +95,8 @@
       "employees": "Employees",
       "absences": "Absences",
       "billing": "Billing",
-      "planningRules": "Planning Rules"
+      "planningRules": "Planning Rules",
+      "equityCounters": "Equity"
     },
     "dashboard": {
       "overview": "Overview",
@@ -219,6 +220,66 @@
         "publish": "Publish",
         "publishBlocked": "Cannot publish — resolve conflicts first",
         "healthy": "All clear — no violations detected"
+      }
+    },
+    "equityCounters": {
+      "title": "Equity Counters",
+      "subtitle": "Track fair shift distribution across employees for the current period.",
+      "loading": "Loading equity counters...",
+      "counterTypes": {
+        "SATURDAY_WORKED": "Saturday",
+        "WEEKEND_TOTAL": "Weekend",
+        "HOLIDAY_WORKED": "Holiday",
+        "OVERTIME_HOURS": "Overtime"
+      },
+      "period": {
+        "monthly": "Monthly",
+        "quarterly": "Quarterly",
+        "month": "Month",
+        "quarter": "Quarter"
+      },
+      "table": {
+        "employee": "Employee",
+        "jobType": "Role",
+        "noData": "No equity data for this period",
+        "noDataDescription": "Counters will appear once shifts are assigned and calculated."
+      },
+      "summary": {
+        "avgSaturdays": "Avg. Saturdays",
+        "fairnessIndex": "Fairness Index",
+        "mostLoaded": "Most Loaded",
+        "leastLoaded": "Least Loaded",
+        "noEmployees": "N/A"
+      },
+      "chart": {
+        "title": "Equity Distribution",
+        "employees": "Employees"
+      },
+      "actions": {
+        "recalculate": "Recalculate",
+        "recalculating": "Recalculating..."
+      },
+      "confirm": {
+        "recalculateTitle": "Recalculate Counters",
+        "recalculateMessage": "This will recompute all equity counters from shift data for the selected period. This may take a moment.",
+        "cancel": "Cancel",
+        "confirm": "Recalculate"
+      },
+      "toast": {
+        "recalculated": "Equity counters recalculated",
+        "recalculateFailed": "Unable to recalculate equity counters"
+      },
+      "errors": {
+        "loadFailed": "Unable to load equity counters",
+        "loadFailedDescription": "Please try again or contact support if the issue persists.",
+        "retry": "Try again"
+      },
+      "quarterly": {
+        "title": "Quarterly Summary"
+      },
+      "badge": {
+        "counter": "{current}/{max}",
+        "noLimit": "{current}"
       }
     },
     "settings": {
