@@ -44,25 +44,25 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
   };
 
   return (
-    <div className="group/slot relative flex items-stretch gap-0 rounded-xl border border-neutral-100 bg-white overflow-hidden transition-shadow hover:shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+    <div className="group/slot relative flex items-stretch gap-0 rounded-xl border border-neutral-100 bg-white overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] hover:border-neutral-200">
       {/* Color indicator bar */}
       <div
-        className="w-1 shrink-0"
+        className="w-1.5 shrink-0"
         style={{ backgroundColor: shiftColor }}
       />
 
       {/* Slot content */}
       <div className="flex flex-1 items-center gap-3 px-3 py-2.5">
         {/* Shift type select */}
-        <div className="flex-1 min-w-0">
-          <Label className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+        <div className="flex-1 min-w-0 space-y-1">
+          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
             {t("shiftType")}
           </Label>
           <Select
             value={slot.shiftTypeCode}
             onValueChange={(value) => onUpdate({ ...slot, shiftTypeCode: value })}
           >
-            <SelectTrigger className="h-8 rounded-lg border-neutral-200 bg-neutral-50/60 text-xs">
+            <SelectTrigger className="h-9 rounded-lg border-neutral-200 bg-neutral-50/50 text-xs font-medium focus:ring-1 focus:ring-[#009588]/20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -70,10 +70,10 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
                 <SelectItem key={st.code} value={st.code}>
                   <div className="flex items-center gap-2">
                     <div
-                      className="h-2.5 w-2.5 rounded-full ring-1 ring-black/5"
+                      className="h-2 w-2 rounded-full ring-1 ring-black/5"
                       style={{ backgroundColor: st.color }}
                     />
-                    <span className="text-xs">{st.name}</span>
+                    <span className="text-xs font-medium">{st.name}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -82,8 +82,8 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
         </div>
 
         {/* Staff count */}
-        <div className="w-[72px] shrink-0">
-          <Label className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+        <div className="w-[72px] shrink-0 space-y-1">
+          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
             {t("requiredStaff")}
           </Label>
           <Input
@@ -93,16 +93,16 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
             onChange={(e) =>
               onUpdate({ ...slot, requiredStaff: Math.max(1, parseInt(e.target.value) || 1) })
             }
-            className="h-8 rounded-lg border-neutral-200 bg-neutral-50/60 text-xs text-center font-semibold"
+            className="h-9 rounded-lg border-neutral-200 bg-neutral-50/50 text-xs text-center font-bold focus-visible:ring-[#009588]/20"
           />
         </div>
 
         {/* Job type toggles — compact inline */}
-        <div className="shrink-0">
-          <Label className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+        <div className="shrink-0 space-y-1">
+          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
             {t("requiredJobTypes")}
           </Label>
-          <div className="flex gap-1 mt-0.5">
+          <div className="flex gap-1">
             {JOB_TYPES.map((jt) => {
               const isSelected = slot.requiredJobTypes?.includes(jt);
               return (
@@ -110,10 +110,10 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
                   key={jt}
                   type="button"
                   onClick={() => toggleJobType(jt)}
-                  className={`h-8 rounded-lg px-2 text-[10px] font-bold tracking-tight transition-all ${
+                  className={`h-9 rounded-lg px-2.5 text-[10px] font-bold tracking-tight transition-all border ${
                     isSelected
-                      ? "text-white shadow-[0_1px_4px_rgba(0,149,136,0.3)]"
-                      : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+                      ? "border-transparent text-white shadow-sm"
+                      : "border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 hover:text-neutral-600"
                   }`}
                   style={isSelected ? { backgroundColor: shiftColor } : undefined}
                 >
@@ -126,14 +126,14 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
       </div>
 
       {/* Remove button */}
-      <div className="flex items-center pr-2">
+      <div className="flex items-center pr-2 pl-1 border-l border-neutral-50">
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 rounded-lg text-neutral-300 opacity-0 transition-all group-hover/slot:opacity-100 hover:bg-red-50 hover:text-red-500"
+          className="h-8 w-8 rounded-lg text-neutral-300 transition-all hover:bg-red-50 hover:text-red-500"
           onClick={onRemove}
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </Button>
       </div>
     </div>
