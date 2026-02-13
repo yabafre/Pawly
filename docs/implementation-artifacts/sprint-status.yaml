@@ -29,6 +29,9 @@
 
 generated: '2026-02-02'
 updated: '2026-02-13'
+# 2026-02-13: Story 6-1 code review done → done. 11 issues found (4 HIGH, 4 MEDIUM, 3 LOW), all HIGH/MEDIUM fixed. DRY violation (JOB_TYPE_VALUES), duplicate validation bypass, hardcoded English strings (3), missing aria-labels, redundant service validation, TemplateEditor test coverage, FR translation typo. +10 TemplateEditor tests. 1130 total tests (328 validators + 408 API + 394 web). Build green.
+# 2026-02-13: Story 6-1 implemented → review. 8/8 tasks done. PlanningTemplateService (CRUD + duplicate + validateTemplateData), 6 tRPC template procedures (subscribedProcedure + ADMIN), server actions/hooks, admin UI (TemplateList/Editor/SlotForm/WeekPreview), shadcn dropdown-menu, i18n FR/EN (~68 keys). 82 new tests (35 validators + 19 service + 17 router + 11 web). 1120 total tests (328 validators + 408 API + 384 web). Build green.
+# 2026-02-13: Story 6-1 created (ready-for-dev). Planning Template Definition (Admin). CRUD for week templates with structured Json data (TemplateSlot/TemplateDay/TemplateData), PlanningTemplateService in PlanningModule, 6 tRPC procedures, admin UI (list/editor/slot form/week preview), i18n FR/EN. No Prisma migration (PlanningTemplate model already exists). Epic 6 → in-progress.
 # 2026-02-13: Story 5-6 implemented → review. 10/10 tasks done. EquityCounter Prisma model (4 counter types), EquityCounterService (recalculation from Shift+ClinicClosedDay), EquityCounterScheduler (nightly 2AM + monthly 1st 3AM cron), 3 tRPC equity procedures in planning router, server actions/hooks, admin UI (table/chart/period selector/summary cards), improved nav path matching, i18n FR/EN. 111 new tests (37 service + 4 scheduler + 24 validators + 46 web). 1024 total tests (362 API + 369 Web + 293 Validators). Build green.
 # 2026-02-13: Story 5-6 created (ready-for-dev). Equity Counters Management. EquityCounter Prisma model (4 counter types: SATURDAY_WORKED, WEEKEND_TOTAL, HOLIDAY_WORKED, OVERTIME_HOURS), hybrid strategy (computed on-read + nightly cron + monthly finalization), EquityCounterService + scheduler in PlanningModule, tRPC equity procedures, admin UI (table/chart/period selector/summary cards), i18n FR/EN, ~75 tests planned.
 # 2026-02-12: Story 5-5 implemented → review. 10/10 tasks done. PlanningRule Prisma model (HARD/SOFT, 4 categories, Json config), discriminated Zod validators, NestJS PlanningModule + service (CRUD + config validation + shift type cross-check), tRPC planning router (7 procedures), web server actions/hooks, admin rules UI (list/form/config editor/health bar), shadcn switch+sheet, i18n FR/EN, 116 new tests. 862 total tests (310 API + 307 Web + 245 Validators). Build green.
@@ -164,7 +167,7 @@ development_status:
   #             monthly school declaration, equity counters.
   # FRs: FR1 (user management), FR3, FR7 (partial), FR8 (partial)
   # ===========================================================================
-  epic-5: in-progress
+  epic-5: done
   5-1-employee-contract-management-crud: done
   5-2-declarative-constraints-configuration: done
   5-3-clinic-configuration-hours-days: done
@@ -179,8 +182,8 @@ development_status:
   # Key Points: Greedy Scoring Algorithm, templates, blocking constraints.
   # FRs: FR4, FR5, FR7
   # ===========================================================================
-  epic-6: backlog
-  6-1-planning-template-definition-admin: backlog
+  epic-6: in-progress
+  6-1-planning-template-definition-admin: done
   6-2-greedy-generation-algorithm-blocking-rules: backlog
   6-3-schedule-visualization-conflict-indicators: backlog
   epic-6-retrospective: optional

@@ -10,6 +10,11 @@ import {
   getEquityCountersSchema,
   getQuarterlySummarySchema,
   recalculateCountersSchema,
+  createTemplateSchema,
+  updateTemplateSchema,
+  duplicateTemplateSchema,
+  templateIdSchema,
+  listTemplatesSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -106,6 +111,64 @@ export const planningRouter = router({
         ctx.user.clinicId,
         input.year,
         input.month,
+      );
+    }),
+
+  // Template procedures
+  listTemplates: subscribedProcedure
+    .input(listTemplatesSchema)
+    .query(async ({ ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.listTemplates(ctx.user.clinicId);
+    }),
+
+  getTemplateById: subscribedProcedure
+    .input(templateIdSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.getTemplateById(
+        ctx.user.clinicId,
+        input.id,
+      );
+    }),
+
+  createTemplate: subscribedProcedure
+    .input(createTemplateSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.createTemplate(
+        ctx.user.clinicId,
+        input,
+      );
+    }),
+
+  updateTemplate: subscribedProcedure
+    .input(updateTemplateSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.updateTemplate(
+        ctx.user.clinicId,
+        input,
+      );
+    }),
+
+  deleteTemplate: subscribedProcedure
+    .input(templateIdSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.deleteTemplate(
+        ctx.user.clinicId,
+        input.id,
+      );
+    }),
+
+  duplicateTemplate: subscribedProcedure
+    .input(duplicateTemplateSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningTemplateService.duplicateTemplate(
+        ctx.user.clinicId,
+        input.id,
       );
     }),
 });

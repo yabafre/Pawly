@@ -20,6 +20,7 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   undeclaredApprentices: (month?: string) => ["employees", "undeclared-apprentices", month ?? "all"],
   clinicOperationalConfig: () => ["clinic", "operational-config"],
   clinicShiftTypes: () => ["clinic", "shift-types"],
+  planningTemplates: () => ["planning", "templates"],
   equityCounters: () => ["planning", "equity-counters"],
   equityQuarterlySummary: () => ["planning", "equity-quarterly"],
   clinic: () => ["clinic"],
