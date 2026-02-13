@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +81,7 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-neutral-200 bg-neutral-50/50 py-16 px-8">
+      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-neutral-50/50 py-16 px-8 shadow-none">
         <div className="text-center space-y-3">
           <h3 className="text-lg font-bold text-neutral-600">{t("emptyState.title")}</h3>
           <p className="text-sm text-neutral-400 max-w-md">{t("emptyState.description")}</p>
@@ -92,7 +93,7 @@ export function TemplateList({
             {t("emptyState.cta")}
           </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -101,7 +102,7 @@ export function TemplateList({
       <div className="flex justify-end mb-4">
         <Button
           onClick={onCreate}
-          className="bg-[#009588] hover:bg-[#00796B] text-white rounded-full px-6"
+          className="bg-[#009588] hover:bg-[#00796B] text-white rounded-full px-6 shadow-md shadow-[#009588]/20"
         >
           <Plus className="h-4 w-4 mr-2" />
           {t("emptyState.cta")}
@@ -114,72 +115,74 @@ export function TemplateList({
           const totalSlots = countSlots(data);
 
           return (
-            <div
+            <Card
               key={tmpl.id}
-              className="group relative rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]"
+              className="group relative border-neutral-100 transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-neutral-800 text-sm">{tmpl.name}</h3>
-                  <p className="text-[10px] text-neutral-400 mt-0.5">
-                    {t("card.daysConfigured", { count: data.days.length })}
-                    {" · "}
-                    {t("card.slotsCount", { count: totalSlots })}
-                  </p>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-neutral-900 text-sm leading-tight">{tmpl.name}</h3>
+                    <p className="text-[10px] font-medium text-neutral-400 mt-1 uppercase tracking-wide">
+                      {t("card.daysConfigured", { count: data.days.length })}
+                      <span className="mx-1.5 opacity-50">|</span>
+                      {t("card.slotsCount", { count: totalSlots })}
+                    </p>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-neutral-400 hover:text-neutral-900 -mr-2 -mt-2"
+                        aria-label={t("actions.menu")}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-xl border-neutral-100 shadow-xl">
+                      <DropdownMenuItem onClick={() => onEdit(tmpl)} className="rounded-lg focus:bg-neutral-50 cursor-pointer">
+                        <Edit2 className="h-3.5 w-3.5 mr-2" />
+                        {t("actions.edit")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onDuplicate(tmpl.id)} className="rounded-lg focus:bg-neutral-50 cursor-pointer">
+                        <Copy className="h-3.5 w-3.5 mr-2" />
+                        {t("actions.duplicate")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-600 focus:bg-red-50 focus:text-red-700 rounded-lg cursor-pointer"
+                        onClick={() => setDeleteId(tmpl.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-2" />
+                        {t("actions.delete")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label={t("actions.menu")}
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(tmpl)}>
-                      <Edit2 className="h-3.5 w-3.5 mr-2" />
-                      {t("actions.edit")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onDuplicate(tmpl.id)}>
-                      <Copy className="h-3.5 w-3.5 mr-2" />
-                      {t("actions.duplicate")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => setDeleteId(tmpl.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />
-                      {t("actions.delete")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              <TemplateWeekPreview
-                data={data}
-                shiftTypes={shiftTypes}
-                workDays={workDays}
-                compact
-              />
-            </div>
+                <TemplateWeekPreview
+                  data={data}
+                  shiftTypes={shiftTypes}
+                  workDays={workDays}
+                  compact
+                />
+              </CardContent>
+            </Card>
           );
         })}
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl">{t("confirm.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 rounded-xl"
               onClick={() => {
                 if (deleteId) onDelete(deleteId);
                 setDeleteId(null);

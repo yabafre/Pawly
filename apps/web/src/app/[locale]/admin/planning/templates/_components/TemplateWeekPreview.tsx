@@ -44,7 +44,7 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
 
   return (
     <div className={cn(
-      "grid grid-cols-7 rounded-xl overflow-hidden border border-neutral-100",
+      "grid grid-cols-7 rounded-2xl overflow-hidden border border-neutral-100",
       compact ? "gap-px bg-neutral-100" : "gap-px bg-neutral-100",
     )}>
       {DAY_KEYS.map((dayKey, idx) => {
@@ -57,8 +57,8 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
           <div
             key={dayKey}
             className={cn(
-              "text-center transition-colors",
-              compact ? "py-2 px-1" : "py-3 px-1.5",
+              "text-center transition-colors flex flex-col items-center justify-start",
+              compact ? "py-2 px-0.5" : "py-3 px-1.5",
               nonWork
                 ? "bg-neutral-50/80"
                 : hasSlots
@@ -79,15 +79,18 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
 
             {/* Slot indicators */}
             {slots.length === 0 ? (
-              <p className={cn(
-                "text-neutral-300",
-                compact ? "text-[8px]" : "text-[9px]",
+              <div className={cn(
+                "flex-1 flex items-center justify-center",
+                compact ? "min-h-[16px]" : "min-h-[24px]"
               )}>
-                {compact ? "—" : t("preview.noSlots")}
-              </p>
+                <div className={cn(
+                  "rounded-full bg-neutral-100",
+                  compact ? "w-1 h-1" : "w-1.5 h-1.5"
+                )} />
+              </div>
             ) : (
               <div className={cn(
-                "flex flex-wrap justify-center",
+                "flex flex-wrap justify-center content-start w-full",
                 compact ? "gap-0.5" : "gap-1",
               )}>
                 {slots.map((slot, i) => {
@@ -96,24 +99,24 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
                     <div
                       key={i}
                       className={cn(
-                        "flex items-center justify-center gap-0.5 rounded-full",
-                        compact ? "h-4 w-4" : "px-1.5 py-0.5",
+                        "flex items-center justify-center rounded-full transition-transform hover:scale-110",
+                        compact ? "h-3.5 w-3.5" : "px-1.5 py-0.5 gap-1",
                       )}
                       style={{
-                        backgroundColor: st ? `${st.color}18` : "#e5e5e518",
+                        backgroundColor: st ? `${st.color}20` : "#e5e5e520",
                       }}
                       title={`${st?.name ?? slot.shiftTypeCode}: ${t("slot.staffCount", { count: slot.requiredStaff })}`}
                     >
                       <div
                         className={cn(
-                          "rounded-full",
+                          "rounded-full shrink-0",
                           compact ? "h-1.5 w-1.5" : "h-2 w-2",
                         )}
                         style={{ backgroundColor: st?.color ?? "#a3a3a3" }}
                       />
                       {!compact && (
                         <span
-                          className="text-[9px] font-bold"
+                          className="text-[9px] font-bold leading-none"
                           style={{ color: st?.color ?? "#737373" }}
                         >
                           {slot.requiredStaff}
@@ -123,13 +126,6 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
                   );
                 })}
               </div>
-            )}
-
-            {/* Non-work day label */}
-            {nonWork && !compact && (
-              <p className="mt-1 text-[7px] font-medium uppercase tracking-wider text-neutral-300">
-                {t("nonWorkDay")}
-              </p>
             )}
           </div>
         );

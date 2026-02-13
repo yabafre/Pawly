@@ -199,7 +199,7 @@ describe("TemplateWeekPreview", () => {
   });
 
   it("marks non-work days with dimmed style", () => {
-    render(
+    const { container } = render(
       <TemplateWeekPreview
         data={{ days: [] }}
         shiftTypes={shiftTypes}
@@ -207,8 +207,12 @@ describe("TemplateWeekPreview", () => {
       />,
     );
 
-    // t("nonWorkDay") → "nonWorkDay" (mock returns key)
-    expect(screen.getAllByText("nonWorkDay")).toHaveLength(2);
+    // Saturday and Sunday get bg-neutral-50/80 styling
+    const dayColumns = container.querySelectorAll("[class*='grid-cols-7'] > div");
+    const nonWorkDays = Array.from(dayColumns).filter(
+      (col) => col.className.includes("bg-neutral-50/80"),
+    );
+    expect(nonWorkDays).toHaveLength(2);
   });
 });
 
