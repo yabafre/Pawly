@@ -205,12 +205,12 @@ export function EmployeeConstraintForm({
 
       <form.Field name="isRecurring">
         {(field: any) => (
-          <label className="flex items-center gap-2 text-sm text-neutral-700">
+          <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
             <input
               type="checkbox"
               checked={field.state.value}
               onChange={(e) => field.handleChange(e.target.checked)}
-              className="rounded border-neutral-300"
+              className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
             />
             {t("constraints.form.recurring")}
           </label>
@@ -239,7 +239,7 @@ export function EmployeeConstraintForm({
                     return (
                       <label
                         key={weekday}
-                        className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+                        className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm cursor-pointer hover:bg-neutral-50 transition-colors"
                       >
                         <input
                           type="checkbox"
@@ -255,7 +255,7 @@ export function EmployeeConstraintForm({
                               field.state.value.filter((value: number) => value !== weekday),
                             );
                           }}
-                          className="rounded border-neutral-300"
+                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
                         />
                         {t(
                           `constraints.days.${weekday}` as Parameters<typeof t>[0],
@@ -290,4 +290,3 @@ export function EmployeeConstraintForm({
     </form>
   );
 }
-

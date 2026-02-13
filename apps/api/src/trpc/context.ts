@@ -4,6 +4,7 @@ import type { StripeService } from '@/modules/stripe/stripe.service';
 import type { ClinicService } from '@/modules/clinic/clinic.service';
 import type { EmployeeService } from '@/modules/employee/employee.service';
 import type { PlanningService } from '@/modules/planning/planning.service';
+import type { EquityCounterService } from '@/modules/planning/equity-counter.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { AuthenticatedUser } from '@pawly/types';
@@ -14,6 +15,7 @@ export interface TRPCServices {
   clinicService: ClinicService;
   employeeService: EmployeeService;
   planningService: PlanningService;
+  equityCounterService: EquityCounterService;
   jwtService: JwtService;
   prisma: PrismaService;
 }

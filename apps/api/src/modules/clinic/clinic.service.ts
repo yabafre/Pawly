@@ -240,6 +240,15 @@ export class ClinicService {
     };
   }
 
+  /**
+   * List all clinic IDs and names (used by system-level cron jobs).
+   */
+  async listAllClinicIds(): Promise<{ id: string; name: string }[]> {
+    return this.prisma.clinic.findMany({
+      select: { id: true, name: true },
+    });
+  }
+
   // ─── Shift Type CRUD ──────────────────────────────────────────────
 
   async listShiftTypes(clinicId: string) {

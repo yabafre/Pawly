@@ -17,9 +17,9 @@
     "test": "dotenv -- turbo run test"
   },
   "devDependencies": {
-    "turbo": "^2.8.1",
+    "dotenv-cli": "^8.0.0",
     "prettier": "^3.4.2",
-    "dotenv-cli": "^8.0.0"
+    "turbo": "^2.8.1"
   },
   "pnpm": {
     "overrides": {
@@ -29,5 +29,8 @@
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "recharts": "^3.7.0"
   }
 }
