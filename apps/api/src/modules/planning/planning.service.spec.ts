@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PlanningService } from './planning.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ClinicService } from '@/modules/clinic/clinic.service';
 
 describe('PlanningService', () => {
   let service: PlanningService;
@@ -31,9 +32,10 @@ describe('PlanningService', () => {
       delete: jest.fn(),
       deleteMany: jest.fn(),
     },
-    clinicShiftType: {
-      findFirst: jest.fn(),
-    },
+  };
+
+  const mockClinicService = {
+    listShiftTypes: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -41,6 +43,7 @@ describe('PlanningService', () => {
       providers: [
         PlanningService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: ClinicService, useValue: mockClinicService },
       ],
     }).compile();
 
@@ -52,11 +55,9 @@ describe('PlanningService', () => {
 
   describe('createRule', () => {
     it('creates a STAFFING_MINIMUM rule after validating shift type', async () => {
-      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
-        id: 'st-1',
-        code: 'SURGERY',
-        clinicId,
-      });
+      mockClinicService.listShiftTypes.mockResolvedValue([
+        { id: 'st-1', code: 'SURGERY', clinicId, name: 'Surgery' },
+      ]);
       mockPrismaService.planningRule.create.mockResolvedValue(mockRule);
 
       const input = {
@@ -72,9 +73,7 @@ describe('PlanningService', () => {
       const result = await service.createRule(clinicId, input);
 
       expect(result).toEqual(mockRule);
-      expect(mockPrismaService.clinicShiftType.findFirst).toHaveBeenCalledWith({
-        where: { clinicId, code: 'SURGERY' },
-      });
+      expect(mockClinicService.listShiftTypes).toHaveBeenCalledWith(clinicId);
       expect(mockPrismaService.planningRule.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           clinicId,
@@ -102,7 +101,7 @@ describe('PlanningService', () => {
 
       await service.createRule(clinicId, input);
 
-      expect(mockPrismaService.clinicShiftType.findFirst).not.toHaveBeenCalled();
+      expect(mockClinicService.listShiftTypes).not.toHaveBeenCalled();
       expect(mockPrismaService.planningRule.create).toHaveBeenCalled();
     });
 
@@ -122,7 +121,7 @@ describe('PlanningService', () => {
     });
 
     it('throws BadRequestException when shift type code does not exist', async () => {
-      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue(null);
+      mockClinicService.listShiftTypes.mockResolvedValue([]);
 
       const input = {
         name: 'Rule with bad shift type',
@@ -157,7 +156,7 @@ describe('PlanningService', () => {
       await service.createRule(clinicId, input);
 
       expect(mockPrismaService.planningRule.create).toHaveBeenCalled();
-      expect(mockPrismaService.clinicShiftType.findFirst).not.toHaveBeenCalled();
+      expect(mockClinicService.listShiftTypes).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException for CONTRACT_COMPLIANCE without any hour limit', async () => {
@@ -176,11 +175,9 @@ describe('PlanningService', () => {
     });
 
     it('creates a SKILL_REQUIREMENT rule with shift type validation', async () => {
-      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
-        id: 'st-2',
-        code: 'SURGERY',
-        clinicId,
-      });
+      mockClinicService.listShiftTypes.mockResolvedValue([
+        { id: 'st-2', code: 'SURGERY', clinicId, name: 'Surgery' },
+      ]);
       mockPrismaService.planningRule.create.mockResolvedValue({
         ...mockRule,
         category: 'SKILL_REQUIREMENT',
@@ -197,9 +194,7 @@ describe('PlanningService', () => {
 
       await service.createRule(clinicId, input);
 
-      expect(mockPrismaService.clinicShiftType.findFirst).toHaveBeenCalledWith({
-        where: { clinicId, code: 'SURGERY' },
-      });
+      expect(mockClinicService.listShiftTypes).toHaveBeenCalledWith(clinicId);
     });
 
     it('throws BadRequestException for unknown category', async () => {
@@ -223,11 +218,9 @@ describe('PlanningService', () => {
   describe('updateRule', () => {
     it('updates a rule after verifying ownership', async () => {
       mockPrismaService.planningRule.findFirst.mockResolvedValue(mockRule);
-      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
-        id: 'st-1',
-        code: 'SURGERY',
-        clinicId,
-      });
+      mockClinicService.listShiftTypes.mockResolvedValue([
+        { id: 'st-1', code: 'SURGERY', clinicId, name: 'Surgery' },
+      ]);
       mockPrismaService.planningRule.update.mockResolvedValue({
         ...mockRule,
         name: 'Updated name',

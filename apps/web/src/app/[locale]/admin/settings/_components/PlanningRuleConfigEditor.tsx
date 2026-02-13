@@ -216,9 +216,11 @@ export function PlanningRuleConfigEditor({
                 updateField(
                   "requiredJobTypes",
                   e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
+                    ? e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    : undefined,
                 )
               }
               placeholder="VET, ASV"

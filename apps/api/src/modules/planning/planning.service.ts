@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ClinicService } from '@/modules/clinic/clinic.service';
 import type { Prisma } from '@prisma/client';
 import type {
   CreatePlanningRuleInput,
@@ -47,7 +48,10 @@ type SoftViolation = {
 export class PlanningService {
   private readonly logger = new Logger(PlanningService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clinicService: ClinicService,
+  ) {}
 
   async createRule(clinicId: string, input: CreatePlanningRuleInput) {
     await this.validateConfig(clinicId, input.category, input.config);
@@ -230,11 +234,10 @@ export class PlanningService {
   }
 
   private async validateShiftTypeCode(clinicId: string, shiftTypeCode: string) {
-    const shiftType = await this.prisma.clinicShiftType.findFirst({
-      where: { clinicId, code: shiftTypeCode },
-    });
+    const shiftTypes = await this.clinicService.listShiftTypes(clinicId);
+    const exists = shiftTypes.some((st) => st.code === shiftTypeCode);
 
-    if (!shiftType) {
+    if (!exists) {
       throw new BadRequestException(
         `Shift type code "${shiftTypeCode}" does not exist for this clinic`,
       );
