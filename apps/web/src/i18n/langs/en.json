@@ -94,7 +94,8 @@
       "requests": "Requests",
       "employees": "Employees",
       "absences": "Absences",
-      "billing": "Billing"
+      "billing": "Billing",
+      "planningRules": "Planning Rules"
     },
     "dashboard": {
       "overview": "Overview",
@@ -110,6 +111,115 @@
       "week": "Week {number}",
       "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
       "apprenticesSchoolDays": "Apprentices have entered their school days."
+    },
+    "planningRules": {
+      "title": "Planning Rules",
+      "subtitle": "Configure rules that guide the planning algorithm for fair and compliant schedules.",
+      "loading": "Loading planning rules...",
+      "ruleTypes": {
+        "HARD": "Hard Rule",
+        "SOFT": "Soft Rule"
+      },
+      "categories": {
+        "STAFFING_MINIMUM": "Staffing Minimum",
+        "ROTATION_EQUITY": "Rotation Equity",
+        "SKILL_REQUIREMENT": "Skill Requirement",
+        "CONTRACT_COMPLIANCE": "Contract Compliance"
+      },
+      "categoryDescriptions": {
+        "STAFFING_MINIMUM": "Minimum staff required per shift type",
+        "ROTATION_EQUITY": "Fair rotation of specific days across employees",
+        "SKILL_REQUIREMENT": "Required job roles per shift type",
+        "CONTRACT_COMPLIANCE": "Respect weekly/monthly hour limits"
+      },
+      "form": {
+        "createTitle": "New Planning Rule",
+        "editTitle": "Edit Planning Rule",
+        "createSubtitle": "Define a rule to guide your clinic's planning algorithm.",
+        "editSubtitle": "Modify this planning rule's parameters.",
+        "name": "Rule name",
+        "namePlaceholder": "e.g. Min 1 ASV for Surgery",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "Explain the rule purpose",
+        "ruleType": "Rule type",
+        "category": "Category",
+        "priority": "Priority",
+        "priorityHelp": "Higher priority rules are evaluated first",
+        "isActive": "Active",
+        "ruleTypeHint": {
+          "HARD": "Blocks planning if violated",
+          "SOFT": "Warning only"
+        },
+        "sections": {
+          "config": "Specific Parameters"
+        },
+        "config": {
+          "shiftTypeCode": "Shift type",
+          "selectShiftType": "Select a shift type",
+          "minStaff": "Minimum staff",
+          "jobTypes": "Job types (optional filter)",
+          "targetDay": "Target day",
+          "maxPerPeriod": "Max per period",
+          "trackingPeriod": "Tracking period",
+          "requiredJobTypes": "Required job types",
+          "maxWeeklyHours": "Max weekly hours",
+          "maxMonthlyHours": "Max monthly hours",
+          "overtimeThresholdPercent": "Overtime threshold (%)",
+          "days": {
+            "monday": "Monday",
+            "tuesday": "Tuesday",
+            "wednesday": "Wednesday",
+            "thursday": "Thursday",
+            "friday": "Friday",
+            "saturday": "Saturday",
+            "sunday": "Sunday"
+          }
+        },
+        "trackingPeriods": {
+          "monthly": "Monthly",
+          "quarterly": "Quarterly"
+        }
+      },
+      "actions": {
+        "add": "Add Rule",
+        "edit": "Edit",
+        "delete": "Delete",
+        "toggle": "Toggle active"
+      },
+      "empty": {
+        "title": "No planning rules configured yet",
+        "description": "Create your first rule to guide the planning algorithm.",
+        "cta": "Create First Rule"
+      },
+      "confirm": {
+        "deleteTitle": "Delete Planning Rule",
+        "deleteMessage": "This rule will be permanently deleted. The planning algorithm will no longer use it.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "created": "Planning rule created",
+        "updated": "Planning rule updated",
+        "deleted": "Planning rule deleted",
+        "toggled": "Planning rule toggled",
+        "createFailed": "Unable to create planning rule",
+        "updateFailed": "Unable to update planning rule",
+        "deleteFailed": "Unable to delete planning rule",
+        "toggleFailed": "Unable to toggle planning rule"
+      },
+      "errors": {
+        "loadFailed": "Unable to load planning rules",
+        "retry": "Try again"
+      },
+      "healthBar": {
+        "title": "Planning Health",
+        "conflicts": "{count, plural, =0 {No conflicts} one {# conflict} other {# conflicts}}",
+        "warnings": "{count, plural, =0 {No warnings} one {# warning} other {# warnings}}",
+        "ready": "{percent}% ready",
+        "publish": "Publish",
+        "publishBlocked": "Cannot publish — resolve conflicts first",
+        "healthy": "All clear — no violations detected"
+      }
     },
     "settings": {
       "badge": "Clinic settings",
@@ -692,6 +802,59 @@
     }
   },
   "settings": {
+    "tabs": {
+      "operational": "General",
+      "shiftTypes": "Shift Types",
+      "planningRules": "Planning Rules"
+    },
+    "shiftTypes": {
+      "title": "Shift Types",
+      "fields": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Morning, Surgery",
+        "code": "Code",
+        "codePlaceholder": "e.g. MORNING",
+        "startTime": "Start time",
+        "endTime": "End time",
+        "color": "Color"
+      },
+      "form": {
+        "createTitle": "New shift type",
+        "createSubtitle": "Define a new shift type for your clinic schedule.",
+        "editTitle": "Edit shift type",
+        "editSubtitle": "Modify the shift type details."
+      },
+      "actions": {
+        "add": "Add shift type",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "confirm": {
+        "deleteTitle": "Delete shift type",
+        "deleteMessage": "Are you sure you want to delete this shift type? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "empty": {
+        "title": "No shift types",
+        "description": "Add shift types to define your clinic schedule structure.",
+        "cta": "Add first shift type"
+      },
+      "errors": {
+        "loadFailed": "Unable to load shift types.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "created": "Shift type created",
+        "createFailed": "Unable to create shift type",
+        "updated": "Shift type updated",
+        "updateFailed": "Unable to update shift type",
+        "deleted": "Shift type deleted",
+        "deleteFailed": "Unable to delete shift type"
+      }
+    },
     "operationalConfig": {
       "title": "Clinic Operational Configuration",
       "subtitle": "Define weekly defaults, closure dates, and special-day schedule overrides used by planning.",

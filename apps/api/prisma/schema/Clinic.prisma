@@ -18,6 +18,7 @@ model Clinic {
   shiftTypes          ClinicShiftType[]
   closedDays          ClinicClosedDay[]
   specialDays         ClinicSpecialDay[]
+  planningRules       PlanningRule[]
 
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

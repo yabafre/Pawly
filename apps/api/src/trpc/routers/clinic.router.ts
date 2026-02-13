@@ -1,14 +1,28 @@
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
+import { TRPCError } from '@trpc/server';
 import {
   updateClinicNameSchema,
   updateClinicConfigSchema,
   createShiftTypesSchema,
   completeOnboardingSchema,
   updateClinicOperationalConfigSchema,
+  createShiftTypeSchema,
+  updateShiftTypeSchema,
+  deleteShiftTypeSchema,
+  listShiftTypesSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
 const subscribedProcedure = protectedProcedure.use(isSubscribed);
+
+const adminOnly = (role: string) => {
+  if (role !== 'ADMIN') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Only admins can manage shift types',
+    });
+  }
+};
 
 export const clinicRouter = router({
   // getOnboardingStatus stays as protectedProcedure — must work before subscription exists
@@ -42,6 +56,35 @@ export const clinicRouter = router({
     .input(updateClinicOperationalConfigSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.clinicService.updateOperationalConfig(ctx.user.clinicId, input);
+    }),
+
+  // ─── Shift Type CRUD ──────────────────────────────────────────────
+  listShiftTypes: subscribedProcedure
+    .input(listShiftTypesSchema)
+    .query(async ({ ctx }) => {
+      return ctx.clinicService.listShiftTypes(ctx.user.clinicId);
+    }),
+
+  createShiftType: subscribedProcedure
+    .input(createShiftTypeSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.clinicService.createSingleShiftType(ctx.user.clinicId, input);
+    }),
+
+  updateShiftType: subscribedProcedure
+    .input(updateShiftTypeSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      const { id, ...data } = input;
+      return ctx.clinicService.updateSingleShiftType(ctx.user.clinicId, id, data);
+    }),
+
+  deleteShiftType: subscribedProcedure
+    .input(deleteShiftTypeSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.clinicService.deleteSingleShiftType(ctx.user.clinicId, input.id);
     }),
 
   // completeOnboarding uses protectedProcedure — must work before subscription is active (onboarding deadlock fix)

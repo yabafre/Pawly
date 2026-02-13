@@ -21,6 +21,10 @@ describe('clinicRouter', () => {
     completeOnboarding: jest.fn(),
     getOperationalConfig: jest.fn(),
     updateOperationalConfig: jest.fn(),
+    listShiftTypes: jest.fn(),
+    createSingleShiftType: jest.fn(),
+    updateSingleShiftType: jest.fn(),
+    deleteSingleShiftType: jest.fn(),
   };
 
   const mockPrisma = {
@@ -60,6 +64,18 @@ describe('clinicRouter', () => {
     const procedures = Object.keys(clinicRouter._def.procedures);
     expect(procedures).toEqual(
       expect.arrayContaining(['getOperationalConfig', 'updateOperationalConfig']),
+    );
+  });
+
+  it('should expose shift type CRUD procedures', () => {
+    const procedures = Object.keys(clinicRouter._def.procedures);
+    expect(procedures).toEqual(
+      expect.arrayContaining([
+        'listShiftTypes',
+        'createShiftType',
+        'updateShiftType',
+        'deleteShiftType',
+      ]),
     );
   });
 
@@ -204,5 +220,147 @@ describe('clinicRouter', () => {
     expect(mockClinicService.getOperationalConfig).toHaveBeenCalledWith(
       'clinic-secure',
     );
+  });
+
+  // ─── Shift Type CRUD ──────────────────────────────────────────────
+
+  const createAdminCaller = () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+    return createCaller({
+      user: { ...authenticatedUser, role: 'ADMIN' },
+      prisma: mockPrisma as any,
+      clinicService: mockClinicService as any,
+    } as any);
+  };
+
+  describe('listShiftTypes', () => {
+    it('calls clinicService.listShiftTypes with clinicId', async () => {
+      const expected = [
+        { id: 'st-1', name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#4F46E5' },
+      ];
+      mockClinicService.listShiftTypes.mockResolvedValue(expected);
+
+      const caller = createAuthenticatedCaller();
+      const result = await caller.listShiftTypes({});
+
+      expect(result).toEqual(expected);
+      expect(mockClinicService.listShiftTypes).toHaveBeenCalledWith('clinic-123');
+    });
+
+    it('throws UNAUTHORIZED without user', async () => {
+      const caller = createCaller({
+        user: null,
+        prisma: mockPrisma as any,
+        clinicService: mockClinicService as any,
+      } as any);
+
+      await expect(caller.listShiftTypes({})).rejects.toMatchObject({
+        code: 'UNAUTHORIZED',
+      });
+    });
+
+    it('throws FORBIDDEN without subscription', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(null);
+      const caller = createCaller({
+        user: authenticatedUser,
+        prisma: mockPrisma as any,
+        clinicService: mockClinicService as any,
+      } as any);
+
+      await expect(caller.listShiftTypes({})).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+  });
+
+  describe('createShiftType', () => {
+    const validInput = {
+      name: 'Morning',
+      code: 'AM',
+      startTime: '08:00',
+      endTime: '12:00',
+      color: '#4F46E5',
+    };
+
+    it('calls clinicService.createSingleShiftType for ADMIN', async () => {
+      mockClinicService.createSingleShiftType.mockResolvedValue({ id: 'st-1', ...validInput });
+
+      const caller = createAdminCaller();
+      const result = await caller.createShiftType(validInput);
+
+      expect(result).toEqual({ id: 'st-1', ...validInput });
+      expect(mockClinicService.createSingleShiftType).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.objectContaining({ name: 'Morning', code: 'AM' }),
+      );
+    });
+
+    it('throws FORBIDDEN for non-ADMIN role', async () => {
+      const caller = createAuthenticatedCaller();
+      await expect(caller.createShiftType(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid input (endTime <= startTime)', async () => {
+      const caller = createAdminCaller();
+      await expect(
+        caller.createShiftType({ ...validInput, startTime: '14:00', endTime: '08:00' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('updateShiftType', () => {
+    const validInput = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      name: 'Afternoon',
+    };
+
+    it('calls clinicService.updateSingleShiftType for ADMIN', async () => {
+      mockClinicService.updateSingleShiftType.mockResolvedValue({ ...validInput, code: 'PM' });
+
+      const caller = createAdminCaller();
+      const result = await caller.updateShiftType(validInput);
+
+      expect(mockClinicService.updateSingleShiftType).toHaveBeenCalledWith(
+        'clinic-123',
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        { name: 'Afternoon' },
+      );
+      expect(result).toEqual({ ...validInput, code: 'PM' });
+    });
+
+    it('throws FORBIDDEN for non-ADMIN role', async () => {
+      const caller = createAuthenticatedCaller();
+      await expect(caller.updateShiftType(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+  });
+
+  describe('deleteShiftType', () => {
+    it('calls clinicService.deleteSingleShiftType for ADMIN', async () => {
+      mockClinicService.deleteSingleShiftType.mockResolvedValue({ deleted: true });
+
+      const caller = createAdminCaller();
+      const result = await caller.deleteShiftType({
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      });
+
+      expect(mockClinicService.deleteSingleShiftType).toHaveBeenCalledWith(
+        'clinic-123',
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      );
+      expect(result).toEqual({ deleted: true });
+    });
+
+    it('throws FORBIDDEN for non-ADMIN role', async () => {
+      const caller = createAuthenticatedCaller();
+      await expect(
+        caller.deleteShiftType({ id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' }),
+      ).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
   });
 });

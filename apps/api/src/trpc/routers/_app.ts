@@ -11,6 +11,7 @@ import { authRouter } from './auth.router';
 import { stripeRouter } from './stripe.router';
 import { clinicRouter } from './clinic.router';
 import { employeeRouter } from './employee.router';
+import { planningRouter } from './planning.router';
 
 /**
  * Main application router
@@ -23,6 +24,7 @@ export const appRouter = router({
   stripe: stripeRouter,
   clinic: clinicRouter,
   employee: employeeRouter,
+  planning: planningRouter,
 });
 
 /**

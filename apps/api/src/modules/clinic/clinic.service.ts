@@ -13,6 +13,8 @@ import type {
   CreateShiftTypesInput,
   CompleteOnboardingInput,
   UpdateClinicOperationalConfigInput,
+  CreateShiftTypeInput,
+  UpdateShiftTypeInput,
 } from '@pawly/validators';
 
 @Injectable()
@@ -236,6 +238,113 @@ export class ClinicService {
         label: entry.label,
       })),
     };
+  }
+
+  // ─── Shift Type CRUD ──────────────────────────────────────────────
+
+  async listShiftTypes(clinicId: string) {
+    return this.prisma.clinicShiftType.findMany({
+      where: { clinicId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createSingleShiftType(clinicId: string, data: CreateShiftTypeInput) {
+    try {
+      return await this.prisma.clinicShiftType.create({
+        data: {
+          clinicId,
+          name: data.name,
+          code: data.code,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          color: data.color,
+        },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A shift type with this code already exists for this clinic.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async updateSingleShiftType(
+    clinicId: string,
+    id: string,
+    data: Omit<UpdateShiftTypeInput, 'id'>,
+  ) {
+    try {
+      const result = await this.prisma.clinicShiftType.updateMany({
+        where: { id, clinicId },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.code !== undefined && { code: data.code }),
+          ...(data.startTime !== undefined && { startTime: data.startTime }),
+          ...(data.endTime !== undefined && { endTime: data.endTime }),
+          ...(data.color !== undefined && { color: data.color }),
+        },
+      });
+
+      if (result.count === 0) {
+        throw new NotFoundException(`Shift type ${id} not found for this clinic`);
+      }
+
+      return this.prisma.clinicShiftType.findUnique({ where: { id } });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A shift type with this code already exists for this clinic.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  async deleteSingleShiftType(clinicId: string, id: string) {
+    // Check if any planning rules reference this shift type code
+    const shiftType = await this.prisma.clinicShiftType.findFirst({
+      where: { id, clinicId },
+    });
+
+    if (!shiftType) {
+      throw new NotFoundException(`Shift type ${id} not found for this clinic`);
+    }
+
+    const referencingRules = await this.prisma.planningRule.findMany({
+      where: { clinicId },
+      select: { id: true, name: true, config: true },
+    });
+
+    const blockedBy = referencingRules.filter((rule) => {
+      const config = rule.config as Record<string, unknown> | null;
+      return config && (config as Record<string, unknown>).shiftTypeCode === shiftType.code;
+    });
+
+    if (blockedBy.length > 0) {
+      const ruleNames = blockedBy.map((r) => r.name).join(', ');
+      throw new ConflictException(
+        `Cannot delete shift type "${shiftType.name}": referenced by planning rules: ${ruleNames}`,
+      );
+    }
+
+    await this.prisma.clinicShiftType.deleteMany({
+      where: { id, clinicId },
+    });
+
+    return { deleted: true };
   }
 
   async updateOperationalConfig(

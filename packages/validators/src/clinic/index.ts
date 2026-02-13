@@ -18,6 +18,12 @@ export {
   clinicSpecialDaySchema,
   clinicOperationalConfigSchema,
 } from "./operational-config.schema";
+export {
+  createShiftTypeSchema,
+  updateShiftTypeSchema,
+  deleteShiftTypeSchema,
+  listShiftTypesSchema,
+} from "./shift-type.schema";
 
 export type {
   WorkDay,
@@ -34,3 +40,9 @@ export type {
   UpdateClinicOperationalConfigInput,
   ClinicOperationalConfig,
 } from "./operational-config.schema";
+export type {
+  CreateShiftTypeInput,
+  UpdateShiftTypeInput,
+  DeleteShiftTypeInput,
+  ListShiftTypesInput,
+} from "./shift-type.schema";
