@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
 import { useTranslations } from "next-intl";
 import type { CounterThreshold } from "../_hooks/useEquityCounters";
 
@@ -111,7 +112,7 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
     return (
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-xl" />
+          <Skeleton key={i} className="h-16 w-full rounded-2xl" />
         ))}
       </div>
     );
@@ -119,28 +120,28 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/50 py-16 text-center">
+      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-neutral-50/50 py-16 text-center shadow-none">
         <p className="text-sm font-bold text-neutral-500">{t("table.noData")}</p>
         <p className="mt-1 text-xs text-neutral-400">{t("table.noDataDescription")}</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+    <Card className="overflow-hidden border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
       <Table>
         <TableHeader>
-          <TableRow className="border-neutral-100 bg-neutral-50/60">
-            <TableHead className="pl-4 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+          <TableRow className="border-neutral-100 bg-neutral-50/60 hover:bg-neutral-50/60">
+            <TableHead className="pl-6 h-12 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
               {t("table.employee")}
             </TableHead>
-            <TableHead className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+            <TableHead className="h-12 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
               {t("table.jobType")}
             </TableHead>
             {COUNTER_TYPES.map((ct) => (
               <TableHead
                 key={ct}
-                className="text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                className="h-12 text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400"
               >
                 {t(`counterTypes.${ct}`)}
               </TableHead>
@@ -149,12 +150,12 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.employeeId} className="border-neutral-50 hover:bg-neutral-50/50">
-              <TableCell className="pl-4 font-bold text-sm text-neutral-900">
+            <TableRow key={row.employeeId} className="border-neutral-50 hover:bg-neutral-50/50 transition-colors">
+              <TableCell className="pl-6 py-4 font-bold text-sm text-neutral-900">
                 {row.employeeName}
               </TableCell>
-              <TableCell>
-                <Badge variant="outline" className="text-[10px]">
+              <TableCell className="py-4">
+                <Badge variant="outline" className="text-[10px] border-neutral-200 text-neutral-500 font-medium">
                   {row.jobType}
                 </Badge>
               </TableCell>
@@ -166,9 +167,9 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
                 const label = max !== undefined ? `${display}/${max}` : display;
 
                 return (
-                  <TableCell key={ct} className="text-center">
+                  <TableCell key={ct} className="text-center py-4">
                     <span
-                      className={`inline-flex min-w-[2rem] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-bold ${colorClass}`}
+                      className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold transition-all ${colorClass}`}
                     >
                       {label}
                     </span>
@@ -179,6 +180,6 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
           ))}
         </TableBody>
       </Table>
-    </div>
+    </Card>
   );
 }

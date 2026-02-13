@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ClinicService } from '@/modules/clinic/clinic.service';
 import type { EquityCounterType } from '@prisma/client';
 
 export interface CounterWithEmployee {
@@ -29,7 +30,10 @@ export interface QuarterlySummaryRow {
 export class EquityCounterService {
   private readonly logger = new Logger(EquityCounterService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clinicService: ClinicService,
+  ) {}
 
   /**
    * Get equity counters for a period with employee data.
@@ -251,9 +255,7 @@ export class EquityCounterService {
    * Continues processing other clinics on individual failure.
    */
   async recalculateAllClinics(year: number, month: number): Promise<void> {
-    const clinics = await this.prisma.clinic.findMany({
-      select: { id: true, name: true },
-    });
+    const clinics = await this.clinicService.listAllClinicIds();
 
     for (const clinic of clinics) {
       try {

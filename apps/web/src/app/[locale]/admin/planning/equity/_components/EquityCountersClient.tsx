@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ export function EquityCountersClient() {
     isPending,
     isFetching,
     recalculate,
+    recalculateAsync,
     isRecalculating,
   } = useEquityCounters(year, months);
 
@@ -45,10 +47,10 @@ export function EquityCountersClient() {
 
   const { thresholds } = useEquityThresholds();
 
-  const handleRecalculate = () => {
+  const handleRecalculate = async () => {
     if (view === "quarterly") {
       for (const m of getQuarterMonths(quarter)) {
-        recalculate({ year, month: m });
+        await recalculateAsync({ year, month: m });
       }
     } else {
       recalculate({ year, month });
@@ -56,7 +58,7 @@ export function EquityCountersClient() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <EquityPeriodSelector
           view={view}
@@ -72,9 +74,9 @@ export function EquityCountersClient() {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="gap-2 rounded-full border border-neutral-200 text-xs font-bold text-neutral-600 hover:bg-neutral-50"
+              className="gap-2 rounded-xl text-xs font-bold text-neutral-600 border-neutral-200 hover:bg-neutral-50 shadow-sm"
               disabled={isRecalculating}
             >
               <RefreshCw
@@ -111,26 +113,30 @@ export function EquityCountersClient() {
       />
 
       {view === "quarterly" && !isQuarterlyPending && quarterlySummary.length > 0 && (
-        <div className="rounded-2xl border border-neutral-100 bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
-            {t("quarterly.title")}
-          </h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {quarterlySummary.map((row: { employeeId: string; counterType: string; _sum: { count: number | null } }) => (
-              <div
-                key={`${row.employeeId}-${row.counterType}`}
-                className="rounded-xl border border-neutral-50 bg-neutral-50/50 px-3 py-2 text-center"
-              >
-                <div className="text-lg font-bold text-neutral-800">
-                  {row._sum.count ?? 0}
+        <Card className="border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+          <CardHeader>
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+              {t("quarterly.title")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {quarterlySummary.map((row: { employeeId: string; counterType: string; _sum: { count: number | null } }) => (
+                <div
+                  key={`${row.employeeId}-${row.counterType}`}
+                  className="rounded-xl border border-neutral-100 bg-neutral-50/50 px-4 py-3 text-center"
+                >
+                  <div className="text-2xl font-bold text-neutral-900 mb-1">
+                    {row._sum.count ?? 0}
+                  </div>
+                  <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide">
+                    {t(`counterTypes.${row.counterType}`)}
+                  </div>
                 </div>
-                <div className="text-[10px] text-neutral-400">
-                  {t(`counterTypes.${row.counterType}`)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {!isPending && counters.length > 0 && (

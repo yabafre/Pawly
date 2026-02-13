@@ -47,18 +47,21 @@ export const useEquityCounters = (
     });
   };
 
-  const { mutate: recalculate, isPending: isRecalculating } =
-    useServerActionMutation(recalculateCountersAction, {
-      onSuccess: () => {
-        invalidateCounters();
-        toast.success(t("recalculated"));
-      },
-      onError: (err: { message?: string }) => {
-        toast.error(t("recalculateFailed"), {
-          description: err?.message,
-        });
-      },
-    });
+  const {
+    mutate: recalculate,
+    mutateAsync: recalculateAsync,
+    isPending: isRecalculating,
+  } = useServerActionMutation(recalculateCountersAction, {
+    onSuccess: () => {
+      invalidateCounters();
+      toast.success(t("recalculated"));
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(t("recalculateFailed"), {
+        description: err?.message,
+      });
+    },
+  });
 
   return {
     counters: data ?? [],
@@ -67,6 +70,7 @@ export const useEquityCounters = (
     error,
     refetch,
     recalculate,
+    recalculateAsync,
     isRecalculating,
     invalidateCounters,
   };
@@ -96,11 +100,11 @@ export const useQuarterlySummary = (year: number, quarter: number) => {
  * Maps targetDay to counter types: saturday→SATURDAY_WORKED, sunday→WEEKEND_TOTAL.
  */
 export const useEquityThresholds = () => {
-  const queryKey = QueryKeyFactory.planningRules();
+  const queryKey = QueryKeyFactory.equityThresholds();
 
   const { data, isPending } = useServerActionQuery(listEquityRulesAction, {
     input: { category: "ROTATION_EQUITY", isActive: true },
-    queryKey: [...queryKey, "equity-thresholds"],
+    queryKey,
     placeholderData: (prev: unknown) => prev,
   });
 

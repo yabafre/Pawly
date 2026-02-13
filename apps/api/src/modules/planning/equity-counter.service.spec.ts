@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EquityCounterService } from './equity-counter.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ClinicService } from '@/modules/clinic/clinic.service';
 
 describe('EquityCounterService', () => {
   let service: EquityCounterService;
@@ -19,9 +20,6 @@ describe('EquityCounterService', () => {
     shift: {
       findMany: jest.fn(),
     },
-    clinic: {
-      findMany: jest.fn(),
-    },
     clinicClosedDay: {
       findMany: jest.fn(),
     },
@@ -31,11 +29,16 @@ describe('EquityCounterService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockClinicService = {
+    listAllClinicIds: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EquityCounterService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: ClinicService, useValue: mockClinicService },
       ],
     }).compile();
 
@@ -779,8 +782,8 @@ describe('EquityCounterService', () => {
   // ─── recalculateAllClinics ──────────────────────────────────────────────
 
   describe('recalculateAllClinics', () => {
-    it('fetches all clinics and recalculates for each', async () => {
-      mockPrismaService.clinic.findMany.mockResolvedValue([
+    it('fetches all clinics via ClinicService and recalculates for each', async () => {
+      mockClinicService.listAllClinicIds.mockResolvedValue([
         { id: 'clinic-1', name: 'Clinic A' },
         { id: 'clinic-2', name: 'Clinic B' },
       ]);
@@ -792,15 +795,13 @@ describe('EquityCounterService', () => {
 
       await service.recalculateAllClinics(2026, 3);
 
-      expect(mockPrismaService.clinic.findMany).toHaveBeenCalledWith({
-        select: { id: true, name: true },
-      });
+      expect(mockClinicService.listAllClinicIds).toHaveBeenCalled();
       // employee.findMany should be called once per clinic
       expect(mockPrismaService.employee.findMany).toHaveBeenCalledTimes(2);
     });
 
     it('continues processing other clinics when one fails', async () => {
-      mockPrismaService.clinic.findMany.mockResolvedValue([
+      mockClinicService.listAllClinicIds.mockResolvedValue([
         { id: 'clinic-1', name: 'Clinic A' },
         { id: 'clinic-2', name: 'Clinic B' },
         { id: 'clinic-3', name: 'Clinic C' },
@@ -826,11 +827,11 @@ describe('EquityCounterService', () => {
     });
 
     it('handles empty clinic list gracefully', async () => {
-      mockPrismaService.clinic.findMany.mockResolvedValue([]);
+      mockClinicService.listAllClinicIds.mockResolvedValue([]);
 
       await service.recalculateAllClinics(2026, 3);
 
-      expect(mockPrismaService.clinic.findMany).toHaveBeenCalledTimes(1);
+      expect(mockClinicService.listAllClinicIds).toHaveBeenCalledTimes(1);
       expect(mockPrismaService.employee.findMany).not.toHaveBeenCalled();
     });
   });

@@ -44,7 +44,7 @@ export function EmployeeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] rounded-3xl">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-neutral-900">
             {mode === "create" ? t("form.createTitle") : t("form.editTitle")}

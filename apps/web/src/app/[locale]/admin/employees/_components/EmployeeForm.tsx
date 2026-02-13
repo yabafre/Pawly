@@ -88,7 +88,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               <Label htmlFor="firstName">{t("form.firstName")}</Label>
               <Input
                 id="firstName"
-                className="h-12 focus-visible:ring-[#009588]/20"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -118,7 +117,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               <Label htmlFor="lastName">{t("form.lastName")}</Label>
               <Input
                 id="lastName"
-                className="h-12 focus-visible:ring-[#009588]/20"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -151,7 +149,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               <Input
                 id="email"
                 type="email"
-                className="h-12 focus-visible:ring-[#009588]/20"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -173,7 +170,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               <Input
                 id="phone"
                 type="tel"
-                className="h-12 focus-visible:ring-[#009588]/20"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
@@ -189,7 +185,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
             <div className="space-y-1.5">
               <Label>{t("form.jobType")}</Label>
               <Select value={field.state.value} onValueChange={field.handleChange}>
-                <SelectTrigger className="h-12">
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,7 +205,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
             <div className="space-y-1.5">
               <Label>{t("form.contractType")}</Label>
               <Select value={field.state.value} onValueChange={field.handleChange}>
-                <SelectTrigger className="h-12">
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -243,7 +239,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 type="number"
                 min={1}
                 max={48}
-                className="h-12 focus-visible:ring-[#009588]/20"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(Number(e.target.value))}
                 onBlur={field.handleBlur}
@@ -265,7 +260,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               <Input
                 id="color"
                 type="color"
-                className="h-12 w-full cursor-pointer"
+                className="h-11 w-full cursor-pointer p-1"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
               />
@@ -286,7 +281,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                   <Input
                     id="hireDate"
                     type="date"
-                    className="h-12 focus-visible:ring-[#009588]/20"
                     value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -324,7 +318,6 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                     <Input
                       id="endDate"
                       type="date"
-                      className="h-12 focus-visible:ring-[#009588]/20"
                       value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -349,7 +342,8 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
         <Button
           type="submit"
           disabled={isPending}
-          className="bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 h-12 px-6"
+          size="lg"
+          className="rounded-2xl"
         >
           {isPending ? "..." : t("actions.save")}
         </Button>

@@ -11,6 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type EquityCounter = {
   id: string;
@@ -69,50 +70,57 @@ export function EquityDistributionChart({ counters }: Props) {
   if (data.length === 0) return null;
 
   return (
-    <div className="rounded-3xl border border-neutral-100 bg-white p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-neutral-400">
-        {t("chart.title")}
-      </h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="name"
-            tick={{ fontSize: 11, fill: "#737373" }}
-            tickLine={false}
-            axisLine={{ stroke: "#e5e5e5" }}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: "#737373" }}
-            tickLine={false}
-            axisLine={false}
-            allowDecimals={false}
-          />
-          <Tooltip
-            contentStyle={{
-              borderRadius: "12px",
-              border: "1px solid #e5e5e5",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-              fontSize: "12px",
-            }}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
-          />
-          {(Object.keys(COUNTER_FILLS) as Array<keyof typeof COUNTER_FILLS>).map(
-            (ct) => (
-              <Bar
-                key={ct}
-                dataKey={ct}
-                name={t(`counterTypes.${ct}`)}
-                fill={COUNTER_FILLS[ct]}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={32}
-              />
-            ),
-          )}
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <Card className="border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader>
+        <CardTitle className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+          {t("chart.title")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "#737373" }}
+              tickLine={false}
+              axisLine={{ stroke: "#e5e5e5" }}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#737373" }}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                borderRadius: "16px",
+                border: "1px solid #e5e5e5",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                fontSize: "12px",
+                padding: "12px",
+              }}
+              cursor={{ fill: "#f5f5f5" }}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: "11px", paddingTop: "20px" }}
+              iconType="circle"
+            />
+            {(Object.keys(COUNTER_FILLS) as Array<keyof typeof COUNTER_FILLS>).map(
+              (ct) => (
+                <Bar
+                  key={ct}
+                  dataKey={ct}
+                  name={t(`counterTypes.${ct}`)}
+                  fill={COUNTER_FILLS[ct]}
+                  radius={[4, 4, 4, 4]}
+                  maxBarSize={32}
+                />
+              ),
+            )}
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 }

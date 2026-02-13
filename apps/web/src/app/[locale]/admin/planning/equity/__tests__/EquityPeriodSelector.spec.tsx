@@ -58,16 +58,18 @@ describe("EquityPeriodSelector", () => {
       render(<EquityPeriodSelector {...defaultProps} view="monthly" />);
 
       const monthlyBtn = screen.getByText("monthly");
-      expect(monthlyBtn.className).toContain("bg-neutral-900");
-      expect(monthlyBtn.className).toContain("text-white");
+      expect(monthlyBtn.className).toContain("bg-white");
+      expect(monthlyBtn.className).toContain("text-neutral-900");
+      expect(monthlyBtn.className).toContain("shadow-sm");
     });
 
     it("highlights the quarterly button when view is quarterly", () => {
       render(<EquityPeriodSelector {...defaultProps} view="quarterly" />);
 
       const quarterlyBtn = screen.getByText("quarterly");
-      expect(quarterlyBtn.className).toContain("bg-neutral-900");
-      expect(quarterlyBtn.className).toContain("text-white");
+      expect(quarterlyBtn.className).toContain("bg-white");
+      expect(quarterlyBtn.className).toContain("text-neutral-900");
+      expect(quarterlyBtn.className).toContain("shadow-sm");
     });
 
     it("calls onViewChange when clicking monthly button", () => {
