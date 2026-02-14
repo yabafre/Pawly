@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Copy, Edit2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Copy, Edit2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
@@ -81,19 +80,25 @@ export function TemplateList({
 
   if (templates.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-white py-16 px-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        <div className="text-center space-y-3">
-          <h3 className="text-lg font-bold text-neutral-600">{t("emptyState.title")}</h3>
-          <p className="text-sm text-neutral-400 max-w-md">{t("emptyState.description")}</p>
+      <section className="group relative overflow-hidden rounded-3xl border-2 border-dashed border-neutral-200 bg-white p-12 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+        {/* Teal glow on hover */}
+        <div className="pointer-events-none absolute -left-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#009588] opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
+
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100">
+            <CalendarDays className="h-6 w-6 text-neutral-400" strokeWidth={1.5} />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-neutral-700">{t("emptyState.title")}</h3>
+          <p className="mt-1 text-sm text-neutral-500 max-w-md">{t("emptyState.description")}</p>
           <Button
             onClick={onCreate}
-            className="mt-4 rounded-xl px-6"
+            className="mt-6 rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-neutral-900/10 hover:bg-black"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             {t("emptyState.cta")}
           </Button>
         </div>
-      </Card>
+      </section>
     );
   }
 
@@ -102,9 +107,9 @@ export function TemplateList({
       <div className="flex justify-end mb-4">
         <Button
           onClick={onCreate}
-          className="rounded-xl px-6"
+          className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-neutral-900/10 hover:bg-black"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           {t("emptyState.cta")}
         </Button>
       </div>
@@ -115,15 +120,18 @@ export function TemplateList({
           const totalSlots = countSlots(data);
 
           return (
-            <Card
+            <div
               key={tmpl.id}
-              className="group relative border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:scale-[1.02]"
+              className="group relative overflow-hidden rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]"
             >
-              <CardContent className="p-5">
+              {/* Teal glow on hover */}
+              <div className="pointer-events-none absolute -left-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#009588] opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
+
+              <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="font-bold text-neutral-900 text-sm leading-tight">{tmpl.name}</h3>
-                    <p className="text-[10px] font-medium text-neutral-400 mt-1 uppercase tracking-wide">
+                    <p className="text-[10px] font-bold text-neutral-400 mt-1 uppercase tracking-widest">
                       {t("card.daysConfigured", { count: data.days.length })}
                       <span className="mx-1.5 opacity-50">|</span>
                       {t("card.slotsCount", { count: totalSlots })}
@@ -135,7 +143,7 @@ export function TemplateList({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-neutral-400 hover:text-neutral-900 -mr-2 -mt-2"
+                        className="h-8 w-8 rounded-full text-neutral-400 hover:text-neutral-900 -mr-1 -mt-1"
                         aria-label={t("actions.menu")}
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -167,29 +175,22 @@ export function TemplateList({
                   workDays={workDays}
                   compact
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent className="rounded-2xl">
+        <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-orange-50 rounded-full text-orange-500 shrink-0">
-                <AlertTriangle className="h-4 w-4" />
-              </div>
-              <div>
-                <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
-                <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
-              </div>
-            </div>
+            <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg">{t("confirm.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl">{t("confirm.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 rounded-lg"
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
               onClick={() => {
                 if (deleteId) onDelete(deleteId);
                 setDeleteId(null);

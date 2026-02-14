@@ -6,14 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { CalendarDays, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { CalendarDays, Loader2, Plus, Sparkles } from "lucide-react";
 import { TemplateSlotForm } from "./TemplateSlotForm";
 import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
@@ -146,34 +145,26 @@ export function TemplateEditor({
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full sm:max-w-2xl lg:max-w-3xl p-0 flex flex-col gap-0 border-l-0 shadow-[-8px_0_40px_rgba(0,0,0,0.08)]"
+        className="w-full sm:max-w-2xl lg:max-w-3xl p-0 flex flex-col gap-0 border-l-0 shadow-[-8px_0_40px_rgba(0,0,0,0.08)] sm:rounded-l-3xl"
       >
         {/* ── Sticky header ─────────────────────────────────────── */}
-        <SheetHeader className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-neutral-100 px-6 py-5 gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#009588]/10">
-                <CalendarDays className="h-4.5 w-4.5 text-[#009588]" />
-              </div>
-              <div>
-                <SheetTitle className="text-base font-bold text-neutral-800">
-                  {isEditing ? t("form.editTitle") : t("form.createTitle")}
-                </SheetTitle>
-                <SheetDescription className="text-xs text-neutral-400 mt-0">
-                  {t("form.subtitle")}
-                </SheetDescription>
-              </div>
+        <SheetHeader className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-neutral-100 px-6 pb-5 pt-6 pr-12 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100">
+              <CalendarDays className="h-5 w-5 text-[#009588]" strokeWidth={1.5} />
             </div>
-            <SheetClose asChild>
-              <button className="rounded-full p-2 text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-900">
-                <X className="h-4 w-4" />
-                <span className="sr-only">{t("form.cancel")}</span>
-              </button>
-            </SheetClose>
+            <div>
+              <SheetTitle className="text-base font-bold text-neutral-900">
+                {isEditing ? t("form.editTitle") : t("form.createTitle")}
+              </SheetTitle>
+              <SheetDescription className="mt-1 text-[13px] leading-relaxed text-neutral-500">
+                {t("form.subtitle")}
+              </SheetDescription>
+            </div>
           </div>
 
           {/* Name input in header */}
-          <div className="relative">
+          <div className="relative mt-1">
             <Input
               id="template-name"
               value={name}
@@ -182,7 +173,7 @@ export function TemplateEditor({
               maxLength={100}
               aria-invalid={!name.trim() && name.length > 0}
               aria-describedby={!name.trim() && name.length > 0 ? "name-error" : undefined}
-              className="h-11 rounded-xl border-neutral-200 bg-neutral-50/80 px-4 text-sm font-medium placeholder:text-neutral-300 focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+              className="h-11 rounded-xl border-neutral-200 bg-neutral-50 px-4 text-sm font-medium placeholder:text-neutral-300 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
             />
             {!name.trim() && name.length > 0 && (
               <p id="name-error" className="sr-only" role="alert">
@@ -195,10 +186,19 @@ export function TemplateEditor({
               </div>
             )}
           </div>
+
+          {/* Built-in close button — positioned absolute top-4 right-4 */}
+          <button
+            onClick={() => onOpenChange(false)}
+            className="absolute top-4 right-4 rounded-full p-2 opacity-70 transition-all hover:bg-neutral-100 hover:opacity-100"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-500"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <span className="sr-only">{t("form.cancel")}</span>
+          </button>
         </SheetHeader>
 
         {/* ── Scrollable body ───────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
           <div className="space-y-3">
             {DAY_KEYS.map((dayKey, idx) => {
               const dayOfWeek = idx + 1;
@@ -209,18 +209,22 @@ export function TemplateEditor({
               return (
                 <div
                   key={dayKey}
-                  className={`group relative rounded-2xl border transition-all duration-200 ${
+                  className={`group relative overflow-hidden rounded-2xl border transition-all duration-200 ${
                     nonWork
                       ? "border-dashed border-neutral-200/80 bg-neutral-50/40"
                       : hasSlots
-                        ? "border-neutral-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.04)]"
+                        ? "border-neutral-100 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
                         : "border-neutral-100 bg-white/60"
                   }`}
                 >
+                  {/* Subtle glow on configured days */}
+                  {hasSlots && !nonWork && (
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-[120px] w-[120px] rounded-full bg-[#009588] opacity-0 blur-[50px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
+                  )}
+
                   {/* Day header */}
-                  <div className="flex items-center justify-between px-4 py-3">
+                  <div className="relative z-10 flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      {/* Day indicator dot */}
                       <div
                         className={`h-2 w-2 rounded-full transition-colors ${
                           hasSlots
@@ -243,7 +247,7 @@ export function TemplateEditor({
                         </span>
                       )}
                       {hasSlots && (
-                        <span className="rounded-full bg-[#009588]/8 px-2 py-0.5 text-[9px] font-semibold text-[#009588]">
+                        <span className="rounded-full bg-[#009588]/10 px-2 py-0.5 text-[9px] font-bold text-[#009588]">
                           {t("card.slotsCount", { count: slots.length })}
                         </span>
                       )}
@@ -280,7 +284,7 @@ export function TemplateEditor({
         </div>
 
         {/* ── Sticky footer with preview + actions ──────────────── */}
-        <SheetFooter className="sticky bottom-0 z-10 border-t border-neutral-100 bg-white/95 backdrop-blur-sm px-6 py-4 gap-4">
+        <SheetFooter className="shrink-0 border-t border-neutral-100 bg-neutral-50/50 px-6 py-4 gap-4">
           {/* Live preview strip */}
           <div className="w-full">
             <div className="mb-2.5 flex items-center justify-between">
@@ -306,6 +310,7 @@ export function TemplateEditor({
             <Button
               variant="outline"
               size="sm"
+              className="rounded-xl border-neutral-200 text-neutral-700 hover:bg-neutral-50"
               onClick={() => onOpenChange(false)}
             >
               {t("form.cancel")}
@@ -314,7 +319,7 @@ export function TemplateEditor({
               onClick={handleSubmit}
               disabled={!name.trim() || isSaving}
               size="sm"
-              className="px-6"
+              className="rounded-xl bg-[#009588] px-6 font-semibold text-white shadow-lg shadow-[#009588]/20 hover:bg-[#00796B] disabled:opacity-60"
             >
               {isSaving && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
               {t("form.save")}
