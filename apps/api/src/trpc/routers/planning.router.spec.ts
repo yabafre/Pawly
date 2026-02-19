@@ -23,6 +23,15 @@ describe('planningRouter', () => {
     validateShiftsAgainstRules: jest.fn(),
   };
 
+  const mockPlanningTemplateService = {
+    listTemplates: jest.fn(),
+    getTemplateById: jest.fn(),
+    createTemplate: jest.fn(),
+    updateTemplate: jest.fn(),
+    deleteTemplate: jest.fn(),
+    duplicateTemplate: jest.fn(),
+  };
+
   const mockEquityCounterService = {
     getCountersForPeriod: jest.fn(),
     getQuarterlySummary: jest.fn(),
@@ -62,6 +71,7 @@ describe('planningRouter', () => {
       user: authenticatedAdmin,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
     } as any);
   };
@@ -72,6 +82,7 @@ describe('planningRouter', () => {
       user: authenticatedEmployee,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
     } as any);
   };
@@ -82,9 +93,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 10 procedures', () => {
+  it('should export all 16 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(10);
+    expect(procedures).toHaveLength(16);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -97,6 +108,12 @@ describe('planningRouter', () => {
         'getEquityCounters',
         'getQuarterlySummary',
         'recalculateCounters',
+        'listTemplates',
+        'getTemplateById',
+        'createTemplate',
+        'updateTemplate',
+        'deleteTemplate',
+        'duplicateTemplate',
       ]),
     );
   });
@@ -108,6 +125,7 @@ describe('planningRouter', () => {
       user: null,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
     } as any);
 
@@ -124,6 +142,7 @@ describe('planningRouter', () => {
       user: authenticatedAdmin,
       prisma: mockPrisma as any,
       planningService: mockPlanningService as any,
+      planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
     } as any);
 
@@ -461,6 +480,7 @@ describe('planningRouter', () => {
         user: null,
         prisma: mockPrisma as any,
         planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
       } as any);
 
@@ -533,6 +553,7 @@ describe('planningRouter', () => {
         user: null,
         prisma: mockPrisma as any,
         planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
       } as any);
 
@@ -600,6 +621,7 @@ describe('planningRouter', () => {
         user: null,
         prisma: mockPrisma as any,
         planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
       } as any);
 
@@ -622,6 +644,158 @@ describe('planningRouter', () => {
       await expect(
         caller.recalculateCounters(validInput),
       ).rejects.toThrow('Database connection lost');
+    });
+  });
+
+  // ─── Template procedures ─────────────────────────────────────────
+
+  describe('listTemplates', () => {
+    it('returns templates for admin user', async () => {
+      const mockTemplates = [{ id: 'tmpl-1', name: 'Standard' }];
+      mockPlanningTemplateService.listTemplates.mockResolvedValue(mockTemplates);
+
+      const caller = createAdminCaller();
+      const result = await caller.listTemplates({});
+
+      expect(result).toEqual(mockTemplates);
+      expect(mockPlanningTemplateService.listTemplates).toHaveBeenCalledWith('clinic-123');
+    });
+
+    it('throws FORBIDDEN for EMPLOYEE role', async () => {
+      const caller = createEmployeeCaller();
+      await expect(caller.listTemplates({})).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('getTemplateById', () => {
+    it('returns template scoped to clinic', async () => {
+      const mockTemplate = { id: 'tmpl-1', name: 'Test', clinicId: 'clinic-123' };
+      mockPlanningTemplateService.getTemplateById.mockResolvedValue(mockTemplate);
+
+      const caller = createAdminCaller();
+      const result = await caller.getTemplateById({ id: '550e8400-e29b-41d4-a716-446655440000' });
+
+      expect(result).toEqual(mockTemplate);
+      expect(mockPlanningTemplateService.getTemplateById).toHaveBeenCalledWith(
+        'clinic-123',
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+    });
+
+    it('throws FORBIDDEN for EMPLOYEE role', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.getTemplateById({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('createTemplate', () => {
+    const validInput = {
+      name: 'Standard Week',
+      data: {
+        days: [
+          { dayOfWeek: 1, slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 2 }] },
+        ],
+      },
+    };
+
+    it('creates template with admin role', async () => {
+      mockPlanningTemplateService.createTemplate.mockResolvedValue({ id: 'new-1', ...validInput });
+
+      const caller = createAdminCaller();
+      const result = await caller.createTemplate(validInput);
+
+      expect(result.id).toBe('new-1');
+      expect(mockPlanningTemplateService.createTemplate).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput,
+      );
+    });
+
+    it('throws FORBIDDEN for non-admin user', async () => {
+      const caller = createEmployeeCaller();
+      await expect(caller.createTemplate(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    it('uses clinicId from context', async () => {
+      mockPlanningTemplateService.createTemplate.mockResolvedValue({ id: 'new-1' });
+
+      const caller = createAdminCaller();
+      await caller.createTemplate(validInput);
+
+      expect(mockPlanningTemplateService.createTemplate).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('updateTemplate', () => {
+    const validInput = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      name: 'Updated',
+      data: { days: [] },
+    };
+
+    it('updates template with admin role', async () => {
+      mockPlanningTemplateService.updateTemplate.mockResolvedValue({ ...validInput, clinicId: 'clinic-123' });
+
+      const caller = createAdminCaller();
+      const result = await caller.updateTemplate(validInput);
+
+      expect(result.name).toBe('Updated');
+    });
+
+    it('throws FORBIDDEN for non-admin', async () => {
+      const caller = createEmployeeCaller();
+      await expect(caller.updateTemplate(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('deleteTemplate', () => {
+    it('deletes template with admin role', async () => {
+      mockPlanningTemplateService.deleteTemplate.mockResolvedValue({ id: 'tmpl-1' });
+
+      const caller = createAdminCaller();
+      await caller.deleteTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' });
+
+      expect(mockPlanningTemplateService.deleteTemplate).toHaveBeenCalledWith(
+        'clinic-123',
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+    });
+
+    it('throws FORBIDDEN for non-admin', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.deleteTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('duplicateTemplate', () => {
+    it('duplicates template with admin role', async () => {
+      mockPlanningTemplateService.duplicateTemplate.mockResolvedValue({
+        id: 'tmpl-2',
+        name: 'Standard (Copy)',
+      });
+
+      const caller = createAdminCaller();
+      const result = await caller.duplicateTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' });
+
+      expect(result.name).toBe('Standard (Copy)');
+      expect(mockPlanningTemplateService.duplicateTemplate).toHaveBeenCalledWith(
+        'clinic-123',
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+    });
+
+    it('throws FORBIDDEN for non-admin', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.duplicateTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });
 });

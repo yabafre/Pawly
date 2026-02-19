@@ -45,3 +45,26 @@ export type {
   GetQuarterlySummaryInput,
   RecalculateCountersInput,
 } from "./equity-counter.schema";
+
+export {
+  templateSlotSchema,
+  templateDaySchema,
+  templateDataBaseSchema,
+  templateDataSchema,
+  createTemplateSchema,
+  updateTemplateSchema,
+  duplicateTemplateSchema,
+  templateIdSchema,
+  listTemplatesSchema,
+} from "./planning-template.schema";
+
+export type {
+  TemplateSlot,
+  TemplateDay,
+  TemplateData,
+  CreateTemplateInput,
+  UpdateTemplateInput,
+  DuplicateTemplateInput,
+  TemplateIdInput,
+  ListTemplatesInput,
+} from "./planning-template.schema";

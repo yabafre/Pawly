@@ -96,7 +96,8 @@
       "absences": "Absences",
       "billing": "Billing",
       "planningRules": "Planning Rules",
-      "equityCounters": "Equity"
+      "equityCounters": "Equity",
+      "templates": "Templates"
     },
     "dashboard": {
       "overview": "Overview",
@@ -281,6 +282,89 @@
         "counter": "{current}/{max}",
         "noLimit": "{current}"
       }
+    },
+    "planningTemplates": {
+      "title": "Week Templates",
+      "subtitle": "Define baseline weekly shift structures for monthly planning generation.",
+      "loading": "Loading templates...",
+      "emptyState": {
+        "title": "No templates yet",
+        "description": "Create your first week template to define the ideal shift structure.",
+        "cta": "Create Template"
+      },
+      "form": {
+        "createTitle": "New Template",
+        "editTitle": "Edit Template",
+        "subtitle": "Define shift requirements for each day of the week",
+        "name": "Template name",
+        "namePlaceholder": "e.g. Standard Week",
+        "save": "Save Template",
+        "cancel": "Cancel",
+        "nameRequired": "Template name is required"
+      },
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      },
+      "slot": {
+        "shiftType": "Shift type",
+        "requiredStaff": "Required staff",
+        "requiredJobTypes": "Required roles",
+        "addSlot": "Add slot",
+        "removeSlot": "Remove",
+        "staffCount": "{count} staff"
+      },
+      "preview": {
+        "title": "Week Preview",
+        "totalStaff": "Total staff",
+        "noSlots": "No slots"
+      },
+      "card": {
+        "created": "Created {date}",
+        "updated": "Updated {date}",
+        "slotsCount": "{count} slots",
+        "daysConfigured": "{count} days configured"
+      },
+      "actions": {
+        "edit": "Edit",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
+        "menu": "Template actions"
+      },
+      "confirm": {
+        "deleteTitle": "Delete Template",
+        "deleteMessage": "Are you sure you want to delete this template? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "created": "Template created",
+        "updated": "Template updated",
+        "duplicated": "Template duplicated",
+        "deleted": "Template deleted",
+        "createFailed": "Unable to create template",
+        "updateFailed": "Unable to update template",
+        "duplicateFailed": "Unable to duplicate template",
+        "deleteFailed": "Unable to delete template"
+      },
+      "errors": {
+        "loadFailed": "Unable to load templates",
+        "loadFailedDescription": "Please try again or contact support if the issue persists.",
+        "retry": "Try again"
+      },
+      "nonWorkDay": "Non-work day"
     },
     "settings": {
       "badge": "Clinic settings",

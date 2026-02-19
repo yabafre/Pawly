@@ -96,7 +96,8 @@
       "absences": "Absences",
       "billing": "Facturation",
       "planningRules": "Règles de planning",
-      "equityCounters": "Équité"
+      "equityCounters": "Équité",
+      "templates": "Modèles"
     },
     "dashboard": {
       "overview": "Vue d'ensemble",
@@ -281,6 +282,89 @@
         "counter": "{current}/{max}",
         "noLimit": "{current}"
       }
+    },
+    "planningTemplates": {
+      "title": "Modèles de semaine",
+      "subtitle": "Définissez les structures de créneaux hebdomadaires de base pour la génération du planning mensuel.",
+      "loading": "Chargement des modèles...",
+      "emptyState": {
+        "title": "Aucun modèle",
+        "description": "Créez votre premier modèle de semaine pour définir la structure idéale des créneaux.",
+        "cta": "Créer un modèle"
+      },
+      "form": {
+        "createTitle": "Nouveau modèle",
+        "editTitle": "Modifier le modèle",
+        "subtitle": "Définissez les besoins en créneaux pour chaque jour de la semaine",
+        "name": "Nom du modèle",
+        "namePlaceholder": "ex. Semaine standard",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "nameRequired": "Le nom du modèle est requis"
+      },
+      "days": {
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Mer",
+        "thu": "Jeu",
+        "fri": "Ven",
+        "sat": "Sam",
+        "sun": "Dim",
+        "monday": "Lundi",
+        "tuesday": "Mardi",
+        "wednesday": "Mercredi",
+        "thursday": "Jeudi",
+        "friday": "Vendredi",
+        "saturday": "Samedi",
+        "sunday": "Dimanche"
+      },
+      "slot": {
+        "shiftType": "Type de créneau",
+        "requiredStaff": "Personnel requis",
+        "requiredJobTypes": "Postes requis",
+        "addSlot": "Ajouter un créneau",
+        "removeSlot": "Supprimer",
+        "staffCount": "{count} personnel"
+      },
+      "preview": {
+        "title": "Aperçu semaine",
+        "totalStaff": "Total personnel",
+        "noSlots": "Aucun créneau"
+      },
+      "card": {
+        "created": "Créé le {date}",
+        "updated": "Modifié le {date}",
+        "slotsCount": "{count} créneaux",
+        "daysConfigured": "{count} jours configurés"
+      },
+      "actions": {
+        "edit": "Modifier",
+        "duplicate": "Dupliquer",
+        "delete": "Supprimer",
+        "menu": "Actions du modèle"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer le modèle",
+        "deleteMessage": "Êtes-vous sûr de vouloir supprimer ce modèle ? Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "toast": {
+        "created": "Modèle créé",
+        "updated": "Modèle mis à jour",
+        "duplicated": "Modèle dupliqué",
+        "deleted": "Modèle supprimé",
+        "createFailed": "Impossible de créer le modèle",
+        "updateFailed": "Impossible de modifier le modèle",
+        "duplicateFailed": "Impossible de dupliquer le modèle",
+        "deleteFailed": "Impossible de supprimer le modèle"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les modèles",
+        "loadFailedDescription": "Veuillez réessayer ou contacter le support si le problème persiste.",
+        "retry": "Réessayer"
+      },
+      "nonWorkDay": "Jour non travaillé"
     },
     "settings": {
       "badge": "Paramètres clinique",

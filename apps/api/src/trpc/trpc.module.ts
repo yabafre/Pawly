@@ -18,6 +18,7 @@ import { EmployeeModule } from '@/modules/employee/employee.module';
 import { EmployeeService } from '@/modules/employee/employee.service';
 import { PlanningModule } from '@/modules/planning/planning.module';
 import { PlanningService } from '@/modules/planning/planning.service';
+import { PlanningTemplateService } from '@/modules/planning/planning-template.service';
 import { EquityCounterService } from '@/modules/planning/equity-counter.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
@@ -39,6 +40,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly clinicService: ClinicService,
     private readonly employeeService: EmployeeService,
     private readonly planningService: PlanningService,
+    private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
@@ -49,6 +51,7 @@ export class TRPCMiddleware implements NestMiddleware {
       clinicService: this.clinicService,
       employeeService: this.employeeService,
       planningService: this.planningService,
+      planningTemplateService: this.planningTemplateService,
       equityCounterService: this.equityCounterService,
       jwtService: this.jwtService,
       prisma: this.prisma,
@@ -76,6 +79,7 @@ export class TRPCService {
     private readonly clinicService: ClinicService,
     private readonly employeeService: EmployeeService,
     private readonly planningService: PlanningService,
+    private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
@@ -91,6 +95,7 @@ export class TRPCService {
       clinicService: this.clinicService,
       employeeService: this.employeeService,
       planningService: this.planningService,
+      planningTemplateService: this.planningTemplateService,
       equityCounterService: this.equityCounterService,
       jwtService: this.jwtService,
       prisma: this.prisma,
