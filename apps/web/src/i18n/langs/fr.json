@@ -366,6 +366,62 @@
       },
       "nonWorkDay": "Jour non travaillé"
     },
+    "planningGeneration": {
+      "title": "Génération du planning",
+      "subtitle": "Générer un planning mensuel à partir d'un modèle de semaine.",
+      "monthLabel": "Mois cible",
+      "monthPlaceholder": "Sélectionner un mois",
+      "templateLabel": "Modèle de semaine",
+      "templatePlaceholder": "Sélectionner un modèle",
+      "generateButton": "Générer le planning",
+      "generating": "Génération en cours...",
+      "regenerateButton": "Regénérer",
+      "previewButton": "Aperçu",
+      "stats": {
+        "totalSlots": "Créneaux totaux",
+        "filledSlots": "Pourvus",
+        "holes": "Non pourvus",
+        "hardViolations": "Violations bloquantes",
+        "softWarnings": "Avertissements"
+      },
+      "result": {
+        "title": "Résultat de la génération",
+        "summary": "Résumé",
+        "assignments": "Affectations",
+        "holes": "Créneaux non pourvus",
+        "violations": "Violations",
+        "noHoles": "Tous les créneaux ont été pourvus.",
+        "noViolations": "Aucune violation détectée.",
+        "holesTitle": "Créneaux non pourvus",
+        "hardViolationsTitle": "Violations bloquantes",
+        "softWarningsTitle": "Avertissements",
+        "allGood": "Tous les créneaux ont été pourvus sans violation !"
+      },
+      "holeReasons": {
+        "noEligible": "Aucun employé éligible disponible",
+        "allUnavailable": "Tous les employés indisponibles à cette date",
+        "skillMismatch": "Aucun employé ne correspond au type de poste requis",
+        "doubleBooked": "Tous les employés éligibles sont déjà affectés"
+      },
+      "confirmRegenerate": {
+        "title": "Regénérer le planning ?",
+        "description": "Les {count} créneaux générés pour ce mois seront supprimés et remplacés. Les créneaux manuels seront conservés.",
+        "confirm": "Regénérer",
+        "cancel": "Annuler"
+      },
+      "toast": {
+        "generated": "Planning généré avec succès",
+        "regenerated": "Planning regénéré avec succès",
+        "deleted": "Créneaux générés supprimés",
+        "generateFailed": "Impossible de générer le planning",
+        "deleteFailed": "Impossible de supprimer les créneaux générés"
+      },
+      "errors": {
+        "noTemplate": "Veuillez sélectionner un modèle",
+        "noMonth": "Veuillez sélectionner un mois cible",
+        "loadFailed": "Impossible de charger les données"
+      }
+    },
     "settings": {
       "badge": "Paramètres clinique",
       "title": "Paramètres opérationnels",

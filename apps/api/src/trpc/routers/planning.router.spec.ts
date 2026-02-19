@@ -38,6 +38,12 @@ describe('planningRouter', () => {
     recalculateForPeriod: jest.fn(),
   };
 
+  const mockPlanningGenerationService = {
+    generateMonthlyPlan: jest.fn(),
+    listShiftsForMonth: jest.fn(),
+    deleteGeneratedShifts: jest.fn(),
+  };
+
   const mockPrisma = {
     subscription: {
       findUnique: jest.fn(),
@@ -73,6 +79,7 @@ describe('planningRouter', () => {
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
+      planningGenerationService: mockPlanningGenerationService as any,
     } as any);
   };
 
@@ -84,6 +91,7 @@ describe('planningRouter', () => {
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
+      planningGenerationService: mockPlanningGenerationService as any,
     } as any);
   };
 
@@ -93,9 +101,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 16 procedures', () => {
+  it('should export all 19 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(16);
+    expect(procedures).toHaveLength(19);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -114,6 +122,9 @@ describe('planningRouter', () => {
         'updateTemplate',
         'deleteTemplate',
         'duplicateTemplate',
+        'generatePlan',
+        'listShiftsForMonth',
+        'deleteGeneratedShifts',
       ]),
     );
   });
@@ -795,6 +806,125 @@ describe('planningRouter', () => {
       const caller = createEmployeeCaller();
       await expect(
         caller.duplicateTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  // ─── Generation procedures ─────────────────────────────────────────
+
+  describe('generatePlan', () => {
+    it('should allow ADMIN to generate a plan', async () => {
+      const caller = createAdminCaller();
+      const mockResult = {
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: { totalSlots: 0, filledSlots: 0, holeCount: 0, hardViolationCount: 0, softWarningCount: 0 },
+      };
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue(mockResult);
+
+      const result = await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+      });
+
+      expect(result).toEqual(mockResult);
+      expect(mockPlanningGenerationService.generateMonthlyPlan).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.generatePlan({
+          month: '2026-03',
+          templateId: '550e8400-e29b-41d4-a716-446655440000',
+        }),
+      ).rejects.toThrow(TRPCError);
+
+      await expect(
+        caller.generatePlan({
+          month: '2026-03',
+          templateId: '550e8400-e29b-41d4-a716-446655440000',
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    it('should use clinicId from context, not input', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [], holes: [], violations: { hard: [], soft: [] },
+        stats: { totalSlots: 0, filledSlots: 0, holeCount: 0, hardViolationCount: 0, softWarningCount: 0 },
+      });
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+      });
+
+      expect(mockPlanningGenerationService.generateMonthlyPlan).toHaveBeenCalledWith(
+        'clinic-123', // from context, not client-supplied
+        expect.any(String),
+        expect.any(String),
+      );
+    });
+  });
+
+  describe('listShiftsForMonth', () => {
+    it('should allow ADMIN to list shifts for a month', async () => {
+      const caller = createAdminCaller();
+      const mockShifts = [{ id: 'shift-1', date: new Date('2026-03-01'), source: 'GENERATED' }];
+      mockPlanningGenerationService.listShiftsForMonth.mockResolvedValue(mockShifts);
+
+      const result = await caller.listShiftsForMonth({ month: '2026-03' });
+
+      expect(result).toEqual(mockShifts);
+      expect(mockPlanningGenerationService.listShiftsForMonth).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.listShiftsForMonth({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+
+      await expect(
+        caller.listShiftsForMonth({ month: '2026-03' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('deleteGeneratedShifts', () => {
+    it('should allow ADMIN to delete generated shifts', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({ deletedCount: 5 });
+
+      const result = await caller.deleteGeneratedShifts({ month: '2026-03' });
+
+      expect(result).toEqual({ deletedCount: 5 });
+      expect(mockPlanningGenerationService.deleteGeneratedShifts).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.deleteGeneratedShifts({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+
+      await expect(
+        caller.deleteGeneratedShifts({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });

@@ -29,6 +29,8 @@
 
 generated: '2026-02-02'
 updated: '2026-02-19'
+# 2026-02-19: Story 6-2 code review done → done. 27 issues found (5 CRITICAL, 8 HIGH, 9 MEDIUM, 5 LOW), all fixed. C1: $transaction atomicity (delete+create). C2: O(1) assignmentIndex Map. C3: +8 router tests (generation procedures). C4: i18n key restructuring (stats moved, 4 missing keys). C5: GenerationPanel test coverage (+4 tests). H1: Hard rules now block assignment. H2: Zod templateData validation. H3: RSC conversion (planning page). H4: locale-aware month options. H6: aria-labelledby accessibility. M1-M9: Various quality improvements. 1206 total tests (442 API + 407 Web + 357 Validators). Build green.
+# 2026-02-19: Story 6-2 implemented → review. 9/9 tasks done. PlanningGenerationService (greedy slot-filling algorithm: template expansion, constraint aggregation, scoring, batch Shift creation via $transaction), Shift model migration (shiftTypeCode replaces ShiftType enum, ShiftSource enum GENERATED/MANUAL, planningTemplateId FK), real validateShiftsAgainstRules (4 rule categories: STAFFING_MINIMUM, SKILL_REQUIREMENT, ROTATION_EQUITY, CONTRACT_COMPLIANCE), 3 tRPC generation procedures (generatePlan, listShiftsForMonth, deleteGeneratedShifts), server actions/hooks with cache invalidation, admin UI (GenerationPanel/ResultView/ConfirmRegenerateDialog), i18n FR/EN (~30 keys). 58 new tests (26 validators + 23 generation service + 9 web). 1188 total tests (354 validators + 431 API + 403 web). Build green.
 # 2026-02-19: Story 6-2 created (ready-for-dev). Greedy Generation Algorithm & Blocking Rules. PlanningGenerationService (template expansion, constraint aggregation, greedy scoring, batch Shift creation), Shift model migration (shiftTypeCode replaces ShiftType enum, ShiftSource enum, planningTemplateId FK), real validateShiftsAgainstRules implementation (4 rule categories), generation tRPC procedures, admin UI (GenerationPanel/ResultView/ConfirmRegenerate), i18n FR/EN. Epic 6 → in-progress.
 # 2026-02-13: Story 6-1 code review done → done. 11 issues found (4 HIGH, 4 MEDIUM, 3 LOW), all HIGH/MEDIUM fixed. DRY violation (JOB_TYPE_VALUES), duplicate validation bypass, hardcoded English strings (3), missing aria-labels, redundant service validation, TemplateEditor test coverage, FR translation typo. +10 TemplateEditor tests. 1130 total tests (328 validators + 408 API + 394 web). Build green.
 # 2026-02-13: Story 6-1 implemented → review. 8/8 tasks done. PlanningTemplateService (CRUD + duplicate + validateTemplateData), 6 tRPC template procedures (subscribedProcedure + ADMIN), server actions/hooks, admin UI (TemplateList/Editor/SlotForm/WeekPreview), shadcn dropdown-menu, i18n FR/EN (~68 keys). 82 new tests (35 validators + 19 service + 17 router + 11 web). 1120 total tests (328 validators + 408 API + 384 web). Build green.
@@ -185,7 +187,7 @@ development_status:
   # ===========================================================================
   epic-6: in-progress
   6-1-planning-template-definition-admin: done
-  6-2-greedy-generation-algorithm-blocking-rules: in-progress
+  6-2-greedy-generation-algorithm-blocking-rules: done
   6-3-schedule-visualization-conflict-indicators: backlog
   epic-6-retrospective: optional
 
