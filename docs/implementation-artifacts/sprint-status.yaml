@@ -28,7 +28,8 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-13'
+updated: '2026-02-19'
+# 2026-02-19: Story 6-2 created (ready-for-dev). Greedy Generation Algorithm & Blocking Rules. PlanningGenerationService (template expansion, constraint aggregation, greedy scoring, batch Shift creation), Shift model migration (shiftTypeCode replaces ShiftType enum, ShiftSource enum, planningTemplateId FK), real validateShiftsAgainstRules implementation (4 rule categories), generation tRPC procedures, admin UI (GenerationPanel/ResultView/ConfirmRegenerate), i18n FR/EN. Epic 6 → in-progress.
 # 2026-02-13: Story 6-1 code review done → done. 11 issues found (4 HIGH, 4 MEDIUM, 3 LOW), all HIGH/MEDIUM fixed. DRY violation (JOB_TYPE_VALUES), duplicate validation bypass, hardcoded English strings (3), missing aria-labels, redundant service validation, TemplateEditor test coverage, FR translation typo. +10 TemplateEditor tests. 1130 total tests (328 validators + 408 API + 394 web). Build green.
 # 2026-02-13: Story 6-1 implemented → review. 8/8 tasks done. PlanningTemplateService (CRUD + duplicate + validateTemplateData), 6 tRPC template procedures (subscribedProcedure + ADMIN), server actions/hooks, admin UI (TemplateList/Editor/SlotForm/WeekPreview), shadcn dropdown-menu, i18n FR/EN (~68 keys). 82 new tests (35 validators + 19 service + 17 router + 11 web). 1120 total tests (328 validators + 408 API + 384 web). Build green.
 # 2026-02-13: Story 6-1 created (ready-for-dev). Planning Template Definition (Admin). CRUD for week templates with structured Json data (TemplateSlot/TemplateDay/TemplateData), PlanningTemplateService in PlanningModule, 6 tRPC procedures, admin UI (list/editor/slot form/week preview), i18n FR/EN. No Prisma migration (PlanningTemplate model already exists). Epic 6 → in-progress.
@@ -184,7 +185,7 @@ development_status:
   # ===========================================================================
   epic-6: in-progress
   6-1-planning-template-definition-admin: done
-  6-2-greedy-generation-algorithm-blocking-rules: backlog
+  6-2-greedy-generation-algorithm-blocking-rules: in-progress
   6-3-schedule-visualization-conflict-indicators: backlog
   epic-6-retrospective: optional
 
