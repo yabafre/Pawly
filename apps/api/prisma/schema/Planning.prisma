@@ -1,8 +1,6 @@
-enum ShiftType {
-  SURGERY
-  RECEPTION
-  FORMATION
-  OTHER
+enum ShiftSource {
+  GENERATED
+  MANUAL
 }
 
 enum AbsenceStatus {
@@ -12,19 +10,23 @@ enum AbsenceStatus {
 }
 
 model Shift {
-  id        String   @id @default(uuid())
-  date      DateTime
-  startTime String   @map("start_time")
-  endTime   String   @map("end_time")
-  type      ShiftType
+  id            String      @id @default(uuid())
+  date          DateTime
+  startTime     String      @map("start_time")
+  endTime       String      @map("end_time")
+  shiftTypeCode String      @default("OTHER") @map("shift_type_code")
+  source        ShiftSource @default(MANUAL)
 
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId String  @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String   @map("employee_id")
 
-  clinicId  String   @map("clinic_id")
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicId String @map("clinic_id")
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   isConfirmed Boolean @default(false) @map("is_confirmed")
+
+  planningTemplateId String?           @map("planning_template_id")
+  planningTemplate   PlanningTemplate? @relation(fields: [planningTemplateId], references: [id])
 
   varianceEvents VarianceEvent[]
 
@@ -34,20 +36,21 @@ model Shift {
   @@index([clinicId])
   @@index([employeeId])
   @@index([date])
+  @@index([clinicId, date, source])
 }
 
 model Absence {
-  id        String   @id @default(uuid())
-  startDate DateTime @map("start_date")
-  endDate   DateTime @map("end_date")
+  id        String        @id @default(uuid())
+  startDate DateTime      @map("start_date")
+  endDate   DateTime      @map("end_date")
   reason    String?
   status    AbsenceStatus @default(PENDING)
 
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId String  @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String   @map("employee_id")
 
-  clinicId  String   @map("clinic_id")
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicId String @map("clinic_id")
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -57,12 +60,14 @@ model Absence {
 }
 
 model PlanningTemplate {
-  id        String   @id @default(uuid())
-  name      String
-  data      Json     // Structure of the typical week
+  id   String @id @default(uuid())
+  name String
+  data Json // Structure of the typical week (TemplateData shape)
 
-  clinicId  String   @map("clinic_id")
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicId String @map("clinic_id")
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  shifts Shift[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -72,17 +77,17 @@ model PlanningTemplate {
 
 model VarianceEvent {
   id          String   @id @default(uuid())
-  type        String   // e.g., "CLOCK_IN_DEVIATION"
+  type        String // e.g., "CLOCK_IN_DEVIATION"
   plannedTime DateTime @map("planned_time")
   actualTime  DateTime @map("actual_time")
 
-  shift       Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  shiftId     String   @map("shift_id")
+  shift   Shift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  shiftId String @map("shift_id")
 
-  clinicId    String   @map("clinic_id")
-  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicId String @map("clinic_id")
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([clinicId])
   @@index([shiftId])

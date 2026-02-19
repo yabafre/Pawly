@@ -130,39 +130,235 @@ export class PlanningService {
 
   async validateShiftsAgainstRules(
     clinicId: string,
-    _input: ValidateShiftsInput,
+    input: ValidateShiftsInput,
   ): Promise<{
     hardViolations: HardViolation[];
     softViolations: SoftViolation[];
   }> {
-    // Load active planning rules for this clinic
+    const startDate = new Date(input.startDate);
+    const endDate = new Date(input.endDate);
+
+    // Load active planning rules for this clinic, ordered by priority DESC
     const rules = await this.prisma.planningRule.findMany({
       where: { clinicId, isActive: true },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
 
-    // In this story (5.5), we return the rule structure for Health Bar preview.
-    // Full shift evaluation logic will be implemented in Story 6.2.
+    // Load shifts in the date range with employee data
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        clinicId,
+        date: { gte: startDate, lte: endDate },
+      },
+      include: {
+        employee: {
+          select: { id: true, jobType: true, contractHours: true },
+        },
+      },
+    });
+
+    // Filter out shifts without shiftTypeCode (pre-migration data safety)
+    const validShifts = shifts.filter((s) => s.shiftTypeCode);
+
     const hardViolations: HardViolation[] = [];
     const softViolations: SoftViolation[] = [];
 
     for (const rule of rules) {
-      // Placeholder: no actual shifts to evaluate yet.
-      // When Epic 6 adds shift data, this will evaluate each rule against actual assignments.
-      if (rule.ruleType === 'HARD') {
-        // Hard rules will produce blocking violations when shifts violate them
-        this.logger.debug(
-          `HARD rule "${rule.name}" (${rule.category}) loaded for evaluation`,
-        );
-      } else {
-        // Soft rules will produce warnings
-        this.logger.debug(
-          `SOFT rule "${rule.name}" (${rule.category}) loaded for evaluation`,
-        );
+      const config = rule.config as Record<string, unknown>;
+
+      switch (rule.category) {
+        case 'STAFFING_MINIMUM':
+          this.evaluateStaffingMinimum(rule, config, validShifts, hardViolations, softViolations);
+          break;
+        case 'SKILL_REQUIREMENT':
+          this.evaluateSkillRequirement(rule, config, validShifts, hardViolations, softViolations);
+          break;
+        case 'ROTATION_EQUITY':
+          this.evaluateRotationEquity(rule, config, validShifts, softViolations);
+          break;
+        case 'CONTRACT_COMPLIANCE':
+          this.evaluateContractCompliance(rule, config, validShifts, softViolations);
+          break;
       }
     }
 
     return { hardViolations, softViolations };
+  }
+
+  private evaluateStaffingMinimum(
+    rule: { id: string; name: string; category: string; ruleType: string },
+    config: Record<string, unknown>,
+    shifts: Array<{ date: Date; shiftTypeCode: string; employee: { id: string; jobType: string } }>,
+    hardViolations: HardViolation[],
+    softViolations: SoftViolation[],
+  ) {
+    const shiftTypeCode = config.shiftTypeCode as string;
+    const minStaff = config.minStaff as number;
+    const jobTypes = config.jobTypes as string[] | undefined;
+
+    // Group shifts by date
+    const shiftsByDate = new Map<string, typeof shifts>();
+    for (const shift of shifts) {
+      if (shift.shiftTypeCode !== shiftTypeCode) continue;
+      const dateKey = shift.date.toISOString().split('T')[0];
+      const group = shiftsByDate.get(dateKey) || [];
+      group.push(shift);
+      shiftsByDate.set(dateKey, group);
+    }
+
+    for (const [dateKey, dateShifts] of shiftsByDate) {
+      const matchingShifts = jobTypes
+        ? dateShifts.filter((s) => jobTypes.includes(s.employee.jobType))
+        : dateShifts;
+
+      if (matchingShifts.length < minStaff) {
+        const violation = {
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category as PlanningRuleCategory,
+          message: `Only ${matchingShifts.length} staff assigned for ${shiftTypeCode} on ${dateKey}, minimum ${minStaff} required`,
+          affectedDate: dateKey,
+        };
+
+        if (rule.ruleType === 'HARD') {
+          hardViolations.push({ ...violation, severity: 'blocking' as const });
+        } else {
+          softViolations.push({ ...violation, severity: 'warning' as const });
+        }
+      }
+    }
+  }
+
+  private evaluateSkillRequirement(
+    rule: { id: string; name: string; category: string; ruleType: string },
+    config: Record<string, unknown>,
+    shifts: Array<{ date: Date; shiftTypeCode: string; employee: { id: string; jobType: string } }>,
+    hardViolations: HardViolation[],
+    softViolations: SoftViolation[],
+  ) {
+    const shiftTypeCode = config.shiftTypeCode as string;
+    const requiredJobTypes = config.requiredJobTypes as string[];
+
+    // Group shifts by date
+    const shiftsByDate = new Map<string, typeof shifts>();
+    for (const shift of shifts) {
+      if (shift.shiftTypeCode !== shiftTypeCode) continue;
+      const dateKey = shift.date.toISOString().split('T')[0];
+      const group = shiftsByDate.get(dateKey) || [];
+      group.push(shift);
+      shiftsByDate.set(dateKey, group);
+    }
+
+    for (const [dateKey, dateShifts] of shiftsByDate) {
+      const assignedJobTypes = new Set(dateShifts.map((s) => s.employee.jobType));
+      const missingTypes = requiredJobTypes.filter((jt) => !assignedJobTypes.has(jt));
+
+      if (missingTypes.length > 0) {
+        const violation = {
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category as PlanningRuleCategory,
+          message: `Missing required job type(s) ${missingTypes.join(', ')} for ${shiftTypeCode} on ${dateKey}`,
+          affectedDate: dateKey,
+        };
+
+        if (rule.ruleType === 'HARD') {
+          hardViolations.push({ ...violation, severity: 'blocking' as const });
+        } else {
+          softViolations.push({ ...violation, severity: 'warning' as const });
+        }
+      }
+    }
+  }
+
+  private evaluateRotationEquity(
+    rule: { id: string; name: string; category: string },
+    config: Record<string, unknown>,
+    shifts: Array<{ date: Date; employee: { id: string } }>,
+    softViolations: SoftViolation[],
+  ) {
+    const targetDay = config.targetDay as string;
+    const maxPerPeriod = config.maxPerPeriod as number;
+
+    // Map day name to ISO day number
+    const dayNameToIso: Record<string, number> = {
+      monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+      friday: 5, saturday: 6, sunday: 7,
+    };
+    const targetIsoDay = dayNameToIso[targetDay];
+    if (!targetIsoDay) return;
+
+    // Count per employee
+    const countByEmployee = new Map<string, number>();
+    for (const shift of shifts) {
+      const shiftDate = new Date(shift.date);
+      const day = shiftDate.getUTCDay();
+      const isoDay = day === 0 ? 7 : day;
+      if (isoDay !== targetIsoDay) continue;
+
+      const current = countByEmployee.get(shift.employee.id) || 0;
+      countByEmployee.set(shift.employee.id, current + 1);
+    }
+
+    for (const [employeeId, count] of countByEmployee) {
+      if (count > maxPerPeriod) {
+        softViolations.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category as PlanningRuleCategory,
+          message: `Employee has ${count} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod} per period`,
+          affectedEmployeeId: employeeId,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  private evaluateContractCompliance(
+    rule: { id: string; name: string; category: string },
+    config: Record<string, unknown>,
+    shifts: Array<{ startTime: string; endTime: string; employee: { id: string; contractHours: number } }>,
+    softViolations: SoftViolation[],
+  ) {
+    const maxMonthlyHours = config.maxMonthlyHours as number | undefined;
+
+    if (!maxMonthlyHours) return;
+
+    // Sum hours per employee
+    const hoursByEmployee = new Map<string, { total: number; contractHours: number }>();
+    for (const shift of shifts) {
+      const minutes = this.calculateShiftMinutes(shift.startTime, shift.endTime);
+      const current = hoursByEmployee.get(shift.employee.id) || {
+        total: 0,
+        contractHours: shift.employee.contractHours,
+      };
+      current.total += minutes;
+      hoursByEmployee.set(shift.employee.id, current);
+    }
+
+    for (const [employeeId, data] of hoursByEmployee) {
+      const totalHours = Math.round(data.total / 60);
+      if (totalHours > maxMonthlyHours) {
+        softViolations.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category as PlanningRuleCategory,
+          message: `Employee total ${totalHours}h exceeds maximum ${maxMonthlyHours}h`,
+          affectedEmployeeId: employeeId,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  private calculateShiftMinutes(startTime: string, endTime: string): number {
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    return endMinutes >= startMinutes
+      ? endMinutes - startMinutes
+      : 1440 - startMinutes + endMinutes;
   }
 
   private async findRuleById(clinicId: string, ruleId: string) {

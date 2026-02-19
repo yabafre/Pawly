@@ -366,6 +366,71 @@
       },
       "nonWorkDay": "Non-work day"
     },
+    "planningGeneration": {
+      "title": "Planning Generation",
+      "subtitle": "Generate a monthly schedule from a week template.",
+      "monthLabel": "Target Month",
+      "monthPlaceholder": "Select month",
+      "templateLabel": "Week Template",
+      "templatePlaceholder": "Select a template",
+      "generateButton": "Generate Planning",
+      "generating": "Generating planning...",
+      "regenerateButton": "Regenerate",
+      "previewButton": "Preview",
+      "stats": {
+        "totalSlots": "Total Slots",
+        "filledSlots": "Filled",
+        "holes": "Unfilled",
+        "hardViolations": "Blocking Violations",
+        "softWarnings": "Warnings"
+      },
+      "result": {
+        "title": "Generation Result",
+        "summary": "Summary",
+        "assignments": "Assignments",
+        "holes": "Unfilled Slots",
+        "violations": "Violations",
+        "noHoles": "All slots filled successfully.",
+        "noViolations": "No violations detected.",
+        "holesTitle": "Unfilled Slots",
+        "hardViolationsTitle": "Blocking Violations",
+        "softWarningsTitle": "Warnings",
+        "allGood": "All slots filled with no violations!"
+      },
+      "holeReasons": {
+        "noEligible": "No eligible employees available",
+        "allUnavailable": "All employees unavailable on this date",
+        "skillMismatch": "No employee matches required job type",
+        "doubleBooked": "All eligible employees already assigned"
+      },
+      "confirmRegenerate": {
+        "title": "Regenerate Planning?",
+        "description": "This will delete {count} previously generated shift(s) for this month and create new ones. Manual shifts will be preserved.",
+        "confirm": "Regenerate",
+        "cancel": "Cancel"
+      },
+      "existing": {
+        "title": "Month Shifts",
+        "totalShifts": "Total",
+        "generated": "Generated",
+        "manual": "Manual",
+        "employees": "Employees",
+        "daysWithShifts": "{count} day(s) planned",
+        "deleteGenerated": "Delete generated"
+      },
+      "toast": {
+        "generated": "Planning generated successfully",
+        "regenerated": "Planning regenerated successfully",
+        "deleted": "Generated shifts deleted",
+        "generateFailed": "Unable to generate planning",
+        "deleteFailed": "Unable to delete generated shifts"
+      },
+      "errors": {
+        "noTemplate": "Please select a template",
+        "noMonth": "Please select a target month",
+        "loadFailed": "Unable to load data"
+      }
+    },
     "settings": {
       "badge": "Clinic settings",
       "title": "Operational Parameters",

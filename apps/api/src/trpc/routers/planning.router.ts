@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import type { EquityCounterType } from '@prisma/client';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import {
   createPlanningRuleSchema,
@@ -15,6 +16,9 @@ import {
   duplicateTemplateSchema,
   templateIdSchema,
   listTemplatesSchema,
+  generatePlanSchema,
+  listShiftsForMonthSchema,
+  deleteGeneratedShiftsSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -88,7 +92,7 @@ export const planningRouter = router({
         ctx.user.clinicId,
         input.year,
         input.months,
-        input.counterTypes as import('@prisma/client').EquityCounterType[] | undefined,
+        input.counterTypes as EquityCounterType[] | undefined,
       );
     }),
 
@@ -169,6 +173,38 @@ export const planningRouter = router({
       return ctx.planningTemplateService.duplicateTemplate(
         ctx.user.clinicId,
         input.id,
+      );
+    }),
+
+  // Generation procedures
+  generatePlan: subscribedProcedure
+    .input(generatePlanSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.generateMonthlyPlan(
+        ctx.user.clinicId,
+        input.month,
+        input.templateId,
+      );
+    }),
+
+  listShiftsForMonth: subscribedProcedure
+    .input(listShiftsForMonthSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.listShiftsForMonth(
+        ctx.user.clinicId,
+        input.month,
+      );
+    }),
+
+  deleteGeneratedShifts: subscribedProcedure
+    .input(deleteGeneratedShiftsSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.deleteGeneratedShifts(
+        ctx.user.clinicId,
+        input.month,
       );
     }),
 });

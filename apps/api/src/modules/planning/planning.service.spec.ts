@@ -32,6 +32,9 @@ describe('PlanningService', () => {
       delete: jest.fn(),
       deleteMany: jest.fn(),
     },
+    shift: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
 
   const mockClinicService = {
@@ -417,29 +420,30 @@ describe('PlanningService', () => {
   // ─── validateShiftsAgainstRules ───────────────────────────────────────
 
   describe('validateShiftsAgainstRules', () => {
-    it('returns empty violations (stub for Story 6.2)', async () => {
+    it('returns violations structure with loaded rules and shifts', async () => {
       mockPrismaService.planningRule.findMany.mockResolvedValue([
         mockRule,
-        { ...mockRule, id: 'rule-2', ruleType: 'SOFT' },
+        { ...mockRule, id: 'rule-2', ruleType: 'SOFT', category: 'ROTATION_EQUITY', config: { targetDay: 'saturday', maxPerPeriod: 2 } },
       ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
 
       const result = await service.validateShiftsAgainstRules(clinicId, {
         startDate: '2026-03-01T00:00:00.000Z',
         endDate: '2026-03-31T23:59:59.999Z',
       });
 
-      expect(result).toEqual({
-        hardViolations: [],
-        softViolations: [],
-      });
+      expect(result).toHaveProperty('hardViolations');
+      expect(result).toHaveProperty('softViolations');
       expect(mockPrismaService.planningRule.findMany).toHaveBeenCalledWith({
         where: { clinicId, isActive: true },
         orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
       });
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
     });
 
     it('returns empty violations when no active rules', async () => {
       mockPrismaService.planningRule.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
 
       const result = await service.validateShiftsAgainstRules(clinicId, {
         startDate: '2026-03-01T00:00:00.000Z',
@@ -448,6 +452,172 @@ describe('PlanningService', () => {
 
       expect(result.hardViolations).toHaveLength(0);
       expect(result.softViolations).toHaveLength(0);
+    });
+
+    it('should detect STAFFING_MINIMUM violation when below minStaff', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'rule-1',
+          name: 'Min 2 vets',
+          category: 'STAFFING_MINIMUM',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 1,
+          config: { shiftTypeCode: 'SURGERY', minStaff: 2 },
+          clinicId,
+          slug: 'min-2-vets',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          date: new Date('2026-03-02'),
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-03-01T00:00:00.000Z',
+        endDate: '2026-03-31T23:59:59.999Z',
+      });
+
+      expect(result.hardViolations.length).toBeGreaterThan(0);
+      expect(result.hardViolations[0].category).toBe('STAFFING_MINIMUM');
+    });
+
+    it('should detect SKILL_REQUIREMENT violation when missing job type', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'rule-2',
+          name: 'Need ASV',
+          category: 'SKILL_REQUIREMENT',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 1,
+          config: { shiftTypeCode: 'RECEPTION', requiredJobTypes: ['ASV'] },
+          clinicId,
+          slug: 'need-asv',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          date: new Date('2026-03-02'),
+          shiftTypeCode: 'RECEPTION',
+          startTime: '08:00',
+          endTime: '18:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-03-01T00:00:00.000Z',
+        endDate: '2026-03-31T23:59:59.999Z',
+      });
+
+      expect(result.hardViolations.length).toBeGreaterThan(0);
+      expect(result.hardViolations[0].category).toBe('SKILL_REQUIREMENT');
+    });
+
+    it('should detect ROTATION_EQUITY violation when exceeding max shifts', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'rule-3',
+          name: 'Max 1 Saturday',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          isActive: true,
+          priority: 1,
+          config: { targetDay: 'saturday', maxPerPeriod: 1 },
+          clinicId,
+          slug: 'max-1-saturday',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          date: new Date('2026-03-07'), // Saturday
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+        {
+          id: 's2',
+          date: new Date('2026-03-14'), // Saturday
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-03-01T00:00:00.000Z',
+        endDate: '2026-03-31T23:59:59.999Z',
+      });
+
+      expect(result.softViolations.length).toBeGreaterThan(0);
+      expect(result.softViolations[0].category).toBe('ROTATION_EQUITY');
+    });
+
+    it('should detect CONTRACT_COMPLIANCE violation when exceeding max hours', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'rule-4',
+          name: 'Max monthly hours',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'SOFT',
+          isActive: true,
+          priority: 1,
+          config: { maxMonthlyHours: 10 },
+          clinicId,
+          slug: 'max-monthly-hours',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          date: new Date('2026-03-02'),
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '18:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+        {
+          id: 's2',
+          date: new Date('2026-03-03'),
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '18:00',
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-03-01T00:00:00.000Z',
+        endDate: '2026-03-31T23:59:59.999Z',
+      });
+
+      expect(result.softViolations.length).toBeGreaterThan(0);
+      expect(result.softViolations[0].category).toBe('CONTRACT_COMPLIANCE');
     });
   });
 });
