@@ -48,7 +48,7 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-let mockTemplates: Array<{
+const mockTemplates: Array<{
   id: string;
   name: string;
   data: { days: Array<{ dayOfWeek: number; slots: Array<{ shiftTypeCode: string; requiredStaff: number }> }> };

@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,98 +43,88 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
   };
 
   return (
-    <div className="group/slot relative flex items-stretch gap-0 rounded-xl border border-neutral-100 bg-white overflow-hidden transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-neutral-200">
-      {/* Color indicator bar */}
-      <div
-        className="w-1 shrink-0"
-        style={{ backgroundColor: shiftColor }}
-      />
+    <div className="group/slot relative flex items-center justify-between p-3 bg-white border border-neutral-100 rounded-xl shadow-sm mb-2 last:mb-0">
+      <div className="flex flex-1 items-end justify-between gap-4 min-w-0">
+        <div className="min-w-0 flex-1">
+          <Label className="sr-only">{t("shiftType")}</Label>
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: shiftColor }} />
 
-      {/* Slot content */}
-      <div className="flex flex-1 items-center gap-3 px-3 py-2.5">
-        {/* Shift type select */}
-        <div className="flex-1 min-w-0 space-y-1">
-          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-            {t("shiftType")}
-          </Label>
-          <Select
-            value={slot.shiftTypeCode}
-            onValueChange={(value) => onUpdate({ ...slot, shiftTypeCode: value })}
-          >
-            <SelectTrigger className="h-9 rounded-xl border-neutral-200 bg-neutral-50 text-xs font-medium transition-all focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {shiftTypes.map((st) => (
-                <SelectItem key={st.code} value={st.code}>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-2.5 w-2.5 rounded-full ring-1 ring-black/5"
-                      style={{ backgroundColor: st.color }}
-                    />
-                    <span className="text-xs">{st.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select
+              value={slot.shiftTypeCode}
+              onValueChange={(value) => onUpdate({ ...slot, shiftTypeCode: value })}
+            >
+              <SelectTrigger
+                aria-label={t("shiftType")}
+                className="h-10 max-w-[220px] rounded-2xl border-neutral-200 bg-neutral-50 px-3 text-sm font-medium transition-all focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                sideOffset={6}
+                className="z-[80] rounded-2xl"
+              >
+                {shiftTypes.map((st) => (
+                  <SelectItem key={st.code} value={st.code}>
+                    {st.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Staff count */}
-        <div className="w-[72px] shrink-0 space-y-1">
-          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-            {t("requiredStaff")}
-          </Label>
-          <Input
-            type="number"
-            min={1}
-            value={slot.requiredStaff}
-            onChange={(e) =>
-              onUpdate({ ...slot, requiredStaff: Math.max(1, parseInt(e.target.value) || 1) })
-            }
-            className="h-9 rounded-xl border-neutral-200 bg-neutral-50 text-xs text-center font-bold transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
-          />
-        </div>
+        <div className="flex items-end gap-3 shrink-0">
+          <div>
+            <Label className="sr-only">{t("requiredStaff")}</Label>
+            <Input
+              type="number"
+              min={1}
+              value={slot.requiredStaff}
+              onChange={(e) =>
+                onUpdate({ ...slot, requiredStaff: Math.max(1, parseInt(e.target.value) || 1) })
+              }
+              aria-label={t("requiredStaff")}
+              className="h-8 w-16 rounded-xl border-neutral-200 bg-neutral-50 text-center text-sm leading-none font-bold transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+            />
+          </div>
 
-        {/* Job type toggles — compact inline */}
-        <div className="shrink-0 space-y-1">
-          <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-            {t("requiredJobTypes")}
-          </Label>
-          <div className="flex gap-1">
-            {JOB_TYPES.map((jt) => {
-              const isSelected = slot.requiredJobTypes?.includes(jt);
-              return (
-                <button
-                  key={jt}
-                  type="button"
-                  onClick={() => toggleJobType(jt)}
-                  className={`h-8 rounded-lg px-2 text-[10px] font-bold tracking-tight transition-all ${
-                    isSelected
-                      ? "text-white shadow-[0_1px_4px_rgba(0,149,136,0.3)]"
-                      : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
-                  }`}
-                  style={isSelected ? { backgroundColor: shiftColor } : undefined}
-                >
-                  {jt}
-                </button>
-              );
-            })}
+          <div>
+            <Label className="sr-only">{t("requiredJobTypes")}</Label>
+            <div className="flex gap-2">
+              {JOB_TYPES.map((jt) => {
+                const isSelected = slot.requiredJobTypes?.includes(jt);
+                return (
+                  <button
+                    key={jt}
+                    type="button"
+                    onClick={() => toggleJobType(jt)}
+                    className={`h-8 rounded-xl px-2.5 text-[11px] font-bold tracking-wide transition-all ${
+                      isSelected
+                        ? "text-white shadow-[0_1px_6px_rgba(0,149,136,0.28)]"
+                        : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+                    }`}
+                    style={isSelected ? { backgroundColor: shiftColor } : undefined}
+                    aria-label={`${t("requiredJobTypes")} ${jt}`}
+                  >
+                    {jt}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Remove button */}
-      <div className="flex items-center pr-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-lg text-neutral-300 opacity-0 transition-all group-hover/slot:opacity-100 hover:bg-red-50 hover:text-red-500"
-          onClick={onRemove}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t("removeSlot")}
+        className="absolute top-2 right-2 h-7 w-7 rounded-lg text-neutral-300 opacity-0 transition-all group-hover/slot:opacity-100 hover:bg-red-50 hover:text-red-500"
+      >
+        <X className="h-3.5 w-3.5 mx-auto" />
+      </button>
     </div>
   );
 }

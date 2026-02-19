@@ -1,13 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +11,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CalendarDays, Copy, Edit2, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar, ChevronRight, Copy, Edit2, Layout, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
 
 type TemplateSlot = {
@@ -63,10 +61,119 @@ function parseTemplateData(data: unknown): TemplateData {
   return { days: [] };
 }
 
+type TemplateCardProps = {
+  template: TemplateRecord;
+  data: TemplateData;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+};
+
+function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+  const t = useTranslations("admin.planningTemplates");
+
+  const daysConfigured = data.days.length;
+  const totalShifts = data.days.reduce((acc, day) => acc + day.slots.length, 0);
+  const preview = Array.from({ length: 7 }, (_, idx) => {
+    const dayData = data.days.find((d) => d.dayOfWeek === idx + 1);
+    return dayData && dayData.slots.length > 0 ? 1 : 0;
+  });
+
+  return (
+    <div
+      className="group relative bg-white px-6 pt-6 pb-3 rounded-3xl border border-neutral-100 shadow-sm hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:border-[#009588]/30 transition-all cursor-pointer overflow-hidden"
+      onClick={onEdit}
+    >
+      <div className="absolute top-4 right-4 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("actions.menu")}
+              onClick={(event) => event.stopPropagation()}
+              className="p-2 text-neutral-300 hover:text-neutral-900 rounded-full hover:bg-neutral-100 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <Layout size={16} className="rotate-90" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="rounded-xl border-neutral-100 shadow-xl p-1 w-40">
+            <DropdownMenuItem
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit();
+              }}
+              className="rounded-lg focus:bg-neutral-50 cursor-pointer font-medium text-xs p-2"
+            >
+              <Edit2 className="h-3.5 w-3.5 mr-2 text-neutral-500" />
+              {t("actions.edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(event) => {
+                event.stopPropagation();
+                onDuplicate();
+              }}
+              className="rounded-lg focus:bg-neutral-50 cursor-pointer font-medium text-xs p-2"
+            >
+              <Copy className="h-3.5 w-3.5 mr-2 text-neutral-500" />
+              {t("actions.duplicate")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-red-600 focus:bg-red-50 focus:text-red-700 rounded-lg cursor-pointer font-medium text-xs p-2"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              {t("actions.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-12 h-12 bg-neutral-50 rounded-2xl flex items-center justify-center group-hover:bg-[#009588]/5 transition-colors">
+          <Layout className="w-6 h-6 text-neutral-400 group-hover:text-[#009588] transition-colors" />
+        </div>
+        <div>
+          <h3 className="font-bold text-neutral-900 leading-tight">{template.name}</h3>
+          <span className="text-xs text-neutral-400 font-medium">
+            {t("card.daysConfigured", { count: daysConfigured })} • {t("card.slotsCount", { count: totalShifts })}
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-neutral-50 rounded-2xl p-3.5 border border-neutral-100">
+        <div className="flex justify-between items-end h-8 gap-1">
+          {preview.map((status, index) => (
+            <div key={index} className="flex-1 flex flex-col items-center gap-2 group/day">
+              <div
+                className={`w-full rounded-md transition-all duration-500 ${
+                  status ? "h-6 bg-[#009588] group-hover:bg-[#00796B]" : "h-1 bg-neutral-200"
+                }`}
+              />
+              <span className="text-[8px] font-bold text-neutral-300 uppercase">
+                {["L", "M", "M", "J", "V", "S", "D"][index]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+        <span className="text-xs font-bold text-[#009588]">{t("actions.edit")}</span>
+        <div className="w-8 h-8 rounded-full bg-white border border-neutral-100 flex items-center justify-center shadow-sm">
+          <ChevronRight size={14} className="text-neutral-400" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TemplateList({
   templates,
-  shiftTypes,
-  workDays,
+  shiftTypes: _shiftTypes,
+  workDays: _workDays,
   onEdit,
   onDuplicate,
   onDelete,
@@ -75,122 +182,75 @@ export function TemplateList({
   const t = useTranslations("admin.planningTemplates");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const countSlots = (data: TemplateData) =>
-    data.days.reduce((acc, d) => acc + d.slots.length, 0);
-
   if (templates.length === 0) {
     return (
-      <section className="group relative overflow-hidden rounded-3xl border-2 border-dashed border-neutral-200 bg-white p-12 text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        {/* Teal glow on hover */}
-        <div className="pointer-events-none absolute -left-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#009588] opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
-
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100">
-            <CalendarDays className="h-6 w-6 text-neutral-400" strokeWidth={1.5} />
-          </div>
-          <h3 className="mt-4 text-lg font-semibold text-neutral-700">{t("emptyState.title")}</h3>
-          <p className="mt-1 text-sm text-neutral-500 max-w-md">{t("emptyState.description")}</p>
-          <Button
-            onClick={onCreate}
-            className="mt-6 rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-neutral-900/10 hover:bg-black"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {t("emptyState.cta")}
-          </Button>
+      <div className="rounded-3xl border border-dashed border-neutral-200 bg-white p-12 text-center shadow-sm">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-50 border border-neutral-100">
+          <Calendar className="h-6 w-6 text-neutral-400" />
         </div>
-      </section>
+        <h3 className="text-lg font-bold text-neutral-900">{t("emptyState.title")}</h3>
+        <p className="mt-2 text-sm text-neutral-500">{t("emptyState.description")}</p>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="mt-6 inline-flex h-11 items-center gap-2 px-5 bg-[#171717] text-white rounded-xl font-bold text-sm hover:bg-black shadow-xl shadow-neutral-900/10 cursor-pointer"
+        >
+          <Plus size={16} />
+          {t("emptyState.cta")}
+        </button>
+      </div>
     );
   }
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <Button
+      <div className="flex justify-end mb-8">
+        <button
+          type="button"
           onClick={onCreate}
-          className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-neutral-900/10 hover:bg-black"
+          className="h-11 px-5 bg-[#171717] text-white rounded-xl font-bold text-sm hover:bg-black shadow-xl shadow-neutral-900/10 flex items-center gap-2 cursor-pointer"
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus size={16} />
           {t("emptyState.cta")}
-        </Button>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {templates.map((tmpl) => {
-          const data = parseTemplateData(tmpl.data);
-          const totalSlots = countSlots(data);
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
+        {templates.map((template) => (
+          <TemplateCard
+            key={template.id}
+            template={template}
+            data={parseTemplateData(template.data)}
+            onEdit={() => onEdit(template)}
+            onDuplicate={() => onDuplicate(template.id)}
+            onDelete={() => setDeleteId(template.id)}
+          />
+        ))}
 
-          return (
-            <div
-              key={tmpl.id}
-              className="group relative overflow-hidden rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]"
-            >
-              {/* Teal glow on hover */}
-              <div className="pointer-events-none absolute -left-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#009588] opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
-
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-bold text-neutral-900 text-sm leading-tight">{tmpl.name}</h3>
-                    <p className="text-[10px] font-bold text-neutral-400 mt-1 uppercase tracking-widest">
-                      {t("card.daysConfigured", { count: data.days.length })}
-                      <span className="mx-1.5 opacity-50">|</span>
-                      {t("card.slotsCount", { count: totalSlots })}
-                    </p>
-                  </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-full text-neutral-400 hover:text-neutral-900 -mr-1 -mt-1"
-                        aria-label={t("actions.menu")}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-xl border-neutral-100 shadow-xl">
-                      <DropdownMenuItem onClick={() => onEdit(tmpl)} className="rounded-lg focus:bg-neutral-50 cursor-pointer">
-                        <Edit2 className="h-3.5 w-3.5 mr-2" />
-                        {t("actions.edit")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onDuplicate(tmpl.id)} className="rounded-lg focus:bg-neutral-50 cursor-pointer">
-                        <Copy className="h-3.5 w-3.5 mr-2" />
-                        {t("actions.duplicate")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600 focus:bg-red-50 focus:text-red-700 rounded-lg cursor-pointer"
-                        onClick={() => setDeleteId(tmpl.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-2" />
-                        {t("actions.delete")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <TemplateWeekPreview
-                  data={data}
-                  shiftTypes={shiftTypes}
-                  workDays={workDays}
-                  compact
-                />
-              </div>
-            </div>
-          );
-        })}
+        <button
+          type="button"
+          onClick={onCreate}
+          className="group flex flex-col items-center justify-center px-6 pt-6 pb-3 rounded-3xl border-2 border-dashed border-neutral-200 hover:border-[#009588] bg-transparent hover:bg-[#009588]/5 min-h-[220px]"
+        >
+          <div className="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mb-3 group-hover:bg-white">
+            <Plus size={20} className="text-neutral-400 group-hover:text-[#009588]" />
+          </div>
+          <span className="text-sm font-bold text-neutral-400 group-hover:text-[#009588]">{t("form.createTitle")}</span>
+        </button>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent className="rounded-3xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("confirm.deleteMessage")}</AlertDialogDescription>
+        <AlertDialogContent className="rounded-2xl border-neutral-100 shadow-2xl p-6">
+          <AlertDialogHeader className="mb-4">
+            <AlertDialogTitle className="font-bold text-lg text-neutral-900">{t("confirm.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-neutral-500">{t("confirm.deleteMessage")}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">{t("confirm.cancel")}</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="rounded-xl font-bold text-neutral-600 border-neutral-200 hover:bg-neutral-50">
+              {t("confirm.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              className="bg-[#171717] hover:bg-black text-white rounded-xl font-bold"
               onClick={() => {
                 if (deleteId) onDelete(deleteId);
                 setDeleteId(null);

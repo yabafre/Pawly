@@ -2,19 +2,16 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Calendar, Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
-  SheetFooter,
 } from "@/components/ui/sheet";
-import { CalendarDays, Loader2, Plus, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { TemplateSlotForm } from "./TemplateSlotForm";
-import { TemplateWeekPreview } from "./TemplateWeekPreview";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
 
 type TemplateSlot = {
@@ -48,7 +45,143 @@ type Props = {
   isSaving: boolean;
 };
 
-const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const DAY_KEYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+type DayEditorProps = {
+  dayLabel: string;
+  isOpen: boolean;
+  isNonWorkDay: boolean;
+  slots: TemplateSlot[];
+  shiftTypes: ShiftTypeRecord[];
+  onToggle: () => void;
+  onAddSlot: () => void;
+  onUpdateSlot: (slotIdx: number, updatedSlot: TemplateSlot) => void;
+  onRemoveSlot: (slotIdx: number) => void;
+};
+
+function DayEditor({
+  dayLabel,
+  isOpen,
+  isNonWorkDay,
+  slots,
+  shiftTypes,
+  onToggle,
+  onAddSlot,
+  onUpdateSlot,
+  onRemoveSlot,
+}: DayEditorProps) {
+  const t = useTranslations("admin.planningTemplates");
+  const isWorked = slots.length > 0;
+
+  return (
+    <div
+      className={`transition-all duration-300 border border-neutral-100 overflow-hidden ${
+        isOpen
+          ? "bg-neutral-50 rounded-2xl shadow-sm my-4"
+          : "bg-white rounded-xl my-2 hover:border-neutral-200"
+      }`}
+    >
+      <div
+        onClick={onToggle}
+        className="flex items-center justify-between p-4 cursor-pointer"
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              isOpen ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-400"
+            }`}
+          >
+            <Calendar size={14} />
+          </div>
+
+          <span className={`font-bold text-sm ${isOpen ? "text-neutral-900" : "text-neutral-600"}`}>
+            {dayLabel}
+          </span>
+
+          {isNonWorkDay && !isWorked && (
+            <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-full uppercase tracking-wide">
+              {t("nonWorkDay")}
+            </span>
+          )}
+
+          {!isNonWorkDay && !isWorked && (
+            <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-full uppercase tracking-wide">
+              {t("preview.noSlots")}
+            </span>
+          )}
+
+          {isWorked && !isOpen && (
+            <span className="text-[10px] font-bold text-[#009588] bg-[#009588]/10 px-2 py-1 rounded-full uppercase tracking-wide">
+              {t("card.slotsCount", { count: slots.length })}
+            </span>
+          )}
+        </div>
+
+        <ChevronDown
+          size={16}
+          className={`text-neutral-400 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </div>
+
+      {isOpen && (
+        <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-300">
+          {isNonWorkDay && slots.length === 0 ? (
+            <div className="text-center py-8 border-t border-neutral-200 border-dashed mt-2">
+              <p className="text-xs text-neutral-400 mb-4">{t("nonWorkDay")}</p>
+              <button
+                type="button"
+                onClick={onAddSlot}
+                className="px-4 py-2 bg-white border border-neutral-200 text-neutral-900 text-xs font-bold rounded-xl hover:bg-neutral-50 transition-colors shadow-sm"
+              >
+                {t("slot.addSlot")}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {slots.length > 0 && (
+                <div className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-3 px-2 mb-1">
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    {t("slot.shiftType")}
+                  </span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest text-center whitespace-nowrap">
+                    {t("slot.requiredStaff")}
+                  </span>
+                </div>
+              )}
+
+              {slots.map((slot, idx) => (
+                <TemplateSlotForm
+                  key={`${dayLabel}-${idx}`}
+                  slot={slot}
+                  shiftTypes={shiftTypes}
+                  onUpdate={(updatedSlot) => onUpdateSlot(idx, updatedSlot)}
+                  onRemove={() => onRemoveSlot(idx)}
+                />
+              ))}
+
+              <button
+                type="button"
+                onClick={onAddSlot}
+                className="w-full py-3 border border-dashed border-neutral-300 rounded-xl flex items-center justify-center gap-2 text-neutral-400 hover:text-[#009588] hover:border-[#009588] hover:bg-[#009588]/5 transition-all group mt-4"
+              >
+                <Plus size={16} className="group-hover:scale-110 transition-transform" />
+                <span className="text-xs font-bold">{t("slot.addSlot")}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TemplateEditor({
   open,
@@ -67,10 +200,12 @@ export function TemplateEditor({
     if (template?.data?.days) return [...template.data.days];
     return [];
   });
+  const [expandedDay, setExpandedDay] = useState<(typeof DAY_KEYS)[number] | null>("monday");
 
   const resetForm = useCallback(() => {
     setName(template?.name ?? "");
     setDays(template?.data?.days ? [...template.data.days] : []);
+    setExpandedDay("monday");
   }, [template]);
 
   useEffect(() => {
@@ -109,7 +244,7 @@ export function TemplateEditor({
     const currentSlots = getDaySlots(dayOfWeek);
     updateDaySlots(
       dayOfWeek,
-      currentSlots.map((s, i) => (i === slotIdx ? updatedSlot : s)),
+      currentSlots.map((slot, idx) => (idx === slotIdx ? updatedSlot : slot)),
     );
   };
 
@@ -134,198 +269,106 @@ export function TemplateEditor({
     onSave(name.trim(), { days: cleanDays });
   };
 
-  const totalSlots = days.reduce((acc, d) => acc + d.slots.length, 0);
-  const totalStaff = days.reduce(
-    (acc, d) => acc + d.slots.reduce((s, slot) => s + slot.requiredStaff, 0),
-    0,
-  );
-
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full sm:max-w-2xl lg:max-w-3xl p-0 flex flex-col gap-0 border-l-0 shadow-[-8px_0_40px_rgba(0,0,0,0.08)] sm:rounded-l-3xl"
+        className="w-full sm:max-w-none md:w-[640px] xl:w-[700px] p-0 flex flex-col gap-0 border-l border-neutral-200 shadow-2xl"
       >
-        {/* ── Sticky header ─────────────────────────────────────── */}
-        <SheetHeader className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-neutral-100 px-6 pb-5 pt-6 pr-12 gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100">
-              <CalendarDays className="h-5 w-5 text-[#009588]" strokeWidth={1.5} />
-            </div>
-            <div>
-              <SheetTitle className="text-base font-bold text-neutral-900">
-                {isEditing ? t("form.editTitle") : t("form.createTitle")}
-              </SheetTitle>
-              <SheetDescription className="mt-1 text-[13px] leading-relaxed text-neutral-500">
-                {t("form.subtitle")}
-              </SheetDescription>
-            </div>
-          </div>
+        <SheetHeader className="sr-only">
+          <SheetTitle>Template Editor</SheetTitle>
+          <SheetDescription>Planning template editor panel</SheetDescription>
+        </SheetHeader>
 
-          {/* Name input in header */}
-          <div className="relative mt-1">
+        <div className="px-6 py-5 border-b border-neutral-100 flex justify-between items-start bg-white/80 backdrop-blur-md sticky top-0 z-10">
+          <div>
+            <h2 className="text-xl font-bold text-neutral-900 mb-1">
+              {isEditing ? t("form.editTitle") : t("form.createTitle")}
+            </h2>
+            <p className="text-xs text-neutral-500">{t("form.subtitle")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="p-2 rounded-full hover:bg-neutral-100 text-neutral-400 hover:text-neutral-900 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA]">
+          <div className="mb-8">
+            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">
+              {t("form.name")}
+            </label>
             <Input
-              id="template-name"
+              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("form.namePlaceholder")}
-              maxLength={100}
+              className="w-full bg-white border border-neutral-200 rounded-xl py-4 px-4 text-sm font-medium text-neutral-900 focus-visible:outline-none focus-visible:border-[#009588] focus-visible:ring-4 focus-visible:ring-[#009588]/10 transition-all shadow-sm h-12"
               aria-invalid={!name.trim() && name.length > 0}
-              aria-describedby={!name.trim() && name.length > 0 ? "name-error" : undefined}
-              className="h-11 rounded-xl border-neutral-200 bg-neutral-50 px-4 text-sm font-medium placeholder:text-neutral-300 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+              aria-describedby={!name.trim() && name.length > 0 ? "template-name-error" : undefined}
             />
             {!name.trim() && name.length > 0 && (
-              <p id="name-error" className="sr-only" role="alert">
+              <p id="template-name-error" className="sr-only" role="alert">
                 {t("form.nameRequired")}
               </p>
             )}
-            {name.trim() && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Sparkles className="h-3.5 w-3.5 text-[#009588]/40" />
-              </div>
-            )}
           </div>
 
-          {/* Built-in close button — positioned absolute top-4 right-4 */}
-          <button
-            onClick={() => onOpenChange(false)}
-            className="absolute top-4 right-4 rounded-full p-2 opacity-70 transition-all hover:bg-neutral-100 hover:opacity-100"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-500"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            <span className="sr-only">{t("form.cancel")}</span>
-          </button>
-        </SheetHeader>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-px bg-neutral-200 flex-1" />
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest bg-[#FAFAFA] px-2">
+              {t("preview.title")}
+            </span>
+            <div className="h-px bg-neutral-200 flex-1" />
+          </div>
 
-        {/* ── Scrollable body ───────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-          <div className="space-y-3">
+          <div className="space-y-2">
             {DAY_KEYS.map((dayKey, idx) => {
               const dayOfWeek = idx + 1;
               const slots = getDaySlots(dayOfWeek);
-              const nonWork = isNonWorkDay(dayOfWeek);
-              const hasSlots = slots.length > 0;
 
               return (
-                <div
+                <DayEditor
                   key={dayKey}
-                  className={`group relative overflow-hidden rounded-2xl border transition-all duration-200 ${
-                    nonWork
-                      ? "border-dashed border-neutral-200/80 bg-neutral-50/40"
-                      : hasSlots
-                        ? "border-neutral-100 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
-                        : "border-neutral-100 bg-white/60"
-                  }`}
-                >
-                  {/* Subtle glow on configured days */}
-                  {hasSlots && !nonWork && (
-                    <div className="pointer-events-none absolute -right-10 -top-10 h-[120px] w-[120px] rounded-full bg-[#009588] opacity-0 blur-[50px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
-                  )}
-
-                  {/* Day header */}
-                  <div className="relative z-10 flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`h-2 w-2 rounded-full transition-colors ${
-                          hasSlots
-                            ? "bg-[#009588]"
-                            : nonWork
-                              ? "bg-neutral-200"
-                              : "bg-neutral-300"
-                        }`}
-                      />
-                      <h3
-                        className={`text-[13px] font-semibold tracking-tight ${
-                          nonWork ? "text-neutral-400" : "text-neutral-700"
-                        }`}
-                      >
-                        {t(`days.${dayKey}`)}
-                      </h3>
-                      {nonWork && (
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-medium text-neutral-400">
-                          {t("nonWorkDay")}
-                        </span>
-                      )}
-                      {hasSlots && (
-                        <span className="rounded-full bg-[#009588]/10 px-2 py-0.5 text-[9px] font-bold text-[#009588]">
-                          {t("card.slotsCount", { count: slots.length })}
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 rounded-lg px-2.5 text-[11px] font-medium text-[#009588] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[#009588]/8 hover:text-[#00796B]"
-                      onClick={() => addSlot(dayOfWeek)}
-                    >
-                      <Plus className="mr-1 h-3 w-3" />
-                      {t("slot.addSlot")}
-                    </Button>
-                  </div>
-
-                  {/* Slots area */}
-                  {hasSlots && (
-                    <div className="border-t border-neutral-100 px-4 py-3 space-y-2">
-                      {slots.map((slot, slotIdx) => (
-                        <TemplateSlotForm
-                          key={slotIdx}
-                          slot={slot}
-                          shiftTypes={shiftTypes}
-                          onUpdate={(updated) => updateSlot(dayOfWeek, slotIdx, updated)}
-                          onRemove={() => removeSlot(dayOfWeek, slotIdx)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  dayLabel={t(`days.${dayKey}`)}
+                  isOpen={expandedDay === dayKey}
+                  isNonWorkDay={isNonWorkDay(dayOfWeek)}
+                  slots={slots}
+                  shiftTypes={shiftTypes}
+                  onToggle={() => setExpandedDay(expandedDay === dayKey ? null : dayKey)}
+                  onAddSlot={() => addSlot(dayOfWeek)}
+                  onUpdateSlot={(slotIdx, updatedSlot) => updateSlot(dayOfWeek, slotIdx, updatedSlot)}
+                  onRemoveSlot={(slotIdx) => removeSlot(dayOfWeek, slotIdx)}
+                />
               );
             })}
           </div>
         </div>
 
-        {/* ── Sticky footer with preview + actions ──────────────── */}
-        <SheetFooter className="shrink-0 border-t border-neutral-100 bg-neutral-50/50 px-6 py-4 gap-4">
-          {/* Live preview strip */}
-          <div className="w-full">
-            <div className="mb-2.5 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-                {t("preview.title")}
-              </p>
-              <div className="flex items-center gap-3 text-[10px] text-neutral-400">
-                <span>{t("card.slotsCount", { count: totalSlots })}</span>
-                <span className="h-3 w-px bg-neutral-200" />
-                <span>{t("slot.staffCount", { count: totalStaff })}</span>
-              </div>
-            </div>
-            <TemplateWeekPreview
-              data={{ days }}
-              shiftTypes={shiftTypes}
-              workDays={workDays}
-              compact
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex w-full items-center justify-end gap-3 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+        <div className="p-5 border-t border-neutral-100 bg-white flex justify-between items-center gap-4">
+          <div className="flex gap-3 flex-1 justify-end">
+            <button
+              type="button"
               onClick={() => onOpenChange(false)}
+              className="h-11 px-5 border border-neutral-200 text-neutral-600 font-bold rounded-xl text-sm hover:bg-neutral-50 cursor-pointer"
             >
               {t("form.cancel")}
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
               onClick={handleSubmit}
               disabled={!name.trim() || isSaving}
-              size="sm"
-              className="rounded-xl bg-[#009588] px-6 font-semibold text-white shadow-lg shadow-[#009588]/20 hover:bg-[#00796B] disabled:opacity-60"
+              className="h-11 px-6 bg-[#171717] text-white font-bold rounded-xl text-sm hover:bg-neutral-900 shadow-lg shadow-neutral-900/10 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
               {t("form.save")}
-            </Button>
+            </button>
           </div>
-        </SheetFooter>
+        </div>
       </SheetContent>
     </Sheet>
   );
