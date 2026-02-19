@@ -539,6 +539,7 @@ Claude Opus 4.6 (Adversarial Code Review Workflow)
 | 2026-02-19 | Story created (ready-for-dev) | Claude Opus 4.6 |
 | 2026-02-19 | Implementation complete (review) — 9/9 tasks, 1188 tests | Claude Opus 4.6 |
 | 2026-02-19 | Adversarial code review — 27 issues found, all fixed. 1206 tests | Claude Opus 4.6 |
+| 2026-02-19 | Post-review bugfixes — Fixed `result[0]` unwrap bug (zsa-react-query returns unwrapped data), added MonthShiftsSummary persistent component, i18n `existing` namespace FR/EN (7 keys) | Claude Opus 4.6 |
 
 ---
 
@@ -574,6 +575,7 @@ Claude Opus 4.6 (claude-opus-4-6)
 - `apps/web/src/app/[locale]/admin/planning/_components/GenerationPanel.tsx` — Generation trigger UI
 - `apps/web/src/app/[locale]/admin/planning/_components/GenerationResultView.tsx` — Result display
 - `apps/web/src/app/[locale]/admin/planning/_components/ConfirmRegenerateDialog.tsx` — Regeneration warning
+- `apps/web/src/app/[locale]/admin/planning/_components/MonthShiftsSummary.tsx` — Persistent month shifts summary
 
 **Files modified:**
 - `apps/api/prisma/schema/Planning.prisma` — ShiftSource enum, shiftTypeCode, source, planningTemplateId, composite index

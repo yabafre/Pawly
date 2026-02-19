@@ -14,6 +14,7 @@ import {
 import { useGeneration } from "../_hooks/useGeneration";
 import { useTemplates } from "../templates/_hooks/useTemplates";
 import { GenerationResultView } from "./GenerationResultView";
+import { MonthShiftsSummary } from "./MonthShiftsSummary";
 import { ConfirmRegenerateDialog } from "./ConfirmRegenerateDialog";
 import type { GenerationResult } from "@pawly/validators";
 
@@ -49,6 +50,8 @@ export function GenerationPanel() {
     isLoadingShifts,
     generatePlan,
     isGenerating,
+    deleteGenerated,
+    isDeleting,
   } = useGeneration(selectedMonth);
 
   const existingGeneratedCount = shifts.filter(
@@ -66,8 +69,8 @@ export function GenerationPanel() {
     generatePlan(
       { month: selectedMonth, templateId: selectedTemplateId },
       {
-        onSuccess: (result: [GenerationResult, null]) => {
-          setGenerationResult(result[0]);
+        onSuccess: (result: GenerationResult) => {
+          setGenerationResult(result);
         },
       },
     );
@@ -83,8 +86,8 @@ export function GenerationPanel() {
     generatePlan(
       { month: selectedMonth, templateId: selectedTemplateId },
       {
-        onSuccess: (result: [GenerationResult, null]) => {
-          setGenerationResult(result[0]);
+        onSuccess: (result: GenerationResult) => {
+          setGenerationResult(result);
         },
       },
     );
@@ -159,10 +162,18 @@ export function GenerationPanel() {
         </div>
       </div>
 
-      {/* Result */}
+      {/* Generation result (ephemeral, after clicking generate) */}
       {generationResult && (
         <GenerationResultView result={generationResult} />
       )}
+
+      {/* Persistent month summary (survives refresh) */}
+      <MonthShiftsSummary
+        shifts={shifts}
+        isLoading={isLoadingShifts}
+        onDeleteGenerated={() => deleteGenerated({ month: selectedMonth })}
+        isDeleting={isDeleting}
+      />
 
       <ConfirmRegenerateDialog
         open={showConfirm}

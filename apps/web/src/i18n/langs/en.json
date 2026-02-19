@@ -409,6 +409,15 @@
         "confirm": "Regenerate",
         "cancel": "Cancel"
       },
+      "existing": {
+        "title": "Month Shifts",
+        "totalShifts": "Total",
+        "generated": "Generated",
+        "manual": "Manual",
+        "employees": "Employees",
+        "daysWithShifts": "{count} day(s) planned",
+        "deleteGenerated": "Delete generated"
+      },
       "toast": {
         "generated": "Planning generated successfully",
         "regenerated": "Planning regenerated successfully",
