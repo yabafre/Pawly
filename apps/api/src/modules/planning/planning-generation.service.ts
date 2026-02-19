@@ -14,12 +14,21 @@ import { EquityCounterService } from './equity-counter.service';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type { GenerationResult } from '@pawly/validators';
+import type {
+  ScheduleViewData,
+  ScheduleEmployee,
+  ScheduleDayInfo,
+  ScheduleShift,
+  ScheduleUnavailability,
+  ScheduleHole,
+} from '@pawly/validators';
 
 type SlotRequirement = {
   date: string;
   shiftTypeCode: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   requiredStaff: number;
   requiredJobTypes?: string[];
 };
@@ -38,22 +47,22 @@ type AssignedShift = {
   startTime: string;
   endTime: string;
   shiftTypeCode: string;
+  breakMinutes?: number;
+};
+
+type RuleEntry = {
+  id: string;
+  name: string;
+  category: string;
+  config: Record<string, unknown>;
+  priority: number;
 };
 
 type ConstraintMap = {
   unavailableMap: Map<string, Set<string>>;
-  hardRules: Array<{
-    id: string;
-    name: string;
-    category: string;
-    config: Record<string, unknown>;
-  }>;
-  softRules: Array<{
-    id: string;
-    name: string;
-    category: string;
-    config: Record<string, unknown>;
-  }>;
+  schoolDayMap: Map<string, Set<string>>; // apprentice school dates (count toward weekly hours)
+  hardRules: RuleEntry[];
+  softRules: RuleEntry[];
   equityMap: Map<
     string,
     {
@@ -63,6 +72,7 @@ type ConstraintMap = {
       overtimeMinutes: number;
     }
   >;
+  quarterlyShifts: AssignedShift[]; // historical shifts from other months in the same quarter
 };
 
 @Injectable()
@@ -70,6 +80,11 @@ export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly WEEKS_PER_MONTH = 4.33;
+  private static readonly SCHOOL_DAY_MINUTES = 420; // 7h standard school day in France
+  private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
+    monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+    friday: 5, saturday: 6, sunday: 7,
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -105,16 +120,30 @@ export class PlanningGenerationService {
     const shiftTypeMap = new Map(
       shiftTypes.map((st) => [
         st.code,
-        { startTime: st.startTime, endTime: st.endTime },
+        { startTime: st.startTime, endTime: st.endTime, breakMinutes: st.breakMinutes },
       ]),
     );
 
-    const slots = this.expandTemplateToMonth(
+    const rawSlots = this.expandTemplateToMonth(
       templateData,
       month,
       operationalConfig,
       shiftTypeMap,
     );
+
+    // Reorder slots: within each ISO week, process non-workday slots BEFORE workday slots.
+    // This ensures employees still have weekly budget for hard-to-fill non-workday slots.
+    const workDaySet = new Set(
+      operationalConfig.workDays.map((d: string) => {
+        const map: Record<string, number> = {
+          MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4,
+          FRIDAY: 5, SATURDAY: 6, SUNDAY: 7,
+          '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+        };
+        return map[d] || 0;
+      }).filter(Boolean),
+    );
+    const slots = this.reorderSlotsNonWorkDaysFirst(rawSlots, workDaySet);
 
     const [year, monthNum] = month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
@@ -232,7 +261,7 @@ export class PlanningGenerationService {
         endTime: string;
       }>;
     },
-    shiftTypeMap: Map<string, { startTime: string; endTime: string }>,
+    shiftTypeMap: Map<string, { startTime: string; endTime: string; breakMinutes: number }>,
   ): SlotRequirement[] {
     const [year, monthNum] = month.split('-').map(Number);
     const firstDay = new Date(Date.UTC(year, monthNum - 1, 1));
@@ -312,6 +341,7 @@ export class PlanningGenerationService {
           shiftTypeCode: templateSlot.shiftTypeCode,
           startTime,
           endTime,
+          breakMinutes: shiftTimes.breakMinutes,
           requiredStaff: templateSlot.requiredStaff,
           requiredJobTypes: templateSlot.requiredJobTypes,
         });
@@ -339,10 +369,15 @@ export class PlanningGenerationService {
     });
 
     const unavailableMap = new Map<string, Set<string>>();
+    const schoolDayMap = new Map<string, Set<string>>();
 
     for (const ua of unavailabilities) {
       const empDates =
         unavailableMap.get(ua.employeeId) || new Set<string>();
+      const isSchool = ua.type === 'SCHOOL';
+      const schoolDates = isSchool
+        ? (schoolDayMap.get(ua.employeeId) || new Set<string>())
+        : null;
 
       const effectiveStart =
         ua.startDate > monthStart ? ua.startDate : monthStart;
@@ -352,7 +387,9 @@ export class PlanningGenerationService {
       if (ua.daysOfWeek.length === 0) {
         const cursor = new Date(effectiveStart);
         while (cursor <= effectiveEnd) {
-          empDates.add(cursor.toISOString().split('T')[0]);
+          const dateStr = cursor.toISOString().split('T')[0];
+          empDates.add(dateStr);
+          if (schoolDates) schoolDates.add(dateStr);
           cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
       } else {
@@ -361,34 +398,30 @@ export class PlanningGenerationService {
           const isoDay =
             cursor.getUTCDay() === 0 ? 7 : cursor.getUTCDay();
           if (ua.daysOfWeek.includes(isoDay)) {
-            empDates.add(cursor.toISOString().split('T')[0]);
+            const dateStr = cursor.toISOString().split('T')[0];
+            empDates.add(dateStr);
+            if (schoolDates) schoolDates.add(dateStr);
           }
           cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
       }
 
       unavailableMap.set(ua.employeeId, empDates);
+      if (schoolDates) schoolDayMap.set(ua.employeeId, schoolDates);
     }
 
     const rules = await this.planningService.listRules(clinicId, {
       isActive: true,
     });
-    const hardRules = rules
-      .filter((r) => r.ruleType === 'HARD')
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        config: r.config as Record<string, unknown>,
-      }));
-    const softRules = rules
-      .filter((r) => r.ruleType === 'SOFT')
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        config: r.config as Record<string, unknown>,
-      }));
+    const mapRule = (r: { id: string; name: string; category: string; config: unknown; priority: number }): RuleEntry => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      config: r.config as Record<string, unknown>,
+      priority: r.priority,
+    });
+    const hardRules = rules.filter((r) => r.ruleType === 'HARD').map(mapRule);
+    const softRules = rules.filter((r) => r.ruleType === 'SOFT').map(mapRule);
 
     // Load all months up to the target month for cumulative equity data
     const allMonths = Array.from({ length: month }, (_, i) => i + 1);
@@ -433,7 +466,49 @@ export class PlanningGenerationService {
       equityMap.set(counter.employee.id, existing);
     }
 
-    return { unavailableMap, hardRules, softRules, equityMap };
+    // Load quarterly historical shifts if any ROTATION_EQUITY rule uses quarterly tracking
+    const allRules = [...hardRules, ...softRules];
+    const needsQuarterly = allRules.some(
+      (r) => r.category === 'ROTATION_EQUITY' && r.config.trackingPeriod === 'quarterly',
+    );
+
+    let quarterlyShifts: AssignedShift[] = [];
+    if (needsQuarterly) {
+      const quarterStartMonth = Math.floor((month - 1) / 3) * 3 + 1;
+      const otherMonths = [quarterStartMonth, quarterStartMonth + 1, quarterStartMonth + 2]
+        .filter((m) => m !== month && m >= 1 && m <= 12);
+
+      if (otherMonths.length > 0) {
+        const dateRanges = otherMonths.map((m) => ({
+          gte: new Date(Date.UTC(year, m - 1, 1)),
+          lte: new Date(Date.UTC(year, m, 0, 23, 59, 59, 999)),
+        }));
+
+        const historicalShifts = await this.prisma.shift.findMany({
+          where: {
+            clinicId,
+            OR: dateRanges.map((d) => ({ date: { gte: d.gte, lte: d.lte } })),
+          },
+          select: {
+            employeeId: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            shiftTypeCode: true,
+          },
+        });
+
+        quarterlyShifts = historicalShifts.map((s) => ({
+          employeeId: s.employeeId,
+          date: s.date.toISOString().split('T')[0],
+          startTime: s.startTime,
+          endTime: s.endTime,
+          shiftTypeCode: s.shiftTypeCode,
+        }));
+      }
+    }
+
+    return { unavailableMap, schoolDayMap, hardRules, softRules, equityMap, quarterlyShifts };
   }
 
   private scoreAndAssign(
@@ -452,6 +527,36 @@ export class PlanningGenerationService {
     const assigned: AssignedShift[] = [];
     const hardViols: GenerationResult['violations']['hard'] = [];
     const softViols: GenerationResult['violations']['soft'] = [];
+
+    // Pre-compute values needed by eligibility filter
+    const slotMinutes = this.calculateShiftMinutes(slot.startTime, slot.endTime) - (slot.breakMinutes || 0);
+    const weekBounds = this.getWeekBounds(slot.date);
+
+    // Compute weekly minutes for ALL employees (needed for HARD CONTRACT_COMPLIANCE filter)
+    const weeklyMinutesMap = new Map<string, number>();
+    for (const emp of employees) {
+      let weekMin = 0;
+      for (const a of alreadyAssigned) {
+        if (a.employeeId !== emp.id) continue;
+        if (a.date >= weekBounds.start && a.date <= weekBounds.end) {
+          weekMin += this.calculateShiftMinutes(a.startTime, a.endTime) - (a.breakMinutes || 0);
+        }
+      }
+      const schoolDates = constraints.schoolDayMap.get(emp.id);
+      if (schoolDates) {
+        for (const date of schoolDates) {
+          if (date >= weekBounds.start && date <= weekBounds.end) {
+            weekMin += PlanningGenerationService.SCHOOL_DAY_MINUTES;
+          }
+        }
+      }
+      weeklyMinutesMap.set(emp.id, weekMin);
+    }
+
+    // Extract HARD CONTRACT_COMPLIANCE rules for eligibility filter
+    const hardContractRules = constraints.hardRules.filter(
+      (r) => r.category === 'CONTRACT_COMPLIANCE',
+    );
 
     // Filter eligible employees
     const eligible = employees.filter((emp) => {
@@ -481,10 +586,41 @@ export class PlanningGenerationService {
         return false;
       }
 
+      // FIX 1: HARD ROTATION_EQUITY with trackingPeriod support
+      for (const rule of constraints.hardRules) {
+        if (rule.category === 'ROTATION_EQUITY') {
+          if (this.violatesHardRotationEquity(rule, slot, emp, alreadyAssigned, constraints.quarterlyShifts)) {
+            return false;
+          }
+        }
+      }
+
+      // FIX 1: HARD CONTRACT_COMPLIANCE — block if exceeding hard limits
+      // Per-employee contractHours is always the base; rule maxWeeklyHours is an additional cap
+      for (const rule of hardContractRules) {
+        const config = rule.config;
+        const overtimeTol = 1 + ((config.overtimeThresholdPercent as number) || 0) / 100;
+
+        const ruleWeekly = config.maxWeeklyHours as number | undefined;
+        const effectiveWeeklyLimit = ruleWeekly
+          ? Math.min(emp.contractHours, ruleWeekly)
+          : emp.contractHours;
+        const weekMin = weeklyMinutesMap.get(emp.id) || 0;
+        const projectedWeekMin = weekMin + slotMinutes;
+        if (projectedWeekMin > effectiveWeeklyLimit * 60 * overtimeTol) return false;
+
+        if (config.maxMonthlyHours) {
+          const monthMin = employeeMinutes.get(emp.id) || 0;
+          const projectedMonthMin = monthMin + slotMinutes;
+          const hardLimitMin = (config.maxMonthlyHours as number) * 60 * overtimeTol;
+          if (projectedMonthMin > hardLimitMin) return false;
+        }
+      }
+
       return true;
     });
 
-    // Check HARD rules
+    // Check HARD rules (slot-level: STAFFING_MINIMUM, SKILL_REQUIREMENT)
     for (const rule of constraints.hardRules) {
       if (
         rule.category === 'STAFFING_MINIMUM' &&
@@ -532,7 +668,6 @@ export class PlanningGenerationService {
     }
 
     if (hardViols.length > 0) {
-      // Hard constraint violated — record hole, do NOT fill this slot
       const holeInfo: GenerationResult['holes'][number] = {
         date: slot.date,
         shiftTypeCode: slot.shiftTypeCode,
@@ -543,10 +678,30 @@ export class PlanningGenerationService {
       return { assigned: [], holeInfo, hardViolations: hardViols, softViolations: [] };
     }
 
+    // Build shift count index for monthly workload balancing
+    const employeeShiftCounts = new Map<string, number>();
+    for (const a of alreadyAssigned) {
+      employeeShiftCounts.set(a.employeeId, (employeeShiftCounts.get(a.employeeId) || 0) + 1);
+    }
+    const eligibleShiftCounts = eligible.map(e => employeeShiftCounts.get(e.id) || 0);
+    const avgShifts = eligibleShiftCounts.length > 0
+      ? eligibleShiftCounts.reduce((sum, c) => sum + c, 0) / eligibleShiftCounts.length
+      : 0;
+
+    // Global weekly cap from CONTRACT_COMPLIANCE rules (if any)
+    const allContractRules = [
+      ...constraints.hardRules.filter(r => r.category === 'CONTRACT_COMPLIANCE'),
+      ...constraints.softRules.filter(r => r.category === 'CONTRACT_COMPLIANCE'),
+    ];
+    const ruleWeeklyCap = allContractRules
+      .map(r => r.config.maxWeeklyHours as number | undefined)
+      .find(v => v !== undefined);
+
     // Score each eligible employee
     const scored = eligible.map((emp) => {
       let score = 100;
 
+      // FIX 7: Full equity scoring (weekend, holiday, overtime)
       const equity = constraints.equityMap.get(emp.id);
       if (equity) {
         const date = new Date(`${slot.date}T00:00:00.000Z`);
@@ -554,82 +709,198 @@ export class PlanningGenerationService {
         const isSaturday = dayOfWeek === 6;
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-        // TODO: Add holiday equity scoring when public holiday calendar is available
         if (isWeekend) {
-          // Always check weekendCount for any weekend day (Saturday or Sunday)
-          const avgWeekend = this.getAverageEquity(
-            constraints.equityMap,
-            'weekendCount',
-          );
-          if (equity.weekendCount < avgWeekend) {
-            score += 10;
-          }
+          const avgWeekend = this.getAverageEquity(constraints.equityMap, 'weekendCount');
+          if (equity.weekendCount < avgWeekend) score += 10;
 
-          // Additionally check saturdayCount for Saturdays
           if (isSaturday) {
-            const avgSaturday = this.getAverageEquity(
-              constraints.equityMap,
-              'saturdayCount',
-            );
-            if (equity.saturdayCount < avgSaturday) {
-              score += 10;
-            }
+            const avgSaturday = this.getAverageEquity(constraints.equityMap, 'saturdayCount');
+            if (equity.saturdayCount < avgSaturday) score += 10;
           }
+        }
+
+        // FIX 7: Holiday equity — prefer employees with fewer holiday shifts
+        const avgHoliday = this.getAverageEquity(constraints.equityMap, 'holidayCount');
+        if (equity.holidayCount < avgHoliday) {
+          score += 5;
+        } else if (equity.holidayCount > avgHoliday + 1) {
+          score -= 5;
+        }
+
+        // FIX 7: Overtime equity — penalize employees with more historical overtime
+        const avgOvertime = this.getAverageOvertimeMinutes(constraints.equityMap);
+        if (equity.overtimeMinutes > avgOvertime) {
+          score -= Math.round(((equity.overtimeMinutes - avgOvertime) / 60) * 5);
         }
       } else {
         score += 20;
       }
 
+      // Monthly contract fit bonus
       const currentMinutes = employeeMinutes.get(emp.id) || 0;
-      const shiftMinutes = this.calculateShiftMinutes(
-        slot.startTime,
-        slot.endTime,
-      );
       const monthlyLimitMinutes =
         emp.contractHours * 60 * PlanningGenerationService.WEEKS_PER_MONTH;
-      if (currentMinutes + shiftMinutes <= monthlyLimitMinutes) {
+      if (currentMinutes + slotMinutes <= monthlyLimitMinutes) {
         score += 10;
       }
 
+      // Job type match bonus
       if (slot.requiredJobTypes?.includes(emp.jobType)) {
         score += 15;
       }
 
-      const prevDate = this.getPreviousDate(slot.date);
-      const prevKey = `${emp.id}|${prevDate}`;
-      const assignedPrevDay = (assignmentIndex.get(prevKey) || []).length > 0;
-      if (assignedPrevDay) {
-        score -= 10;
+      // Monthly workload balancing — stronger penalty for excess
+      const shiftCount = employeeShiftCounts.get(emp.id) || 0;
+      const excessShifts = shiftCount - avgShifts;
+      if (excessShifts > 0) {
+        score -= Math.round(excessShifts * 25);
+      } else if (excessShifts < -1) {
+        // Bonus for under-utilized employees (fewer shifts than average)
+        score += Math.round(Math.abs(excessShifts) * 15);
+      }
+
+      // Weekly hours scoring — DOMINANT factor for intra-week balance
+      // This is the primary mechanism to prevent one employee getting 40h while another has 30h
+      const weekMin = weeklyMinutesMap.get(emp.id) || 0;
+      const projectedWeekMin = weekMin + slotMinutes;
+      const effectiveWeeklyHours = ruleWeeklyCap
+        ? Math.min(emp.contractHours, ruleWeeklyCap)
+        : emp.contractHours;
+      const weeklyLimitMin = effectiveWeeklyHours * 60;
+      if (projectedWeekMin > weeklyLimitMin) {
+        // Over weekly limit → strong penalty
+        const overHours = (projectedWeekMin - weeklyLimitMin) / 60;
+        score -= Math.round(overHours * 40);
+      } else {
+        // Under weekly limit → strong bonus proportional to remaining capacity
+        const remainingRatio = (weeklyLimitMin - projectedWeekMin) / weeklyLimitMin;
+        score += Math.round(remainingRatio * 50);
+      }
+
+      // Fill-to-contract bonus: heavily prefer employees far below their weekly contract
+      // An employee at 0h should massively outscore one at 30h
+      const weeklyUsageRatio = weekMin / weeklyLimitMin;
+      if (weeklyUsageRatio < 0.5) {
+        score += 30; // far from limit — strong preference
+      } else if (weeklyUsageRatio < 0.8) {
+        score += 15; // moderate headroom
+      }
+
+      // Consecutive days penalty
+      let consecutiveDays = 0;
+      let checkDate = this.getPreviousDate(slot.date);
+      while (consecutiveDays < 6 && (assignmentIndex.get(`${emp.id}|${checkDate}`) || []).length > 0) {
+        consecutiveDays++;
+        checkDate = this.getPreviousDate(checkDate);
+      }
+      score -= consecutiveDays * 8;
+
+      // FIX 5: Soft rule scoring adjustments weighted by priority
+      for (const rule of constraints.softRules) {
+        const priorityWeight = 1 + rule.priority / 10;
+
+        if (rule.category === 'ROTATION_EQUITY') {
+          const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+          const count = this.countTargetDayShifts(
+            rule, emp, alreadyAssigned, constraints.quarterlyShifts, trackingPeriod,
+          );
+          const maxPerPeriod = rule.config.maxPerPeriod as number;
+          if (count >= maxPerPeriod) {
+            score -= Math.round(25 * priorityWeight);
+          }
+        }
+
+        if (rule.category === 'CONTRACT_COMPLIANCE') {
+          const maxWeekly = rule.config.maxWeeklyHours as number | undefined;
+          if (maxWeekly && projectedWeekMin > maxWeekly * 60) {
+            const overHours = (projectedWeekMin - maxWeekly * 60) / 60;
+            score -= Math.round(overHours * 15 * priorityWeight);
+          }
+          const maxMonthly = rule.config.maxMonthlyHours as number | undefined;
+          if (maxMonthly && (currentMinutes + slotMinutes) > maxMonthly * 60) {
+            const overHours = ((currentMinutes + slotMinutes) - maxMonthly * 60) / 60;
+            score -= Math.round(overHours * 10 * priorityWeight);
+          }
+        }
       }
 
       return { employee: emp, score };
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    // Sort by score descending, with random tiebreaker to avoid systematic bias
+    // (without this, the same employee always wins ties due to stable sort + DB order)
+    scored.sort((a, b) => {
+      const diff = b.score - a.score;
+      if (diff !== 0) return diff;
+      return Math.random() - 0.5;
+    });
 
     const toAssign = scored.slice(0, slot.requiredStaff);
 
     for (const { employee } of toAssign) {
-      // Check SOFT rule violations for this assignment
+      // Check all SOFT rule violations for this assignment
       for (const rule of constraints.softRules) {
         if (rule.category === 'ROTATION_EQUITY') {
           this.checkRotationEquity(
-            rule,
-            slot,
-            employee,
-            alreadyAssigned,
-            softViols,
+            rule, slot, employee, alreadyAssigned,
+            constraints.quarterlyShifts, softViols,
           );
         }
 
         if (rule.category === 'CONTRACT_COMPLIANCE') {
           this.checkContractCompliance(
-            rule,
-            slot,
-            employee,
-            employeeMinutes,
-            softViols,
+            rule, slot, employee, employeeMinutes,
+            weeklyMinutesMap, softViols,
           );
+        }
+
+        // FIX 6: SOFT STAFFING_MINIMUM warning
+        if (
+          rule.category === 'STAFFING_MINIMUM' &&
+          rule.config.shiftTypeCode === slot.shiftTypeCode
+        ) {
+          const minStaff = rule.config.minStaff as number;
+          const jobTypes = rule.config.jobTypes as string[] | undefined;
+          const matchingEligible = jobTypes
+            ? eligible.filter((e) => jobTypes.includes(e.jobType))
+            : eligible;
+          if (matchingEligible.length < minStaff) {
+            softViols.push({
+              ruleId: rule.id,
+              ruleName: rule.name,
+              category: rule.category,
+              message: `Only ${matchingEligible.length} eligible for ${slot.shiftTypeCode} on ${slot.date}, recommended minimum ${minStaff}`,
+              affectedEmployeeId: employee.id,
+              affectedDate: slot.date,
+              severity: 'warning' as const,
+            });
+          }
+        }
+
+        // FIX 6: SOFT SKILL_REQUIREMENT warning
+        if (
+          rule.category === 'SKILL_REQUIREMENT' &&
+          rule.config.shiftTypeCode === slot.shiftTypeCode
+        ) {
+          const requiredJobTypes = rule.config.requiredJobTypes as string[];
+          const assignedJobTypes = new Set(
+            [...toAssign.map(t => t.employee.jobType), ...assigned.map(a => {
+              const e = employees.find(emp => emp.id === a.employeeId);
+              return e?.jobType || '';
+            })],
+          );
+          const missing = requiredJobTypes.filter(jt => !assignedJobTypes.has(jt));
+          if (missing.length > 0) {
+            softViols.push({
+              ruleId: rule.id,
+              ruleName: rule.name,
+              category: rule.category,
+              message: `Missing recommended job type(s) ${missing.join(', ')} for ${slot.shiftTypeCode} on ${slot.date}`,
+              affectedEmployeeId: employee.id,
+              affectedDate: slot.date,
+              severity: 'warning' as const,
+            });
+          }
         }
       }
 
@@ -639,15 +910,13 @@ export class PlanningGenerationService {
         startTime: slot.startTime,
         endTime: slot.endTime,
         shiftTypeCode: slot.shiftTypeCode,
+        breakMinutes: slot.breakMinutes,
       });
 
-      const shiftMinutes = this.calculateShiftMinutes(
-        slot.startTime,
-        slot.endTime,
-      );
+      const netMinutes = this.calculateShiftMinutes(slot.startTime, slot.endTime) - (slot.breakMinutes || 0);
       employeeMinutes.set(
         employee.id,
-        (employeeMinutes.get(employee.id) || 0) + shiftMinutes,
+        (employeeMinutes.get(employee.id) || 0) + netMinutes,
       );
     }
 
@@ -744,34 +1013,282 @@ export class PlanningGenerationService {
     });
   }
 
+  async getScheduleViewForMonth(
+    clinicId: string,
+    month: string,
+  ): Promise<ScheduleViewData> {
+    if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
+      throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+
+    // Fetch all data in parallel to prevent API waterfalls
+    const [
+      employees,
+      shifts,
+      unavailabilities,
+      operationalConfig,
+      shiftTypes,
+    ] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: { clinicId, isActive: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          color: true,
+          jobType: true,
+          contractHours: true,
+        },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      }),
+      this.prisma.shift.findMany({
+        where: {
+          clinicId,
+          date: { gte: monthStart, lte: monthEnd },
+        },
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      }),
+      this.prisma.unavailability.findMany({
+        where: {
+          clinicId,
+          startDate: { lte: monthEnd },
+          endDate: { gte: monthStart },
+        },
+      }),
+      this.clinicService.getOperationalConfig(clinicId),
+      this.clinicService.listShiftTypes(clinicId),
+    ]);
+
+    // Build work day set from ClinicConfig.workDays (e.g., ["MONDAY", "TUESDAY", ...])
+    const dayNameToIso: Record<string, number> = {
+      MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6, SUNDAY: 7,
+    };
+    const workDaySet = new Set(
+      operationalConfig.workDays.map((d: string) => dayNameToIso[d]).filter(Boolean),
+    );
+
+    // Build closed day and special day maps
+    const closedDateSet = new Set(
+      operationalConfig.closedDays.map((cd: { date: string }) => cd.date),
+    );
+    const specialDayMap = new Map(
+      operationalConfig.specialDays.map((sd: { date: string; label?: string | null }) => [
+        sd.date,
+        sd.label || undefined,
+      ]),
+    );
+
+    // Build days metadata
+    const days: ScheduleDayInfo[] = [];
+    const cursor = new Date(monthStart);
+    while (cursor <= monthEnd) {
+      const dateStr = cursor.toISOString().split('T')[0];
+      const isoDay = cursor.getUTCDay() === 0 ? 7 : cursor.getUTCDay();
+      days.push({
+        date: dateStr,
+        dayOfWeek: isoDay,
+        isWorkDay: workDaySet.has(isoDay),
+        isClosed: closedDateSet.has(dateStr),
+        isSpecialDay: specialDayMap.has(dateStr),
+        specialDayLabel: specialDayMap.get(dateStr),
+      });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    // Map employees to ScheduleEmployee
+    const scheduleEmployees: ScheduleEmployee[] = employees.map((e) => ({
+      id: e.id,
+      firstName: e.firstName,
+      lastName: e.lastName,
+      color: e.color,
+      jobType: e.jobType,
+      contractHours: e.contractHours,
+    }));
+
+    // Map shifts to ScheduleShift
+    const scheduleShifts: ScheduleShift[] = shifts.map((s) => ({
+      id: s.id,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      shiftTypeCode: s.shiftTypeCode,
+      source: s.source as 'GENERATED' | 'MANUAL',
+      employeeId: s.employeeId,
+      isConfirmed: s.isConfirmed,
+    }));
+
+    // Expand unavailabilities to flat (employeeId, date, type) tuples
+    const expandedUnavailabilities: ScheduleUnavailability[] = [];
+    for (const ua of unavailabilities) {
+      const effectiveStart = ua.startDate > monthStart ? ua.startDate : monthStart;
+      const effectiveEnd = ua.endDate < monthEnd ? ua.endDate : monthEnd;
+
+      if (ua.daysOfWeek.length === 0) {
+        // One-time unavailability
+        const uaCursor = new Date(effectiveStart);
+        while (uaCursor <= effectiveEnd) {
+          expandedUnavailabilities.push({
+            employeeId: ua.employeeId,
+            date: uaCursor.toISOString().split('T')[0],
+            type: ua.type as 'VACATION' | 'SICK' | 'SCHOOL' | 'OTHER',
+            reason: ua.reason || undefined,
+          });
+          uaCursor.setUTCDate(uaCursor.getUTCDate() + 1);
+        }
+      } else {
+        // Recurring unavailability
+        const uaCursor = new Date(effectiveStart);
+        while (uaCursor <= effectiveEnd) {
+          const isoDay = uaCursor.getUTCDay() === 0 ? 7 : uaCursor.getUTCDay();
+          if (ua.daysOfWeek.includes(isoDay)) {
+            expandedUnavailabilities.push({
+              employeeId: ua.employeeId,
+              date: uaCursor.toISOString().split('T')[0],
+              type: ua.type as 'VACATION' | 'SICK' | 'SCHOOL' | 'OTHER',
+              reason: ua.reason || undefined,
+            });
+          }
+          uaCursor.setUTCDate(uaCursor.getUTCDate() + 1);
+        }
+      }
+    }
+
+    // Detect holes by comparing template expectations vs actual shifts
+    let holes: ScheduleHole[] = [];
+    let templateId: string | undefined;
+
+    // Find the template used for generation (from the first generated shift)
+    const generatedShift = shifts.find((s) => s.source === 'GENERATED' && s.planningTemplateId);
+    if (generatedShift?.planningTemplateId) {
+      templateId = generatedShift.planningTemplateId;
+      try {
+        const template = await this.planningTemplateService.getTemplateById(
+          clinicId,
+          templateId,
+        );
+        const parsed = templateDataSchema.safeParse(template.data);
+        if (parsed.success) {
+          const shiftTypeMap = new Map(
+            shiftTypes.map((st) => [st.code, { startTime: st.startTime, endTime: st.endTime, breakMinutes: st.breakMinutes }]),
+          );
+          const slotRequirements = this.expandTemplateToMonth(
+            parsed.data,
+            month,
+            operationalConfig,
+            shiftTypeMap,
+          );
+          holes = this.computeHoles(slotRequirements, scheduleShifts);
+        }
+      } catch {
+        // Template may have been deleted — skip hole detection
+        this.logger.warn(`Template ${templateId} not found for hole detection`);
+      }
+    }
+
+    // Run validation rules
+    let violations: ScheduleViewData['violations'] = { hard: [], soft: [] };
+    try {
+      const validationResult = await this.planningService.validateShiftsAgainstRules(
+        clinicId,
+        {
+          startDate: monthStart.toISOString(),
+          endDate: monthEnd.toISOString(),
+        },
+      );
+      violations = {
+        hard: validationResult.hardViolations,
+        soft: validationResult.softViolations,
+      };
+    } catch {
+      this.logger.warn('Failed to validate shifts against rules');
+    }
+
+    return {
+      month,
+      employees: scheduleEmployees,
+      days,
+      shifts: scheduleShifts,
+      unavailabilities: expandedUnavailabilities,
+      holes,
+      violations,
+      templateId,
+    };
+  }
+
+  private computeHoles(
+    slotRequirements: SlotRequirement[],
+    shifts: ScheduleShift[],
+  ): ScheduleHole[] {
+    // Index shifts by date+shiftTypeCode for O(1) lookup
+    const shiftIndex = new Map<string, number>();
+    for (const s of shifts) {
+      const key = `${s.date}|${s.shiftTypeCode}`;
+      shiftIndex.set(key, (shiftIndex.get(key) || 0) + 1);
+    }
+
+    const holes: ScheduleHole[] = [];
+    // Aggregate slot requirements by (date, shiftTypeCode)
+    const slotMap = new Map<string, SlotRequirement>();
+    for (const slot of slotRequirements) {
+      const key = `${slot.date}|${slot.shiftTypeCode}`;
+      const existing = slotMap.get(key);
+      if (existing) {
+        existing.requiredStaff += slot.requiredStaff;
+      } else {
+        slotMap.set(key, { ...slot });
+      }
+    }
+
+    for (const [key, slot] of slotMap) {
+      const assignedCount = shiftIndex.get(key) || 0;
+      if (assignedCount < slot.requiredStaff) {
+        let reason = 'Not enough staff assigned';
+        if (assignedCount === 0) {
+          reason = 'No staff assigned';
+        } else {
+          reason = `Only ${assignedCount} of ${slot.requiredStaff} staff assigned`;
+        }
+        holes.push({
+          date: slot.date,
+          shiftTypeCode: slot.shiftTypeCode,
+          requiredStaff: slot.requiredStaff,
+          assignedStaff: assignedCount,
+          reason,
+        });
+      }
+    }
+
+    return holes;
+  }
+
+  // FIX 4: checkRotationEquity now supports trackingPeriod (monthly/quarterly)
   private checkRotationEquity(
-    rule: { id: string; name: string; category: string; config: Record<string, unknown> },
+    rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
     alreadyAssigned: AssignedShift[],
+    quarterlyShifts: AssignedShift[],
     softViols: GenerationResult['violations']['soft'],
   ) {
     const targetDay = rule.config.targetDay as string;
     const maxPerPeriod = rule.config.maxPerPeriod as number;
-
-    const dayNameToIso: Record<string, number> = {
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-      sunday: 7,
-    };
-    const targetIsoDay = dayNameToIso[targetDay];
+    const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+    const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return;
 
     const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
-    const slotIsoDay =
-      slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
+    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
     if (slotIsoDay !== targetIsoDay) return;
 
-    const count = alreadyAssigned.filter((a) => {
+    const shiftPool = trackingPeriod === 'quarterly'
+      ? [...alreadyAssigned, ...quarterlyShifts]
+      : alreadyAssigned;
+
+    const count = shiftPool.filter((a) => {
       if (a.employeeId !== employee.id) return false;
       const d = new Date(`${a.date}T00:00:00.000Z`);
       const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
@@ -783,7 +1300,7 @@ export class PlanningGenerationService {
         ruleId: rule.id,
         ruleName: rule.name,
         category: rule.category,
-        message: `Employee ${employee.firstName} ${employee.lastName} has ${count + 1} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod}`,
+        message: `Employee ${employee.firstName} ${employee.lastName} has ${count + 1} ${targetDay} shifts (${trackingPeriod || 'monthly'}), exceeds maximum of ${maxPerPeriod}`,
         affectedEmployeeId: employee.id,
         affectedDate: slot.date,
         severity: 'warning' as const,
@@ -791,35 +1308,52 @@ export class PlanningGenerationService {
     }
   }
 
+  // FIX 2+3: checkContractCompliance now handles maxWeeklyHours and overtimeThresholdPercent
   private checkContractCompliance(
-    rule: { id: string; name: string; category: string; config: Record<string, unknown> },
+    rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
     employeeMinutes: Map<string, number>,
+    weeklyMinutesMap: Map<string, number>,
     softViols: GenerationResult['violations']['soft'],
   ) {
-    const maxMonthlyHours = rule.config.maxMonthlyHours as
-      | number
-      | undefined;
-    if (!maxMonthlyHours) return;
+    const config = rule.config;
+    const shiftMinutes = this.calculateShiftMinutes(slot.startTime, slot.endTime) - (slot.breakMinutes || 0);
 
-    const currentMinutes = employeeMinutes.get(employee.id) || 0;
-    const shiftMinutes = this.calculateShiftMinutes(
-      slot.startTime,
-      slot.endTime,
-    );
-    const totalHours = Math.round((currentMinutes + shiftMinutes) / 60);
+    // Check maxMonthlyHours
+    const maxMonthlyHours = config.maxMonthlyHours as number | undefined;
+    if (maxMonthlyHours) {
+      const currentMinutes = employeeMinutes.get(employee.id) || 0;
+      const totalHours = Math.round((currentMinutes + shiftMinutes) / 60);
+      if (totalHours > maxMonthlyHours) {
+        softViols.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category,
+          message: `Employee ${employee.firstName} ${employee.lastName} total ${totalHours}h/month exceeds maximum ${maxMonthlyHours}h`,
+          affectedEmployeeId: employee.id,
+          affectedDate: slot.date,
+          severity: 'warning' as const,
+        });
+      }
+    }
 
-    if (totalHours > maxMonthlyHours) {
-      softViols.push({
-        ruleId: rule.id,
-        ruleName: rule.name,
-        category: rule.category,
-        message: `Employee ${employee.firstName} ${employee.lastName} total ${totalHours}h exceeds maximum ${maxMonthlyHours}h`,
-        affectedEmployeeId: employee.id,
-        affectedDate: slot.date,
-        severity: 'warning' as const,
-      });
+    // FIX 2: Check maxWeeklyHours
+    const maxWeeklyHours = config.maxWeeklyHours as number | undefined;
+    if (maxWeeklyHours) {
+      const weekMin = weeklyMinutesMap.get(employee.id) || 0;
+      const projectedWeekHours = Math.round((weekMin + shiftMinutes) / 60);
+      if (projectedWeekHours > maxWeeklyHours) {
+        softViols.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category,
+          message: `Employee ${employee.firstName} ${employee.lastName} at ${projectedWeekHours}h/week exceeds maximum ${maxWeeklyHours}h`,
+          affectedEmployeeId: employee.id,
+          affectedDate: slot.date,
+          severity: 'warning' as const,
+        });
+      }
     }
   }
 
@@ -904,6 +1438,99 @@ export class PlanningGenerationService {
     return date.toISOString().split('T')[0];
   }
 
+  private getWeekBounds(dateStr: string): { start: string; end: string } {
+    const date = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayOfWeek = date.getUTCDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+    return {
+      start: monday.toISOString().split('T')[0],
+      end: sunday.toISOString().split('T')[0],
+    };
+  }
+
+  /**
+   * Reorder slots so that within each ISO week, non-workday slots are processed
+   * BEFORE workday slots. Which days are "work days" is determined by the clinic's
+   * workDays configuration — NOT hardcoded to Saturday/Sunday.
+   * This prevents the greedy algorithm from exhausting weekly budgets on
+   * regular work days and leaving hard-to-fill non-workday slots unfilled.
+   */
+  private reorderSlotsNonWorkDaysFirst(
+    slots: SlotRequirement[],
+    workDaySet: Set<number>,
+  ): SlotRequirement[] {
+    // Group by ISO week
+    const weekGroups = new Map<string, SlotRequirement[]>();
+    for (const slot of slots) {
+      const weekKey = this.getWeekBounds(slot.date).start;
+      const group = weekGroups.get(weekKey) || [];
+      group.push(slot);
+      weekGroups.set(weekKey, group);
+    }
+
+    const result: SlotRequirement[] = [];
+    const sortedWeeks = [...weekGroups.keys()].sort();
+    for (const weekKey of sortedWeeks) {
+      const group = weekGroups.get(weekKey)!;
+      // Sort: non-workdays first (priority 0), then workdays (priority 1)
+      group.sort((a, b) => {
+        const dateA = new Date(`${a.date}T00:00:00Z`);
+        const dateB = new Date(`${b.date}T00:00:00Z`);
+        const isoDayA = dateA.getUTCDay() === 0 ? 7 : dateA.getUTCDay();
+        const isoDayB = dateB.getUTCDay() === 0 ? 7 : dateB.getUTCDay();
+        const priorityA = workDaySet.has(isoDayA) ? 1 : 0;
+        const priorityB = workDaySet.has(isoDayB) ? 1 : 0;
+        if (priorityA !== priorityB) return priorityA - priorityB;
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.startTime.localeCompare(b.startTime);
+      });
+      result.push(...group);
+    }
+
+    return result;
+  }
+
+  // FIX 4: violatesHardRotationEquity now supports quarterly tracking
+  private violatesHardRotationEquity(
+    rule: RuleEntry,
+    slot: SlotRequirement,
+    employee: EmployeeInfo,
+    alreadyAssigned: AssignedShift[],
+    quarterlyShifts: AssignedShift[],
+  ): boolean {
+    const targetDay = rule.config.targetDay as string;
+    const maxPerPeriod = rule.config.maxPerPeriod as number;
+    const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+    const dayNameToIso: Record<string, number> = {
+      monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+      friday: 5, saturday: 6, sunday: 7,
+    };
+    const targetIsoDay = dayNameToIso[targetDay];
+    if (!targetIsoDay) return false;
+
+    const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
+    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
+    if (slotIsoDay !== targetIsoDay) return false;
+
+    // FIX 4: Include quarterly historical shifts when trackingPeriod is "quarterly"
+    const shiftPool = trackingPeriod === 'quarterly'
+      ? [...alreadyAssigned, ...quarterlyShifts]
+      : alreadyAssigned;
+
+    const count = shiftPool.filter((a) => {
+      if (a.employeeId !== employee.id) return false;
+      const d = new Date(`${a.date}T00:00:00.000Z`);
+      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+      return aIsoDay === targetIsoDay;
+    }).length;
+
+    return count >= maxPerPeriod;
+  }
+
   private getAverageEquity(
     equityMap: Map<
       string,
@@ -922,5 +1549,41 @@ export class PlanningGenerationService {
       total += data[field];
     }
     return total / equityMap.size;
+  }
+
+  // FIX 7: Average overtime minutes across all employees
+  private getAverageOvertimeMinutes(
+    equityMap: Map<string, { overtimeMinutes: number }>,
+  ): number {
+    if (equityMap.size === 0) return 0;
+    let total = 0;
+    for (const data of equityMap.values()) {
+      total += data.overtimeMinutes;
+    }
+    return total / equityMap.size;
+  }
+
+  // FIX 5: Count target-day shifts for an employee (monthly or quarterly)
+  private countTargetDayShifts(
+    rule: RuleEntry,
+    employee: EmployeeInfo,
+    alreadyAssigned: AssignedShift[],
+    quarterlyShifts: AssignedShift[],
+    trackingPeriod: string | undefined,
+  ): number {
+    const targetDay = rule.config.targetDay as string;
+    const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
+    if (!targetIsoDay) return 0;
+
+    const shiftPool = trackingPeriod === 'quarterly'
+      ? [...alreadyAssigned, ...quarterlyShifts]
+      : alreadyAssigned;
+
+    return shiftPool.filter((a) => {
+      if (a.employeeId !== employee.id) return false;
+      const d = new Date(`${a.date}T00:00:00.000Z`);
+      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+      return aIsoDay === targetIsoDay;
+    }).length;
   }
 }

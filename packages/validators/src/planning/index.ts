@@ -93,3 +93,25 @@ export type {
   GenerationStats,
   GenerationResult,
 } from "./planning-generation.schema";
+
+export {
+  scheduleViewInputSchema,
+  weekNavigationSchema,
+  scheduleEmployeeSchema,
+  scheduleDayInfoSchema,
+  scheduleShiftSchema,
+  scheduleUnavailabilitySchema,
+  scheduleHoleSchema,
+  scheduleViewDataSchema,
+} from "./schedule-view.schema";
+
+export type {
+  ScheduleViewInput,
+  WeekNavigation,
+  ScheduleEmployee,
+  ScheduleDayInfo,
+  ScheduleShift,
+  ScheduleUnavailability,
+  ScheduleHole,
+  ScheduleViewData,
+} from "./schedule-view.schema";

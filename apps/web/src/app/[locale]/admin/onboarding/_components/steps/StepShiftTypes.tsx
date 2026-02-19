@@ -163,6 +163,30 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
 
                 <div className="space-y-1">
                   <Label className="text-xs text-neutral-500">
+                    {t("breakMinutes")}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={300}
+                    value={field.state.value[index].breakMinutes ?? 0}
+                    onChange={(e) => {
+                      const next = [...field.state.value];
+                      next[index] = {
+                        ...next[index],
+                        breakMinutes: Math.max(
+                          0,
+                          Math.min(300, parseInt(e.target.value) || 0),
+                        ),
+                      };
+                      field.handleChange(next);
+                    }}
+                    className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-neutral-500">
                     {t("color")}
                   </Label>
                   <div className="flex gap-2 flex-wrap">
@@ -203,6 +227,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                     code: "",
                     startTime: "08:30",
                     endTime: "18:30",
+                    breakMinutes: 0,
                     color: COLOR_PALETTE[field.state.value.length % COLOR_PALETTE.length].value,
                   },
                 ]);

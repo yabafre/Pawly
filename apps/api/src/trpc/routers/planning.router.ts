@@ -19,6 +19,7 @@ import {
   generatePlanSchema,
   listShiftsForMonthSchema,
   deleteGeneratedShiftsSchema,
+  scheduleViewInputSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -203,6 +204,17 @@ export const planningRouter = router({
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
       return ctx.planningGenerationService.deleteGeneratedShifts(
+        ctx.user.clinicId,
+        input.month,
+      );
+    }),
+
+  // Schedule view procedure
+  getScheduleView: subscribedProcedure
+    .input(scheduleViewInputSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.getScheduleViewForMonth(
         ctx.user.clinicId,
         input.month,
       );

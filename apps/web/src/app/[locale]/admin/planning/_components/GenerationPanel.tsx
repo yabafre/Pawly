@@ -33,12 +33,18 @@ function getMonthOptions(locale: string) {
   return options;
 }
 
-export function GenerationPanel() {
+type Props = {
+  month: string;
+  onMonthChange: (month: string) => void;
+};
+
+export function GenerationPanel({ month, onMonthChange }: Props) {
   const t = useTranslations("admin.planningGeneration");
   const locale = useLocale();
   const monthOptions = getMonthOptions(locale);
 
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const selectedMonth = month;
+  const setSelectedMonth = onMonthChange;
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);

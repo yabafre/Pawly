@@ -56,21 +56,26 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
+const defaultPanelProps = {
+  month: "2026-03",
+  onMonthChange: vi.fn(),
+};
+
 describe("GenerationPanel", () => {
   it("renders title and subtitle", () => {
-    render(<GenerationPanel />, { wrapper: Wrapper });
+    render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
     expect(screen.getByText("title")).toBeInTheDocument();
     expect(screen.getByText("subtitle")).toBeInTheDocument();
   });
 
   it("renders month label and template label", () => {
-    render(<GenerationPanel />, { wrapper: Wrapper });
+    render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
     expect(screen.getByText("monthLabel")).toBeInTheDocument();
     expect(screen.getByText("templateLabel")).toBeInTheDocument();
   });
 
   it("renders generate button with correct text", () => {
-    render(<GenerationPanel />, { wrapper: Wrapper });
+    render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
     expect(screen.getByRole("button")).toBeInTheDocument();
     expect(screen.getByText("generateButton")).toBeInTheDocument();
   });
@@ -89,7 +94,7 @@ describe("GenerationPanel", () => {
       invalidateAll: vi.fn(),
     } as any);
 
-    render(<GenerationPanel />, { wrapper: Wrapper });
+    render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
     expect(screen.getByText("generating")).toBeInTheDocument();
   });
 });

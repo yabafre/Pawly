@@ -120,6 +120,41 @@ describe("createShiftTypeSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("should default breakMinutes to 0 when not provided", () => {
+    const result = createShiftTypeSchema.safeParse(validShiftType);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.breakMinutes).toBe(0);
+    }
+  });
+
+  it("should accept explicit breakMinutes", () => {
+    const result = createShiftTypeSchema.safeParse({
+      ...validShiftType,
+      breakMinutes: 60,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.breakMinutes).toBe(60);
+    }
+  });
+
+  it("should reject breakMinutes below 0", () => {
+    const result = createShiftTypeSchema.safeParse({
+      ...validShiftType,
+      breakMinutes: -1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject breakMinutes above 300", () => {
+    const result = createShiftTypeSchema.safeParse({
+      ...validShiftType,
+      breakMinutes: 301,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -191,6 +226,25 @@ describe("updateShiftTypeSchema", () => {
     if (result.success) {
       expect(result.data.code).toBe("PM");
     }
+  });
+
+  it("should accept optional breakMinutes in update", () => {
+    const result = updateShiftTypeSchema.safeParse({
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      breakMinutes: 45,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.breakMinutes).toBe(45);
+    }
+  });
+
+  it("should reject breakMinutes above 300 in update", () => {
+    const result = updateShiftTypeSchema.safeParse({
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      breakMinutes: 301,
+    });
+    expect(result.success).toBe(false);
   });
 });
 

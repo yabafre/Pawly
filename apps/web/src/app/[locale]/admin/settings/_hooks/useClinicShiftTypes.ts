@@ -21,6 +21,7 @@ export type ShiftTypeRecord = {
   code: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
   color: string;
 };
 

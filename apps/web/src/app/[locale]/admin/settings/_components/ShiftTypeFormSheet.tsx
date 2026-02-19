@@ -51,6 +51,7 @@ export function ShiftTypeFormSheet({
       code: "",
       startTime: "08:30",
       endTime: "18:30",
+      breakMinutes: 0,
       color: COLOR_PALETTE[0].value,
     },
     onSubmit: async ({ value }) => {
@@ -72,6 +73,7 @@ export function ShiftTypeFormSheet({
       form.setFieldValue("code", editingShiftType.code);
       form.setFieldValue("startTime", editingShiftType.startTime);
       form.setFieldValue("endTime", editingShiftType.endTime);
+      form.setFieldValue("breakMinutes", editingShiftType.breakMinutes ?? 0);
       form.setFieldValue("color", editingShiftType.color);
     } else if (open && !editingShiftType) {
       form.reset();
@@ -194,6 +196,31 @@ export function ShiftTypeFormSheet({
                 )}
               </form.Field>
             </div>
+
+            {/* Break Minutes */}
+            <form.Field name="breakMinutes">
+              {(field: FieldApi) => (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-neutral-700">
+                    {t("fields.breakMinutes")}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={300}
+                    value={field.state.value}
+                    onChange={(e) =>
+                      field.handleChange(
+                        Math.max(0, Math.min(300, parseInt(e.target.value) || 0)),
+                      )
+                    }
+                    onBlur={field.handleBlur}
+                    placeholder={t("fields.breakMinutesPlaceholder")}
+                    className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                  />
+                </div>
+              )}
+            </form.Field>
 
             {/* Color */}
             <form.Field name="color">

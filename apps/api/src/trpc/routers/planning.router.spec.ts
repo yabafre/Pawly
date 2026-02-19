@@ -42,6 +42,7 @@ describe('planningRouter', () => {
     generateMonthlyPlan: jest.fn(),
     listShiftsForMonth: jest.fn(),
     deleteGeneratedShifts: jest.fn(),
+    getScheduleViewForMonth: jest.fn(),
   };
 
   const mockPrisma = {
@@ -101,9 +102,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 19 procedures', () => {
+  it('should export all 20 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(19);
+    expect(procedures).toHaveLength(20);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -125,6 +126,7 @@ describe('planningRouter', () => {
         'generatePlan',
         'listShiftsForMonth',
         'deleteGeneratedShifts',
+        'getScheduleView',
       ]),
     );
   });
@@ -926,6 +928,57 @@ describe('planningRouter', () => {
       await expect(
         caller.deleteGeneratedShifts({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  // ─── getScheduleView ────────────────────────────────────────────
+
+  describe('getScheduleView', () => {
+    const mockScheduleViewData = {
+      month: '2026-03',
+      employees: [
+        { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: null, jobType: 'VET', contractHours: 35 },
+      ],
+      days: [
+        { date: '2026-03-02', dayOfWeek: 1, isWorkDay: true, isClosed: false, isSpecialDay: false },
+      ],
+      shifts: [],
+      unavailabilities: [],
+      holes: [],
+      violations: { hard: [], soft: [] },
+    };
+
+    it('should return schedule view data for ADMIN', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.getScheduleViewForMonth.mockResolvedValue(mockScheduleViewData);
+
+      const result = await caller.getScheduleView({ month: '2026-03' });
+
+      expect(result).toEqual(mockScheduleViewData);
+      expect(mockPlanningGenerationService.getScheduleViewForMonth).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.getScheduleView({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+
+      await expect(
+        caller.getScheduleView({ month: '2026-03' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    it('should reject invalid month format', async () => {
+      const caller = createAdminCaller();
+
+      await expect(
+        caller.getScheduleView({ month: 'invalid' }),
+      ).rejects.toThrow();
     });
   });
 });
