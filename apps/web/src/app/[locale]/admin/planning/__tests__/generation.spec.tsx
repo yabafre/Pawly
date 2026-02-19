@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GenerationResultView } from "../_components/GenerationResultView";
 import { ConfirmRegenerateDialog } from "../_components/ConfirmRegenerateDialog";
+import { MonthShiftsSummary } from "../_components/MonthShiftsSummary";
 import { GenerationPanel } from "../_components/GenerationPanel";
 import type { GenerationResult } from "@pawly/validators";
 
@@ -268,5 +269,135 @@ describe("ConfirmRegenerateDialog", () => {
 
     expect(screen.getByText("confirm")).toBeInTheDocument();
     expect(screen.getByText("cancel")).toBeInTheDocument();
+  });
+
+  it("calls onConfirm when confirm button is clicked", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmRegenerateDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        onConfirm={onConfirm}
+        existingCount={5}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.click(screen.getByText("confirm"));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MonthShiftsSummary", () => {
+  const mockShifts = [
+    {
+      id: "s1",
+      date: "2026-03-02",
+      startTime: "08:00",
+      endTime: "12:00",
+      shiftTypeCode: "SURGERY",
+      source: "GENERATED",
+      employee: { id: "e1", firstName: "Alice", lastName: "Martin", color: null, jobType: "VET" },
+    },
+    {
+      id: "s2",
+      date: "2026-03-02",
+      startTime: "14:00",
+      endTime: "18:00",
+      shiftTypeCode: "RECEPTION",
+      source: "MANUAL",
+      employee: { id: "e2", firstName: "Bob", lastName: "Dupont", color: null, jobType: "ASV" },
+    },
+    {
+      id: "s3",
+      date: "2026-03-03",
+      startTime: "08:00",
+      endTime: "12:00",
+      shiftTypeCode: "SURGERY",
+      source: "GENERATED",
+      employee: { id: "e1", firstName: "Alice", lastName: "Martin", color: null, jobType: "VET" },
+    },
+  ];
+
+  it("renders nothing when loading", () => {
+    const { container } = render(
+      <MonthShiftsSummary shifts={[]} isLoading={true} />,
+      { wrapper: Wrapper },
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders nothing when no shifts", () => {
+    const { container } = render(
+      <MonthShiftsSummary shifts={[]} isLoading={false} />,
+      { wrapper: Wrapper },
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders stats with correct counts", () => {
+    render(
+      <MonthShiftsSummary shifts={mockShifts} isLoading={false} />,
+      { wrapper: Wrapper },
+    );
+
+    // Total shifts: 3 (rendered as text content in MiniStat)
+    const allText = screen.getAllByText("3");
+    expect(allText.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders shift type badges", () => {
+    render(
+      <MonthShiftsSummary shifts={mockShifts} isLoading={false} />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByText(/SURGERY/)).toBeInTheDocument();
+    expect(screen.getByText(/RECEPTION/)).toBeInTheDocument();
+  });
+
+  it("renders delete button when generated shifts exist", () => {
+    const onDelete = vi.fn();
+    render(
+      <MonthShiftsSummary
+        shifts={mockShifts}
+        isLoading={false}
+        onDeleteGenerated={onDelete}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const deleteBtn = screen.getByText("deleteGenerated");
+    expect(deleteBtn).toBeInTheDocument();
+  });
+
+  it("disables delete button when isDeleting", () => {
+    render(
+      <MonthShiftsSummary
+        shifts={mockShifts}
+        isLoading={false}
+        onDeleteGenerated={vi.fn()}
+        isDeleting={true}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const deleteBtn = screen.getByText("deleteGenerated").closest("button");
+    expect(deleteBtn).toBeDisabled();
+  });
+
+  it("disables delete button when isGenerating", () => {
+    render(
+      <MonthShiftsSummary
+        shifts={mockShifts}
+        isLoading={false}
+        onDeleteGenerated={vi.fn()}
+        isGenerating={true}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const deleteBtn = screen.getByText("deleteGenerated").closest("button");
+    expect(deleteBtn).toBeDisabled();
   });
 });

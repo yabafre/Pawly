@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import type { EquityCounterType } from '@prisma/client';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import {
   createPlanningRuleSchema,
@@ -91,7 +92,7 @@ export const planningRouter = router({
         ctx.user.clinicId,
         input.year,
         input.months,
-        input.counterTypes as import('@prisma/client').EquityCounterType[] | undefined,
+        input.counterTypes as EquityCounterType[] | undefined,
       );
     }),
 

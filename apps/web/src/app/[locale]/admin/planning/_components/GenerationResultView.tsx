@@ -55,9 +55,9 @@ export function GenerationResultView({ result }: Props) {
             {t("result.holesTitle")} ({result.holes.length})
           </h3>
           <div className="space-y-2">
-            {result.holes.map((hole, i) => (
+            {result.holes.map((hole) => (
               <div
-                key={`hole-${i}`}
+                key={`hole-${hole.date}-${hole.shiftTypeCode}`}
                 className="flex items-center justify-between rounded-xl bg-amber-50/50 px-4 py-2.5 text-sm"
               >
                 <div className="flex items-center gap-3">
@@ -88,9 +88,9 @@ export function GenerationResultView({ result }: Props) {
             {result.violations.hard.length})
           </h3>
           <div className="space-y-2">
-            {result.violations.hard.map((v, i) => (
+            {result.violations.hard.map((v) => (
               <div
-                key={`hard-${i}`}
+                key={`hard-${v.ruleId}-${v.affectedDate ?? ''}`}
                 className="flex items-start gap-3 rounded-xl bg-red-50/50 px-4 py-2.5 text-sm"
               >
                 <XCircle size={14} className="text-red-500 mt-0.5" />
@@ -116,9 +116,9 @@ export function GenerationResultView({ result }: Props) {
             {result.violations.soft.length})
           </h3>
           <div className="space-y-2">
-            {result.violations.soft.map((v, i) => (
+            {result.violations.soft.map((v) => (
               <div
-                key={`soft-${i}`}
+                key={`soft-${v.ruleId}-${v.affectedDate ?? ''}-${v.affectedEmployeeId ?? ''}`}
                 className="flex items-start gap-3 rounded-xl bg-orange-50/50 px-4 py-2.5 text-sm"
               >
                 <AlertTriangle

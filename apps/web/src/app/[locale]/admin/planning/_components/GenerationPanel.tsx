@@ -173,6 +173,7 @@ export function GenerationPanel() {
         isLoading={isLoadingShifts}
         onDeleteGenerated={() => deleteGenerated({ month: selectedMonth })}
         isDeleting={isDeleting}
+        isGenerating={isGenerating}
       />
 
       <ConfirmRegenerateDialog

@@ -26,6 +26,7 @@ type Props = {
   isLoading: boolean;
   onDeleteGenerated?: () => void;
   isDeleting?: boolean;
+  isGenerating?: boolean;
 };
 
 export function MonthShiftsSummary({
@@ -33,6 +34,7 @@ export function MonthShiftsSummary({
   isLoading,
   onDeleteGenerated,
   isDeleting,
+  isGenerating,
 }: Props) {
   const t = useTranslations("admin.planningGeneration.existing");
 
@@ -75,7 +77,7 @@ export function MonthShiftsSummary({
             variant="outline"
             size="sm"
             onClick={onDeleteGenerated}
-            disabled={isDeleting}
+            disabled={isDeleting || isGenerating}
             className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 text-xs"
           >
             <Trash2 size={12} className="mr-1.5" />

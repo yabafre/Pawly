@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -171,26 +173,43 @@ export class PlanningGenerationService {
       softViolations.push(...result.softViolations);
     }
 
-    const createdShifts = await this.prisma.$transaction(async (tx) => {
-      // Delete existing generated shifts first (inside transaction for atomicity)
-      await tx.shift.deleteMany({
-        where: { clinicId, source: 'GENERATED', date: { gte: monthStart, lte: monthEnd } },
-      });
+    let createdShifts: Array<{
+      id: string;
+      employeeId: string;
+      date: Date;
+      startTime: string;
+      endTime: string;
+      shiftTypeCode: string;
+    }>;
+    try {
+      createdShifts = await this.prisma.$transaction(async (tx) => {
+        // Delete existing generated shifts first (inside transaction for atomicity)
+        await tx.shift.deleteMany({
+          where: { clinicId, source: 'GENERATED', date: { gte: monthStart, lte: monthEnd } },
+        });
 
-      if (assignedShifts.length === 0) return [];
-      return tx.shift.createManyAndReturn({
-        data: assignedShifts.map((s) => ({
-          date: new Date(`${s.date}T00:00:00.000Z`),
-          startTime: s.startTime,
-          endTime: s.endTime,
-          shiftTypeCode: s.shiftTypeCode,
-          source: 'GENERATED' as const,
-          employeeId: s.employeeId,
-          clinicId,
-          planningTemplateId: templateId,
-        })),
+        if (assignedShifts.length === 0) return [];
+        return tx.shift.createManyAndReturn({
+          data: assignedShifts.map((s) => ({
+            date: new Date(`${s.date}T00:00:00.000Z`),
+            startTime: s.startTime,
+            endTime: s.endTime,
+            shiftTypeCode: s.shiftTypeCode,
+            source: 'GENERATED' as const,
+            employeeId: s.employeeId,
+            clinicId,
+            planningTemplateId: templateId,
+          })),
+        });
       });
-    });
+    } catch (error: unknown) {
+      const prismaError = error as { code?: string };
+      if (prismaError.code === 'P2002') {
+        throw new ConflictException('Duplicate shift detected during generation');
+      }
+      this.logger.error('Transaction failed during shift generation', error);
+      throw new InternalServerErrorException('Failed to persist generated shifts');
+    }
 
     return this.buildResult(
       createdShifts,
@@ -202,11 +221,10 @@ export class PlanningGenerationService {
     );
   }
 
-  expandTemplateToMonth(
+  private expandTemplateToMonth(
     template: TemplateData,
     month: string,
     operationalConfig: {
-      workDays: string[];
       closedDays: Array<{ date: string }>;
       specialDays: Array<{
         date: string;
@@ -263,13 +281,31 @@ export class PlanningGenerationService {
         const shiftTimes = shiftTypeMap.get(templateSlot.shiftTypeCode);
         if (!shiftTimes) continue;
 
+        // Only apply special-day override if the shift's default times overlap
+        // with the special-day window — avoids collapsing multiple shift types
+        // (e.g., MORNING + AFTERNOON) into identical times.
         const specialDay = specialDayMap.get(dateStr);
-        const startTime = specialDay
-          ? specialDay.startTime
-          : shiftTimes.startTime;
-        const endTime = specialDay
-          ? specialDay.endTime
-          : shiftTimes.endTime;
+        let startTime = shiftTimes.startTime;
+        let endTime = shiftTimes.endTime;
+        if (
+          specialDay &&
+          this.timesOverlap(
+            shiftTimes.startTime,
+            shiftTimes.endTime,
+            specialDay.startTime,
+            specialDay.endTime,
+          )
+        ) {
+          // Clamp shift times to the special-day window
+          startTime =
+            shiftTimes.startTime < specialDay.startTime
+              ? specialDay.startTime
+              : shiftTimes.startTime;
+          endTime =
+            shiftTimes.endTime > specialDay.endTime
+              ? specialDay.endTime
+              : shiftTimes.endTime;
+        }
 
         slots.push({
           date: dateStr,
@@ -287,7 +323,7 @@ export class PlanningGenerationService {
     return slots;
   }
 
-  async loadConstraints(
+  private async loadConstraints(
     clinicId: string,
     monthStart: Date,
     monthEnd: Date,
@@ -354,10 +390,12 @@ export class PlanningGenerationService {
         config: r.config as Record<string, unknown>,
       }));
 
+    // Load all months up to the target month for cumulative equity data
+    const allMonths = Array.from({ length: month }, (_, i) => i + 1);
     const counters = await this.equityCounterService.getCountersForPeriod(
       clinicId,
       year,
-      [month],
+      allMonths,
     );
     const equityMap = new Map<
       string,
@@ -379,16 +417,16 @@ export class PlanningGenerationService {
 
       switch (counter.counterType) {
         case 'SATURDAY_WORKED':
-          existing.saturdayCount = counter.count;
+          existing.saturdayCount += counter.count;
           break;
         case 'WEEKEND_TOTAL':
-          existing.weekendCount = counter.count;
+          existing.weekendCount += counter.count;
           break;
         case 'HOLIDAY_WORKED':
-          existing.holidayCount = counter.count;
+          existing.holidayCount += counter.count;
           break;
         case 'OVERTIME_HOURS':
-          existing.overtimeMinutes = counter.count;
+          existing.overtimeMinutes += counter.count;
           break;
       }
 
@@ -398,7 +436,7 @@ export class PlanningGenerationService {
     return { unavailableMap, hardRules, softRules, equityMap };
   }
 
-  scoreAndAssign(
+  private scoreAndAssign(
     slot: SlotRequirement,
     employees: EmployeeInfo[],
     constraints: ConstraintMap,
@@ -517,17 +555,25 @@ export class PlanningGenerationService {
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
         // TODO: Add holiday equity scoring when public holiday calendar is available
-        // Currently only Saturday and weekend equity bonuses are applied
-        if (isSaturday || isWeekend) {
-          const avgEquity = this.getAverageEquity(
+        if (isWeekend) {
+          // Always check weekendCount for any weekend day (Saturday or Sunday)
+          const avgWeekend = this.getAverageEquity(
             constraints.equityMap,
-            isSaturday ? 'saturdayCount' : 'weekendCount',
+            'weekendCount',
           );
-          const empCount = isSaturday
-            ? equity.saturdayCount
-            : equity.weekendCount;
-          if (empCount < avgEquity) {
-            score += 20;
+          if (equity.weekendCount < avgWeekend) {
+            score += 10;
+          }
+
+          // Additionally check saturdayCount for Saturdays
+          if (isSaturday) {
+            const avgSaturday = this.getAverageEquity(
+              constraints.equityMap,
+              'saturdayCount',
+            );
+            if (equity.saturdayCount < avgSaturday) {
+              score += 10;
+            }
           }
         }
       } else {
@@ -651,7 +697,23 @@ export class PlanningGenerationService {
     return { deletedCount: count };
   }
 
-  async listShiftsForMonth(clinicId: string, month: string) {
+  async listShiftsForMonth(clinicId: string, month: string): Promise<Array<{
+    id: string;
+    date: Date;
+    startTime: string;
+    endTime: string;
+    shiftTypeCode: string;
+    source: string;
+    employeeId: string;
+    clinicId: string;
+    employee: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      color: string | null;
+      jobType: string;
+    };
+  }>> {
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
     }

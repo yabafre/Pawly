@@ -38,9 +38,9 @@ export const useGeneration = (month?: string) => {
     isFetching: isFetchingShifts,
     refetch: refetchShifts,
   } = useServerActionQuery(listShiftsForMonthAction, {
-    input: { month: month || "2000-01" },
+    input: { month: month ?? "" },
     queryKey: shiftsQueryKey,
-    enabled: !!month,
+    enabled: !!month && month.length > 0,
     placeholderData: (prev: unknown) => prev,
   });
 

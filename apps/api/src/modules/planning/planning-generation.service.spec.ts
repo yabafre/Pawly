@@ -165,6 +165,10 @@ describe('PlanningGenerationService', () => {
 
   // ─── expandTemplateToMonth ───────────────────────────────────
 
+  // Access private methods via type cast for unit testing
+  const callPrivate = (method: string, ...args: unknown[]) =>
+    (service as any)[method](...args);
+
   describe('expandTemplateToMonth', () => {
     const shiftTypeMap = new Map([
       ['SURGERY', { startTime: '08:00', endTime: '12:00' }],
@@ -172,7 +176,7 @@ describe('PlanningGenerationService', () => {
     ]);
 
     it('correctly maps template days to calendar dates for March 2026', () => {
-      const slots = service.expandTemplateToMonth(
+      const slots = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
@@ -205,7 +209,7 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = service.expandTemplateToMonth(
+      const slots = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithClosed,
@@ -216,7 +220,7 @@ describe('PlanningGenerationService', () => {
       expect(march2Slots.length).toBe(0);
     });
 
-    it('applies special day hour overrides', () => {
+    it('applies special day hour overrides (clamps to shift window)', () => {
       const configWithSpecial = {
         ...mockOperationalConfig,
         specialDays: [
@@ -230,23 +234,27 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = service.expandTemplateToMonth(
+      const slots = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithSpecial,
         shiftTypeMap,
       );
 
-      const march2Slots = slots.filter((s) => s.date === '2026-03-02');
+      const march2Slots = slots.filter((s: any) => s.date === '2026-03-02');
       expect(march2Slots.length).toBe(2);
+      // SURGERY (08:00-12:00) clamped to 09:00-12:00 (start pushed, end kept)
       expect(march2Slots[0].startTime).toBe('09:00');
-      expect(march2Slots[0].endTime).toBe('14:00');
+      expect(march2Slots[0].endTime).toBe('12:00');
+      // RECEPTION (08:00-18:00) clamped to 09:00-14:00 (both clamped)
+      expect(march2Slots[1].startTime).toBe('09:00');
+      expect(march2Slots[1].endTime).toBe('14:00');
     });
 
     it('handles months with 4 and 5 weeks correctly', () => {
       // February 2026: 28 days, starts on Sunday
       // Mon: 2,9,16,23 → 4 Mondays
-      const feb = service.expandTemplateToMonth(
+      const feb = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-02',
         mockOperationalConfig,
@@ -259,7 +267,7 @@ describe('PlanningGenerationService', () => {
       expect(febMondays.length).toBe(8); // 4 Mondays × 2 slots
 
       // March 2026 has 5 Mondays
-      const mar = service.expandTemplateToMonth(
+      const mar = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
@@ -282,7 +290,7 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = service.expandTemplateToMonth(
+      const slots = callPrivate('expandTemplateToMonth',
         templateWithSaturday,
         '2026-03',
         mockOperationalConfig, // workDays: 1-5, no Saturday
@@ -315,7 +323,7 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await service.loadConstraints(
+      const constraints = await callPrivate('loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -343,7 +351,7 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await service.loadConstraints(
+      const constraints = await callPrivate('loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -380,7 +388,7 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await service.loadConstraints(
+      const constraints = await callPrivate('loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -424,7 +432,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -451,7 +459,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -491,7 +499,7 @@ describe('PlanningGenerationService', () => {
         [`emp-1|2026-03-02`, alreadyAssigned],
       ]);
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -519,7 +527,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -546,7 +554,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -591,7 +599,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees.filter((e) => e.jobType === 'VET'),
         { ...baseConstraints, equityMap },
@@ -778,7 +786,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         constraints,
@@ -826,7 +834,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         constraints,
@@ -886,7 +894,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0]], // Only emp-1
         constraints,
@@ -933,7 +941,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = service.scoreAndAssign(
+      const result = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0]],
         constraints,

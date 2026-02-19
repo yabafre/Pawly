@@ -14,7 +14,7 @@ model Shift {
   date          DateTime
   startTime     String      @map("start_time")
   endTime       String      @map("end_time")
-  shiftTypeCode String      @map("shift_type_code")
+  shiftTypeCode String      @default("OTHER") @map("shift_type_code")
   source        ShiftSource @default(MANUAL)
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -62,7 +62,7 @@ model Absence {
 model PlanningTemplate {
   id   String @id @default(uuid())
   name String
-  data Json
+  data Json // Structure of the typical week (TemplateData shape)
 
   clinicId String @map("clinic_id")
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -77,7 +77,7 @@ model PlanningTemplate {
 
 model VarianceEvent {
   id          String   @id @default(uuid())
-  type        String
+  type        String // e.g., "CLOCK_IN_DEVIATION"
   plannedTime DateTime @map("planned_time")
   actualTime  DateTime @map("actual_time")
 

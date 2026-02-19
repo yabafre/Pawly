@@ -157,6 +157,9 @@ export class PlanningService {
       },
     });
 
+    // Filter out shifts without shiftTypeCode (pre-migration data safety)
+    const validShifts = shifts.filter((s) => s.shiftTypeCode);
+
     const hardViolations: HardViolation[] = [];
     const softViolations: SoftViolation[] = [];
 
@@ -165,16 +168,16 @@ export class PlanningService {
 
       switch (rule.category) {
         case 'STAFFING_MINIMUM':
-          this.evaluateStaffingMinimum(rule, config, shifts, hardViolations, softViolations);
+          this.evaluateStaffingMinimum(rule, config, validShifts, hardViolations, softViolations);
           break;
         case 'SKILL_REQUIREMENT':
-          this.evaluateSkillRequirement(rule, config, shifts, hardViolations, softViolations);
+          this.evaluateSkillRequirement(rule, config, validShifts, hardViolations, softViolations);
           break;
         case 'ROTATION_EQUITY':
-          this.evaluateRotationEquity(rule, config, shifts, softViolations);
+          this.evaluateRotationEquity(rule, config, validShifts, softViolations);
           break;
         case 'CONTRACT_COMPLIANCE':
-          this.evaluateContractCompliance(rule, config, shifts, softViolations);
+          this.evaluateContractCompliance(rule, config, validShifts, softViolations);
           break;
       }
     }
