@@ -51,6 +51,31 @@ Template Hebdo → Expansion au mois → Réordonnancement → Scoring slot par 
 
 ---
 
+## Phase 1b : Chargement des shifts frontaliers (Border Week Shifts)
+
+**Méthode** : `loadBorderWeekShifts(clinicId, month)`
+
+**Problème** : Les semaines ISO ne s'alignent pas sur les mois. Si mars commence un mercredi, la semaine ISO contient lundi-mardi de février. Sans ces shifts, le calcul hebdomadaire sous-estime les heures et peut dépasser les limites contractuelles.
+
+**Solution** :
+1. Calculer les bornes ISO de la première et dernière semaine du mois
+2. Identifier les jours hors-mois dans ces semaines (ex: 23-28 février pour la semaine du 1er mars)
+3. Charger les shifts existants en DB pour ces jours (`prisma.shift.findMany`)
+4. Les injecter dans :
+   - `allShiftsForScoring` — pour le calcul `weeklyMinutesMap` (heures hebdo)
+   - `assignmentIndex` — pour les checks de chevauchement et jours consécutifs
+5. **Ne PAS les persister** — seuls les `assignedShifts` (nouveaux) sont écrits en DB
+
+```
+Février (déjà généré)    Mars (en cours de génération)
+... Lun 23 → Dim 1er ←── borderShifts chargés
+    ─────── Semaine ISO 9 ───────
+```
+
+**Impact** : Un employé ayant déjà travaillé 35h en février (lun-ven) ne sera PAS assigné au dimanche 1er mars si sa limite hebdo est atteinte.
+
+---
+
 ## Phase 2 : Expansion du template au mois
 
 **Méthode** : `expandTemplateToMonth(template, month, operationalConfig, shiftTypeMap)`
@@ -98,7 +123,7 @@ Pour chaque `SlotRequirement`, l'algorithme :
 |--------|-------------|
 | `slotMinutes` | Durée nette du créneau : `(endTime - startTime) - breakMinutes` |
 | `weekBounds` | Bornes ISO de la semaine du slot |
-| `weeklyMinutesMap` | Minutes travaillées cette semaine pour chaque employé (shifts + jours d'école 7h) |
+| `weeklyMinutesMap` | Minutes travaillées cette semaine pour chaque employé (shifts + jours d'école 7h). **Inclut les border shifts** des mois adjacents (voir Phase 0). |
 
 ### 4.2 Filtrage d'éligibilité (éliminatoire)
 
@@ -109,7 +134,7 @@ Chaque employé est testé séquentiellement. **Un seul échec = éliminé**.
 | 1 | **Indisponibilité** | Employé indisponible ce jour-là (vacances, maladie, école, autre) | Absolu |
 | 2 | **Chevauchement horaire** | Employé déjà assigné à un créneau qui chevauche | Absolu |
 | 3 | **Job type requis** | Si le slot exige un type de métier (ex: VET), seuls les VET passent | Absolu |
-| 4 | **HARD ROTATION_EQUITY** | Règle dure de rotation (ex: max 2 samedis/mois). Bloque si dépassé | Règle |
+| 4 | **HARD ROTATION_EQUITY** | Règle dure de rotation (ex: max 2 samedis/mois). Bloque si dépassé. Supporte `applicableJobTypes` pour cibler certains métiers. | Règle |
 | 5 | **HARD CONTRACT_COMPLIANCE** | Limite horaire dure. Calcul : `weekMin + slotMinutes > contractHours * 60 * (1 + overtimeTolerance%)` | Règle |
 
 **Note importante sur CONTRACT_COMPLIANCE** :
@@ -236,7 +261,7 @@ Si `toAssign.length < slot.requiredStaff` → **trou (hole)** avec raison.
 | `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours`, `overtimeThresholdPercent` | Élimine les employés dépassant les limites |
 | `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | Si pas assez d'éligibles → slot entier = trou |
 | `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | Si un job type manque → slot = trou |
-| `ROTATION_EQUITY` | `targetDays`, `maxPerPeriod`, `shiftTypeCode?`, `trackingPeriod?` | Bloque si max dépassé (mensuel ou trimestriel) |
+| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Bloque si max dépassé (mensuel ou trimestriel). Si `applicableJobTypes` est défini, ne s'applique qu'aux job types listés. |
 
 ### SOFT (avertissements — pénalité de score)
 
@@ -245,7 +270,20 @@ Si `toAssign.length < slot.requiredStaff` → **trou (hole)** avec raison.
 | `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours` | Pénalité de score proportionnelle au dépassement |
 | `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | Warning si sous le minimum recommandé |
 | `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | Warning si job type manquant |
-| `ROTATION_EQUITY` | `targetDays`, `maxPerPeriod`, `shiftTypeCode?`, `trackingPeriod?` | Pénalité de score (-25 × poids priorité) |
+| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Pénalité de score (-25 × poids priorité). Respecte `applicableJobTypes`. |
+
+### applicableJobTypes (ROTATION_EQUITY)
+
+Champ optionnel `applicableJobTypes: string[]` sur la config des règles `ROTATION_EQUITY`.
+
+**Exemple** : La règle "ASV équité" (max 2 samedis/mois) avec `applicableJobTypes: ["ASV"]` ne bloque que les ASV. Les VET peuvent travailler autant de samedis que nécessaire.
+
+**Sans ce champ** : La règle s'applique à TOUS les employés (comportement par défaut, rétrocompatible).
+
+**Appliqué dans** :
+- `violatesHardRotationEquity` — skip si l'employé n'est pas dans la liste
+- `checkRotationEquity` — idem pour les violations soft
+- Scoring dans `scoreAndAssign` — idem pour la pénalité de score
 
 ---
 

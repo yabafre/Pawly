@@ -448,11 +448,32 @@ Story 6.3 is the natural continuation: 6.1 created templates, 6.2 generated shif
 
 The following algorithm improvements were made to `PlanningGenerationService` during Story 6-3 implementation:
 
+### breakMinutes persisted on Shift model
+- Added `breakMinutes Int @default(0)` to the `Shift` Prisma model (Planning.prisma)
+- Generation now persists `breakMinutes` per shift from the `ClinicShiftType` config
+- `ScheduleShift` validator schema includes `breakMinutes` for front-end display
+- UI displays **gross hours** (presence time) as primary, with break/school as secondary info
+- French vet clinic convention: contract hours ≈ presence hours, not net working hours
+
 ### breakMinutes per ClinicShiftType
 - Added `breakMinutes` field to `ClinicShiftType` Prisma model (default 0, max 300)
 - All hour calculations now use **net minutes** = `(endTime - startTime) - breakMinutes`
 - Affects: slot scoring, weekly/monthly limits, CONTRACT_COMPLIANCE checks
 - Full-stack: Prisma → validators → API service → onboarding wizard → settings form → i18n FR/EN
+
+### Border week shifts (month boundary awareness)
+- **Problem**: When a month starts mid-week (e.g., March 2026 starts on Sunday), the algorithm didn't see shifts from the previous month in the same ISO week, leading to incorrect weekly hour calculations.
+- **Solution**: New method `loadBorderWeekShifts(clinicId, month)` loads existing DB shifts for days in border ISO weeks that fall outside the generation month.
+- Uses `allShiftsForScoring` (border + new) for weekly hour calculations and overlap checks
+- Uses `assignedShifts` (new only) for DB persistence — border shifts are NOT re-created
+- Also pre-seeds `assignmentIndex` with border shifts for consecutive-day and overlap checks
+
+### applicableJobTypes on ROTATION_EQUITY rules
+- Added optional `applicableJobTypes: string[]` to `rotationEquityConfigSchema`
+- When set, the ROTATION_EQUITY rule only applies to employees with matching jobType
+- Without it, the rule applies to all employees (backward compatible)
+- Applied in 3 places: `violatesHardRotationEquity`, `checkRotationEquity`, soft scoring in `scoreAndAssign`
+- **Use case**: "ASV equity" rule (max 2 Saturdays/month) should only restrict ASV employees, not VETs
 
 ### Dynamic non-workday slot reordering
 - Replaced hardcoded Saturday/Sunday detection with dynamic `workDaySet` from clinic `operationalConfig.workDays`
@@ -491,8 +512,8 @@ Claude Opus 4.6
 ### Completion Notes List
 
 - Story 6-3 core: StaffGrid, schedule view, conflict indicators, week navigator, keyboard nav, i18n
-- Algorithm improvements: breakMinutes, dynamic workDays reordering, stronger scoring, random tiebreaker, per-employee contractHours
-- Test counts: 474 API, 437 Web, 423 Validators = 1334 total
+- Algorithm improvements: breakMinutes persistence on Shift, border week shifts, applicableJobTypes, dynamic workDays reordering, stronger scoring, random tiebreaker, per-employee contractHours
+- Test counts: 506 API, 437 Web, 442 Validators = 1385 total
 
 ### File List
 
