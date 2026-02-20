@@ -1,0 +1,116 @@
+"use client";
+
+import {
+  useServerActionQuery,
+  useServerActionMutation,
+  QueryKeyFactory,
+} from "@/lib/hooks/server-action-hooks";
+import {
+  listEmployeesAction,
+  getEmployeeAction,
+  createEmployeeAction,
+  updateEmployeeAction,
+  toggleEmployeeActiveAction,
+  resendInvitationAction,
+  listUndeclaredApprenticesAction,
+} from "../_actions/employee-actions";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+import type { ListEmployeesInput } from "@pawly/validators";
+
+export const useEmployees = (filters?: ListEmployeesInput) => {
+  const { data, isPending, isFetching, error } = useServerActionQuery(listEmployeesAction, {
+    input: filters ?? {},
+    queryKey: [...QueryKeyFactory.employees(), filters ?? {}] as unknown as readonly ["employees"],
+    placeholderData: (prev: unknown) => prev, // keep previous data while refetching — prevents UI unmount
+  });
+  return { employees: data ?? [], isPending, isFetching, error };
+};
+
+export const useEmployee = (id: string) => {
+  const { data, isPending, error } = useServerActionQuery(getEmployeeAction, {
+    input: { id },
+    queryKey: QueryKeyFactory.employeeById(id),
+  });
+  return { employee: data, isPending, error };
+};
+
+export const useCreateEmployee = () => {
+  const queryClient = useQueryClient();
+  const t = useTranslations("employees.toast");
+  const { mutate, isPending, error } = useServerActionMutation(
+    createEmployeeAction,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
+        toast.success(t("created"));
+      },
+      onError: (err) => {
+        toast.error(t("createFailed"), {
+          description: err.message,
+        });
+      },
+    },
+  );
+  return { createEmployee: mutate, isPending, error };
+};
+
+export const useUpdateEmployee = () => {
+  const queryClient = useQueryClient();
+  const t = useTranslations("employees.toast");
+  const { mutate, isPending, error } = useServerActionMutation(
+    updateEmployeeAction,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
+        toast.success(t("updated"));
+      },
+      onError: (err) => {
+        toast.error(t("updateFailed"), {
+          description: err.message,
+        });
+      },
+    },
+  );
+  return { updateEmployee: mutate, isPending, error };
+};
+
+export const useToggleEmployeeActive = () => {
+  const queryClient = useQueryClient();
+  const t = useTranslations("employees.toast");
+  const { mutate, isPending, error } = useServerActionMutation(
+    toggleEmployeeActiveAction,
+    {
+      onSuccess: (employee?: { isActive: boolean }) => {
+        queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
+        toast.success(employee?.isActive ? t("activated") : t("deactivated"));
+      },
+    },
+  );
+  return { toggleActive: mutate, isPending, error };
+};
+
+export const useResendInvitation = () => {
+  const t = useTranslations("employees.toast");
+  const { mutate, isPending, error } = useServerActionMutation(
+    resendInvitationAction,
+    {
+      onSuccess: () => {
+        toast.success(t("invitationResent"));
+      },
+      onError: () => {
+        toast.error(t("invitationFailed"));
+      },
+    },
+  );
+  return { resendInvitation: mutate, isPending, error };
+};
+
+export const useUndeclaredApprentices = (month: string) => {
+  const { data, isPending } = useServerActionQuery(listUndeclaredApprenticesAction, {
+    input: { month },
+    queryKey: QueryKeyFactory.undeclaredApprentices(month),
+  });
+  return { undeclaredIds: new Set((data ?? []).map((a: { id: string }) => a.id)), isPending };
+};

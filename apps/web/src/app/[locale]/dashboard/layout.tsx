@@ -1,0 +1,64 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { setRequestLocale } from "next-intl/server";
+import { trpc } from "@/lib/trpc/client";
+import { DashboardLayoutClient } from "./_components/DashboardLayoutClient";
+import { EmployeeProvider } from "./_components/EmployeeContext";
+import { ACTIVE_SUBSCRIPTION_STATUSES } from "@pawly/validators";
+
+type Props = {
+    children: React.ReactNode;
+    params: Promise<{ locale: string }>;
+};
+
+export default async function DashboardLayout({ children, params }: Props) {
+    const { locale } = await params;
+    setRequestLocale(locale);
+
+    // Auth guard: check for auth token cookie
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get("auth-token")?.value;
+
+    if (!authToken) {
+        redirect(`/${locale}/login`);
+    }
+
+    // Role guard: server-side check via tRPC — only EMPLOYEE role allowed
+    let me: { role: string; employeeId: string | null; jobType: string | null } | null = null;
+    try {
+        me = await trpc.auth.getMe.query();
+    } catch {
+        redirect(`/${locale}/login`);
+    }
+
+    if (!me || me.role !== "EMPLOYEE") {
+        redirect(`/${locale}/admin/dashboard`);
+    }
+
+    if (!me.employeeId || !me.jobType) {
+        redirect(`/${locale}/login`);
+    }
+
+    // Subscription guard: employee's clinic must have active subscription
+    let subscriptionActive = false;
+    try {
+        const subStatus = await trpc.stripe.getSubscriptionStatus.query();
+        if (subStatus) {
+            subscriptionActive = (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(
+                subStatus.status,
+            );
+        }
+    } catch {
+        // Subscription check failed — treat as inactive
+    }
+
+    if (!subscriptionActive) {
+        redirect(`/${locale}/login`);
+    }
+
+    return (
+        <EmployeeProvider employeeId={me.employeeId} jobType={me.jobType}>
+            <DashboardLayoutClient>{children}</DashboardLayoutClient>
+        </EmployeeProvider>
+    );
+}

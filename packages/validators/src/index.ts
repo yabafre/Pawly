@@ -1,11 +1,13 @@
-import { z } from "@pawly/zod";
+/**
+ * @pawly/validators
+ *
+ * Shared Zod schemas for validation across the Pawly platform.
+ * All types, DTOs, and Zod schemas MUST be defined here for sharing between API and Dashboard.
+ */
 
-// Base schemas for multi-tenancy
-export const clinicIdSchema = z.string().uuid();
-
-// Example shared schema
-export const userSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  clinicId: clinicIdSchema,
-});
+export * from "./common";
+export * from "./auth";
+export * from "./stripe";
+export * from "./clinic";
+export * from "./employee";
+export * from "./planning";

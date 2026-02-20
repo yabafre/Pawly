@@ -1,0 +1,53 @@
+"use server";
+
+import { createServerAction } from "zsa";
+import { trpc } from "@/lib/trpc/client";
+import {
+  createEmployeeSchema,
+  updateEmployeeSchema,
+  employeeIdSchema,
+  listEmployeesSchema,
+} from "@pawly/validators";
+import { z } from "@pawly/zod";
+
+export const listEmployeesAction = createServerAction()
+  .input(listEmployeesSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.list.query(input ?? undefined);
+  });
+
+export const getEmployeeAction = createServerAction()
+  .input(employeeIdSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.getById.query(input);
+  });
+
+export const createEmployeeAction = createServerAction()
+  .input(createEmployeeSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.create.mutate(input);
+  });
+
+export const updateEmployeeAction = createServerAction()
+  .input(updateEmployeeSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.update.mutate(input);
+  });
+
+export const toggleEmployeeActiveAction = createServerAction()
+  .input(employeeIdSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.toggleActive.mutate(input);
+  });
+
+export const resendInvitationAction = createServerAction()
+  .input(employeeIdSchema)
+  .handler(async ({ input }) => {
+    return trpc.employee.resendInvitation.mutate(input);
+  });
+
+export const listUndeclaredApprenticesAction = createServerAction()
+  .input(z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }))
+  .handler(async ({ input }) => {
+    return trpc.employee.listUndeclaredApprentices.query(input);
+  });

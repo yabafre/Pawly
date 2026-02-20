@@ -1,5 +1,11 @@
-import { z } from "zod";
-
-// Shared Zod instance or specific configurations could go here
-// For now, we export the standard z
-export { z };
+/**
+ * @pawly/zod
+ *
+ * Shared Zod instance for the Pawly monorepo.
+ * All packages MUST import from here to ensure a single Zod instance.
+ *
+ * Usage:
+ *   import { z } from '@pawly/zod'
+ */
+export { z } from 'zod'
+export type { ZodType, infer as ZodInfer } from 'zod'

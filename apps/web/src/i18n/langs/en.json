@@ -1,0 +1,1355 @@
+{
+  "common": {
+    "logout": "Log out",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "sslConnection": "SSL Connection",
+    "multiTenant": "Multi-tenant",
+    "backToLogin": "Back to login",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "noResults": "No results",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "language": {
+      "label": "Language",
+      "fr": "Français",
+      "en": "English",
+      "switchTo": "Switch language"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome",
+      "subtitle": "Sign in to your Pawly account",
+      "tagline": "The intelligent planning for your clinic.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinic.com",
+      "passwordLabel": "Password",
+      "submitButton": "Sign in",
+      "submitting": "Signing in...",
+      "forgotPassword": "Forgot?",
+      "magicLinkTab": "Magic Link",
+      "passwordTab": "Password"
+    },
+    "magicLink": {
+      "emailLabel": "Professional email",
+      "emailPlaceholder": "name@clinic.com",
+      "submitButton": "Get my link",
+      "submitting": "Sending...",
+      "helper": "Recommended for employees. No password, more secure.",
+      "checkEmail": "Check your emails",
+      "linkSent": "A login link has been sent to",
+      "resendLink": "Resend link"
+    },
+    "callback": {
+      "invalidLink": "Invalid link",
+      "linkExpiredMessage": "The link has expired or has already been used. Please request a new magic link.",
+      "connectionValidated": "Connection validated",
+      "validationInProgress": "Validation in progress",
+      "redirecting": "Redirecting...",
+      "verifyingLink": "We are verifying your secure link.",
+      "preparingSession": "Preparing your session..."
+    },
+    "toast": {
+      "loginSuccess": "Successfully logged in!",
+      "loginError": "Invalid email or password",
+      "magicLinkSent": "Login link sent!",
+      "magicLinkError": "Unable to send the link",
+      "serverError": "Server connection issue",
+      "unexpectedError": "An unexpected error occurred"
+    },
+    "activate": {
+      "title": "Set your password",
+      "subtitle": "Create a secure password to activate your admin account.",
+      "passwordLabel": "Password",
+      "confirmLabel": "Confirm password",
+      "passwordHint": "Min. 8 characters, uppercase, lowercase, and number.",
+      "passwordMismatch": "Passwords do not match",
+      "submitButton": "Activate my account",
+      "submitting": "Activating...",
+      "success": "Account activated! Redirecting...",
+      "error": "Activation failed. Please try again.",
+      "invalidToken": "Invalid activation link",
+      "tokenMissing": "The activation link is missing or malformed. Please check your email."
+    },
+    "errors": {
+      "generic": "An error occurred",
+      "invalidEmail": "Invalid email",
+      "passwordRequired": "Password required"
+    }
+  },
+  "admin": {
+    "nav": {
+      "title": "Pawly Admin",
+      "dashboard": "Dashboard",
+      "planning": "Planning",
+      "settings": "Settings",
+      "requests": "Requests",
+      "employees": "Employees",
+      "absences": "Absences",
+      "billing": "Billing",
+      "planningRules": "Planning Rules",
+      "equityCounters": "Equity",
+      "templates": "Templates"
+    },
+    "dashboard": {
+      "overview": "Overview",
+      "weeklyTracking": "Weekly tracking and request status",
+      "autoGenerate": "Auto-Generate",
+      "weekPlanning": "Week planning",
+      "targetReached": "Target {hours}h reached",
+      "pendingRequests": "Pending requests",
+      "validateQuickly": "To validate quickly",
+      "activeTeam": "Active team",
+      "vetAndAsv": "Vets & ASV",
+      "quickSummary": "Quick summary",
+      "week": "Week {number}",
+      "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
+      "apprenticesSchoolDays": "Apprentices have entered their school days."
+    },
+    "planningRules": {
+      "title": "Planning Rules",
+      "subtitle": "Configure rules that guide the planning algorithm for fair and compliant schedules.",
+      "loading": "Loading planning rules...",
+      "ruleTypes": {
+        "HARD": "Hard Rule",
+        "SOFT": "Soft Rule"
+      },
+      "categories": {
+        "STAFFING_MINIMUM": "Staffing Minimum",
+        "ROTATION_EQUITY": "Rotation Equity",
+        "SKILL_REQUIREMENT": "Skill Requirement",
+        "CONTRACT_COMPLIANCE": "Contract Compliance"
+      },
+      "categoryDescriptions": {
+        "STAFFING_MINIMUM": "Minimum staff required per shift type",
+        "ROTATION_EQUITY": "Fair rotation of specific days across employees",
+        "SKILL_REQUIREMENT": "Required job roles per shift type",
+        "CONTRACT_COMPLIANCE": "Respect weekly/monthly hour limits"
+      },
+      "form": {
+        "createTitle": "New Planning Rule",
+        "editTitle": "Edit Planning Rule",
+        "createSubtitle": "Define a rule to guide your clinic's planning algorithm.",
+        "editSubtitle": "Modify this planning rule's parameters.",
+        "name": "Rule name",
+        "namePlaceholder": "e.g. Min 1 ASV for Surgery",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "Explain the rule purpose",
+        "ruleType": "Rule type",
+        "category": "Category",
+        "priority": "Priority",
+        "priorityHelp": "Higher priority rules are evaluated first",
+        "isActive": "Active",
+        "ruleTypeHint": {
+          "HARD": "Blocks planning if violated",
+          "SOFT": "Warning only"
+        },
+        "sections": {
+          "config": "Specific Parameters"
+        },
+        "config": {
+          "shiftTypeCode": "Shift type",
+          "selectShiftType": "Select a shift type",
+          "minStaff": "Minimum staff",
+          "jobTypes": "Job types (optional filter)",
+          "targetDay": "Target day",
+          "maxPerPeriod": "Max per period",
+          "trackingPeriod": "Tracking period",
+          "requiredJobTypes": "Required job types",
+          "maxWeeklyHours": "Max weekly hours",
+          "maxMonthlyHours": "Max monthly hours",
+          "overtimeThresholdPercent": "Overtime threshold (%)",
+          "days": {
+            "monday": "Monday",
+            "tuesday": "Tuesday",
+            "wednesday": "Wednesday",
+            "thursday": "Thursday",
+            "friday": "Friday",
+            "saturday": "Saturday",
+            "sunday": "Sunday"
+          }
+        },
+        "trackingPeriods": {
+          "monthly": "Monthly",
+          "quarterly": "Quarterly"
+        }
+      },
+      "actions": {
+        "add": "Add Rule",
+        "edit": "Edit",
+        "delete": "Delete",
+        "toggle": "Toggle active"
+      },
+      "empty": {
+        "title": "No planning rules configured yet",
+        "description": "Create your first rule to guide the planning algorithm.",
+        "cta": "Create First Rule"
+      },
+      "confirm": {
+        "deleteTitle": "Delete Planning Rule",
+        "deleteMessage": "This rule will be permanently deleted. The planning algorithm will no longer use it.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "created": "Planning rule created",
+        "updated": "Planning rule updated",
+        "deleted": "Planning rule deleted",
+        "toggled": "Planning rule toggled",
+        "createFailed": "Unable to create planning rule",
+        "updateFailed": "Unable to update planning rule",
+        "deleteFailed": "Unable to delete planning rule",
+        "toggleFailed": "Unable to toggle planning rule"
+      },
+      "errors": {
+        "loadFailed": "Unable to load planning rules",
+        "retry": "Try again"
+      },
+      "healthBar": {
+        "title": "Planning Health",
+        "conflicts": "{count, plural, =0 {No conflicts} one {# conflict} other {# conflicts}}",
+        "warnings": "{count, plural, =0 {No warnings} one {# warning} other {# warnings}}",
+        "ready": "{percent}% ready",
+        "publish": "Publish",
+        "publishBlocked": "Cannot publish — resolve conflicts first",
+        "healthy": "All clear — no violations detected"
+      }
+    },
+    "equityCounters": {
+      "title": "Equity Counters",
+      "subtitle": "Track fair shift distribution across employees for the current period.",
+      "loading": "Loading equity counters...",
+      "counterTypes": {
+        "SATURDAY_WORKED": "Saturday",
+        "WEEKEND_TOTAL": "Weekend",
+        "HOLIDAY_WORKED": "Holiday",
+        "OVERTIME_HOURS": "Overtime"
+      },
+      "period": {
+        "monthly": "Monthly",
+        "quarterly": "Quarterly",
+        "month": "Month",
+        "quarter": "Quarter"
+      },
+      "table": {
+        "employee": "Employee",
+        "jobType": "Role",
+        "noData": "No equity data for this period",
+        "noDataDescription": "Counters will appear once shifts are assigned and calculated."
+      },
+      "summary": {
+        "avgSaturdays": "Avg. Saturdays",
+        "fairnessIndex": "Fairness Index",
+        "mostLoaded": "Most Loaded",
+        "leastLoaded": "Least Loaded",
+        "noEmployees": "N/A"
+      },
+      "chart": {
+        "title": "Equity Distribution",
+        "employees": "Employees"
+      },
+      "actions": {
+        "recalculate": "Recalculate",
+        "recalculating": "Recalculating..."
+      },
+      "confirm": {
+        "recalculateTitle": "Recalculate Counters",
+        "recalculateMessage": "This will recompute all equity counters from shift data for the selected period. This may take a moment.",
+        "cancel": "Cancel",
+        "confirm": "Recalculate"
+      },
+      "toast": {
+        "recalculated": "Equity counters recalculated",
+        "recalculateFailed": "Unable to recalculate equity counters"
+      },
+      "errors": {
+        "loadFailed": "Unable to load equity counters",
+        "loadFailedDescription": "Please try again or contact support if the issue persists.",
+        "retry": "Try again"
+      },
+      "quarterly": {
+        "title": "Quarterly Summary"
+      },
+      "badge": {
+        "counter": "{current}/{max}",
+        "noLimit": "{current}"
+      }
+    },
+    "planningTemplates": {
+      "title": "Week Templates",
+      "subtitle": "Define baseline weekly shift structures for monthly planning generation.",
+      "loading": "Loading templates...",
+      "emptyState": {
+        "title": "No templates yet",
+        "description": "Create your first week template to define the ideal shift structure.",
+        "cta": "Create Template"
+      },
+      "form": {
+        "createTitle": "New Template",
+        "editTitle": "Edit Template",
+        "subtitle": "Define shift requirements for each day of the week",
+        "name": "Template name",
+        "namePlaceholder": "e.g. Standard Week",
+        "save": "Save Template",
+        "cancel": "Cancel",
+        "nameRequired": "Template name is required"
+      },
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      },
+      "slot": {
+        "shiftType": "Shift type",
+        "requiredStaff": "Required staff",
+        "requiredJobTypes": "Required roles",
+        "addSlot": "Add slot",
+        "removeSlot": "Remove",
+        "staffCount": "{count} staff"
+      },
+      "preview": {
+        "title": "Week Preview",
+        "totalStaff": "Total staff",
+        "noSlots": "No slots"
+      },
+      "card": {
+        "created": "Created {date}",
+        "updated": "Updated {date}",
+        "slotsCount": "{count} slots",
+        "daysConfigured": "{count} days configured"
+      },
+      "actions": {
+        "edit": "Edit",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
+        "menu": "Template actions"
+      },
+      "confirm": {
+        "deleteTitle": "Delete Template",
+        "deleteMessage": "Are you sure you want to delete this template? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "created": "Template created",
+        "updated": "Template updated",
+        "duplicated": "Template duplicated",
+        "deleted": "Template deleted",
+        "createFailed": "Unable to create template",
+        "updateFailed": "Unable to update template",
+        "duplicateFailed": "Unable to duplicate template",
+        "deleteFailed": "Unable to delete template"
+      },
+      "errors": {
+        "loadFailed": "Unable to load templates",
+        "loadFailedDescription": "Please try again or contact support if the issue persists.",
+        "retry": "Try again"
+      },
+      "nonWorkDay": "Non-work day"
+    },
+    "planningGeneration": {
+      "title": "Planning Generation",
+      "subtitle": "Generate a monthly schedule from a week template.",
+      "monthLabel": "Target Month",
+      "monthPlaceholder": "Select month",
+      "templateLabel": "Week Template",
+      "templatePlaceholder": "Select a template",
+      "generateButton": "Generate Planning",
+      "generating": "Generating planning...",
+      "regenerateButton": "Regenerate",
+      "previewButton": "Preview",
+      "stats": {
+        "totalSlots": "Total Slots",
+        "filledSlots": "Filled",
+        "holes": "Unfilled",
+        "hardViolations": "Blocking Violations",
+        "softWarnings": "Warnings"
+      },
+      "result": {
+        "title": "Generation Result",
+        "summary": "Summary",
+        "assignments": "Assignments",
+        "holes": "Unfilled Slots",
+        "violations": "Violations",
+        "noHoles": "All slots filled successfully.",
+        "noViolations": "No violations detected.",
+        "holesTitle": "Unfilled Slots",
+        "hardViolationsTitle": "Blocking Violations",
+        "softWarningsTitle": "Warnings",
+        "allGood": "All slots filled with no violations!"
+      },
+      "holeReasons": {
+        "noEligible": "No eligible employees available",
+        "allUnavailable": "All employees unavailable on this date",
+        "skillMismatch": "No employee matches required job type",
+        "doubleBooked": "All eligible employees already assigned"
+      },
+      "confirmRegenerate": {
+        "title": "Regenerate Planning?",
+        "description": "This will delete {count} previously generated shift(s) for this month and create new ones. Manual shifts will be preserved.",
+        "confirm": "Regenerate",
+        "cancel": "Cancel"
+      },
+      "confirmDelete": {
+        "title": "Delete generated shifts?",
+        "description": "This will permanently delete {count} generated shift(s) for this month. This action cannot be undone. Manual shifts will be preserved.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
+      "existing": {
+        "title": "Month Shifts",
+        "totalShifts": "Total",
+        "generated": "Generated",
+        "manual": "Manual",
+        "employees": "Employees",
+        "daysWithShifts": "{count} day(s) planned",
+        "deleteGenerated": "Delete generated",
+        "warnings": "warnings",
+        "warningsTitle": "Warnings & violations"
+      },
+      "toast": {
+        "generated": "Planning generated successfully",
+        "regenerated": "Planning regenerated successfully",
+        "deleted": "Generated shifts deleted",
+        "generateFailed": "Unable to generate planning",
+        "deleteFailed": "Unable to delete generated shifts"
+      },
+      "errors": {
+        "noTemplate": "Please select a template",
+        "noMonth": "Please select a target month",
+        "loadFailed": "Unable to load data"
+      }
+    },
+    "scheduleView": {
+      "title": "Schedule Overview",
+      "subtitle": "View the generated planning grid with employee assignments and conflict indicators",
+      "emptyState": {
+        "title": "No shifts generated",
+        "description": "Generate a planning first to see the schedule grid"
+      },
+      "weekNavigator": {
+        "label": "Week",
+        "weekOf": "Week of {date}",
+        "previous": "Previous week",
+        "next": "Next week"
+      },
+      "grid": {
+        "employeeColumn": "Employee",
+        "hoursColumn": "Hours",
+        "hoursLabel": "{actual}h / {contract}h",
+        "hoursOver": "Over contract hours",
+        "hoursUnder": "Under contract hours",
+        "hoursOk": "Within contract hours",
+        "closedDay": "Closed",
+        "dayOff": "Day off",
+        "nonWorkDay": "Non-work day",
+        "school": "school",
+        "break": "break"
+      },
+      "shift": {
+        "generated": "Generated",
+        "manual": "Manual",
+        "timeRange": "{start} - {end}"
+      },
+      "hole": {
+        "label": "Empty slot",
+        "tooltip": "{shiftType}: {assigned}/{required} staff assigned",
+        "ctaLabel": "Click to assign"
+      },
+      "absence": {
+        "vacation": "Vacation",
+        "sick": "Sick leave",
+        "school": "School",
+        "other": "Absence"
+      },
+      "conflict": {
+        "hardTitle": "Conflict",
+        "softTitle": "Warning",
+        "hardCount": "{count, plural, one {# conflict} other {# conflicts}}",
+        "softCount": "{count, plural, one {# warning} other {# warnings}}",
+        "details": "Conflict details",
+        "rule": "Rule: {name}",
+        "category": "Category: {category}"
+      },
+      "accessibility": {
+        "gridLabel": "Staff schedule grid",
+        "cellLabel": "{employee}, {day} {date}, {shiftType} {timeRange}",
+        "holeCellLabel": "Empty slot, {day} {date}, {shiftType}. Click to assign.",
+        "absenceCellLabel": "{employee}, {day} {date}, {type}",
+        "closedCellLabel": "{day} {date}, clinic closed",
+        "conflictAnnouncement": "{count, plural, one {# conflict detected} other {# conflicts detected}}"
+      },
+      "responsive": {
+        "fullView": "Full week",
+        "liteView": "3-day view",
+        "previousDays": "Previous days",
+        "nextDays": "Next days"
+      }
+    },
+    "settings": {
+      "badge": "Clinic settings",
+      "title": "Operational Parameters",
+      "subtitle": "Manage clinic availability rules used by planning: weekly defaults, closure days, and special-day schedule overrides.",
+      "surfaceLabel": "Design language",
+      "surfaceValue": "Clinique Zen",
+      "cards": {
+        "rules": {
+          "title": "Validation",
+          "value": "Strict",
+          "helper": "HH:MM format, coherent ranges, duplicate detection."
+        },
+        "closedDays": {
+          "title": "Closure Policy",
+          "value": "Centralized",
+          "helper": "Single clinic-scoped source of truth."
+        },
+        "health": {
+          "title": "Planning Input",
+          "value": "Ready",
+          "helper": "Normalized data for downstream hard rules."
+        }
+      }
+    },
+    "apprenticeDeclarations": {
+      "title": "Apprentice School Day Declarations",
+      "subtitle": "Confirm school day status for each apprentice before generating the schedule",
+      "allDeclared": "All apprentice declarations are complete for this month",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "School days provided",
+        "NO_SCHOOL_THIS_MONTH": "No school this month",
+        "MISSING": "Declaration missing"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirm: no school",
+        "removeDeclaration": "Remove declaration"
+      },
+      "empty": "No apprentices in this clinic"
+    }
+  },
+  "brand": {
+    "name": "Pawly",
+    "copyright": "Pawly © 2026 — Clinique Zen Experience",
+    "boardTitle": "Brand Board.",
+    "version": "v1.1 • \"Clean Care\"",
+    "description": "A visual identity that inspires hygiene and competence. \"Vet Teal\" reassures, Black/White structures, Orange humanizes.",
+    "atmosphere": "\"Clinique Zen\" Atmosphere",
+    "hygiene": "Hygiene",
+    "precision": "Precision",
+    "gentleness": "Gentleness",
+    "sections": {
+      "logotype": "Logotype & Construction",
+      "colors": "Color Palette",
+      "typography": "Typography",
+      "texture": "Texture & Sensations",
+      "components": "Interface Components",
+      "iconography": "Iconography"
+    },
+    "logotype": {
+      "authorized": "Authorized",
+      "authorizedDesc": "Use the logo in Black (#171717) on a white background for maximum readability. The white version on \"Vet Teal\" background is accepted for strong branding.",
+      "forbidden": "Forbidden",
+      "forbiddenDesc": "Do not use gradients on the logo. It must remain flat and clinical.",
+      "cornerRadius": "Corner Radius: 35%"
+    },
+    "colors": {
+      "surfacesAndStates": "Surfaces & States"
+    },
+    "typography": {
+      "displayH1": "Display H1",
+      "headingH2": "Heading H2",
+      "bodyLarge": "Body Large",
+      "healBetter": "Heal better.",
+      "clinicManagement": "Clinic management.",
+      "bodyDescription": "Pawly simplifies life for veterinary clinics. A clean sans-serif typography (Inter) ensures perfect readability of medical records.",
+      "fontFamily": "Font Family",
+      "styleGuide": "Style Guide",
+      "medicalClarity": "Medical Clarity:",
+      "medicalClarityDesc": "Avoid decorative fonts. Everything must be instantly readable.",
+      "colorHierarchy": "Color Hierarchy:",
+      "colorHierarchyDesc": "Titles in Black, Paragraphs in Neutral Gray, Medical labels in Vet Teal."
+    },
+    "texture": {
+      "description": "The Pawly interface breathes clinical cleanliness without being cold. White dominates, enhanced by soft colored shadows that indicate interactivity.",
+      "softShadow": "Soft Shadow (Teal hint)",
+      "solidBorder": "Solid Border"
+    },
+    "components": {
+      "inputs": "Inputs",
+      "actions": "Actions",
+      "cards": "Cards",
+      "searchPlaceholder": "Search for a patient...",
+      "emergencies": "Emergencies",
+      "newAppointment": "New Appointment",
+      "adminPortal": "Admin Portal",
+      "viewFullPlanning": "View full planning"
+    },
+    "iconography": {
+      "guidelines": "Icon Guidelines (Lucide React)",
+      "linearStyle": "Linear Style:",
+      "linearStyleDesc": "Fine strokes (1.5px) for elegance.",
+      "colorsRule": "Colors:",
+      "colorsRuleDesc": "Dark gray (Neutral-900) by default. Vet Teal (#009588) is used to emphasize the medical/care aspect."
+    },
+    "designSystem": "Pawly Design System • v1.1"
+  },
+  "dashboard": {
+    "nav": {
+      "title": "Pawly Employee",
+      "home": "Home",
+      "schoolDays": "School Days"
+    },
+    "schoolDays": {
+      "title": "School Days Declaration",
+      "subtitle": "Declare your school days for the upcoming month so planning can account for your availability.",
+      "calendar": {
+        "instructions": "Select your school days for {month}",
+        "selectedCount": "{count, plural, =0 {No days selected} one {# day selected} other {# days selected}}"
+      },
+      "reminder": {
+        "title": "Reminder",
+        "message": "You have not yet declared your school days for {month}. Please submit before the end of the month."
+      },
+      "submit": "Submit my school days",
+      "submitting": "Submitting...",
+      "success": {
+        "title": "Declaration submitted",
+        "message": "Your school days for {month} have been recorded. You can modify them at any time.",
+        "modify": "Modify declaration"
+      },
+      "empty": {
+        "title": "No school days declared",
+        "description": "Select dates on the calendar to declare your school days."
+      },
+      "toast": {
+        "declared": "School days declared successfully",
+        "error": "Unable to submit school day declaration"
+      },
+      "errors": {
+        "loadFailed": "Failed to load school days",
+        "retry": "Try again",
+        "notApprentice": "Only apprentice employees can declare school days"
+      },
+      "admin": {
+        "declared": "Declared",
+        "notDeclared": "Not declared",
+        "schoolDaysFor": "School days for {month}"
+      }
+    },
+    "title": "Dashboard",
+    "greeting": "Hello,",
+    "thisWeek": "This week",
+    "targetReached": "Target reached",
+    "requestAbsence": "Request an absence",
+    "absenceTypes": "Vacation, Sick leave...",
+    "today": "Today",
+    "upcomingDays": "Upcoming Days",
+    "newRequest": "New Request",
+    "absenceType": "Absence type",
+    "dates": "Date(s)",
+    "allDay": "All day",
+    "sendRequest": "Send request",
+    "validated": "Validated",
+    "requestTypes": {
+      "vacation": "Paid Leave",
+      "sick": "Sick Leave",
+      "school": "School / Training",
+      "child": "Sick Child"
+    },
+    "scheduleTypes": {
+      "rest": "Rest",
+      "surgery": "Surgery",
+      "vacation": "Vacation"
+    },
+    "hoursUnit": "{hours}h",
+    "timeRange": "{start} - {end}",
+    "doctorSchedule": "{doctor} • {time}"
+  },
+  "forms": {
+    "validation": {
+      "required": "This field is required",
+      "email": "Invalid email",
+      "minLength": "Minimum {min, plural, one {# character} other {# characters}}",
+      "maxLength": "Maximum {max, plural, one {# character} other {# characters}}",
+      "passwordMismatch": "Passwords do not match",
+      "invalidDate": "Invalid date",
+      "dateInPast": "Date cannot be in the past",
+      "dateInFuture": "Date cannot be in the future"
+    },
+    "labels": {
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "name": "Name",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone",
+      "address": "Address",
+      "city": "City",
+      "postalCode": "Postal code",
+      "country": "Country",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "description": "Description",
+      "notes": "Notes"
+    },
+    "placeholders": {
+      "email": "your@email.com",
+      "password": "Enter your password",
+      "search": "Search...",
+      "name": "Enter your name",
+      "phone": "+1 234 567 8900"
+    }
+  },
+  "dates": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "nextWeek": "Next week",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "nextMonth": "Next month",
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    },
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    }
+  },
+  "pricing": {
+    "title": "Start managing your clinic",
+    "subtitle": "Subscribe to get started with Pawly for your veterinary practice.",
+    "meta": {
+      "title": "Pricing — Pawly | Veterinary Clinic Management",
+      "description": "Compare Pawly plans for your veterinary clinic. Starter, Professional, and Enterprise options with transparent pricing and no hidden fees."
+    },
+    "page": {
+      "heading": "Complete your registration",
+      "subtitle": "Fill in your details to get started with Pawly.",
+      "changePlan": "Change plan",
+      "missingPriceIdError": "Configuration error: Missing Stripe Price ID"
+    },
+    "preCheckout": {
+      "clinicNameLabel": "Clinic name",
+      "clinicNamePlaceholder": "Sunny Paws Veterinary Clinic",
+      "adminNameLabel": "Your name",
+      "adminNamePlaceholder": "Dr. Smith",
+      "adminEmailLabel": "Professional email",
+      "adminEmailPlaceholder": "admin@clinic.com",
+      "submitButton": "Subscribe",
+      "submitting": "Redirecting to payment...",
+      "error": "Unable to create checkout session"
+    },
+    "success": {
+      "title": "Account created successfully!",
+      "description": "Your clinic has been registered. You will receive an email to access your dashboard.",
+      "checkEmail": "Check your email",
+      "checkEmailDescription": "A secure login link has been sent to the email address you provided during registration.",
+      "spamNote": "If you don't see the email, please check your spam folder.",
+      "backToHome": "Back to homepage"
+    }
+  },
+  "onboarding": {
+    "title": "Configure your clinic",
+    "subtitle": "A few steps to set up your Pawly workspace",
+    "progress": "Step {current} of {total}",
+    "steps": {
+      "clinicName": {
+        "title": "Clinic name",
+        "description": "Confirm or edit your clinic name",
+        "label": "Clinic name",
+        "placeholder": "Sunny Paws Veterinary Clinic",
+        "help": "This name will be displayed in your admin dashboard"
+      },
+      "workDays": {
+        "title": "Work days",
+        "description": "Select the days your clinic is open",
+        "label": "Opening days",
+        "help": "You can change these settings later"
+      },
+      "workHours": {
+        "title": "Work hours",
+        "description": "Set the default hours for your clinic",
+        "startTime": "Opening time",
+        "endTime": "Closing time",
+        "help": "These hours serve as the baseline for planning"
+      },
+      "shiftTypes": {
+        "title": "Shift types",
+        "description": "Define the different shift types at your clinic",
+        "name": "Shift name",
+        "namePlaceholder": "Surgery",
+        "code": "Code",
+        "codePlaceholder": "SURG",
+        "startTime": "Start",
+        "endTime": "End",
+        "breakMinutes": "Break (min)",
+        "color": "Color",
+        "addShiftType": "Add shift type",
+        "removeShiftType": "Remove",
+        "help": "Each shift must have a unique code",
+        "minRequired": "At least one shift type is required"
+      }
+    },
+    "navigation": {
+      "previous": "Previous",
+      "next": "Next",
+      "complete": "Complete setup",
+      "completing": "Setting up..."
+    },
+    "completion": {
+      "title": "Clinic configured!",
+      "description": "Your clinic is ready. You will be redirected to your dashboard.",
+      "toast": "Clinic configured successfully!"
+    },
+    "errors": {
+      "saveFailed": "Unable to save configuration",
+      "duplicateCode": "This shift code already exists"
+    },
+    "days": {
+      "MONDAY": "Monday",
+      "TUESDAY": "Tuesday",
+      "WEDNESDAY": "Wednesday",
+      "THURSDAY": "Thursday",
+      "FRIDAY": "Friday",
+      "SATURDAY": "Saturday",
+      "SUNDAY": "Sunday"
+    }
+  },
+  "billing": {
+    "title": "Billing",
+    "subtitle": "Manage your subscription and view your invoices",
+    "plan": {
+      "label": "Subscription",
+      "name": "{planName} Plan",
+      "price": "{amount} / {interval}",
+      "renewalDate": "Renews on {date}",
+      "trialEnd": "Trial until {date}",
+      "cancelPending": "Your subscription will cancel on {date}",
+      "noPlan": "No active subscription"
+    },
+    "status": {
+      "active": "Active",
+      "trialing": "Trial",
+      "past_due": "Past Due",
+      "canceled": "Canceled",
+      "unpaid": "Unpaid"
+    },
+    "invoices": {
+      "title": "Invoice History",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions",
+      "downloadPdf": "Download PDF",
+      "viewInvoice": "View Invoice",
+      "noInvoices": "No invoices yet",
+      "paid": "Paid",
+      "open": "Open",
+      "void": "Void",
+      "uncollectible": "Uncollectible"
+    },
+    "actions": {
+      "manageSubscription": "Manage Subscription",
+      "redirecting": "Redirecting to portal..."
+    },
+    "labels": {
+      "currentPlan": "Current Plan",
+      "entitlementTier": "Tier",
+      "interval": {
+        "month": "month",
+        "year": "year"
+      }
+    },
+    "promotion": {
+      "title": "Active Promotion",
+      "code": "Code: {code}",
+      "discount": "{value} discount",
+      "discountPercent": "-{value}%",
+      "discountAmount": "-{value}",
+      "type": {
+        "partner": "Partner",
+        "internal": "Internal",
+        "lifetime": "Lifetime"
+      },
+      "fullDiscount": "100% — Free Access"
+    },
+    "errors": {
+      "loadFailed": "Unable to load billing information",
+      "portalFailed": "Unable to open the management portal",
+      "noSubscription": "No subscription found for your clinic",
+      "retry": "Retry"
+    },
+    "guard": {
+      "inactive": {
+        "title": "Subscription Inactive",
+        "description": "Your subscription is no longer active. Please update your billing information to continue using Pawly."
+      },
+      "pastDue": {
+        "title": "Payment Past Due",
+        "description": "Your last payment failed. Please update your payment method to avoid service interruption.",
+        "action": "Update Payment Method"
+      },
+      "canceled": {
+        "title": "Subscription Canceled",
+        "description": "Your subscription has been canceled. Resubscribe to regain access to all features.",
+        "action": "Resubscribe"
+      },
+      "unpaid": {
+        "title": "Payment Required",
+        "description": "Your account has unpaid invoices. Please contact support to resolve this issue.",
+        "action": "Contact Support"
+      },
+      "upgrade": {
+        "title": "Feature Unavailable",
+        "description": "This feature requires a higher subscription tier. Upgrade your plan to unlock it.",
+        "action": "Upgrade Plan"
+      },
+      "noSubscription": {
+        "title": "No Subscription",
+        "description": "No active subscription found. Subscribe to start using Pawly."
+      }
+    }
+  },
+  "employees": {
+    "meta": {
+      "title": "Employee Management - Pawly",
+      "description": "Manage your clinic staff and contracts"
+    },
+    "page": {
+      "title": "Employees",
+      "subtitle": "Manage your team"
+    },
+    "actions": {
+      "add": "Add Employee",
+      "edit": "Edit",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "save": "Save",
+      "cancel": "Cancel",
+      "resendInvitation": "Resend invitation"
+    },
+    "form": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "phone": "Phone",
+      "jobType": "Job Type",
+      "contractType": "Contract Type",
+      "contractHours": "Weekly Hours",
+      "color": "Calendar Color",
+      "hireDate": "Hire Date",
+      "endDate": "End Date",
+      "createTitle": "New Employee",
+      "editTitle": "Edit Employee"
+    },
+    "jobTypes": {
+      "VET": "Veterinarian",
+      "ASV": "Veterinary Assistant",
+      "APPRENTICE": "Apprentice"
+    },
+    "contractTypes": {
+      "CDI": "Permanent (CDI)",
+      "CDD": "Fixed-term (CDD)",
+      "APPRENTICESHIP": "Apprenticeship"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "labels": {
+      "contractHoursPerWeek": "{hours}h/week"
+    },
+    "loading": "Loading employees...",
+    "errors": {
+      "loadFailed": "Unable to load employees",
+      "loadFailedDescription": "An error occurred while loading the employee list. Please try refreshing the page.",
+      "retry": "Retry"
+    },
+    "empty": {
+      "title": "No employees yet",
+      "description": "Add your first team member to start scheduling",
+      "cta": "Add First Employee"
+    },
+    "confirm": {
+      "deactivateTitle": "Deactivate Employee",
+      "deactivateMessage": "This employee will be excluded from scheduling. Their historical data will be preserved.",
+      "activateTitle": "Reactivate Employee",
+      "activateMessage": "This employee will be included in scheduling again."
+    },
+    "toast": {
+      "created": "Employee created successfully",
+      "updated": "Employee updated successfully",
+      "createFailed": "Unable to create employee",
+      "updateFailed": "Unable to update employee",
+      "deactivated": "Employee deactivated",
+      "activated": "Employee reactivated",
+      "invitationResent": "Invitation email resent successfully",
+      "invitationFailed": "Failed to resend invitation"
+    },
+    "validation": {
+      "firstNameRequired": "First name is required",
+      "lastNameRequired": "Last name is required",
+      "invalidEmail": "Invalid email address",
+      "hoursRange": "Hours must be between 1 and 48",
+      "endDateAfterHire": "End date must be after hire date"
+    },
+    "filters": {
+      "searchPlaceholder": "Search employees...",
+      "showInactive": "Show inactive",
+      "allJobTypes": "All job types"
+    },
+    "schoolDays": {
+      "declared": "Declared",
+      "notDeclared": "Not declared"
+    },
+    "constraints": {
+      "title": "Constraints for {name}",
+      "subtitle": "Define one-time and recurring unavailabilities used as hard rules for planning.",
+      "loading": "Loading constraints...",
+      "labels": {
+        "oneTime": "One-time",
+        "recurring": "Recurring"
+      },
+      "days": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
+        "7": "Sunday"
+      },
+      "types": {
+        "SCHOOL": "School",
+        "VACATION": "Vacation",
+        "SICK": "Sick leave",
+        "OTHER": "Other"
+      },
+      "actions": {
+        "manage": "Manage constraints",
+        "add": "Add constraint",
+        "edit": "Edit constraint",
+        "delete": "Delete constraint"
+      },
+      "empty": {
+        "title": "No constraints yet",
+        "description": "Add constraints so planning blocks unavailable days."
+      },
+      "confirm": {
+        "deleteTitle": "Delete Constraint",
+        "deleteMessage": "This constraint will be permanently deleted. This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "created": "Constraint created",
+        "updated": "Constraint updated",
+        "deleted": "Constraint deleted"
+      },
+      "form": {
+        "createTitle": "New constraint",
+        "editTitle": "Edit constraint",
+        "type": "Constraint type",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "reason": "Reason (optional)",
+        "reasonPlaceholder": "e.g. school, vacation, medical appointment",
+        "recurring": "Recurring weekly constraint",
+        "daysOfWeek": "Recurring days"
+      },
+      "validation": {
+        "startDateRequired": "Start date is required",
+        "endDateRequired": "End date is required",
+        "endDateAfterStart": "End date must be after or equal to start date",
+        "weekdayRequired": "Select at least one weekday for recurring constraints"
+      }
+    }
+  },
+  "settings": {
+    "tabs": {
+      "operational": "General",
+      "shiftTypes": "Shift Types",
+      "planningRules": "Planning Rules"
+    },
+    "shiftTypes": {
+      "title": "Shift Types",
+      "fields": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Morning, Surgery",
+        "code": "Code",
+        "codePlaceholder": "e.g. MORNING",
+        "startTime": "Start time",
+        "endTime": "End time",
+        "breakMinutes": "Break (min)",
+        "breakMinutesPlaceholder": "e.g. 60",
+        "color": "Color"
+      },
+      "form": {
+        "createTitle": "New shift type",
+        "createSubtitle": "Define a new shift type for your clinic schedule.",
+        "editTitle": "Edit shift type",
+        "editSubtitle": "Modify the shift type details."
+      },
+      "actions": {
+        "add": "Add shift type",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "confirm": {
+        "deleteTitle": "Delete shift type",
+        "deleteMessage": "Are you sure you want to delete this shift type? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      },
+      "empty": {
+        "title": "No shift types",
+        "description": "Add shift types to define your clinic schedule structure.",
+        "cta": "Add first shift type"
+      },
+      "errors": {
+        "loadFailed": "Unable to load shift types.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "created": "Shift type created",
+        "createFailed": "Unable to create shift type",
+        "updated": "Shift type updated",
+        "updateFailed": "Unable to update shift type",
+        "deleted": "Shift type deleted",
+        "deleteFailed": "Unable to delete shift type"
+      }
+    },
+    "operationalConfig": {
+      "title": "Clinic Operational Configuration",
+      "subtitle": "Define weekly defaults, closure dates, and special-day schedule overrides used by planning.",
+      "loading": "Loading clinic operational configuration...",
+      "sections": {
+        "weekly": "Weekly defaults",
+        "closedDays": "Closed days",
+        "specialDays": "Special days"
+      },
+      "fields": {
+        "workDays": "Work days",
+        "defaultStartTime": "Default start time",
+        "defaultEndTime": "Default end time",
+        "date": "Date",
+        "reason": "Reason",
+        "reasonPlaceholder": "e.g. public holiday, annual closure",
+        "label": "Label",
+        "labelPlaceholder": "e.g. reduced opening hours",
+        "startTime": "Start time",
+        "endTime": "End time"
+      },
+      "actions": {
+        "save": "Save operational settings",
+        "saving": "Saving...",
+        "addClosedDay": "Add closed day",
+        "addSpecialDay": "Add special day",
+        "remove": "Remove"
+      },
+      "empty": {
+        "closedDays": "No closed days configured.",
+        "specialDays": "No special days configured."
+      },
+      "errors": {
+        "loadFailed": "Unable to load clinic operational configuration.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "updated": "Operational configuration updated",
+        "updateFailed": "Unable to update configuration"
+      },
+      "validation": {
+        "workDaysRequired": "Select at least one work day.",
+        "invalidTimeFormat": "Use HH:MM time format.",
+        "endTimeAfterStartTime": "End time must be after start time.",
+        "invalidDateFormat": "Use YYYY-MM-DD date format.",
+        "invalidDateValue": "Invalid date value.",
+        "duplicateClosedDay": "This closed day date is duplicated.",
+        "duplicateSpecialDay": "This special day date is duplicated.",
+        "closedAndSpecialConflict": "A date cannot be both closed and special."
+      },
+      "days": {
+        "MONDAY": "Monday",
+        "TUESDAY": "Tuesday",
+        "WEDNESDAY": "Wednesday",
+        "THURSDAY": "Thursday",
+        "FRIDAY": "Friday",
+        "SATURDAY": "Saturday",
+        "SUNDAY": "Sunday"
+      }
+    }
+  },
+  "errors": {
+    "generic": "An error occurred",
+    "network": "Server connection error",
+    "notFound": "Page not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Access denied",
+    "timeout": "Request timed out",
+    "serverError": "Server error",
+    "validationError": "Validation error",
+    "unknownError": "Unknown error",
+    "tryAgain": "Please try again"
+  },
+  "landing": {
+    "meta": {
+      "title": "Pawly — Intelligent Planning for Veterinary Clinics",
+      "description": "Simplify your veterinary clinic management with Pawly. Intelligent scheduling, team coordination, and subscription management in one platform."
+    },
+    "header": {
+      "login": "Log in",
+      "cta": "Get Started",
+      "navFeatures": "Features",
+      "navPricing": "Pricing"
+    },
+    "hero": {
+      "title": "Intelligent planning for your veterinary clinic",
+      "subtitle": "Pawly streamlines scheduling, team management, and daily operations — so you can focus on what matters most: animal care.",
+      "cta": "View Pricing",
+      "secondaryCta": "Learn More",
+      "badge": "New: AI-powered Scheduling",
+      "trustTitle": "Trusted by leading clinics:",
+      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+    },
+    "features": {
+      "title": "Everything your clinic needs",
+      "subtitle": "Powerful tools designed specifically for veterinary practice management.",
+      "badge": "Features",
+      "scheduling": {
+        "title": "Smart Scheduling",
+        "description": "Automated shift planning with constraint-based algorithms. Handle surgeries, consultations, and rest periods effortlessly."
+      },
+      "team": {
+        "title": "Team Management",
+        "description": "Manage veterinarians, ASVs, and apprentices with role-based access. Track contracts, absences, and equity counters."
+      },
+      "billing": {
+        "title": "Subscription & Billing",
+        "description": "Transparent pricing with Stripe-powered billing. Manage your subscription, view invoices, and control costs."
+      },
+      "mobile": {
+        "title": "Mobile Ready",
+        "description": "Progressive Web App for your team. Employees can check schedules, request absences, and confirm presence from any device."
+      },
+      "i18n": {
+        "title": "Bilingual Support",
+        "description": "Full French and English support. Every screen, notification, and report is available in both languages."
+      },
+      "security": {
+        "title": "Secure & Reliable",
+        "description": "Magic link authentication, JWT tokens, and role-based access control. Your clinic data is protected at every level."
+      }
+    },
+    "pricing": {
+      "title": "Simple, transparent pricing",
+      "subtitle": "Choose the plan that fits your clinic. All plans include a free trial.",
+      "badge": "Transparent Pricing",
+      "starter": {
+        "name": "Starter",
+        "price": "29",
+        "interval": "month",
+        "description": "Perfect for small clinics getting started",
+        "features": ["Up to 5 team members", "Basic scheduling", "Absence management", "Email support"]
+      },
+      "professional": {
+        "name": "Professional",
+        "price": "59",
+        "interval": "month",
+        "description": "For growing clinics that need more",
+        "popular": "Most Popular",
+        "features": ["Up to 20 team members", "Advanced scheduling algorithms", "Equity counters", "Priority support", "Custom shift types"]
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "price": "99",
+        "interval": "month",
+        "description": "For multi-clinic operations",
+        "features": ["Unlimited team members", "Multi-clinic management", "API access", "Dedicated support", "Custom integrations"]
+      },
+      "cta": "Get Started",
+      "currency": "€",
+      "perMonth": "/month"
+    },
+    "testimonials": {
+      "title": "Trusted by veterinary professionals",
+      "subtitle": "See what clinic managers say about Pawly.",
+      "badge": "Testimonials",
+      "items": {
+        "1": {
+          "quote": "Pawly transformed how we manage our clinic schedule. What used to take hours now takes minutes.",
+          "author": "Dr. Sarah Chen",
+          "role": "Clinic Director, Paws & Claws Veterinary"
+        },
+        "2": {
+          "quote": "The team management features are exceptional. Finally, a tool that understands veterinary workflows.",
+          "author": "Dr. Marc Dubois",
+          "role": "Head Veterinarian, Clinique des Animaux"
+        },
+        "3": {
+          "quote": "Since switching to Pawly, our staff satisfaction has improved dramatically. The mobile app is a game-changer.",
+          "author": "Julie Martin",
+          "role": "Practice Manager, VetCare Plus"
+        }
+      }
+    },
+    "cta": {
+      "title": "Ready to simplify your clinic management?",
+      "subtitle": "Join veterinary professionals who trust Pawly for their daily operations.",
+      "button": "Start Your Free Trial"
+    },
+    "footer": {
+      "description": "The intelligent planning platform for veterinary clinics.",
+      "product": "Product",
+      "features": "Features",
+      "pricing": "Pricing",
+      "company": "Company",
+      "about": "About",
+      "contact": "Contact",
+      "legal": "Legal",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "copyright": "© 2026 Pawly. All rights reserved."
+    }
+  }
+}

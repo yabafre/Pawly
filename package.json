@@ -3,19 +3,34 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
+    "build": "NODE_ENV=production dotenv -- turbo run build",
+    "dev": "dotenv -- turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "db:generate": "pnpm --filter @pawly/api prisma:generate",
-    "db:push": "pnpm --filter @pawly/api prisma:migrate"
+    "db:generate": "dotenv -- pnpm --filter @pawly/api db:generate",
+    "db:push": "dotenv -- pnpm --filter @pawly/api db:push",
+    "db:push:force": "dotenv -- pnpm --filter @pawly/api db:push:force",
+    "db:migrate:dev": "dotenv -- pnpm --filter @pawly/api db:migrate:dev",
+    "db:migrate:deploy": "dotenv -- pnpm --filter @pawly/api db:migrate:deploy",
+    "db:studio": "dotenv -- pnpm --filter @pawly/api db:studio",
+    "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed",
+    "test": "dotenv -- turbo run test"
   },
   "devDependencies": {
-    "turbo": "latest",
-    "prettier": "latest"
+    "dotenv-cli": "^8.0.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.8.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "zod": "4.3.6"
+    }
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
+  },
+  "dependencies": {
+    "recharts": "^3.7.0"
   }
 }

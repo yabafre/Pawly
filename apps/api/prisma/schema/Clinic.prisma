@@ -1,0 +1,27 @@
+model Clinic {
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  onboardingCompleted Boolean  @default(false) @map("onboarding_completed")
+
+  users               User[]
+  employees           Employee[]
+  shifts              Shift[]
+  absences            Absence[]
+  unavailabilities    Unavailability[]
+  magicLinks          MagicLink[]
+  activationTokens    ActivationToken[]
+  planningTemplates   PlanningTemplate[]
+  varianceEvents      VarianceEvent[]
+  subscription        Subscription?
+  config              ClinicConfig?
+  shiftTypes          ClinicShiftType[]
+  closedDays          ClinicClosedDay[]
+  specialDays         ClinicSpecialDay[]
+  planningRules       PlanningRule[]
+  equityCounters      EquityCounter[]
+  apprenticeDeclarations ApprenticeMonthDeclaration[]
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+}

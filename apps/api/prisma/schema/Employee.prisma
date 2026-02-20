@@ -4,26 +4,43 @@ enum JobType {
   APPRENTICE
 }
 
+enum ContractType {
+  CDI
+  CDD
+  APPRENTICESHIP
+
+  @@map("contract_type")
+}
+
 model Employee {
   id        String   @id @default(uuid())
   firstName String   @map("first_name")
   lastName  String   @map("last_name")
   color     String   @default("#3b82f6")
-  
-  jobType   JobType  @map("job_type")
-  contractHours Int  @default(35) @map("contract_hours")
-  
+  email     String?  @map("email")
+  phone     String?  @map("phone")
+
+  jobType       JobType      @map("job_type")
+  contractType  ContractType @default(CDI) @map("contract_type")
+  contractHours Int          @default(35) @map("contract_hours")
+  hireDate      DateTime?    @map("hire_date")
+  endDate       DateTime?    @map("end_date")
+  isActive      Boolean      @default(true) @map("is_active")
+
   clinicId  String   @map("clinic_id")
-  
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
   user      User?    @relation(fields: [userId], references: [id])
   userId    String?  @unique @map("user_id")
-  
+
   shifts    Shift[]
   absences  Absence[]
   unavailabilities Unavailability[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  equityCounters   EquityCounter[]
+  apprenticeDeclarations ApprenticeMonthDeclaration[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
 }
@@ -34,17 +51,21 @@ model Unavailability {
   startDate DateTime @map("start_date")
   endDate   DateTime @map("end_date")
   reason    String?
+  daysOfWeek Int[]   @default([]) @map("days_of_week")
   
   employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String  @map("employee_id")
   
   clinicId  String   @map("clinic_id")
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
   @@index([employeeId])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 enum UnavailabilityType {

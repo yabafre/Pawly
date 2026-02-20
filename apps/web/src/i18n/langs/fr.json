@@ -1,0 +1,1355 @@
+{
+  "common": {
+    "logout": "Déconnexion",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "sslConnection": "Connexion SSL",
+    "multiTenant": "Multi-tenant",
+    "backToLogin": "Retour à la connexion",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "noResults": "Aucun résultat",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "language": {
+      "label": "Langue",
+      "fr": "Français",
+      "en": "English",
+      "switchTo": "Changer la langue"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Bienvenue",
+      "subtitle": "Connectez-vous à votre espace Pawly",
+      "tagline": "Le planning intelligent pour votre clinique.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinique.fr",
+      "passwordLabel": "Mot de passe",
+      "submitButton": "Se connecter",
+      "submitting": "Connexion...",
+      "forgotPassword": "Oublié ?",
+      "magicLinkTab": "Magic Link",
+      "passwordTab": "Mot de passe"
+    },
+    "magicLink": {
+      "emailLabel": "Email professionnel",
+      "emailPlaceholder": "nom@clinique.fr",
+      "submitButton": "Recevoir mon lien",
+      "submitting": "Envoi en cours...",
+      "helper": "Recommandé pour les employés. Sans mot de passe, plus sécurisé.",
+      "checkEmail": "Vérifiez vos emails",
+      "linkSent": "Un lien de connexion a été envoyé à",
+      "resendLink": "Renvoyer le lien"
+    },
+    "callback": {
+      "invalidLink": "Lien invalide",
+      "linkExpiredMessage": "Le lien est expiré ou déjà utilisé. Veuillez redemander un magic link.",
+      "connectionValidated": "Connexion validée",
+      "validationInProgress": "Validation en cours",
+      "redirecting": "Redirection en cours...",
+      "verifyingLink": "Nous vérifions votre lien sécurisé.",
+      "preparingSession": "Préparation de votre session..."
+    },
+    "toast": {
+      "loginSuccess": "Connexion réussie !",
+      "loginError": "Email ou mot de passe incorrect",
+      "magicLinkSent": "Lien de connexion envoyé !",
+      "magicLinkError": "Impossible d'envoyer le lien",
+      "serverError": "Problème de connexion au serveur",
+      "unexpectedError": "Une erreur inattendue est survenue"
+    },
+    "activate": {
+      "title": "Créez votre mot de passe",
+      "subtitle": "Définissez un mot de passe sécurisé pour activer votre compte administrateur.",
+      "passwordLabel": "Mot de passe",
+      "confirmLabel": "Confirmer le mot de passe",
+      "passwordHint": "Min. 8 caractères, majuscule, minuscule et chiffre.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "submitButton": "Activer mon compte",
+      "submitting": "Activation...",
+      "success": "Compte activé ! Redirection...",
+      "error": "Échec de l'activation. Veuillez réessayer.",
+      "invalidToken": "Lien d'activation invalide",
+      "tokenMissing": "Le lien d'activation est manquant ou malformé. Vérifiez votre email."
+    },
+    "errors": {
+      "generic": "Une erreur est survenue",
+      "invalidEmail": "Email invalide",
+      "passwordRequired": "Mot de passe requis"
+    }
+  },
+  "admin": {
+    "nav": {
+      "title": "Pawly Admin",
+      "dashboard": "Dashboard",
+      "planning": "Planning",
+      "settings": "Paramètres",
+      "requests": "Demandes",
+      "employees": "Employés",
+      "absences": "Absences",
+      "billing": "Facturation",
+      "planningRules": "Règles de planning",
+      "equityCounters": "Équité",
+      "templates": "Modèles"
+    },
+    "dashboard": {
+      "overview": "Vue d'ensemble",
+      "weeklyTracking": "Suivi hebdomadaire et état des demandes",
+      "autoGenerate": "Auto-Générer",
+      "weekPlanning": "Planning de la semaine",
+      "targetReached": "Objectif {hours}h atteint",
+      "pendingRequests": "Demandes en attente",
+      "validateQuickly": "À valider rapidement",
+      "activeTeam": "Équipe active",
+      "vetAndAsv": "Vétos & ASV",
+      "quickSummary": "Synthèse rapide",
+      "week": "Semaine {number}",
+      "noBlockingConflict": "Aucun conflit bloquant détecté. {count, plural, =0 {Aucun avertissement} one {# avertissement soft} other {# avertissements soft}} à surveiller.",
+      "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
+    },
+    "planningRules": {
+      "title": "Règles de planning",
+      "subtitle": "Configurez les règles qui guident l'algorithme de planning pour des horaires justes et conformes.",
+      "loading": "Chargement des règles de planning...",
+      "ruleTypes": {
+        "HARD": "Règle stricte",
+        "SOFT": "Règle souple"
+      },
+      "categories": {
+        "STAFFING_MINIMUM": "Effectif minimum",
+        "ROTATION_EQUITY": "Équité de rotation",
+        "SKILL_REQUIREMENT": "Compétence requise",
+        "CONTRACT_COMPLIANCE": "Conformité contrat"
+      },
+      "categoryDescriptions": {
+        "STAFFING_MINIMUM": "Personnel minimum requis par type de créneau",
+        "ROTATION_EQUITY": "Rotation équitable de jours spécifiques entre employés",
+        "SKILL_REQUIREMENT": "Rôles requis par type de créneau",
+        "CONTRACT_COMPLIANCE": "Respect des limites d'heures hebdomadaires/mensuelles"
+      },
+      "form": {
+        "createTitle": "Nouvelle règle de planning",
+        "editTitle": "Modifier la règle de planning",
+        "createSubtitle": "Définissez une règle pour guider l'algorithme de planning de votre clinique.",
+        "editSubtitle": "Modifiez les paramètres de cette règle de planning.",
+        "name": "Nom de la règle",
+        "namePlaceholder": "ex. Min 1 ASV pour Chirurgie",
+        "description": "Description (optionnelle)",
+        "descriptionPlaceholder": "Expliquez l'objectif de la règle",
+        "ruleType": "Type de règle",
+        "category": "Catégorie",
+        "priority": "Priorité",
+        "priorityHelp": "Les règles de priorité supérieure sont évaluées en premier",
+        "isActive": "Active",
+        "ruleTypeHint": {
+          "HARD": "Bloque le planning si violée",
+          "SOFT": "Avertissement uniquement"
+        },
+        "sections": {
+          "config": "Paramètres spécifiques"
+        },
+        "config": {
+          "shiftTypeCode": "Type de créneau",
+          "selectShiftType": "Sélectionnez un type de créneau",
+          "minStaff": "Personnel minimum",
+          "jobTypes": "Types de poste (filtre optionnel)",
+          "targetDay": "Jour cible",
+          "maxPerPeriod": "Max par période",
+          "trackingPeriod": "Période de suivi",
+          "requiredJobTypes": "Types de poste requis",
+          "maxWeeklyHours": "Max heures hebdomadaires",
+          "maxMonthlyHours": "Max heures mensuelles",
+          "overtimeThresholdPercent": "Seuil heures supplémentaires (%)",
+          "days": {
+            "monday": "Lundi",
+            "tuesday": "Mardi",
+            "wednesday": "Mercredi",
+            "thursday": "Jeudi",
+            "friday": "Vendredi",
+            "saturday": "Samedi",
+            "sunday": "Dimanche"
+          }
+        },
+        "trackingPeriods": {
+          "monthly": "Mensuel",
+          "quarterly": "Trimestriel"
+        }
+      },
+      "actions": {
+        "add": "Ajouter une règle",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "toggle": "Activer/Désactiver"
+      },
+      "empty": {
+        "title": "Aucune règle de planning configurée",
+        "description": "Créez votre première règle pour guider l'algorithme de planning.",
+        "cta": "Créer la première règle"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer la règle de planning",
+        "deleteMessage": "Cette règle sera définitivement supprimée. L'algorithme de planning ne l'utilisera plus.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "toast": {
+        "created": "Règle de planning créée",
+        "updated": "Règle de planning mise à jour",
+        "deleted": "Règle de planning supprimée",
+        "toggled": "Règle de planning activée/désactivée",
+        "createFailed": "Impossible de créer la règle de planning",
+        "updateFailed": "Impossible de mettre à jour la règle de planning",
+        "deleteFailed": "Impossible de supprimer la règle de planning",
+        "toggleFailed": "Impossible d'activer/désactiver la règle de planning"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les règles de planning",
+        "retry": "Réessayer"
+      },
+      "healthBar": {
+        "title": "Santé du planning",
+        "conflicts": "{count, plural, =0 {Aucun conflit} one {# conflit} other {# conflits}}",
+        "warnings": "{count, plural, =0 {Aucun avertissement} one {# avertissement} other {# avertissements}}",
+        "ready": "{percent}% prêt",
+        "publish": "Publier",
+        "publishBlocked": "Publication impossible — résolvez les conflits d'abord",
+        "healthy": "Tout est bon — aucune violation détectée"
+      }
+    },
+    "equityCounters": {
+      "title": "Compteurs d'équité",
+      "subtitle": "Suivez la répartition équitable des créneaux entre les employés pour la période en cours.",
+      "loading": "Chargement des compteurs d'équité...",
+      "counterTypes": {
+        "SATURDAY_WORKED": "Samedi",
+        "WEEKEND_TOTAL": "Week-end",
+        "HOLIDAY_WORKED": "Jour férié",
+        "OVERTIME_HOURS": "Heures supplémentaires"
+      },
+      "period": {
+        "monthly": "Mensuel",
+        "quarterly": "Trimestriel",
+        "month": "Mois",
+        "quarter": "Trimestre"
+      },
+      "table": {
+        "employee": "Employé",
+        "jobType": "Poste",
+        "noData": "Aucune donnée d'équité pour cette période",
+        "noDataDescription": "Les compteurs apparaîtront une fois les créneaux assignés et calculés."
+      },
+      "summary": {
+        "avgSaturdays": "Moy. samedis",
+        "fairnessIndex": "Indice d'équité",
+        "mostLoaded": "Plus chargé",
+        "leastLoaded": "Moins chargé",
+        "noEmployees": "N/A"
+      },
+      "chart": {
+        "title": "Répartition de l'équité",
+        "employees": "Employés"
+      },
+      "actions": {
+        "recalculate": "Recalculer",
+        "recalculating": "Recalcul en cours..."
+      },
+      "confirm": {
+        "recalculateTitle": "Recalculer les compteurs",
+        "recalculateMessage": "Cela recalculera tous les compteurs d'équité à partir des données de créneaux pour la période sélectionnée. Cela peut prendre un moment.",
+        "cancel": "Annuler",
+        "confirm": "Recalculer"
+      },
+      "toast": {
+        "recalculated": "Compteurs d'équité recalculés",
+        "recalculateFailed": "Impossible de recalculer les compteurs d'équité"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les compteurs d'équité",
+        "loadFailedDescription": "Veuillez réessayer ou contacter le support si le problème persiste.",
+        "retry": "Réessayer"
+      },
+      "quarterly": {
+        "title": "Résumé trimestriel"
+      },
+      "badge": {
+        "counter": "{current}/{max}",
+        "noLimit": "{current}"
+      }
+    },
+    "planningTemplates": {
+      "title": "Modèles de semaine",
+      "subtitle": "Définissez les structures de créneaux hebdomadaires de base pour la génération du planning mensuel.",
+      "loading": "Chargement des modèles...",
+      "emptyState": {
+        "title": "Aucun modèle",
+        "description": "Créez votre premier modèle de semaine pour définir la structure idéale des créneaux.",
+        "cta": "Créer un modèle"
+      },
+      "form": {
+        "createTitle": "Nouveau modèle",
+        "editTitle": "Modifier le modèle",
+        "subtitle": "Définissez les besoins en créneaux pour chaque jour de la semaine",
+        "name": "Nom du modèle",
+        "namePlaceholder": "ex. Semaine standard",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "nameRequired": "Le nom du modèle est requis"
+      },
+      "days": {
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Mer",
+        "thu": "Jeu",
+        "fri": "Ven",
+        "sat": "Sam",
+        "sun": "Dim",
+        "monday": "Lundi",
+        "tuesday": "Mardi",
+        "wednesday": "Mercredi",
+        "thursday": "Jeudi",
+        "friday": "Vendredi",
+        "saturday": "Samedi",
+        "sunday": "Dimanche"
+      },
+      "slot": {
+        "shiftType": "Type de créneau",
+        "requiredStaff": "Personnel requis",
+        "requiredJobTypes": "Postes requis",
+        "addSlot": "Ajouter un créneau",
+        "removeSlot": "Supprimer",
+        "staffCount": "{count} personnel"
+      },
+      "preview": {
+        "title": "Aperçu semaine",
+        "totalStaff": "Total personnel",
+        "noSlots": "Aucun créneau"
+      },
+      "card": {
+        "created": "Créé le {date}",
+        "updated": "Modifié le {date}",
+        "slotsCount": "{count} créneaux",
+        "daysConfigured": "{count} jours configurés"
+      },
+      "actions": {
+        "edit": "Modifier",
+        "duplicate": "Dupliquer",
+        "delete": "Supprimer",
+        "menu": "Actions du modèle"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer le modèle",
+        "deleteMessage": "Êtes-vous sûr de vouloir supprimer ce modèle ? Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "toast": {
+        "created": "Modèle créé",
+        "updated": "Modèle mis à jour",
+        "duplicated": "Modèle dupliqué",
+        "deleted": "Modèle supprimé",
+        "createFailed": "Impossible de créer le modèle",
+        "updateFailed": "Impossible de modifier le modèle",
+        "duplicateFailed": "Impossible de dupliquer le modèle",
+        "deleteFailed": "Impossible de supprimer le modèle"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les modèles",
+        "loadFailedDescription": "Veuillez réessayer ou contacter le support si le problème persiste.",
+        "retry": "Réessayer"
+      },
+      "nonWorkDay": "Jour non travaillé"
+    },
+    "planningGeneration": {
+      "title": "Génération du planning",
+      "subtitle": "Générer un planning mensuel à partir d'un modèle de semaine.",
+      "monthLabel": "Mois cible",
+      "monthPlaceholder": "Sélectionner un mois",
+      "templateLabel": "Modèle de semaine",
+      "templatePlaceholder": "Sélectionner un modèle",
+      "generateButton": "Générer le planning",
+      "generating": "Génération en cours...",
+      "regenerateButton": "Regénérer",
+      "previewButton": "Aperçu",
+      "stats": {
+        "totalSlots": "Créneaux totaux",
+        "filledSlots": "Pourvus",
+        "holes": "Non pourvus",
+        "hardViolations": "Violations bloquantes",
+        "softWarnings": "Avertissements"
+      },
+      "result": {
+        "title": "Résultat de la génération",
+        "summary": "Résumé",
+        "assignments": "Affectations",
+        "holes": "Créneaux non pourvus",
+        "violations": "Violations",
+        "noHoles": "Tous les créneaux ont été pourvus.",
+        "noViolations": "Aucune violation détectée.",
+        "holesTitle": "Créneaux non pourvus",
+        "hardViolationsTitle": "Violations bloquantes",
+        "softWarningsTitle": "Avertissements",
+        "allGood": "Tous les créneaux ont été pourvus sans violation !"
+      },
+      "holeReasons": {
+        "noEligible": "Aucun employé éligible disponible",
+        "allUnavailable": "Tous les employés indisponibles à cette date",
+        "skillMismatch": "Aucun employé ne correspond au type de poste requis",
+        "doubleBooked": "Tous les employés éligibles sont déjà affectés"
+      },
+      "confirmRegenerate": {
+        "title": "Regénérer le planning ?",
+        "description": "Les {count} créneaux générés pour ce mois seront supprimés et remplacés. Les créneaux manuels seront conservés.",
+        "confirm": "Regénérer",
+        "cancel": "Annuler"
+      },
+      "confirmDelete": {
+        "title": "Supprimer les créneaux générés ?",
+        "description": "Les {count} créneaux générés pour ce mois seront définitivement supprimés. Cette action est irréversible. Les créneaux manuels seront conservés.",
+        "confirm": "Supprimer",
+        "cancel": "Annuler"
+      },
+      "existing": {
+        "title": "Créneaux du mois",
+        "totalShifts": "Total",
+        "generated": "Générés",
+        "manual": "Manuels",
+        "employees": "Employés",
+        "daysWithShifts": "{count} jour(s) planifié(s)",
+        "deleteGenerated": "Supprimer les générés",
+        "warnings": "avertissements",
+        "warningsTitle": "Avertissements & violations"
+      },
+      "toast": {
+        "generated": "Planning généré avec succès",
+        "regenerated": "Planning regénéré avec succès",
+        "deleted": "Créneaux générés supprimés",
+        "generateFailed": "Impossible de générer le planning",
+        "deleteFailed": "Impossible de supprimer les créneaux générés"
+      },
+      "errors": {
+        "noTemplate": "Veuillez sélectionner un modèle",
+        "noMonth": "Veuillez sélectionner un mois cible",
+        "loadFailed": "Impossible de charger les données"
+      }
+    },
+    "scheduleView": {
+      "title": "Vue du planning",
+      "subtitle": "Visualisez le planning généré avec les affectations et les indicateurs de conflits",
+      "emptyState": {
+        "title": "Aucun créneau généré",
+        "description": "Générez un planning pour voir la grille de planification"
+      },
+      "weekNavigator": {
+        "label": "Semaine",
+        "weekOf": "Semaine du {date}",
+        "previous": "Semaine précédente",
+        "next": "Semaine suivante"
+      },
+      "grid": {
+        "employeeColumn": "Employé",
+        "hoursColumn": "Heures",
+        "hoursLabel": "{actual}h / {contract}h",
+        "hoursOver": "Dépassement horaire",
+        "hoursUnder": "Sous le contrat",
+        "hoursOk": "Conforme au contrat",
+        "closedDay": "Fermé",
+        "dayOff": "Jour de repos",
+        "nonWorkDay": "Jour non travaillé",
+        "school": "école",
+        "break": "pause"
+      },
+      "shift": {
+        "generated": "Généré",
+        "manual": "Manuel",
+        "timeRange": "{start} - {end}"
+      },
+      "hole": {
+        "label": "Créneau vide",
+        "tooltip": "{shiftType} : {assigned}/{required} employés affectés",
+        "ctaLabel": "Cliquer pour affecter"
+      },
+      "absence": {
+        "vacation": "Congés",
+        "sick": "Arrêt maladie",
+        "school": "École",
+        "other": "Absence"
+      },
+      "conflict": {
+        "hardTitle": "Conflit",
+        "softTitle": "Avertissement",
+        "hardCount": "{count, plural, one {# conflit} other {# conflits}}",
+        "softCount": "{count, plural, one {# avertissement} other {# avertissements}}",
+        "details": "Détails du conflit",
+        "rule": "Règle : {name}",
+        "category": "Catégorie : {category}"
+      },
+      "accessibility": {
+        "gridLabel": "Grille de planning du personnel",
+        "cellLabel": "{employee}, {day} {date}, {shiftType} {timeRange}",
+        "holeCellLabel": "Créneau vide, {day} {date}, {shiftType}. Cliquer pour affecter.",
+        "absenceCellLabel": "{employee}, {day} {date}, {type}",
+        "closedCellLabel": "{day} {date}, clinique fermée",
+        "conflictAnnouncement": "{count, plural, one {# conflit détecté} other {# conflits détectés}}"
+      },
+      "responsive": {
+        "fullView": "Semaine complète",
+        "liteView": "Vue 3 jours",
+        "previousDays": "Jours précédents",
+        "nextDays": "Jours suivants"
+      }
+    },
+    "settings": {
+      "badge": "Paramètres clinique",
+      "title": "Paramètres opérationnels",
+      "subtitle": "Gérez les règles de disponibilité de la clinique utilisées par le planning : valeurs hebdomadaires, jours fermés et exceptions journalières.",
+      "surfaceLabel": "Langage visuel",
+      "surfaceValue": "Clinique Zen",
+      "cards": {
+        "rules": {
+          "title": "Validation",
+          "value": "Stricte",
+          "helper": "Format HH:MM, plages cohérentes, détection des doublons."
+        },
+        "closedDays": {
+          "title": "Politique de fermeture",
+          "value": "Centralisée",
+          "helper": "Source de vérité unique, scoped par clinique."
+        },
+        "health": {
+          "title": "Entrée planning",
+          "value": "Prête",
+          "helper": "Données normalisées pour les règles bloquantes."
+        }
+      }
+    },
+    "apprenticeDeclarations": {
+      "title": "Déclarations jours d'école des apprentis",
+      "subtitle": "Confirmez le statut des jours d'école pour chaque apprenti avant de générer le planning",
+      "allDeclared": "Toutes les déclarations des apprentis sont complètes pour ce mois",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "Jours d'école fournis",
+        "NO_SCHOOL_THIS_MONTH": "Pas d'école ce mois",
+        "MISSING": "Déclaration manquante"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirmer : pas d'école",
+        "removeDeclaration": "Supprimer la déclaration"
+      },
+      "empty": "Aucun apprenti dans cette clinique"
+    }
+  },
+  "brand": {
+    "name": "Pawly",
+    "copyright": "Pawly © 2026 — Clinique Zen Experience",
+    "boardTitle": "Brand Board.",
+    "version": "v1.1 • \"Clean Care\"",
+    "description": "Une identité visuelle qui inspire l'hygiène et la compétence. Le \"Vert Vétérinaire\" rassure, le Noir/Blanc structure, l'Orange humanise.",
+    "atmosphere": "Atmosphère \"Clinique Zen\"",
+    "hygiene": "Hygiène",
+    "precision": "Précision",
+    "gentleness": "Douceur",
+    "sections": {
+      "logotype": "Logotype & Construction",
+      "colors": "Palette Chromatique",
+      "typography": "Typographie",
+      "texture": "Texture & Sensations",
+      "components": "Composants Interface",
+      "iconography": "Iconographie"
+    },
+    "logotype": {
+      "authorized": "Autorisé",
+      "authorizedDesc": "Utiliser le logo en Noir (#171717) sur fond blanc pour une lisibilité maximale. La version blanche sur fond \"Vert Vétérinaire\" est acceptée pour le branding fort.",
+      "forbidden": "Interdit",
+      "forbiddenDesc": "Ne pas utiliser de dégradés sur le logo. Il doit rester plat et clinique.",
+      "cornerRadius": "Corner Radius: 35%"
+    },
+    "colors": {
+      "surfacesAndStates": "Surfaces & États"
+    },
+    "typography": {
+      "displayH1": "Display H1",
+      "headingH2": "Heading H2",
+      "bodyLarge": "Body Large",
+      "healBetter": "Soigner mieux.",
+      "clinicManagement": "Gestion clinique.",
+      "bodyDescription": "Pawly simplifie la vie des cliniques vétérinaires. Une typographie sans-serif propre (Inter) assure une lisibilité parfaite des dossiers médicaux.",
+      "fontFamily": "Font Family",
+      "styleGuide": "Guide de Style",
+      "medicalClarity": "Clarté Médicale :",
+      "medicalClarityDesc": "Éviter les polices décoratives. Tout doit être lisible instantanément.",
+      "colorHierarchy": "Hiérarchie par la couleur :",
+      "colorHierarchyDesc": "Titres en Noir, Paragraphes en Gris Neutre, Labels médicaux en Vert Vétérinaire."
+    },
+    "texture": {
+      "description": "L'interface Pawly respire la propreté clinique sans être froide. Le blanc domine, rehaussé par des ombres portées douces et colorées qui indiquent l'interactivité.",
+      "softShadow": "Soft Shadow (Teal hint)",
+      "solidBorder": "Solid Border"
+    },
+    "components": {
+      "inputs": "Inputs",
+      "actions": "Actions",
+      "cards": "Cartes",
+      "searchPlaceholder": "Chercher un patient...",
+      "emergencies": "Urgences",
+      "newAppointment": "Nouveau Rendez-vous",
+      "adminPortal": "Portail Admin",
+      "viewFullPlanning": "Voir le planning complet"
+    },
+    "iconography": {
+      "guidelines": "Guidelines Icônes (Lucide React)",
+      "linearStyle": "Style Linéaire :",
+      "linearStyleDesc": "Traits fins (1.5px) pour l'élégance.",
+      "colorsRule": "Couleurs :",
+      "colorsRuleDesc": "Gris foncé (Neutral-900) par défaut. Le Vert Vétérinaire (#009588) est utilisé pour souligner l'aspect médical/soin."
+    },
+    "designSystem": "Pawly Design System • v1.1"
+  },
+  "dashboard": {
+    "nav": {
+      "title": "Pawly Employé",
+      "home": "Accueil",
+      "schoolDays": "Jours d'école"
+    },
+    "schoolDays": {
+      "title": "Déclaration des jours d'école",
+      "subtitle": "Déclarez vos jours d'école pour le mois à venir afin que le planning puisse tenir compte de vos disponibilités.",
+      "calendar": {
+        "instructions": "Sélectionnez vos jours d'école pour {month}",
+        "selectedCount": "{count, plural, =0 {Aucun jour sélectionné} one {# jour sélectionné} other {# jours sélectionnés}}"
+      },
+      "reminder": {
+        "title": "Rappel",
+        "message": "Vous n'avez pas encore déclaré vos jours d'école pour {month}. Veuillez soumettre avant la fin du mois."
+      },
+      "submit": "Soumettre mes jours d'école",
+      "submitting": "Envoi en cours...",
+      "success": {
+        "title": "Déclaration soumise",
+        "message": "Vos jours d'école pour {month} ont été enregistrés. Vous pouvez les modifier à tout moment.",
+        "modify": "Modifier la déclaration"
+      },
+      "empty": {
+        "title": "Aucun jour d'école déclaré",
+        "description": "Sélectionnez des dates sur le calendrier pour déclarer vos jours d'école."
+      },
+      "toast": {
+        "declared": "Jours d'école déclarés avec succès",
+        "error": "Impossible de soumettre la déclaration"
+      },
+      "errors": {
+        "loadFailed": "Échec du chargement des jours d'école",
+        "retry": "Réessayer",
+        "notApprentice": "Seuls les apprentis peuvent déclarer des jours d'école"
+      },
+      "admin": {
+        "declared": "Déclaré",
+        "notDeclared": "Non déclaré",
+        "schoolDaysFor": "Jours d'école pour {month}"
+      }
+    },
+    "title": "Tableau de bord",
+    "greeting": "Bonjour,",
+    "thisWeek": "Cette semaine",
+    "targetReached": "Objectif atteint",
+    "requestAbsence": "Demander une absence",
+    "absenceTypes": "Congés, Maladie...",
+    "today": "Aujourd'hui",
+    "upcomingDays": "Prochains Jours",
+    "newRequest": "Nouvelle Demande",
+    "absenceType": "Type d'absence",
+    "dates": "Date(s)",
+    "allDay": "Toute la journée",
+    "sendRequest": "Envoyer la demande",
+    "validated": "Validé",
+    "requestTypes": {
+      "vacation": "Congés Payés",
+      "sick": "Arrêt Maladie",
+      "school": "École / Formation",
+      "child": "Enfant Malade"
+    },
+    "scheduleTypes": {
+      "rest": "Repos",
+      "surgery": "Chirurgie",
+      "vacation": "Congés"
+    },
+    "hoursUnit": "{hours}h",
+    "timeRange": "{start} - {end}",
+    "doctorSchedule": "{doctor} • {time}"
+  },
+  "forms": {
+    "validation": {
+      "required": "Ce champ est requis",
+      "email": "Email invalide",
+      "minLength": "Minimum {min, plural, one {# caractère} other {# caractères}}",
+      "maxLength": "Maximum {max, plural, one {# caractère} other {# caractères}}",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "invalidDate": "Date invalide",
+      "dateInPast": "La date ne peut pas être dans le passé",
+      "dateInFuture": "La date ne peut pas être dans le futur"
+    },
+    "labels": {
+      "email": "Email",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "name": "Nom",
+      "firstName": "Prénom",
+      "lastName": "Nom de famille",
+      "phone": "Téléphone",
+      "address": "Adresse",
+      "city": "Ville",
+      "postalCode": "Code postal",
+      "country": "Pays",
+      "startDate": "Date de début",
+      "endDate": "Date de fin",
+      "description": "Description",
+      "notes": "Notes"
+    },
+    "placeholders": {
+      "email": "votre@email.com",
+      "password": "Entrez votre mot de passe",
+      "search": "Rechercher...",
+      "name": "Entrez votre nom",
+      "phone": "+33 6 12 34 56 78"
+    }
+  },
+  "dates": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "tomorrow": "Demain",
+    "thisWeek": "Cette semaine",
+    "lastWeek": "La semaine dernière",
+    "nextWeek": "La semaine prochaine",
+    "thisMonth": "Ce mois-ci",
+    "lastMonth": "Le mois dernier",
+    "nextMonth": "Le mois prochain",
+    "days": {
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi",
+      "sunday": "Dimanche"
+    },
+    "months": {
+      "january": "Janvier",
+      "february": "Février",
+      "march": "Mars",
+      "april": "Avril",
+      "may": "Mai",
+      "june": "Juin",
+      "july": "Juillet",
+      "august": "Août",
+      "september": "Septembre",
+      "october": "Octobre",
+      "november": "Novembre",
+      "december": "Décembre"
+    }
+  },
+  "pricing": {
+    "title": "Commencez à gérer votre clinique",
+    "subtitle": "Abonnez-vous pour démarrer avec Pawly pour votre cabinet vétérinaire.",
+    "meta": {
+      "title": "Tarifs — Pawly | Gestion de clinique vétérinaire",
+      "description": "Comparez les offres Pawly pour votre clinique vétérinaire. Options Starter, Professionnel et Entreprise avec des tarifs transparents et sans frais cachés."
+    },
+    "page": {
+      "heading": "Finalisez votre inscription",
+      "subtitle": "Renseignez vos informations pour démarrer avec Pawly.",
+      "changePlan": "Changer de plan",
+      "missingPriceIdError": "Erreur de configuration : identifiant de prix Stripe manquant"
+    },
+    "preCheckout": {
+      "clinicNameLabel": "Nom de la clinique",
+      "clinicNamePlaceholder": "Clinique Vétérinaire des Lilas",
+      "adminNameLabel": "Votre nom",
+      "adminNamePlaceholder": "Dr. Dupont",
+      "adminEmailLabel": "Email professionnel",
+      "adminEmailPlaceholder": "admin@clinique.fr",
+      "submitButton": "S'abonner",
+      "submitting": "Redirection vers le paiement...",
+      "error": "Impossible de créer la session de paiement"
+    },
+    "success": {
+      "title": "Compte créé avec succès !",
+      "description": "Votre clinique a été enregistrée. Vous allez recevoir un email pour accéder à votre espace.",
+      "checkEmail": "Vérifiez vos emails",
+      "checkEmailDescription": "Un lien de connexion sécurisé a été envoyé à l'adresse email que vous avez renseignée lors de l'inscription.",
+      "spamNote": "Si vous ne trouvez pas l'email, vérifiez votre dossier spam.",
+      "backToHome": "Retour à l'accueil"
+    }
+  },
+  "onboarding": {
+    "title": "Configuration de votre clinique",
+    "subtitle": "Quelques étapes pour préparer votre espace Pawly",
+    "progress": "Étape {current} sur {total}",
+    "steps": {
+      "clinicName": {
+        "title": "Nom de la clinique",
+        "description": "Confirmez ou modifiez le nom de votre clinique",
+        "label": "Nom de la clinique",
+        "placeholder": "Clinique Vétérinaire des Lilas",
+        "help": "Ce nom sera affiché dans votre espace d'administration"
+      },
+      "workDays": {
+        "title": "Jours de travail",
+        "description": "Sélectionnez les jours d'ouverture de votre clinique",
+        "label": "Jours d'ouverture",
+        "help": "Vous pourrez modifier ces paramètres plus tard"
+      },
+      "workHours": {
+        "title": "Horaires de travail",
+        "description": "Définissez les horaires par défaut de votre clinique",
+        "startTime": "Heure d'ouverture",
+        "endTime": "Heure de fermeture",
+        "help": "Ces horaires servent de base pour la planification"
+      },
+      "shiftTypes": {
+        "title": "Types de postes",
+        "description": "Définissez les différents types de postes de votre clinique",
+        "name": "Nom du poste",
+        "namePlaceholder": "Chirurgie",
+        "code": "Code",
+        "codePlaceholder": "CHIR",
+        "startTime": "Début",
+        "endTime": "Fin",
+        "breakMinutes": "Pause (min)",
+        "color": "Couleur",
+        "addShiftType": "Ajouter un type de poste",
+        "removeShiftType": "Supprimer",
+        "help": "Chaque poste doit avoir un code unique",
+        "minRequired": "Au moins un type de poste est requis"
+      }
+    },
+    "navigation": {
+      "previous": "Précédent",
+      "next": "Suivant",
+      "complete": "Terminer la configuration",
+      "completing": "Configuration en cours..."
+    },
+    "completion": {
+      "title": "Clinique configurée !",
+      "description": "Votre clinique est prête. Vous allez être redirigé vers votre tableau de bord.",
+      "toast": "Clinique configurée avec succès !"
+    },
+    "errors": {
+      "saveFailed": "Impossible de sauvegarder la configuration",
+      "duplicateCode": "Ce code de poste existe déjà"
+    },
+    "days": {
+      "MONDAY": "Lundi",
+      "TUESDAY": "Mardi",
+      "WEDNESDAY": "Mercredi",
+      "THURSDAY": "Jeudi",
+      "FRIDAY": "Vendredi",
+      "SATURDAY": "Samedi",
+      "SUNDAY": "Dimanche"
+    }
+  },
+  "billing": {
+    "title": "Facturation",
+    "subtitle": "Gérez votre abonnement et consultez vos factures",
+    "plan": {
+      "label": "Abonnement",
+      "name": "Plan {planName}",
+      "price": "{amount} / {interval}",
+      "renewalDate": "Renouvellement le {date}",
+      "trialEnd": "Période d'essai jusqu'au {date}",
+      "cancelPending": "Votre abonnement sera annulé le {date}",
+      "noPlan": "Aucun abonnement actif"
+    },
+    "status": {
+      "active": "Actif",
+      "trialing": "Essai",
+      "past_due": "Impayé",
+      "canceled": "Annulé",
+      "unpaid": "Impayé"
+    },
+    "invoices": {
+      "title": "Historique des factures",
+      "date": "Date",
+      "amount": "Montant",
+      "status": "Statut",
+      "actions": "Actions",
+      "downloadPdf": "Télécharger PDF",
+      "viewInvoice": "Voir la facture",
+      "noInvoices": "Aucune facture pour le moment",
+      "paid": "Payée",
+      "open": "En attente",
+      "void": "Annulée",
+      "uncollectible": "Irrécouvrable"
+    },
+    "actions": {
+      "manageSubscription": "Gérer l'abonnement",
+      "redirecting": "Redirection vers le portail..."
+    },
+    "labels": {
+      "currentPlan": "Plan actuel",
+      "entitlementTier": "Niveau",
+      "interval": {
+        "month": "mois",
+        "year": "an"
+      }
+    },
+    "promotion": {
+      "title": "Promotion active",
+      "code": "Code : {code}",
+      "discount": "Réduction de {value}",
+      "discountPercent": "-{value}%",
+      "discountAmount": "-{value}",
+      "type": {
+        "partner": "Partenaire",
+        "internal": "Interne",
+        "lifetime": "À vie"
+      },
+      "fullDiscount": "100% — Accès offert"
+    },
+    "errors": {
+      "loadFailed": "Impossible de charger les informations de facturation",
+      "portalFailed": "Impossible d'ouvrir le portail de gestion",
+      "noSubscription": "Aucun abonnement trouvé pour votre clinique",
+      "retry": "Réessayer"
+    },
+    "guard": {
+      "inactive": {
+        "title": "Abonnement inactif",
+        "description": "Votre abonnement n'est plus actif. Veuillez mettre à jour vos informations de facturation pour continuer à utiliser Pawly."
+      },
+      "pastDue": {
+        "title": "Paiement en retard",
+        "description": "Votre dernier paiement a échoué. Veuillez mettre à jour votre moyen de paiement pour éviter une interruption de service.",
+        "action": "Mettre à jour le paiement"
+      },
+      "canceled": {
+        "title": "Abonnement annulé",
+        "description": "Votre abonnement a été annulé. Réabonnez-vous pour retrouver l'accès à toutes les fonctionnalités.",
+        "action": "Se réabonner"
+      },
+      "unpaid": {
+        "title": "Paiement requis",
+        "description": "Votre compte a des factures impayées. Veuillez contacter le support pour résoudre ce problème.",
+        "action": "Contacter le support"
+      },
+      "upgrade": {
+        "title": "Fonctionnalité indisponible",
+        "description": "Cette fonctionnalité nécessite un niveau d'abonnement supérieur. Améliorez votre plan pour y accéder.",
+        "action": "Améliorer le plan"
+      },
+      "noSubscription": {
+        "title": "Aucun abonnement",
+        "description": "Aucun abonnement actif trouvé. Abonnez-vous pour commencer à utiliser Pawly."
+      }
+    }
+  },
+  "employees": {
+    "meta": {
+      "title": "Gestion des employés - Pawly",
+      "description": "Gérez votre équipe et les contrats de votre clinique"
+    },
+    "page": {
+      "title": "Employés",
+      "subtitle": "Gérez votre équipe"
+    },
+    "actions": {
+      "add": "Ajouter un employé",
+      "edit": "Modifier",
+      "deactivate": "Désactiver",
+      "activate": "Activer",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "resendInvitation": "Renvoyer l'invitation"
+    },
+    "form": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Email",
+      "phone": "Téléphone",
+      "jobType": "Poste",
+      "contractType": "Type de contrat",
+      "contractHours": "Heures hebdomadaires",
+      "color": "Couleur calendrier",
+      "hireDate": "Date d'embauche",
+      "endDate": "Date de fin",
+      "createTitle": "Nouvel employé",
+      "editTitle": "Modifier l'employé"
+    },
+    "jobTypes": {
+      "VET": "Vétérinaire",
+      "ASV": "Auxiliaire vétérinaire",
+      "APPRENTICE": "Apprenti"
+    },
+    "contractTypes": {
+      "CDI": "CDI",
+      "CDD": "CDD",
+      "APPRENTICESHIP": "Apprentissage"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif"
+    },
+    "labels": {
+      "contractHoursPerWeek": "{hours}h/sem"
+    },
+    "loading": "Chargement des employés...",
+    "errors": {
+      "loadFailed": "Impossible de charger les employés",
+      "loadFailedDescription": "Une erreur est survenue lors du chargement de la liste des employés. Veuillez rafraîchir la page.",
+      "retry": "Réessayer"
+    },
+    "empty": {
+      "title": "Aucun employé",
+      "description": "Ajoutez votre premier membre d'équipe pour commencer la planification",
+      "cta": "Ajouter un employé"
+    },
+    "confirm": {
+      "deactivateTitle": "Désactiver l'employé",
+      "deactivateMessage": "Cet employé sera exclu de la planification. Son historique sera conservé.",
+      "activateTitle": "Réactiver l'employé",
+      "activateMessage": "Cet employé sera de nouveau inclus dans la planification."
+    },
+    "toast": {
+      "created": "Employé créé avec succès",
+      "updated": "Employé mis à jour avec succès",
+      "createFailed": "Impossible de créer l'employé",
+      "updateFailed": "Impossible de mettre à jour l'employé",
+      "deactivated": "Employé désactivé",
+      "activated": "Employé réactivé",
+      "invitationResent": "Invitation renvoyée avec succès",
+      "invitationFailed": "Échec du renvoi de l'invitation"
+    },
+    "validation": {
+      "firstNameRequired": "Le prénom est requis",
+      "lastNameRequired": "Le nom est requis",
+      "invalidEmail": "Adresse email invalide",
+      "hoursRange": "Les heures doivent être entre 1 et 48",
+      "endDateAfterHire": "La date de fin doit être après la date d'embauche"
+    },
+    "filters": {
+      "searchPlaceholder": "Rechercher un employé...",
+      "showInactive": "Afficher les inactifs",
+      "allJobTypes": "Tous les postes"
+    },
+    "schoolDays": {
+      "declared": "Déclaré",
+      "notDeclared": "Non déclaré"
+    },
+    "constraints": {
+      "title": "Contraintes de {name}",
+      "subtitle": "Définissez les indisponibilités ponctuelles et récurrentes utilisées comme règles bloquantes pour la planification.",
+      "loading": "Chargement des contraintes...",
+      "labels": {
+        "oneTime": "Ponctuelle",
+        "recurring": "Récurrente"
+      },
+      "days": {
+        "1": "Lundi",
+        "2": "Mardi",
+        "3": "Mercredi",
+        "4": "Jeudi",
+        "5": "Vendredi",
+        "6": "Samedi",
+        "7": "Dimanche"
+      },
+      "types": {
+        "SCHOOL": "École",
+        "VACATION": "Congés",
+        "SICK": "Arrêt maladie",
+        "OTHER": "Autre"
+      },
+      "actions": {
+        "manage": "Gérer les contraintes",
+        "add": "Ajouter une contrainte",
+        "edit": "Modifier la contrainte",
+        "delete": "Supprimer la contrainte"
+      },
+      "empty": {
+        "title": "Aucune contrainte",
+        "description": "Ajoutez des contraintes pour bloquer les jours indisponibles dans le planning."
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer la contrainte",
+        "deleteMessage": "Cette contrainte sera définitivement supprimée. Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "toast": {
+        "created": "Contrainte créée",
+        "updated": "Contrainte mise à jour",
+        "deleted": "Contrainte supprimée"
+      },
+      "form": {
+        "createTitle": "Nouvelle contrainte",
+        "editTitle": "Modifier la contrainte",
+        "type": "Type de contrainte",
+        "startDate": "Date de début",
+        "endDate": "Date de fin",
+        "reason": "Motif (optionnel)",
+        "reasonPlaceholder": "ex : école, congés, rendez-vous médical",
+        "recurring": "Contrainte hebdomadaire récurrente",
+        "daysOfWeek": "Jours récurrents"
+      },
+      "validation": {
+        "startDateRequired": "La date de début est requise",
+        "endDateRequired": "La date de fin est requise",
+        "endDateAfterStart": "La date de fin doit être après ou égale à la date de début",
+        "weekdayRequired": "Sélectionnez au moins un jour pour une contrainte récurrente"
+      }
+    }
+  },
+  "settings": {
+    "tabs": {
+      "operational": "Général",
+      "shiftTypes": "Types de quarts",
+      "planningRules": "Règles de planning"
+    },
+    "shiftTypes": {
+      "title": "Types de quarts",
+      "fields": {
+        "name": "Nom",
+        "namePlaceholder": "ex : Matin, Chirurgie",
+        "code": "Code",
+        "codePlaceholder": "ex : MATIN",
+        "startTime": "Heure de début",
+        "endTime": "Heure de fin",
+        "breakMinutes": "Pause (min)",
+        "breakMinutesPlaceholder": "ex : 60",
+        "color": "Couleur"
+      },
+      "form": {
+        "createTitle": "Nouveau type de quart",
+        "createSubtitle": "Définissez un nouveau type de quart pour le planning de votre clinique.",
+        "editTitle": "Modifier le type de quart",
+        "editSubtitle": "Modifiez les détails du type de quart."
+      },
+      "actions": {
+        "add": "Ajouter un type de quart",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "save": "Enregistrer",
+        "cancel": "Annuler"
+      },
+      "confirm": {
+        "deleteTitle": "Supprimer le type de quart",
+        "deleteMessage": "Êtes-vous sûr de vouloir supprimer ce type de quart ? Cette action est irréversible.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      },
+      "empty": {
+        "title": "Aucun type de quart",
+        "description": "Ajoutez des types de quarts pour définir la structure de votre planning.",
+        "cta": "Ajouter le premier type de quart"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les types de quarts.",
+        "retry": "Réessayer"
+      },
+      "toast": {
+        "created": "Type de quart créé",
+        "createFailed": "Impossible de créer le type de quart",
+        "updated": "Type de quart mis à jour",
+        "updateFailed": "Impossible de mettre à jour le type de quart",
+        "deleted": "Type de quart supprimé",
+        "deleteFailed": "Impossible de supprimer le type de quart"
+      }
+    },
+    "operationalConfig": {
+      "title": "Configuration opérationnelle de la clinique",
+      "subtitle": "Définissez les paramètres hebdomadaires, les jours fermés et les exceptions journalières utilisées par la planification.",
+      "loading": "Chargement de la configuration opérationnelle...",
+      "sections": {
+        "weekly": "Paramètres hebdomadaires",
+        "closedDays": "Jours fermés",
+        "specialDays": "Jours spéciaux"
+      },
+      "fields": {
+        "workDays": "Jours de travail",
+        "defaultStartTime": "Heure de début par défaut",
+        "defaultEndTime": "Heure de fin par défaut",
+        "date": "Date",
+        "reason": "Motif",
+        "reasonPlaceholder": "ex : jour férié, fermeture annuelle",
+        "label": "Libellé",
+        "labelPlaceholder": "ex : ouverture réduite",
+        "startTime": "Heure de début",
+        "endTime": "Heure de fin"
+      },
+      "actions": {
+        "save": "Enregistrer la configuration opérationnelle",
+        "saving": "Enregistrement...",
+        "addClosedDay": "Ajouter un jour fermé",
+        "addSpecialDay": "Ajouter un jour spécial",
+        "remove": "Supprimer"
+      },
+      "empty": {
+        "closedDays": "Aucun jour fermé configuré.",
+        "specialDays": "Aucun jour spécial configuré."
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger la configuration opérationnelle de la clinique.",
+        "retry": "Réessayer"
+      },
+      "toast": {
+        "updated": "Configuration opérationnelle mise à jour",
+        "updateFailed": "Impossible de mettre à jour la configuration"
+      },
+      "validation": {
+        "workDaysRequired": "Sélectionnez au moins un jour de travail.",
+        "invalidTimeFormat": "Utilisez le format horaire HH:MM.",
+        "endTimeAfterStartTime": "L'heure de fin doit être après l'heure de début.",
+        "invalidDateFormat": "Utilisez le format de date YYYY-MM-DD.",
+        "invalidDateValue": "Valeur de date invalide.",
+        "duplicateClosedDay": "Cette date fermée est dupliquée.",
+        "duplicateSpecialDay": "Cette date spéciale est dupliquée.",
+        "closedAndSpecialConflict": "Une date ne peut pas être fermée et spéciale."
+      },
+      "days": {
+        "MONDAY": "Lundi",
+        "TUESDAY": "Mardi",
+        "WEDNESDAY": "Mercredi",
+        "THURSDAY": "Jeudi",
+        "FRIDAY": "Vendredi",
+        "SATURDAY": "Samedi",
+        "SUNDAY": "Dimanche"
+      }
+    }
+  },
+  "errors": {
+    "generic": "Une erreur est survenue",
+    "network": "Erreur de connexion au serveur",
+    "notFound": "Page non trouvée",
+    "unauthorized": "Non autorisé",
+    "forbidden": "Accès refusé",
+    "timeout": "La requête a expiré",
+    "serverError": "Erreur serveur",
+    "validationError": "Erreur de validation",
+    "unknownError": "Erreur inconnue",
+    "tryAgain": "Veuillez réessayer"
+  },
+  "landing": {
+    "meta": {
+      "title": "Pawly — Planning intelligent pour cliniques vétérinaires",
+      "description": "Simplifiez la gestion de votre clinique vétérinaire avec Pawly. Planning intelligent, coordination d'équipe et gestion des abonnements en une seule plateforme."
+    },
+    "header": {
+      "login": "Se connecter",
+      "cta": "Commencer",
+      "navFeatures": "Fonctionnalités",
+      "navPricing": "Tarifs"
+    },
+    "hero": {
+      "title": "Le planning intelligent pour votre clinique vétérinaire",
+      "subtitle": "Pawly simplifie la planification, la gestion d'équipe et les opérations quotidiennes — pour vous concentrer sur l'essentiel : le soin animal.",
+      "cta": "Voir les tarifs",
+      "secondaryCta": "En savoir plus",
+      "badge": "Nouveau : Planning IA automatisé",
+      "trustTitle": "Ils nous font confiance :",
+      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+    },
+    "features": {
+      "title": "Tout ce dont votre clinique a besoin",
+      "subtitle": "Des outils puissants conçus spécifiquement pour la gestion de cabinet vétérinaire.",
+      "badge": "Fonctionnalités",
+      "scheduling": {
+        "title": "Planning intelligent",
+        "description": "Planification automatique des postes avec algorithmes de contraintes. Gérez chirurgies, consultations et repos sans effort."
+      },
+      "team": {
+        "title": "Gestion d'équipe",
+        "description": "Gérez vétérinaires, ASV et apprentis avec accès basé sur les rôles. Suivez contrats, absences et compteurs d'équité."
+      },
+      "billing": {
+        "title": "Abonnement & Facturation",
+        "description": "Tarification transparente avec facturation Stripe. Gérez votre abonnement, consultez vos factures et maîtrisez vos coûts."
+      },
+      "mobile": {
+        "title": "Compatible mobile",
+        "description": "Application Web Progressive pour votre équipe. Les employés consultent leur planning, demandent des absences et confirment leur présence depuis n'importe quel appareil."
+      },
+      "i18n": {
+        "title": "Support bilingue",
+        "description": "Support complet français et anglais. Chaque écran, notification et rapport est disponible dans les deux langues."
+      },
+      "security": {
+        "title": "Sécurisé & Fiable",
+        "description": "Authentification par magic link, tokens JWT et contrôle d'accès basé sur les rôles. Les données de votre clinique sont protégées à chaque niveau."
+      }
+    },
+    "pricing": {
+      "title": "Des tarifs simples et transparents",
+      "subtitle": "Choisissez le plan adapté à votre clinique. Tous les plans incluent un essai gratuit.",
+      "badge": "Tarifs transparents",
+      "starter": {
+        "name": "Starter",
+        "price": "29",
+        "interval": "mois",
+        "description": "Parfait pour les petites cliniques qui démarrent",
+        "features": ["Jusqu'à 5 membres d'équipe", "Planning de base", "Gestion des absences", "Support par email"]
+      },
+      "professional": {
+        "name": "Professionnel",
+        "price": "59",
+        "interval": "mois",
+        "description": "Pour les cliniques en croissance qui ont besoin de plus",
+        "popular": "Le plus populaire",
+        "features": ["Jusqu'à 20 membres d'équipe", "Algorithmes de planning avancés", "Compteurs d'équité", "Support prioritaire", "Types de postes personnalisés"]
+      },
+      "enterprise": {
+        "name": "Entreprise",
+        "price": "99",
+        "interval": "mois",
+        "description": "Pour les opérations multi-cliniques",
+        "features": ["Membres d'équipe illimités", "Gestion multi-cliniques", "Accès API", "Support dédié", "Intégrations personnalisées"]
+      },
+      "cta": "Commencer",
+      "currency": "€",
+      "perMonth": "/mois"
+    },
+    "testimonials": {
+      "title": "La confiance des professionnels vétérinaires",
+      "subtitle": "Découvrez ce que les responsables de cliniques disent de Pawly.",
+      "badge": "Témoignages",
+      "items": {
+        "1": {
+          "quote": "Pawly a transformé notre gestion du planning clinique. Ce qui prenait des heures ne prend plus que quelques minutes.",
+          "author": "Dr. Sophie Laurent",
+          "role": "Directrice de clinique, Vétérinaire des Lilas"
+        },
+        "2": {
+          "quote": "Les fonctionnalités de gestion d'équipe sont exceptionnelles. Enfin un outil qui comprend les flux vétérinaires.",
+          "author": "Dr. Marc Dubois",
+          "role": "Vétérinaire en chef, Clinique des Animaux"
+        },
+        "3": {
+          "quote": "Depuis que nous utilisons Pawly, la satisfaction de notre personnel s'est considérablement améliorée. L'application mobile change tout.",
+          "author": "Julie Martin",
+          "role": "Responsable de cabinet, VetCare Plus"
+        }
+      }
+    },
+    "cta": {
+      "title": "Prêt à simplifier la gestion de votre clinique ?",
+      "subtitle": "Rejoignez les professionnels vétérinaires qui font confiance à Pawly au quotidien.",
+      "button": "Démarrer votre essai gratuit"
+    },
+    "footer": {
+      "description": "La plateforme de planning intelligent pour cliniques vétérinaires.",
+      "product": "Produit",
+      "features": "Fonctionnalités",
+      "pricing": "Tarifs",
+      "company": "Entreprise",
+      "about": "À propos",
+      "contact": "Contact",
+      "legal": "Mentions légales",
+      "privacy": "Politique de confidentialité",
+      "terms": "Conditions d'utilisation",
+      "copyright": "© 2026 Pawly. Tous droits réservés."
+    }
+  }
+}
