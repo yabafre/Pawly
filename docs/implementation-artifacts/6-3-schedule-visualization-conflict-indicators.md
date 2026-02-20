@@ -117,16 +117,16 @@ Grid Structure:
 ```
 
 **Cell Types:**
-1. **ShiftCell** — Colored chip matching `ClinicShiftType.color`, shows time range and source badge
-2. **HoleCell** — Dashed outline + "+" icon. Shows required shift type on hover. Interactive CTA for future Story 7.1 assignment
+1. **ShiftCell** — Plain `bg-white` chip with `border-neutral-200`, shift type code, time range. Only shows "Manuel" label (grey italic) for MANUAL shifts; GENERATED shifts show no badge (harmonized UI).
+2. **HoleCell** — Dashed outline + "+" icon. Shows required shift type on hover. Interactive CTA for future Story 7.1 assignment. Accessible with `role="button"`, `tabIndex={0}`, `aria-label`.
 3. **AbsenceCell** — Full cell fill with unavailability type color:
    - VACATION: `bg-emerald-50 border-emerald-100 text-emerald-700` + Plane icon
    - SICK: `bg-rose-50 border-rose-100 text-rose-700` + Thermometer icon
-   - SCHOOL: `bg-neutral-100 border-neutral-200 text-neutral-600` + GraduationCap icon
+   - SCHOOL: `bg-purple-50 border-purple-100 text-purple-700` + GraduationCap icon
    - OTHER: `bg-neutral-50 border-neutral-100 text-neutral-400`
 4. **ClosedDay** — Grey hatched pattern (`bg-[repeating-linear-gradient]`), non-interactive
 5. **DayOff** — Same as ClosedDay for non-work days
-6. **ConflictOverlay** — Vital Orange (#F97316) border + AlertCircle icon overlay on any cell with hard violation
+6. **ConflictOverlay** — Vital Orange (#F97316) background on entire cell with hard violation
 
 ### Backend: Schedule View Aggregation
 
@@ -514,6 +514,51 @@ The following algorithm improvements were made to `PlanningGenerationService` du
 - Apprentice school days count 7h (420 min) toward weekly hours budget
 - An apprentice with 2 school days (14h) only has 21h budget remaining for shifts
 
+## Code Review Fixes (Adversarial Review)
+
+22 issues identified and fixed across 4 categories:
+
+### Critical Fixes (7)
+- **C1 — Responsive missing**: Added 3-day lite view for `< 1024px` with `window.matchMedia` and day offset navigation in `StaffGrid.tsx`
+- **C2 — shiftTypeColor not propagated**: Backend `getScheduleViewForMonth` now builds `shiftTypeColorMap` from `ClinicShiftType` and maps it to each `ScheduleShift`
+- **C3 — SCHOOL grey not purple**: Changed `AbsenceCell` SCHOOL type from `bg-neutral-100` to `bg-purple-50/border-purple-100/text-purple-700`
+- **C4 — Conflict wrong visual**: Hard conflict cells now show Vital Orange `bg-[#F97316]/10` background on the entire cell, not just a badge
+- **C5 — hoursRatio wrong for partial weeks**: Prorated contract hours = `(contractHours / 5) * displayedDays` instead of full weekly hours
+- **C6 — weekOffset not reset**: Added `useEffect(() => setWeekOffset(0), [month])` in `useScheduleView`
+- **C7 — O(n) scan**: Built `unavailabilityIndex: Map<string, ScheduleUnavailability>` for O(1) cell lookup in `StaffGridRow`
+
+### Medium Fixes (7)
+- **M1 — Focus steal**: Added `hasInteracted` ref in `useGridKeyboard` to prevent focus on mount
+- **M2 — HoleCell a11y**: Added `role="button"`, `tabIndex={0}`, `aria-label`, `onKeyDown` handler
+- **M3 — Date validation**: Added regex `/^\d{4}-\d{2}-\d{2}$/` to `date` field in schedule view schema
+- **M4 — Sequential waterfall**: Parallelized template fetch + validation with `Promise.all` in backend
+- **M5 — Duplicate code**: ConflictIndicator and WarningBadge refactored from custom click-outside to Radix `Popover`
+- **M6 — Local time vs UTC**: `getDefaultMonth()` uses `getUTCFullYear()`/`getUTCMonth()` instead of local time
+- **M7 — Scope creep**: ApprenticeDeclaration changes documented as supporting changes for border week accuracy
+
+### Low Fixes (2)
+- **L1 — aria-atomic**: Added `aria-atomic="true"` on conflict summary
+- **L2 — Escape dismiss**: Radix Popover handles Escape natively (replaced custom implementation)
+
+### Test Gap Fixes (6)
+- **T1**: Added `breakMinutes` and `shiftTypeColor` to shift mapping test assertions
+- **T2**: Added 13 new schedule-view web tests (ShiftCell source/break/color, ConflictIndicator popover/color/multiple, WarningBadge, AbsenceCell SCHOOL/OTHER)
+- **T3**: Updated existing tests for prorated hours, SCHOOL purple, Vital Orange
+- **T4**: Added `useGridKeyboard` unit tests (init state, tabIndex, gridRef)
+- **T5**: Changed invalid month assertion to `rejects.toMatchObject({ code: 'BAD_REQUEST' })`
+- **T6**: Fixed hole detection assertion from `toBeGreaterThan(0)` to `toHaveLength(4)`
+
+### UI Harmonization (user feedback)
+- Removed colored shift backgrounds → all `bg-white` with `border-neutral-200`
+- Removed "Généré" source badge → only show "Manuel" in grey italic for manual shifts
+- Neutralized hours column → `text-neutral-700` default, only `text-red-600` if over limit
+- Employee color dot → thin vertical line (`w-0.5 h-6 rounded-full`)
+- Job type badges → all neutral `bg-neutral-100 text-neutral-500`
+- Warnings moved from inline list to persistent Dialog button on "Créneaux du mois" card
+- Removed conflict summary from ScheduleViewWrapper (redundant with MonthShiftsSummary dialog)
+- Removed duplicate GenerationResultView stats — `generationResult` violations passed to MonthShiftsSummary for complete warning count
+- Added `ConfirmDeleteDialog` for generated shift deletion confirmation
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -526,7 +571,10 @@ Claude Opus 4.6
 
 - Story 6-3 core: StaffGrid, schedule view, conflict indicators, week navigator, keyboard nav, i18n
 - Algorithm improvements: breakMinutes persistence on Shift, border week shifts, applicableJobTypes, dynamic workDays reordering, stronger scoring, random tiebreaker, per-employee contractHours, shift type diversity scoring, ROTATION_EQUITY fallback, intra-day slot alternation
-- Test counts: 510 API (80 planning-generation), 437 Web, 442 Validators = 1389 total
+- Code review: 22 issues fixed (7 critical, 7 medium, 2 low, 6 test gaps)
+- UI harmonization: removed colored shift backgrounds, removed "Généré" badge, neutralized job-type/hours colors, employee dot→thin line
+- Warning display: moved from inline list to persistent Dialog on MonthShiftsSummary, removed duplicate stats from GenerationResultView
+- Test counts: 512 API (82 planning-generation), 448 Web, 442 Validators = 1402 total
 
 ### File List
 
@@ -544,14 +592,17 @@ Claude Opus 4.6
 - `apps/web/src/app/[locale]/admin/planning/_components/AbsenceCell.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/ClosedDayColumn.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/ConflictIndicator.tsx`
-- `apps/web/src/app/[locale]/admin/planning/_components/ConflictPopover.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/WarningBadge.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/WeekNavigator.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/PlanningPageClient.tsx`
 - `apps/web/src/app/[locale]/admin/planning/_components/ScheduleViewWrapper.tsx`
+- `apps/web/src/app/[locale]/admin/planning/_components/ConfirmDeleteDialog.tsx`
 - `apps/web/src/app/[locale]/admin/planning/__tests__/schedule-view.spec.tsx`
 - `apps/web/src/components/ui/popover.tsx`
 - `docs/implementation-artifacts/planning-algorithm-reference.md`
+
+**Deleted files:**
+- `apps/web/src/app/[locale]/admin/planning/_components/ConflictPopover.tsx` (dead code, replaced by Radix Popover in ConflictIndicator/WarningBadge)
 
 **Modified files:**
 - `apps/api/prisma/schema/ShiftType.prisma` (breakMinutes field)
