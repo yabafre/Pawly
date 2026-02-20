@@ -18,11 +18,27 @@ import { AbsenceCell } from "../_components/AbsenceCell";
 import { ClosedDayColumn } from "../_components/ClosedDayColumn";
 import { WeekNavigator } from "../_components/WeekNavigator";
 import { ConflictIndicator } from "../_components/ConflictIndicator";
+import { WarningBadge } from "../_components/WarningBadge";
 import { useGridKeyboard } from "../_hooks/useGridKeyboard";
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+// Mock window.matchMedia for responsive viewport detection
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: true, // default to desktop
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
 vi.mock("../_hooks/useScheduleView", () => ({
   useScheduleView: vi.fn(() => ({
@@ -36,7 +52,6 @@ vi.mock("../_hooks/useScheduleView", () => ({
     goToNextWeek: vi.fn(),
     goToPreviousWeek: vi.fn(),
     goToWeek: vi.fn(),
-    resetWeek: vi.fn(),
   })),
 }));
 
@@ -109,9 +124,11 @@ const mockShift: ScheduleShift = {
   startTime: "08:00",
   endTime: "12:00",
   shiftTypeCode: "SURGERY",
+  breakMinutes: 0,
   source: "GENERATED",
   employeeId: "00000000-0000-0000-0000-000000000001",
   isConfirmed: false,
+  shiftTypeColor: null,
 };
 
 const mockUnavailability: ScheduleUnavailability = {
@@ -184,8 +201,7 @@ describe("ScheduleViewWrapper", () => {
       goToNextWeek: vi.fn(),
       goToPreviousWeek: vi.fn(),
       goToWeek: vi.fn(),
-      resetWeek: vi.fn(),
-    } as any);
+      } as any);
 
     const { container } = render(<ScheduleViewWrapper month="2026-03" />, {
       wrapper: Wrapper,
@@ -208,8 +224,7 @@ describe("ScheduleViewWrapper", () => {
       goToNextWeek: vi.fn(),
       goToPreviousWeek: vi.fn(),
       goToWeek: vi.fn(),
-      resetWeek: vi.fn(),
-    } as any);
+      } as any);
 
     render(<ScheduleViewWrapper month="2026-03" />, { wrapper: Wrapper });
 
@@ -217,7 +232,7 @@ describe("ScheduleViewWrapper", () => {
     expect(screen.getByText("emptyState.description")).toBeInTheDocument();
   });
 
-  it("renders conflict summary with hard and soft counts", async () => {
+  it("does not render inline conflict summary (moved to MonthShiftsSummary dialog)", async () => {
     const { useScheduleView } = await import("../_hooks/useScheduleView");
     vi.mocked(useScheduleView).mockReturnValue({
       scheduleData: mockScheduleData,
@@ -235,18 +250,13 @@ describe("ScheduleViewWrapper", () => {
       goToNextWeek: vi.fn(),
       goToPreviousWeek: vi.fn(),
       goToWeek: vi.fn(),
-      resetWeek: vi.fn(),
-    } as any);
+      } as any);
 
     render(<ScheduleViewWrapper month="2026-03" />, { wrapper: Wrapper });
 
-    // Conflict summary is rendered with aria-live
-    const liveRegion = document.querySelector('[aria-live="polite"]');
-    expect(liveRegion).not.toBeNull();
-
-    // The mock t() returns the key, so we look for "conflict.hardCount" and "conflict.softCount"
-    expect(screen.getByText("conflict.hardCount")).toBeInTheDocument();
-    expect(screen.getByText("conflict.softCount")).toBeInTheDocument();
+    // Conflict summary was removed from ScheduleViewWrapper (now in MonthShiftsSummary dialog)
+    expect(screen.queryByText("conflict.hardCount")).not.toBeInTheDocument();
+    expect(screen.queryByText("conflict.softCount")).not.toBeInTheDocument();
   });
 
   it("renders StaffGrid and WeekNavigator when data is present", async () => {
@@ -267,8 +277,7 @@ describe("ScheduleViewWrapper", () => {
       goToNextWeek: vi.fn(),
       goToPreviousWeek: vi.fn(),
       goToWeek: vi.fn(),
-      resetWeek: vi.fn(),
-    } as any);
+      } as any);
 
     render(<ScheduleViewWrapper month="2026-03" />, { wrapper: Wrapper });
 
@@ -337,9 +346,11 @@ describe("StaffGrid", () => {
       startTime: "08:00",
       endTime: "12:00",
       shiftTypeCode: "SURGERY",
+      breakMinutes: 0,
       source: "GENERATED",
       employeeId: mockEmployee.id,
       isConfirmed: false,
+      shiftTypeColor: null,
     };
     const shiftTue: ScheduleShift = {
       id: "s2",
@@ -347,9 +358,11 @@ describe("StaffGrid", () => {
       startTime: "08:00",
       endTime: "18:00",
       shiftTypeCode: "RECEPTION",
+      breakMinutes: 0,
       source: "GENERATED",
       employeeId: mockEmployee.id,
       isConfirmed: false,
+      shiftTypeColor: null,
     };
 
     render(
@@ -364,10 +377,10 @@ describe("StaffGrid", () => {
       { wrapper: Wrapper },
     );
 
-    // 4h (Mon) + 10h (Tue) = 14h total
+    // 4h (Mon) + 10h (Tue) = 14h gross total
     expect(screen.getByText("14h")).toBeInTheDocument();
-    // Contract hours shown
-    expect(screen.getByText("/ 35h")).toBeInTheDocument();
+    // Prorated contract hours shown: (35h / 5 work days) * 2 displayed days = 14h
+    expect(screen.getByText("/ 14h")).toBeInTheDocument();
   });
 
   it("renders rows for each employee", () => {
@@ -409,6 +422,63 @@ describe("ShiftCell", () => {
   it("renders time range", () => {
     render(<ShiftCell shift={mockShift} />, { wrapper: Wrapper });
 
+    expect(screen.getByText("08:00 - 12:00")).toBeInTheDocument();
+  });
+
+  it("does not render source badge for GENERATED shift (harmonized)", () => {
+    const generatedShift: ScheduleShift = {
+      ...mockShift,
+      source: "GENERATED",
+    };
+
+    render(<ShiftCell shift={generatedShift} />, {
+      wrapper: Wrapper,
+    });
+
+    // GENERATED shifts no longer show a badge — only MANUAL shifts show a grey italic label
+    expect(screen.queryByText("generated")).not.toBeInTheDocument();
+  });
+
+  it("renders manual label with grey italic styling for MANUAL shift", () => {
+    const manualShift: ScheduleShift = {
+      ...mockShift,
+      source: "MANUAL",
+    };
+
+    render(<ShiftCell shift={manualShift} />, {
+      wrapper: Wrapper,
+    });
+
+    const label = screen.getByText("manual");
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass("text-neutral-400");
+    expect(label).toHaveClass("italic");
+  });
+
+  it("renders with breakMinutes in shift data", () => {
+    const shiftWithBreak: ScheduleShift = {
+      ...mockShift,
+      breakMinutes: 30,
+    };
+
+    render(<ShiftCell shift={shiftWithBreak} />, { wrapper: Wrapper });
+
+    // ShiftCell currently renders shift type and time range
+    // The shift data includes breakMinutes but the cell still renders correctly
+    expect(screen.getByText("SURGERY")).toBeInTheDocument();
+    expect(screen.getByText("08:00 - 12:00")).toBeInTheDocument();
+  });
+
+  it("renders correctly with shiftTypeColor in shift data", () => {
+    const shiftWithColor: ScheduleShift = {
+      ...mockShift,
+      shiftTypeColor: "#3B82F6",
+    };
+
+    render(<ShiftCell shift={shiftWithColor} />, { wrapper: Wrapper });
+
+    // ShiftCell renders shift type and time correctly regardless of color data
+    expect(screen.getByText("SURGERY")).toBeInTheDocument();
     expect(screen.getByText("08:00 - 12:00")).toBeInTheDocument();
   });
 });
@@ -457,6 +527,40 @@ describe("AbsenceCell", () => {
 
     const styledDiv = container.querySelector(".bg-rose-50");
     expect(styledDiv).not.toBeNull();
+  });
+
+  it("renders SCHOOL absence with purple styling", () => {
+    const { container } = render(
+      <AbsenceCell type="SCHOOL" reason="Apprentice school day" />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByText("school")).toBeInTheDocument();
+
+    // SCHOOL type uses bg-purple-50 styling
+    const styledDiv = container.querySelector(".bg-purple-50");
+    expect(styledDiv).not.toBeNull();
+
+    // Border class for SCHOOL type
+    const borderDiv = container.querySelector(".border-purple-100");
+    expect(borderDiv).not.toBeNull();
+  });
+
+  it("renders OTHER absence with neutral-50 styling", () => {
+    const { container } = render(
+      <AbsenceCell type="OTHER" reason="Personal" />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByText("other")).toBeInTheDocument();
+
+    // OTHER type uses bg-neutral-50 styling
+    const styledDiv = container.querySelector(".bg-neutral-50");
+    expect(styledDiv).not.toBeNull();
+
+    // Border and text classes for OTHER type
+    const borderDiv = container.querySelector(".border-neutral-100");
+    expect(borderDiv).not.toBeNull();
   });
 });
 
@@ -563,6 +667,136 @@ describe("ConflictIndicator", () => {
     // The button uses aria-label with t("hardCount", { count: 2 }) -> "hardCount"
     const button = screen.getByLabelText("hardCount");
     expect(button).toBeInTheDocument();
+  });
+
+  it("opens popover with conflict messages on click", () => {
+    const conflicts = [
+      { message: "Only 1 vet eligible for SURGERY", severity: "blocking" as const },
+      { message: "Overtime limit exceeded", severity: "blocking" as const },
+    ];
+
+    render(<ConflictIndicator conflicts={conflicts} />, { wrapper: Wrapper });
+
+    // Before click, conflict messages should not be visible
+    expect(screen.queryByText("Only 1 vet eligible for SURGERY")).not.toBeInTheDocument();
+    expect(screen.queryByText("Overtime limit exceeded")).not.toBeInTheDocument();
+
+    // Click the trigger button
+    const button = screen.getByLabelText("hardCount");
+    fireEvent.click(button);
+
+    // After click, popover should show all conflict messages
+    expect(screen.getByText("Only 1 vet eligible for SURGERY")).toBeInTheDocument();
+    expect(screen.getByText("Overtime limit exceeded")).toBeInTheDocument();
+
+    // Popover header with title and count (text is split across nodes, use substring match)
+    expect(screen.getByText((content, element) =>
+      element?.tagName === "P" && content.includes("hardTitle"),
+    )).toBeInTheDocument();
+  });
+
+  it("renders trigger button with Vital Orange background color", () => {
+    const conflicts = [
+      { message: "Blocking conflict", severity: "blocking" as const },
+    ];
+
+    render(<ConflictIndicator conflicts={conflicts} />, { wrapper: Wrapper });
+
+    const button = screen.getByLabelText("hardCount");
+    expect(button).toHaveClass("bg-[#F97316]");
+  });
+
+  it("displays all messages when multiple conflicts are present", () => {
+    const conflicts = [
+      { message: "Conflict A: min staff not met", severity: "blocking" as const },
+      { message: "Conflict B: overtime exceeded", severity: "blocking" as const },
+      { message: "Conflict C: skill requirement missing", severity: "blocking" as const },
+      { message: "Conflict D: rest time violated", severity: "blocking" as const },
+    ];
+
+    render(<ConflictIndicator conflicts={conflicts} />, { wrapper: Wrapper });
+
+    // Open the popover
+    const button = screen.getByLabelText("hardCount");
+    fireEvent.click(button);
+
+    // All 4 conflict messages should be visible
+    expect(screen.getByText("Conflict A: min staff not met")).toBeInTheDocument();
+    expect(screen.getByText("Conflict B: overtime exceeded")).toBeInTheDocument();
+    expect(screen.getByText("Conflict C: skill requirement missing")).toBeInTheDocument();
+    expect(screen.getByText("Conflict D: rest time violated")).toBeInTheDocument();
+  });
+});
+
+// ===========================================================================
+// WarningBadge
+// ===========================================================================
+
+describe("WarningBadge", () => {
+  it("returns null for empty warnings array", () => {
+    const { container } = render(<WarningBadge warnings={[]} />, {
+      wrapper: Wrapper,
+    });
+
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders badge button with orange styling when warnings are present", () => {
+    const warnings = [
+      { message: "Overtime risk", severity: "warning" as const },
+    ];
+
+    render(<WarningBadge warnings={warnings} />, { wrapper: Wrapper });
+
+    // The button uses aria-label with t("softCount", { count: 1 }) -> "softCount"
+    const button = screen.getByLabelText("softCount");
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveClass("bg-orange-400");
+  });
+
+  it("opens popover with warning messages on click", () => {
+    const warnings = [
+      { message: "Employee has 3 Saturday shifts", severity: "warning" as const },
+      { message: "Approaching overtime threshold", severity: "warning" as const },
+    ];
+
+    render(<WarningBadge warnings={warnings} />, { wrapper: Wrapper });
+
+    // Before click, warning messages should not be visible
+    expect(screen.queryByText("Employee has 3 Saturday shifts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Approaching overtime threshold")).not.toBeInTheDocument();
+
+    // Click the trigger button
+    const button = screen.getByLabelText("softCount");
+    fireEvent.click(button);
+
+    // After click, popover should show all warning messages
+    expect(screen.getByText("Employee has 3 Saturday shifts")).toBeInTheDocument();
+    expect(screen.getByText("Approaching overtime threshold")).toBeInTheDocument();
+
+    // Popover header with title and count (text is split across nodes, use substring match)
+    expect(screen.getByText((content, element) =>
+      element?.tagName === "P" && content.includes("softTitle"),
+    )).toBeInTheDocument();
+  });
+
+  it("displays all messages when multiple warnings are present", () => {
+    const warnings = [
+      { message: "Warning A: equity imbalance", severity: "warning" as const },
+      { message: "Warning B: weekend saturation", severity: "warning" as const },
+      { message: "Warning C: rotation suboptimal", severity: "warning" as const },
+    ];
+
+    render(<WarningBadge warnings={warnings} />, { wrapper: Wrapper });
+
+    // Open the popover
+    const button = screen.getByLabelText("softCount");
+    fireEvent.click(button);
+
+    // All 3 warning messages should be visible
+    expect(screen.getByText("Warning A: equity imbalance")).toBeInTheDocument();
+    expect(screen.getByText("Warning B: weekend saturation")).toBeInTheDocument();
+    expect(screen.getByText("Warning C: rotation suboptimal")).toBeInTheDocument();
   });
 });
 

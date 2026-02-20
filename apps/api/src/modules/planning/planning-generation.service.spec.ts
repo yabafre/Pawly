@@ -2128,6 +2128,7 @@ describe('PlanningGenerationService', () => {
           startTime: '08:00',
           endTime: '12:00',
           shiftTypeCode: 'SURGERY',
+          breakMinutes: 30,
           source: 'GENERATED',
           employeeId: 'emp-1',
           isConfirmed: false,
@@ -2140,6 +2141,7 @@ describe('PlanningGenerationService', () => {
           startTime: '08:00',
           endTime: '18:00',
           shiftTypeCode: 'RECEPTION',
+          breakMinutes: 30,
           source: 'MANUAL',
           employeeId: 'emp-2',
           isConfirmed: true,
@@ -2159,9 +2161,11 @@ describe('PlanningGenerationService', () => {
         startTime: '08:00',
         endTime: '12:00',
         shiftTypeCode: 'SURGERY',
+        breakMinutes: 30,
         source: 'GENERATED',
         employeeId: 'emp-1',
         isConfirmed: false,
+        shiftTypeColor: '#4f46e5',
       });
 
       expect(result.shifts[1]).toEqual({
@@ -2170,9 +2174,11 @@ describe('PlanningGenerationService', () => {
         startTime: '08:00',
         endTime: '18:00',
         shiftTypeCode: 'RECEPTION',
+        breakMinutes: 30,
         source: 'MANUAL',
         employeeId: 'emp-2',
         isConfirmed: true,
+        shiftTypeColor: '#f59e0b',
       });
     });
 
@@ -2251,6 +2257,7 @@ describe('PlanningGenerationService', () => {
           startTime: '08:00',
           endTime: '12:00',
           shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
           source: 'GENERATED',
           employeeId: 'emp-1',
           isConfirmed: false,
@@ -2278,8 +2285,9 @@ describe('PlanningGenerationService', () => {
 
       const result = await service.getScheduleViewForMonth(clinicId, '2026-02');
 
-      // Should detect holes for Mondays where only 1 of 2 required staff assigned
-      expect(result.holes.length).toBeGreaterThan(0);
+      // Should detect holes for all 4 Mondays in Feb 2026 (Feb 2, 9, 16, 23)
+      // Feb 2 has 1 of 2 staff, Feb 9/16/23 have 0 of 2 staff
+      expect(result.holes).toHaveLength(4);
       expect(result.templateId).toBe(templateId);
 
       // First Monday (Feb 2) has 1 shift but needs 2
@@ -2299,6 +2307,7 @@ describe('PlanningGenerationService', () => {
           startTime: '08:00',
           endTime: '12:00',
           shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
           source: 'MANUAL',
           employeeId: 'emp-1',
           isConfirmed: true,

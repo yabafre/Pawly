@@ -52,7 +52,9 @@ export type ScheduleDayInfo = z.infer<typeof scheduleDayInfoSchema>;
 
 export const scheduleShiftSchema = z.object({
   id: z.string().uuid(),
-  date: z.string(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
   startTime: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
@@ -64,6 +66,7 @@ export const scheduleShiftSchema = z.object({
   source: z.enum(["GENERATED", "MANUAL"]),
   employeeId: z.string().uuid(),
   isConfirmed: z.boolean(),
+  shiftTypeColor: z.string().nullable(),
 });
 export type ScheduleShift = z.infer<typeof scheduleShiftSchema>;
 

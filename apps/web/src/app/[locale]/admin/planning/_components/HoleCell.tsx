@@ -16,12 +16,25 @@ export function HoleCell({ holes }: Props) {
       {holes.map((hole, i) => (
         <div
           key={`${hole.date}-${hole.shiftTypeCode}-${i}`}
+          role="button"
+          tabIndex={0}
+          aria-label={t("tooltip", {
+            shiftType: hole.shiftTypeCode,
+            assigned: hole.assignedStaff,
+            required: hole.requiredStaff,
+          })}
           className="w-full rounded-lg border-2 border-dashed border-neutral-300 px-2 py-1.5 flex items-center justify-center gap-1.5 cursor-pointer hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
           title={t("tooltip", {
             shiftType: hole.shiftTypeCode,
             assigned: hole.assignedStaff,
             required: hole.requiredStaff,
           })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              (e.currentTarget as HTMLElement).click();
+            }
+          }}
         >
           <Plus size={14} className="text-neutral-400" />
           <span className="text-[10px] font-semibold text-neutral-400 truncate">

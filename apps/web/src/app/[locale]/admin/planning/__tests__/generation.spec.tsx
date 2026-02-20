@@ -159,39 +159,16 @@ describe("GenerationResultView", () => {
     expect(screen.getByText("8")).toBeInTheDocument();
   });
 
-  it("renders holes list with reasons", () => {
+  it("does not render inline holes or violations (moved to MonthShiftsSummary)", () => {
     render(<GenerationResultView result={fullResult} />, {
       wrapper: Wrapper,
     });
 
-    expect(
-      screen.getByText(/2026-03-03.*RECEPTION/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Not enough eligible employees"),
-    ).toBeInTheDocument();
-  });
-
-  it("renders hard violation warnings", () => {
-    render(<GenerationResultView result={fullResult} />, {
-      wrapper: Wrapper,
-    });
-
-    expect(screen.getByText("Min 2 vets")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Only 1 eligible/),
-    ).toBeInTheDocument();
-  });
-
-  it("renders soft violation warnings", () => {
-    render(<GenerationResultView result={fullResult} />, {
-      wrapper: Wrapper,
-    });
-
-    expect(screen.getByText("Max Saturdays")).toBeInTheDocument();
-    expect(
-      screen.getByText(/3 Saturday shifts/),
-    ).toBeInTheDocument();
+    // Holes and violations are no longer displayed inline in GenerationResultView
+    expect(screen.queryByText(/2026-03-03.*RECEPTION/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Not enough eligible employees")).not.toBeInTheDocument();
+    expect(screen.queryByText("Min 2 vets")).not.toBeInTheDocument();
+    expect(screen.queryByText("Max Saturdays")).not.toBeInTheDocument();
   });
 
   it("shows success state when no issues", () => {

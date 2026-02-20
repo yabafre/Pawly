@@ -409,6 +409,12 @@
         "confirm": "Regénérer",
         "cancel": "Annuler"
       },
+      "confirmDelete": {
+        "title": "Supprimer les créneaux générés ?",
+        "description": "Les {count} créneaux générés pour ce mois seront définitivement supprimés. Cette action est irréversible. Les créneaux manuels seront conservés.",
+        "confirm": "Supprimer",
+        "cancel": "Annuler"
+      },
       "existing": {
         "title": "Créneaux du mois",
         "totalShifts": "Total",
@@ -416,7 +422,9 @@
         "manual": "Manuels",
         "employees": "Employés",
         "daysWithShifts": "{count} jour(s) planifié(s)",
-        "deleteGenerated": "Supprimer les générés"
+        "deleteGenerated": "Supprimer les générés",
+        "warnings": "avertissements",
+        "warningsTitle": "Avertissements & violations"
       },
       "toast": {
         "generated": "Planning généré avec succès",

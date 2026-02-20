@@ -292,6 +292,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: "#4f46e5",
     });
     expect(result.success).toBe(true);
   });
@@ -307,8 +308,89 @@ describe("scheduleShiftSchema", () => {
       source: "MANUAL",
       employeeId: validUuid2,
       isConfirmed: true,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("should accept shift with null shiftTypeColor", () => {
+    const result = scheduleShiftSchema.safeParse({
+      id: validUuid,
+      date: "2026-03-15",
+      startTime: "08:00",
+      endTime: "16:00",
+      shiftTypeCode: "SURGERY",
+      breakMinutes: 0,
+      source: "GENERATED",
+      employeeId: validUuid2,
+      isConfirmed: false,
+      shiftTypeColor: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept shift with hex color shiftTypeColor", () => {
+    const result = scheduleShiftSchema.safeParse({
+      id: validUuid,
+      date: "2026-03-15",
+      startTime: "08:00",
+      endTime: "16:00",
+      shiftTypeCode: "SURGERY",
+      breakMinutes: 0,
+      source: "GENERATED",
+      employeeId: validUuid2,
+      isConfirmed: false,
+      shiftTypeColor: "#FF5733",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject negative breakMinutes", () => {
+    const result = scheduleShiftSchema.safeParse({
+      id: validUuid,
+      date: "2026-03-15",
+      startTime: "08:00",
+      endTime: "16:00",
+      shiftTypeCode: "SURGERY",
+      breakMinutes: -1,
+      source: "GENERATED",
+      employeeId: validUuid2,
+      isConfirmed: false,
+      shiftTypeColor: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject invalid date format", () => {
+    const result = scheduleShiftSchema.safeParse({
+      id: validUuid,
+      date: "15/03/2026",
+      startTime: "08:00",
+      endTime: "16:00",
+      shiftTypeCode: "SURGERY",
+      breakMinutes: 0,
+      source: "GENERATED",
+      employeeId: validUuid2,
+      isConfirmed: false,
+      shiftTypeColor: null,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject date without leading zeros", () => {
+    const result = scheduleShiftSchema.safeParse({
+      id: validUuid,
+      date: "2026-3-5",
+      startTime: "08:00",
+      endTime: "16:00",
+      shiftTypeCode: "SURGERY",
+      breakMinutes: 0,
+      source: "GENERATED",
+      employeeId: validUuid2,
+      isConfirmed: false,
+      shiftTypeColor: null,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("should reject invalid source value", () => {
@@ -321,6 +403,7 @@ describe("scheduleShiftSchema", () => {
       source: "AUTO",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -335,6 +418,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -349,6 +433,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -363,6 +448,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -377,6 +463,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: validUuid2,
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -391,6 +478,7 @@ describe("scheduleShiftSchema", () => {
       source: "GENERATED",
       employeeId: "not-a-uuid",
       isConfirmed: false,
+      shiftTypeColor: null,
     });
     expect(result.success).toBe(false);
   });
@@ -553,6 +641,7 @@ describe("scheduleViewDataSchema", () => {
         source: "GENERATED" as const,
         employeeId: validUuid,
         isConfirmed: false,
+        shiftTypeColor: "#4f46e5",
       },
     ],
     unavailabilities: [

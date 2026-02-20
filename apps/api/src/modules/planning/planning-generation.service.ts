@@ -1265,6 +1265,7 @@ export class PlanningGenerationService {
     }));
 
     // Map shifts to ScheduleShift
+    const shiftTypeColorMap = new Map(shiftTypes.map((st) => [st.code, st.color]));
     const scheduleShifts: ScheduleShift[] = shifts.map((s) => ({
       id: s.id,
       date: s.date.toISOString().split('T')[0],
@@ -1275,6 +1276,7 @@ export class PlanningGenerationService {
       source: s.source as 'GENERATED' | 'MANUAL',
       employeeId: s.employeeId,
       isConfirmed: s.isConfirmed,
+      shiftTypeColor: shiftTypeColorMap.get(s.shiftTypeCode) ?? null,
     }));
 
     // Expand unavailabilities to flat (employeeId, date, type) tuples
@@ -1315,53 +1317,46 @@ export class PlanningGenerationService {
 
     // Detect holes by comparing template expectations vs actual shifts
     let holes: ScheduleHole[] = [];
-    let templateId: string | undefined;
+    const templateId = shifts.find((s) => s.source === 'GENERATED' && s.planningTemplateId)?.planningTemplateId;
 
-    // Find the template used for generation (from the first generated shift)
-    const generatedShift = shifts.find((s) => s.source === 'GENERATED' && s.planningTemplateId);
-    if (generatedShift?.planningTemplateId) {
-      templateId = generatedShift.planningTemplateId;
-      try {
-        const template = await this.planningTemplateService.getTemplateById(
-          clinicId,
-          templateId,
+    // Parallelize template fetch + validation rules
+    const [template, validationResult] = await Promise.all([
+      templateId
+        ? this.planningTemplateService.getTemplateById(clinicId, templateId).catch(() => {
+            this.logger.warn(`Template ${templateId} not found for hole detection`);
+            return null;
+          })
+        : Promise.resolve(null),
+      this.planningService.validateShiftsAgainstRules(clinicId, {
+        startDate: monthStart.toISOString(),
+        endDate: monthEnd.toISOString(),
+      }).catch(() => {
+        this.logger.warn('Failed to validate shifts against rules');
+        return { hardViolations: [] as any[], softViolations: [] as any[] };
+      }),
+    ]);
+
+    // Compute holes from template if available
+    if (template) {
+      const parsed = templateDataSchema.safeParse(template.data);
+      if (parsed.success) {
+        const shiftTypeMap = new Map(
+          shiftTypes.map((st) => [st.code, { startTime: st.startTime, endTime: st.endTime, breakMinutes: st.breakMinutes }]),
         );
-        const parsed = templateDataSchema.safeParse(template.data);
-        if (parsed.success) {
-          const shiftTypeMap = new Map(
-            shiftTypes.map((st) => [st.code, { startTime: st.startTime, endTime: st.endTime, breakMinutes: st.breakMinutes }]),
-          );
-          const slotRequirements = this.expandTemplateToMonth(
-            parsed.data,
-            month,
-            operationalConfig,
-            shiftTypeMap,
-          );
-          holes = this.computeHoles(slotRequirements, scheduleShifts);
-        }
-      } catch {
-        // Template may have been deleted — skip hole detection
-        this.logger.warn(`Template ${templateId} not found for hole detection`);
+        const slotRequirements = this.expandTemplateToMonth(
+          parsed.data,
+          month,
+          operationalConfig,
+          shiftTypeMap,
+        );
+        holes = this.computeHoles(slotRequirements, scheduleShifts);
       }
     }
 
-    // Run validation rules
-    let violations: ScheduleViewData['violations'] = { hard: [], soft: [] };
-    try {
-      const validationResult = await this.planningService.validateShiftsAgainstRules(
-        clinicId,
-        {
-          startDate: monthStart.toISOString(),
-          endDate: monthEnd.toISOString(),
-        },
-      );
-      violations = {
-        hard: validationResult.hardViolations,
-        soft: validationResult.softViolations,
-      };
-    } catch {
-      this.logger.warn('Failed to validate shifts against rules');
-    }
+    const violations: ScheduleViewData['violations'] = {
+      hard: validationResult.hardViolations,
+      soft: validationResult.softViolations,
+    };
 
     return {
       month,
@@ -1371,7 +1366,7 @@ export class PlanningGenerationService {
       unavailabilities: expandedUnavailabilities,
       holes,
       violations,
-      templateId,
+      templateId: templateId ?? undefined,
     };
   }
 

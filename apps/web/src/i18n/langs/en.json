@@ -409,6 +409,12 @@
         "confirm": "Regenerate",
         "cancel": "Cancel"
       },
+      "confirmDelete": {
+        "title": "Delete generated shifts?",
+        "description": "This will permanently delete {count} generated shift(s) for this month. This action cannot be undone. Manual shifts will be preserved.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
       "existing": {
         "title": "Month Shifts",
         "totalShifts": "Total",
@@ -416,7 +422,9 @@
         "manual": "Manual",
         "employees": "Employees",
         "daysWithShifts": "{count} day(s) planned",
-        "deleteGenerated": "Delete generated"
+        "deleteGenerated": "Delete generated",
+        "warnings": "warnings",
+        "warningsTitle": "Warnings & violations"
       },
       "toast": {
         "generated": "Planning generated successfully",

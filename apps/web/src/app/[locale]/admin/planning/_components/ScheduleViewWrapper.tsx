@@ -72,10 +72,6 @@ export function ScheduleViewWrapper({ month }: Props) {
     );
   }
 
-  // Conflict summary for aria-live region
-  const hardCount = scheduleData.violations.hard.length;
-  const softCount = scheduleData.violations.soft.length;
-
   return (
     <div className="space-y-4">
       {/* Header: title + week navigator */}
@@ -92,25 +88,6 @@ export function ScheduleViewWrapper({ month }: Props) {
           onWeekChange={goToWeek}
         />
       </div>
-
-      {/* Conflict summary (aria-live) */}
-      {(hardCount > 0 || softCount > 0) && (
-        <div
-          aria-live="polite"
-          className="flex items-center gap-4 text-xs font-semibold"
-        >
-          {hardCount > 0 && (
-            <span className="text-[#F97316]">
-              {t("conflict.hardCount", { count: hardCount })}
-            </span>
-          )}
-          {softCount > 0 && (
-            <span className="text-orange-500">
-              {t("conflict.softCount", { count: softCount })}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Staff Grid */}
       <StaffGrid

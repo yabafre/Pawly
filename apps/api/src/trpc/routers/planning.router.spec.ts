@@ -982,7 +982,7 @@ describe('planningRouter', () => {
 
       await expect(
         caller.getScheduleView({ month: 'invalid' }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     });
   });
 });

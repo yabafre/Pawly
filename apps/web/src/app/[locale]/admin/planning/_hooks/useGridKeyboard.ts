@@ -11,6 +11,7 @@ export function useGridKeyboard({ rowCount, colCount }: GridKeyboardOptions) {
   const [activeRow, setActiveRow] = useState(0);
   const [activeCol, setActiveCol] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
+  const hasInteracted = useRef(false);
 
   const getCellTabIndex = useCallback(
     (row: number, col: number) =>
@@ -18,9 +19,9 @@ export function useGridKeyboard({ rowCount, colCount }: GridKeyboardOptions) {
     [activeRow, activeCol],
   );
 
-  // Focus the active cell in the DOM
+  // Focus the active cell in the DOM only after user keyboard interaction
   useEffect(() => {
-    if (!gridRef.current) return;
+    if (!hasInteracted.current || !gridRef.current) return;
     const cell = gridRef.current.querySelector(
       `[data-row="${activeRow}"][data-col="${activeCol}"]`,
     ) as HTMLElement | null;
@@ -56,6 +57,7 @@ export function useGridKeyboard({ rowCount, colCount }: GridKeyboardOptions) {
       }
 
       if (nextRow !== activeRow || nextCol !== activeCol) {
+        hasInteracted.current = true;
         e.preventDefault();
         setActiveRow(nextRow);
         setActiveCol(nextCol);

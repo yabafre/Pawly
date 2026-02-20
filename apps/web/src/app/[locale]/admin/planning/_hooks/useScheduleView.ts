@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   QueryKeyFactory,
   useServerActionQuery,
@@ -92,9 +92,9 @@ export const useScheduleView = (month?: string) => {
   );
 
   // Reset week offset when month changes
-  const setMonth = useCallback(() => {
+  useEffect(() => {
     setWeekOffset(0);
-  }, []);
+  }, [month]);
 
   return {
     scheduleData,
@@ -108,6 +108,5 @@ export const useScheduleView = (month?: string) => {
     goToNextWeek,
     goToPreviousWeek,
     goToWeek,
-    resetWeek: setMonth,
   };
 };

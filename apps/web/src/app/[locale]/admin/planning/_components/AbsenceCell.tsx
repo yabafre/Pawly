@@ -20,9 +20,9 @@ const ABSENCE_STYLES: Record<
     Icon: Thermometer,
   },
   SCHOOL: {
-    bg: "bg-neutral-100",
-    border: "border-neutral-200",
-    text: "text-neutral-600",
+    bg: "bg-purple-50",
+    border: "border-purple-100",
+    text: "text-purple-700",
     Icon: GraduationCap,
   },
   OTHER: {

@@ -17,9 +17,9 @@ import { ConflictIndicator } from "./ConflictIndicator";
 import { WarningBadge } from "./WarningBadge";
 
 const JOB_TYPE_STYLES: Record<string, string> = {
-  VET: "bg-indigo-50 text-indigo-700",
-  ASV: "bg-orange-50 text-orange-700",
-  APPRENTICE: "bg-neutral-100 text-neutral-600",
+  VET: "bg-neutral-100 text-neutral-500",
+  ASV: "bg-neutral-100 text-neutral-500",
+  APPRENTICE: "bg-neutral-100 text-neutral-500",
 };
 
 type ConflictEntry = { message: string; severity: "blocking" | "warning" };
@@ -30,7 +30,6 @@ type Props = {
   rowIndex: number;
   shiftIndex: Map<string, ScheduleShift[]>;
   unavailabilityIndex: Map<string, ScheduleUnavailability>;
-  unavailabilities: ScheduleUnavailability[];
   holeIndex: Map<string, ScheduleHole[]>;
   conflictMap: Map<string, ConflictEntry[]>;
   getCellTabIndex: (row: number, col: number) => number;
@@ -53,7 +52,6 @@ export function StaffGridRow({
   rowIndex,
   shiftIndex,
   unavailabilityIndex,
-  unavailabilities,
   holeIndex,
   conflictMap,
   getCellTabIndex,
@@ -79,9 +77,8 @@ export function StaffGridRow({
         breakMinutesTotal += shift.breakMinutes || 0;
       }
       // Count school days as 7h toward weekly total
-      const hasSchool = unavailabilities.some(
-        (u) => u.employeeId === employee.id && u.date === day.date && u.type === "SCHOOL"
-      );
+      const unavailability = unavailabilityIndex.get(`${employee.id}|${day.date}`);
+      const hasSchool = unavailability?.type === "SCHOOL";
       if (hasSchool) schoolMinutes += SCHOOL_DAY_MINUTES;
     }
     return {
@@ -89,11 +86,12 @@ export function StaffGridRow({
       breakHours: Math.round((breakMinutesTotal / 60) * 10) / 10,
       schoolHours: Math.round((schoolMinutes / 60) * 10) / 10,
     };
-  }, [employee.id, days, shiftIndex, unavailabilities]);
+  }, [employee.id, days, shiftIndex, unavailabilityIndex]);
 
   const weeklyHours = grossHours + schoolHours;
-  const contractWeekly = employee.contractHours;
-  const hoursRatio = contractWeekly > 0 ? weeklyHours / contractWeekly : 0;
+  const workDayCount = days.filter((d) => d.isWorkDay && !d.isClosed).length;
+  const proratedContract = employee.contractHours > 0 ? (employee.contractHours / 5) * workDayCount : 0;
+  const hoursRatio = proratedContract > 0 ? weeklyHours / proratedContract : 0;
 
   return (
     <div role="row" className="contents">
@@ -103,7 +101,7 @@ export function StaffGridRow({
         className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-r border-neutral-100 flex items-center gap-2"
       >
         <div
-          className="w-2.5 h-2.5 rounded-full shrink-0"
+          className="w-0.5 h-6 rounded-full shrink-0"
           style={{ backgroundColor: color }}
         />
         <div className="min-w-0">
@@ -168,7 +166,7 @@ export function StaffGridRow({
             data-row={rowIndex}
             data-col={colIndex}
             className={`border-b border-neutral-100 p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset ${
-              hardConflicts.length > 0 ? "ring-2 ring-[#F97316] ring-inset" : ""
+              hardConflicts.length > 0 ? "bg-[#F97316]/10 ring-2 ring-[#F97316] ring-inset" : ""
             }`}
           >
             {dayShifts.map((shift) => (
@@ -199,11 +197,9 @@ export function StaffGridRow({
           className={`text-sm font-bold text-center ${
             hoursRatio > 1
               ? "text-red-600"
-              : hoursRatio >= 0.8
-                ? "text-emerald-600"
-                : weeklyHours === 0
-                  ? "text-neutral-300"
-                  : "text-orange-500"
+              : weeklyHours === 0
+                ? "text-neutral-300"
+                : "text-neutral-700"
           }`}
           title={
             hoursRatio > 1
@@ -215,7 +211,7 @@ export function StaffGridRow({
         >
           <div>{grossHours}h</div>
           {schoolHours > 0 && (
-            <div className="text-[10px] font-normal text-blue-500">
+            <div className="text-[10px] font-normal text-neutral-400">
               +{schoolHours}h {t("grid.school")}
             </div>
           )}
@@ -225,7 +221,7 @@ export function StaffGridRow({
             </div>
           )}
           <div className="text-[10px] font-normal text-neutral-400">
-            / {contractWeekly}h
+            / {Math.round(proratedContract * 10) / 10}h
           </div>
         </div>
       </div>
