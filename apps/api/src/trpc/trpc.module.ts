@@ -21,6 +21,7 @@ import { PlanningService } from '@/modules/planning/planning.service';
 import { PlanningTemplateService } from '@/modules/planning/planning-template.service';
 import { PlanningGenerationService } from '@/modules/planning/planning-generation.service';
 import { EquityCounterService } from '@/modules/planning/equity-counter.service';
+import { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
@@ -44,6 +45,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly planningGenerationService: PlanningGenerationService,
     private readonly equityCounterService: EquityCounterService,
+    private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {
@@ -56,6 +58,7 @@ export class TRPCMiddleware implements NestMiddleware {
       planningTemplateService: this.planningTemplateService,
       planningGenerationService: this.planningGenerationService,
       equityCounterService: this.equityCounterService,
+      apprenticeDeclarationService: this.apprenticeDeclarationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -85,6 +88,7 @@ export class TRPCService {
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly planningGenerationService: PlanningGenerationService,
     private readonly equityCounterService: EquityCounterService,
+    private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) { }
@@ -102,6 +106,7 @@ export class TRPCService {
       planningTemplateService: this.planningTemplateService,
       planningGenerationService: this.planningGenerationService,
       equityCounterService: this.equityCounterService,
+      apprenticeDeclarationService: this.apprenticeDeclarationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };

@@ -453,7 +453,9 @@
         "hoursOk": "Conforme au contrat",
         "closedDay": "Fermé",
         "dayOff": "Jour de repos",
-        "nonWorkDay": "Jour non travaillé"
+        "nonWorkDay": "Jour non travaillé",
+        "school": "école",
+        "break": "pause"
       },
       "shift": {
         "generated": "Généré",
@@ -516,6 +518,21 @@
           "helper": "Données normalisées pour les règles bloquantes."
         }
       }
+    },
+    "apprenticeDeclarations": {
+      "title": "Déclarations jours d'école des apprentis",
+      "subtitle": "Confirmez le statut des jours d'école pour chaque apprenti avant de générer le planning",
+      "allDeclared": "Toutes les déclarations des apprentis sont complètes pour ce mois",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "Jours d'école fournis",
+        "NO_SCHOOL_THIS_MONTH": "Pas d'école ce mois",
+        "MISSING": "Déclaration manquante"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirmer : pas d'école",
+        "removeDeclaration": "Supprimer la déclaration"
+      },
+      "empty": "Aucun apprenti dans cette clinique"
     }
   },
   "brand": {

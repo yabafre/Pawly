@@ -95,6 +95,24 @@ export type {
 } from "./planning-generation.schema";
 
 export {
+  APPRENTICE_MONTH_STATUSES,
+  listApprenticeDeclarationsSchema,
+  upsertNoSchoolSchema,
+  deleteDeclarationSchema,
+  getDeclarationStatusSchema,
+  apprenticeDeclarationRowSchema,
+} from "./apprentice-declaration.schema";
+
+export type {
+  ApprenticeMonthStatusType,
+  ListApprenticeDeclarationsInput,
+  UpsertNoSchoolInput,
+  DeleteDeclarationInput,
+  GetDeclarationStatusInput,
+  ApprenticeDeclarationRow,
+} from "./apprentice-declaration.schema";
+
+export {
   scheduleViewInputSchema,
   weekNavigationSchema,
   scheduleEmployeeSchema,

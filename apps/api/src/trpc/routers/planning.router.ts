@@ -20,6 +20,10 @@ import {
   listShiftsForMonthSchema,
   deleteGeneratedShiftsSchema,
   scheduleViewInputSchema,
+  listApprenticeDeclarationsSchema,
+  upsertNoSchoolSchema,
+  deleteDeclarationSchema,
+  getDeclarationStatusSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -218,6 +222,50 @@ export const planningRouter = router({
         ctx.user.clinicId,
         input.month,
       );
+    }),
+
+  // Apprentice declaration procedures
+  listApprenticeDeclarations: subscribedProcedure
+    .input(listApprenticeDeclarationsSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.apprenticeDeclarationService.listForMonth(
+        ctx.user.clinicId,
+        input.month,
+      );
+    }),
+
+  upsertNoSchool: subscribedProcedure
+    .input(upsertNoSchoolSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.apprenticeDeclarationService.upsertNoSchool(
+        ctx.user.clinicId,
+        input.employeeId,
+        input.month,
+      );
+    }),
+
+  deleteApprenticeDeclaration: subscribedProcedure
+    .input(deleteDeclarationSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.apprenticeDeclarationService.deleteDeclaration(
+        ctx.user.clinicId,
+        input.employeeId,
+        input.month,
+      );
+    }),
+
+  getDeclarationStatus: subscribedProcedure
+    .input(getDeclarationStatusSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      const undeclared = await ctx.apprenticeDeclarationService.getUndeclaredApprentices(
+        ctx.user.clinicId,
+        input.month,
+      );
+      return { allDeclared: undeclared.length === 0, undeclaredCount: undeclared.length };
     }),
 });
 

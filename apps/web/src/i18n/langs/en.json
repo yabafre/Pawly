@@ -453,7 +453,9 @@
         "hoursOk": "Within contract hours",
         "closedDay": "Closed",
         "dayOff": "Day off",
-        "nonWorkDay": "Non-work day"
+        "nonWorkDay": "Non-work day",
+        "school": "school",
+        "break": "break"
       },
       "shift": {
         "generated": "Generated",
@@ -516,6 +518,21 @@
           "helper": "Normalized data for downstream hard rules."
         }
       }
+    },
+    "apprenticeDeclarations": {
+      "title": "Apprentice School Day Declarations",
+      "subtitle": "Confirm school day status for each apprentice before generating the schedule",
+      "allDeclared": "All apprentice declarations are complete for this month",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "School days provided",
+        "NO_SCHOOL_THIS_MONTH": "No school this month",
+        "MISSING": "Declaration missing"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirm: no school",
+        "removeDeclaration": "Remove declaration"
+      },
+      "empty": "No apprentices in this clinic"
     }
   },
   "brand": {

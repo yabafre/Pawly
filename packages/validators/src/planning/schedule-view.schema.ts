@@ -60,6 +60,7 @@ export const scheduleShiftSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
   shiftTypeCode: z.string().min(1),
+  breakMinutes: z.number().int().min(0),
   source: z.enum(["GENERATED", "MANUAL"]),
   employeeId: z.string().uuid(),
   isConfirmed: z.boolean(),

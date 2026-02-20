@@ -1,0 +1,23 @@
+enum ApprenticeMonthStatus {
+  SCHOOL_DAYS_PROVIDED
+  NO_SCHOOL_THIS_MONTH
+
+  @@map("apprentice_month_status")
+}
+
+model ApprenticeMonthDeclaration {
+  id         String                @id @default(uuid())
+  clinicId   String                @map("clinic_id")
+  clinic     Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  employeeId String                @map("employee_id")
+  employee   Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month      String                // "YYYY-MM"
+  status     ApprenticeMonthStatus
+  confirmedBy String               @default("ADMIN") @map("confirmed_by")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+
+  @@unique([clinicId, employeeId, month])
+  @@index([clinicId, month])
+  @@map("apprentice_month_declarations")
+}

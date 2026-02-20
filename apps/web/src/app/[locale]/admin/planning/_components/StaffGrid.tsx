@@ -101,6 +101,7 @@ export function StaffGrid({
               rowIndex={rowIndex}
               shiftIndex={shiftIndex}
               unavailabilityIndex={unavailabilityIndex}
+              unavailabilities={unavailabilities}
               holeIndex={holeIndex}
               conflictMap={conflictMap}
               getCellTabIndex={getCellTabIndex}

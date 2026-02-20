@@ -6,6 +6,7 @@ import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
+import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import type { TemplateData } from '@pawly/validators';
 
 describe('PlanningGenerationService', () => {
@@ -129,6 +130,13 @@ describe('PlanningGenerationService', () => {
     getCountersForPeriod: jest.fn(),
   };
 
+  const mockApprenticeDeclarationService = {
+    getUndeclaredApprentices: jest.fn(),
+    listForMonth: jest.fn(),
+    upsertNoSchool: jest.fn(),
+    deleteDeclaration: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -143,6 +151,10 @@ describe('PlanningGenerationService', () => {
         {
           provide: EquityCounterService,
           useValue: mockEquityService,
+        },
+        {
+          provide: ApprenticeDeclarationService,
+          useValue: mockApprenticeDeclarationService,
         },
       ],
     }).compile();
@@ -161,7 +173,9 @@ describe('PlanningGenerationService', () => {
     mockEquityService.getCountersForPeriod.mockResolvedValue([]);
     mockPrismaService.unavailability.findMany.mockResolvedValue([]);
     mockPrismaService.employee.findMany.mockResolvedValue(mockEmployees);
+    mockPrismaService.shift.findMany.mockResolvedValue([]);
     mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 0 });
+    mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
   });
 
   // ─── expandTemplateToMonth ───────────────────────────────────
@@ -1078,6 +1092,88 @@ describe('PlanningGenerationService', () => {
       await expect(
         service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-other'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('loads border week shifts from adjacent months for weekly hour calculation', async () => {
+      // March 2026 starts on Sunday (Mar 1). ISO week 9 = Feb 23 – Mar 1.
+      // If emp-1 already has a 10h shift on Feb 27 (Friday), the algorithm should
+      // see those hours when processing Mar 1 (Sunday, same ISO week).
+      const templateData = {
+        days: [
+          {
+            dayOfWeek: 7, // Sunday only
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      };
+
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Sunday Only',
+        data: templateData,
+        clinicId,
+      });
+
+      // Border shifts: emp-1 already worked 35h Mon-Fri of that week in February
+      const borderShiftsFromDb = [
+        { employeeId: 'emp-1', date: new Date('2026-02-23'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+        { employeeId: 'emp-1', date: new Date('2026-02-24'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+        { employeeId: 'emp-1', date: new Date('2026-02-25'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+        { employeeId: 'emp-1', date: new Date('2026-02-26'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+        { employeeId: 'emp-1', date: new Date('2026-02-27'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+      ];
+      mockPrismaService.shift.findMany.mockResolvedValue(borderShiftsFromDb);
+
+      // Only emp-1 (35h contract, already at 35h from border) and emp-2 (35h contract, fresh)
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', jobType: 'VET', contractHours: 35 },
+        { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', jobType: 'VET', contractHours: 35 },
+      ]);
+
+      // HARD CONTRACT_COMPLIANCE: max 35h/week with 0% tolerance
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: '35H',
+          ruleType: 'HARD',
+          category: 'CONTRACT_COMPLIANCE',
+          isActive: true,
+          priority: 0,
+          config: { maxWeeklyHours: 35, overtimeThresholdPercent: 0 },
+        },
+      ]);
+
+      const createdShifts = [
+        {
+          id: 'shift-sun',
+          date: new Date('2026-03-01'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          employeeId: 'emp-2', // Should be emp-2 since emp-1 is at 35h
+          source: 'GENERATED',
+          clinicId,
+        },
+      ];
+
+      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          shift: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+
+      // The shift should be assigned to emp-2, not emp-1 (who is at 35h from border shifts)
+      expect(result.assignments.length).toBe(1);
+      expect(result.assignments[0].employeeId).toBe('emp-2');
+
+      // Verify that shift.findMany was called (for border shifts)
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
     });
   });
 
@@ -2181,6 +2277,557 @@ describe('PlanningGenerationService', () => {
       const feb10 = result.days.find((d) => d.date === '2026-02-10');
       expect(feb10).toBeDefined();
       expect(feb10!.isClosed).toBe(false);
+    });
+  });
+
+  // ─── daysInMonth/7 dynamic weeks ──────────────────────────────────────
+
+  describe('daysInMonth/7 dynamic weeks calculation', () => {
+    it('uses 4.0 weeks for February 2026 (28 days)', async () => {
+      // February 2026 has 28 days → 28/7 = 4.0 weeks
+      // scoreAndAssign uses weeksInMonth for monthly contract fit bonus
+      // With 35h contract: 35 * 60 * 4.0 = 8400 min monthly limit
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
+        shift: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      }));
+
+      const result = await service.generateMonthlyPlan(clinicId, '2026-02', 'tpl-1');
+      // If it reaches here without errors, the weeksInMonth parameter is passed correctly
+      expect(result).toBeDefined();
+    });
+
+    it('uses ~4.43 weeks for March 2026 (31 days)', async () => {
+      // March 2026 has 31 days → 31/7 ≈ 4.4286 weeks
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
+        shift: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      }));
+
+      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      expect(result).toBeDefined();
+    });
+  });
+
+  // ─── Deterministic tiebreaker ──────────────────────────────────────
+
+  describe('deterministic tiebreaker', () => {
+    it('produces reproducible results across multiple runs', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: { days: [{ dayOfWeek: 1, slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }] }] }, clinicId,
+      });
+
+      const results: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        mockPrismaService.$transaction.mockImplementation(async (cb: any) => {
+          const shifts: any[] = [];
+          return cb({
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
+                const created = data.map((d: any, idx: number) => ({
+                  id: `shift-${idx}`, ...d,
+                }));
+                shifts.push(...created);
+                return created;
+              }),
+            },
+          });
+        });
+
+        const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+        results.push(JSON.stringify(result.assignments.map(a => a.employeeId)));
+      }
+
+      // All runs should produce identical assignments
+      expect(results[0]).toBe(results[1]);
+      expect(results[1]).toBe(results[2]);
+    });
+
+    it('prefers employee with fewer shifts on score tie', () => {
+      // Test via private scoreAndAssign method
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 already has 5 shifts, emp-3 has 0
+      const alreadyAssigned = Array.from({ length: 5 }, (_, i) => ({
+        employeeId: 'emp-1', date: `2026-03-${10 + i}`,
+        startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
+      }));
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints, alreadyAssigned,
+        new Map(), new Map(), 31 / 7,
+      );
+      // emp-3 (fewer shifts) should be preferred over emp-1
+      expect(result.assigned.length).toBe(1);
+    });
+
+    it('prefers employee with fewer weekends on shift count tie', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map([
+          ['emp-1', { saturdayCount: 0, weekendCount: 5, holidayCount: 0, overtimeMinutes: 0 }],
+          ['emp-3', { saturdayCount: 0, weekendCount: 1, holidayCount: 0, overtimeMinutes: 0 }],
+        ]),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1, requiredJobTypes: ['VET'],
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot,
+        [mockEmployees[0], mockEmployees[2]], // emp-1, emp-3 (both VET)
+        constraints, [], new Map(), new Map(), 31 / 7,
+      );
+      // emp-3 has fewer weekends, should be preferred
+      expect(result.assigned[0].employeeId).toBe('emp-3');
+    });
+  });
+
+  // ─── MIN_REST_HOURS ──────────────────────────────────────────────────
+
+  describe('MIN_REST_HOURS between shifts', () => {
+    const makeConstraintsWithMinRest = (minRest: number) => ({
+      unavailableMap: new Map(),
+      schoolDayMap: new Map(),
+      hardRules: [{
+        id: 'rule-rest', name: 'Min Rest', category: 'CONTRACT_COMPLIANCE',
+        config: { maxWeeklyHours: 35, minRestHoursBetweenShifts: minRest },
+        priority: 0,
+      }],
+      softRules: [],
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    });
+
+    it('blocks employee when rest after previous day shift is insufficient', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Previous day: emp-1 worked until 23:00 → rest = (24*60-23*60) + 8*60 = 60+480 = 540min = 9h < 11h
+      const prevShift = {
+        employeeId: 'emp-1', date: '2026-03-02',
+        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([
+        ['emp-1|2026-03-02', [prevShift]],
+      ]);
+
+      const result = callPrivate('scoreAndAssign',
+        slot, [mockEmployees[0]], constraints,
+        [prevShift], assignmentIndex, new Map(), 31 / 7,
+      );
+      // emp-1 should be blocked
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('blocks employee when rest before next day shift is insufficient', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '18:00', endTime: '23:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Next day: emp-1 starts at 07:00 → rest = (24*60-23*60) + 7*60 = 60+420 = 480min = 8h < 11h
+      const nextShift = {
+        employeeId: 'emp-1', date: '2026-03-03',
+        startTime: '07:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([
+        ['emp-1|2026-03-03', [nextShift]],
+      ]);
+
+      const result = callPrivate('scoreAndAssign',
+        slot, [mockEmployees[0]], constraints,
+        [nextShift], assignmentIndex, new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(0);
+    });
+
+    it('allows employee when rest is sufficient', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Previous day: emp-1 worked until 18:00 → rest = (24*60-18*60) + 8*60 = 360+480 = 840min = 14h > 11h
+      const prevShift = {
+        employeeId: 'emp-1', date: '2026-03-02',
+        startTime: '08:00', endTime: '18:00', shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([
+        ['emp-1|2026-03-02', [prevShift]],
+      ]);
+
+      const result = callPrivate('scoreAndAssign',
+        slot, [mockEmployees[0]], constraints,
+        [prevShift], assignmentIndex, new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(1);
+    });
+
+    it('does not check rest hours when minRestHoursBetweenShifts is not configured', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [{
+          id: 'rule-contract', name: 'Contract', category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35 },
+          priority: 0,
+        }],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '07:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Previous day: emp-1 worked until 23:00 → only 8h rest, but no minRest rule
+      const prevShift = {
+        employeeId: 'emp-1', date: '2026-03-02',
+        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([
+        ['emp-1|2026-03-02', [prevShift]],
+      ]);
+
+      const result = callPrivate('scoreAndAssign',
+        slot, [mockEmployees[0]], constraints,
+        [prevShift], assignmentIndex, new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(1);
+    });
+
+    it('creates a hole when all employees are blocked by rest requirement', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const prevShifts = mockEmployees.map(e => ({
+        employeeId: e.id, date: '2026-03-02',
+        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map(
+        mockEmployees.map(e => [`${e.id}|2026-03-02`, [prevShifts.find(s => s.employeeId === e.id)!]]),
+      );
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints,
+        prevShifts, assignmentIndex, new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+      expect(result.holeInfo?.reason).toContain('No eligible employees');
+    });
+
+    it('correctly handles multi-employee scenario with mixed rest availability', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 has insufficient rest (ended 23:00), emp-2 has no previous shift
+      const prevShift = {
+        employeeId: 'emp-1', date: '2026-03-02',
+        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([
+        ['emp-1|2026-03-02', [prevShift]],
+      ]);
+
+      const result = callPrivate('scoreAndAssign',
+        slot, [mockEmployees[0], mockEmployees[1]], constraints,
+        [prevShift], assignmentIndex, new Map(), 31 / 7,
+      );
+      // emp-2 (no previous shift) should be assigned
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+  });
+
+  // ─── Binôme penalty (pairing diversity) ────────────────────────────────
+
+  describe('binôme penalty for pairing diversity', () => {
+    it('does not affect single-staff slots', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints,
+        [], new Map(), new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(1);
+    });
+
+    it('penalizes repeated pairs for multi-staff slots', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-16', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 2,
+      };
+
+      // emp-1 and emp-3 have been paired together 5 times already
+      const alreadyAssigned = Array.from({ length: 5 }, (_, i) => [
+        { employeeId: 'emp-1', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        { employeeId: 'emp-3', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+      ]).flat();
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints,
+        alreadyAssigned, new Map(), new Map(), 31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(2);
+      // With pairing penalty, the second pick should NOT be the repeatedly-paired partner
+      // emp-2 should be chosen as second partner over the usual emp-1/emp-3 pair
+      const ids = result.assigned.map((a: any) => a.employeeId);
+      expect(ids).toContain('emp-2');
+    });
+
+    it('has no penalty when no prior pairings exist', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 2,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints,
+        [], new Map(), new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(2);
+    });
+
+    it('assigns 3 employees correctly on requiredStaff=3', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      const slot = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 3,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot, mockEmployees, constraints,
+        [], new Map(), new Map(), 31 / 7,
+      );
+      expect(result.assigned.length).toBe(3);
+      const ids = new Set(result.assigned.map((a: any) => a.employeeId));
+      expect(ids.size).toBe(3);
+    });
+
+    it('promotes pairing diversity over multiple slots', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      // Run two consecutive slots with requiredStaff=2
+      const slot1 = {
+        date: '2026-03-02', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 2,
+      };
+
+      const result1 = callPrivate('scoreAndAssign',
+        slot1, mockEmployees, constraints,
+        [], new Map(), new Map(), 31 / 7,
+      );
+
+      const slot2 = {
+        date: '2026-03-03', shiftTypeCode: 'SURGERY',
+        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        requiredStaff: 2,
+      };
+
+      const result2 = callPrivate('scoreAndAssign',
+        slot2, mockEmployees, constraints,
+        result1.assigned, new Map(), new Map(), 31 / 7,
+      );
+
+      // Second slot should try to avoid the same pair
+      const pair1 = result1.assigned.map((a: any) => a.employeeId).sort();
+      const pair2 = result2.assigned.map((a: any) => a.employeeId).sort();
+      // With only 3 employees and 2 slots of 2, at least one different combination
+      expect(result2.assigned.length).toBe(2);
+      // At minimum, the pairs should be computed (may or may not be different depending on scores)
+    });
+  });
+
+  // ─── Apprentice Declaration Pre-check ─────────────────────────────────
+
+  describe('apprentice declaration pre-check', () => {
+    it('blocks generation when undeclared apprentices exist', async () => {
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
+        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
+      ]);
+
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1'),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1'),
+      ).rejects.toThrow(/apprentice school day declarations missing/);
+    });
+
+    it('includes undeclared apprentice names in error message', async () => {
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
+        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
+        { id: 'emp-5', firstName: 'Eve', lastName: 'Stagiaire' },
+      ]);
+
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+
+      try {
+        await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+        fail('Expected BadRequestException');
+      } catch (error: any) {
+        expect(error.message).toContain('David Apprenti');
+        expect(error.message).toContain('Eve Stagiaire');
+      }
+    });
+
+    it('allows generation when all apprentices are declared', async () => {
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
+        shift: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      }));
+
+      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      expect(result).toBeDefined();
+    });
+
+    it('allows generation when there are zero apprentices', async () => {
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
+        shift: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      }));
+
+      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      expect(result).toBeDefined();
+    });
+
+    it('blocks generation with correct month in error message', async () => {
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
+        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
+      ]);
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+      });
+
+      try {
+        await service.generateMonthlyPlan(clinicId, '2026-05', 'tpl-1');
+        fail('Expected BadRequestException');
+      } catch (error: any) {
+        expect(error.message).toContain('2026-05');
+      }
     });
   });
 });

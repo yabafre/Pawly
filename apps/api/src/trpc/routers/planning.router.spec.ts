@@ -102,9 +102,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 20 procedures', () => {
+  it('should export all 24 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(20);
+    expect(procedures).toHaveLength(24);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -127,6 +127,10 @@ describe('planningRouter', () => {
         'listShiftsForMonth',
         'deleteGeneratedShifts',
         'getScheduleView',
+        'listApprenticeDeclarations',
+        'upsertNoSchool',
+        'deleteApprenticeDeclaration',
+        'getDeclarationStatus',
       ]),
     );
   });

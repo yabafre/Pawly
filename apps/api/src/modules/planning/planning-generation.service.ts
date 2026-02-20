@@ -11,6 +11,7 @@ import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
+import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type { GenerationResult } from '@pawly/validators';
@@ -79,7 +80,6 @@ type ConstraintMap = {
 export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
-  private static readonly WEEKS_PER_MONTH = 4.33;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h standard school day in France
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
@@ -92,6 +92,7 @@ export class PlanningGenerationService {
     private readonly planningService: PlanningService,
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
+    private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
   ) {}
 
   async generateMonthlyPlan(
@@ -146,6 +147,8 @@ export class PlanningGenerationService {
     const slots = this.reorderSlotsNonWorkDaysFirst(rawSlots, workDaySet);
 
     const [year, monthNum] = month.split('-').map(Number);
+    const daysInMonth = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+    const weeksInMonth = daysInMonth / 7;
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(
       Date.UTC(year, monthNum, 0, 23, 59, 59, 999),
@@ -170,8 +173,33 @@ export class PlanningGenerationService {
       },
     });
 
+    // Pre-check: all apprentices must have school day declarations
+    const undeclared = await this.apprenticeDeclarationService.getUndeclaredApprentices(clinicId, month);
+    if (undeclared.length > 0) {
+      const names = undeclared.map(a => `${a.firstName} ${a.lastName}`).join(', ');
+      throw new BadRequestException(
+        `Cannot generate: apprentice school day declarations missing for ${month}. Undeclared: ${names}`,
+      );
+    }
+
+    // Load existing shifts from adjacent months for border ISO weeks.
+    // This ensures weekly hour calculations are correct when weeks straddle month boundaries.
+    const borderShifts = await this.loadBorderWeekShifts(clinicId, month);
+
     const assignedShifts: AssignedShift[] = [];
     const assignmentIndex = new Map<string, AssignedShift[]>();
+
+    // Pre-seed assignmentIndex with border shifts (for overlap/consecutive checks)
+    for (const bs of borderShifts) {
+      const key = `${bs.employeeId}|${bs.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(bs);
+      assignmentIndex.set(key, existing);
+    }
+
+    // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
+    const allShiftsForScoring: AssignedShift[] = [...borderShifts];
+
     const holes: GenerationResult['holes'] = [];
     const hardViolations: GenerationResult['violations']['hard'] = [];
     const softViolations: GenerationResult['violations']['soft'] = [];
@@ -185,12 +213,14 @@ export class PlanningGenerationService {
         slot,
         employees,
         constraints,
-        assignedShifts,
+        allShiftsForScoring,
         assignmentIndex,
         employeeMinutes,
+        weeksInMonth,
       );
 
       assignedShifts.push(...result.assigned);
+      allShiftsForScoring.push(...result.assigned);
       for (const a of result.assigned) {
         const key = `${a.employeeId}|${a.date}`;
         const existing = assignmentIndex.get(key) || [];
@@ -224,6 +254,7 @@ export class PlanningGenerationService {
             startTime: s.startTime,
             endTime: s.endTime,
             shiftTypeCode: s.shiftTypeCode,
+            breakMinutes: s.breakMinutes || 0,
             source: 'GENERATED' as const,
             employeeId: s.employeeId,
             clinicId,
@@ -518,6 +549,7 @@ export class PlanningGenerationService {
     alreadyAssigned: AssignedShift[],
     assignmentIndex: Map<string, AssignedShift[]>,
     employeeMinutes: Map<string, number>,
+    weeksInMonth: number,
   ): {
     assigned: AssignedShift[];
     holeInfo?: GenerationResult['holes'][number];
@@ -614,6 +646,26 @@ export class PlanningGenerationService {
           const projectedMonthMin = monthMin + slotMinutes;
           const hardLimitMin = (config.maxMonthlyHours as number) * 60 * overtimeTol;
           if (projectedMonthMin > hardLimitMin) return false;
+        }
+
+        // MIN_REST_HOURS: check minimum rest between consecutive shifts
+        const minRest = config.minRestHoursBetweenShifts as number | undefined;
+        if (minRest) {
+          const minRestMin = minRest * 60;
+          // Check previous day: rest = gap from prev shift end to this shift start
+          const prevDate = this.getPreviousDate(slot.date);
+          const prevShifts = assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
+          for (const prev of prevShifts) {
+            const rest = (24 * 60 - this.toMinutes(prev.endTime)) + this.toMinutes(slot.startTime);
+            if (rest < minRestMin) return false;
+          }
+          // Check next day: rest = gap from this shift end to next shift start
+          const nextDate = this.getNextDate(slot.date);
+          const nextShifts = assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
+          for (const next of nextShifts) {
+            const rest = (24 * 60 - this.toMinutes(slot.endTime)) + this.toMinutes(next.startTime);
+            if (rest < minRestMin) return false;
+          }
         }
       }
 
@@ -739,7 +791,7 @@ export class PlanningGenerationService {
       // Monthly contract fit bonus
       const currentMinutes = employeeMinutes.get(emp.id) || 0;
       const monthlyLimitMinutes =
-        emp.contractHours * 60 * PlanningGenerationService.WEEKS_PER_MONTH;
+        emp.contractHours * 60 * weeksInMonth;
       if (currentMinutes + slotMinutes <= monthlyLimitMinutes) {
         score += 10;
       }
@@ -800,13 +852,16 @@ export class PlanningGenerationService {
         const priorityWeight = 1 + rule.priority / 10;
 
         if (rule.category === 'ROTATION_EQUITY') {
-          const trackingPeriod = rule.config.trackingPeriod as string | undefined;
-          const count = this.countTargetDayShifts(
-            rule, emp, alreadyAssigned, constraints.quarterlyShifts, trackingPeriod,
-          );
-          const maxPerPeriod = rule.config.maxPerPeriod as number;
-          if (count >= maxPerPeriod) {
-            score -= Math.round(25 * priorityWeight);
+          const applicableJT = rule.config.applicableJobTypes as string[] | undefined;
+          if (!applicableJT || applicableJT.length === 0 || applicableJT.includes(emp.jobType)) {
+            const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+            const count = this.countTargetDayShifts(
+              rule, emp, alreadyAssigned, constraints.quarterlyShifts, trackingPeriod,
+            );
+            const maxPerPeriod = rule.config.maxPerPeriod as number;
+            if (count >= maxPerPeriod) {
+              score -= Math.round(25 * priorityWeight);
+            }
           }
         }
 
@@ -827,15 +882,72 @@ export class PlanningGenerationService {
       return { employee: emp, score };
     });
 
-    // Sort by score descending, with random tiebreaker to avoid systematic bias
-    // (without this, the same employee always wins ties due to stable sort + DB order)
-    scored.sort((a, b) => {
-      const diff = b.score - a.score;
-      if (diff !== 0) return diff;
-      return Math.random() - 0.5;
-    });
+    // Sort by score descending, with deterministic tiebreaker for reproducibility
+    const sortScored = (items: typeof scored) => {
+      items.sort((a, b) => {
+        const diff = b.score - a.score;
+        if (diff !== 0) return diff;
+        // 1. Fewer shifts this month wins
+        const aShifts = employeeShiftCounts.get(a.employee.id) || 0;
+        const bShifts = employeeShiftCounts.get(b.employee.id) || 0;
+        if (aShifts !== bShifts) return aShifts - bShifts;
+        // 2. Fewer weekends wins
+        const aWe = constraints.equityMap.get(a.employee.id)?.weekendCount ?? 0;
+        const bWe = constraints.equityMap.get(b.employee.id)?.weekendCount ?? 0;
+        if (aWe !== bWe) return aWe - bWe;
+        // 3. employeeId ascending (stable)
+        return a.employee.id.localeCompare(b.employee.id);
+      });
+    };
 
-    const toAssign = scored.slice(0, slot.requiredStaff);
+    // Build pairing counts from already-assigned shifts (co-assignments on same date+shiftType)
+    const pairingCounts = new Map<string, Map<string, number>>();
+    if (slot.requiredStaff > 1) {
+      const slotGroups = new Map<string, string[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.date}|${a.shiftTypeCode}`;
+        const group = slotGroups.get(key) || [];
+        group.push(a.employeeId);
+        slotGroups.set(key, group);
+      }
+      for (const group of slotGroups.values()) {
+        for (let i = 0; i < group.length; i++) {
+          for (let j = i + 1; j < group.length; j++) {
+            const a = group[i], b = group[j];
+            if (!pairingCounts.has(a)) pairingCounts.set(a, new Map());
+            if (!pairingCounts.has(b)) pairingCounts.set(b, new Map());
+            pairingCounts.get(a)!.set(b, (pairingCounts.get(a)!.get(b) || 0) + 1);
+            pairingCounts.get(b)!.set(a, (pairingCounts.get(b)!.get(a) || 0) + 1);
+          }
+        }
+      }
+    }
+
+    // Sequential assignment with pairing penalty for multi-staff slots
+    const toAssign: typeof scored = [];
+    sortScored(scored);
+
+    if (slot.requiredStaff <= 1 || scored.length <= 1) {
+      toAssign.push(...scored.slice(0, slot.requiredStaff));
+    } else {
+      // First pick: best score (no pairing penalty)
+      toAssign.push(scored[0]);
+      const remaining = scored.slice(1);
+
+      for (let pick = 1; pick < slot.requiredStaff && remaining.length > 0; pick++) {
+        // Apply pairing penalty to remaining candidates
+        for (const candidate of remaining) {
+          let pairingPenalty = 0;
+          for (const selected of toAssign) {
+            const count = pairingCounts.get(candidate.employee.id)?.get(selected.employee.id) || 0;
+            pairingPenalty += count * 10;
+          }
+          candidate.score -= pairingPenalty;
+        }
+        sortScored(remaining);
+        toAssign.push(remaining.shift()!);
+      }
+    }
 
     for (const { employee } of toAssign) {
       // Check all SOFT rule violations for this assignment
@@ -1116,6 +1228,7 @@ export class PlanningGenerationService {
       startTime: s.startTime,
       endTime: s.endTime,
       shiftTypeCode: s.shiftTypeCode,
+      breakMinutes: s.breakMinutes,
       source: s.source as 'GENERATED' | 'MANUAL',
       employeeId: s.employeeId,
       isConfirmed: s.isConfirmed,
@@ -1265,7 +1378,7 @@ export class PlanningGenerationService {
     return holes;
   }
 
-  // FIX 4: checkRotationEquity now supports trackingPeriod (monthly/quarterly)
+  // FIX 4: checkRotationEquity now supports trackingPeriod (monthly/quarterly) + job type filter
   private checkRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
@@ -1274,6 +1387,12 @@ export class PlanningGenerationService {
     quarterlyShifts: AssignedShift[],
     softViols: GenerationResult['violations']['soft'],
   ) {
+    // Skip rule if it has applicableJobTypes and employee doesn't match
+    const applicableJobTypes = rule.config.applicableJobTypes as string[] | undefined;
+    if (applicableJobTypes && applicableJobTypes.length > 0 && !applicableJobTypes.includes(employee.jobType)) {
+      return;
+    }
+
     const targetDay = rule.config.targetDay as string;
     const maxPerPeriod = rule.config.maxPerPeriod as number;
     const trackingPeriod = rule.config.trackingPeriod as string | undefined;
@@ -1438,6 +1557,17 @@ export class PlanningGenerationService {
     return date.toISOString().split('T')[0];
   }
 
+  private getNextDate(dateStr: string): string {
+    const date = new Date(`${dateStr}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + 1);
+    return date.toISOString().split('T')[0];
+  }
+
+  private toMinutes(time: string): number {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  }
+
   private getWeekBounds(dateStr: string): { start: string; end: string } {
     const date = new Date(`${dateStr}T00:00:00.000Z`);
     const dayOfWeek = date.getUTCDay(); // 0=Sun, 1=Mon, ...
@@ -1494,7 +1624,7 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // FIX 4: violatesHardRotationEquity now supports quarterly tracking
+  // FIX 4: violatesHardRotationEquity now supports quarterly tracking + job type filter
   private violatesHardRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
@@ -1502,6 +1632,12 @@ export class PlanningGenerationService {
     alreadyAssigned: AssignedShift[],
     quarterlyShifts: AssignedShift[],
   ): boolean {
+    // Skip rule if it has applicableJobTypes and employee doesn't match
+    const applicableJobTypes = rule.config.applicableJobTypes as string[] | undefined;
+    if (applicableJobTypes && applicableJobTypes.length > 0 && !applicableJobTypes.includes(employee.jobType)) {
+      return false;
+    }
+
     const targetDay = rule.config.targetDay as string;
     const maxPerPeriod = rule.config.maxPerPeriod as number;
     const trackingPeriod = rule.config.trackingPeriod as string | undefined;
@@ -1561,6 +1697,74 @@ export class PlanningGenerationService {
       total += data.overtimeMinutes;
     }
     return total / equityMap.size;
+  }
+
+  /**
+   * Load existing shifts from DB for days in border ISO weeks that fall outside the generation month.
+   * This ensures weekly hour calculations account for shifts already generated in adjacent months.
+   * E.g., if March starts on Wednesday, loads Mon-Tue shifts from February for that ISO week.
+   */
+  private async loadBorderWeekShifts(
+    clinicId: string,
+    month: string,
+  ): Promise<AssignedShift[]> {
+    const [year, monthNum] = month.split('-').map(Number);
+    const firstDayStr = new Date(Date.UTC(year, monthNum - 1, 1)).toISOString().split('T')[0];
+    const lastDayStr = new Date(Date.UTC(year, monthNum, 0)).toISOString().split('T')[0];
+
+    const firstWeek = this.getWeekBounds(firstDayStr);
+    const lastWeek = this.getWeekBounds(lastDayStr);
+
+    const borderDates: Date[] = [];
+
+    // First week overlap: days before month start in the same ISO week
+    if (firstWeek.start < firstDayStr) {
+      const cursor = new Date(`${firstWeek.start}T00:00:00Z`);
+      const limit = new Date(`${firstDayStr}T00:00:00Z`);
+      while (cursor < limit) {
+        borderDates.push(new Date(cursor));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    // Last week overlap: days after month end in the same ISO week
+    if (lastWeek.end > lastDayStr) {
+      const cursor = new Date(`${lastDayStr}T00:00:00Z`);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      const limit = new Date(`${lastWeek.end}T00:00:00Z`);
+      while (cursor <= limit) {
+        borderDates.push(new Date(cursor));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    if (borderDates.length === 0) return [];
+
+    this.logger.debug(`Loading border week shifts for ${borderDates.length} days outside ${month}`);
+
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        clinicId,
+        date: { in: borderDates },
+      },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+      },
+    });
+
+    return shifts.map((s) => ({
+      employeeId: s.employeeId,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      shiftTypeCode: s.shiftTypeCode,
+      breakMinutes: s.breakMinutes,
+    }));
   }
 
   // FIX 5: Count target-day shifts for an employee (monthly or quarterly)

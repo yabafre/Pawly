@@ -30,6 +30,7 @@ type Props = {
   rowIndex: number;
   shiftIndex: Map<string, ScheduleShift[]>;
   unavailabilityIndex: Map<string, ScheduleUnavailability>;
+  unavailabilities: ScheduleUnavailability[];
   holeIndex: Map<string, ScheduleHole[]>;
   conflictMap: Map<string, ConflictEntry[]>;
   getCellTabIndex: (row: number, col: number) => number;
@@ -44,12 +45,15 @@ function getEmployeeColorFallback(id: string): string {
   return `hsl(${hue}, 60%, 70%)`;
 }
 
+const SCHOOL_DAY_MINUTES = 420; // 7h standard school day
+
 export function StaffGridRow({
   employee,
   days,
   rowIndex,
   shiftIndex,
   unavailabilityIndex,
+  unavailabilities,
   holeIndex,
   conflictMap,
   getCellTabIndex,
@@ -58,9 +62,11 @@ export function StaffGridRow({
   const color = employee.color || getEmployeeColorFallback(employee.id);
   const badgeClass = JOB_TYPE_STYLES[employee.jobType] || "bg-neutral-100 text-neutral-600";
 
-  // Compute weekly hours for this employee
-  const weeklyHours = useMemo(() => {
-    let totalMinutes = 0;
+  // Compute gross presence hours, break hours, and school hours
+  const { grossHours, breakHours, schoolHours } = useMemo(() => {
+    let grossMinutes = 0;
+    let breakMinutesTotal = 0;
+    let schoolMinutes = 0;
     for (const day of days) {
       const key = `${employee.id}|${day.date}`;
       const dayShifts = shiftIndex.get(key) || [];
@@ -69,12 +75,23 @@ export function StaffGridRow({
         const [endH, endM] = shift.endTime.split(":").map(Number);
         const startTotal = startH * 60 + startM;
         const endTotal = endH * 60 + endM;
-        totalMinutes += endTotal >= startTotal ? endTotal - startTotal : 1440 - startTotal + endTotal;
+        grossMinutes += endTotal >= startTotal ? endTotal - startTotal : 1440 - startTotal + endTotal;
+        breakMinutesTotal += shift.breakMinutes || 0;
       }
+      // Count school days as 7h toward weekly total
+      const hasSchool = unavailabilities.some(
+        (u) => u.employeeId === employee.id && u.date === day.date && u.type === "SCHOOL"
+      );
+      if (hasSchool) schoolMinutes += SCHOOL_DAY_MINUTES;
     }
-    return Math.round((totalMinutes / 60) * 10) / 10;
-  }, [employee.id, days, shiftIndex]);
+    return {
+      grossHours: Math.round((grossMinutes / 60) * 10) / 10,
+      breakHours: Math.round((breakMinutesTotal / 60) * 10) / 10,
+      schoolHours: Math.round((schoolMinutes / 60) * 10) / 10,
+    };
+  }, [employee.id, days, shiftIndex, unavailabilities]);
 
+  const weeklyHours = grossHours + schoolHours;
   const contractWeekly = employee.contractHours;
   const hoursRatio = contractWeekly > 0 ? weeklyHours / contractWeekly : 0;
 
@@ -196,7 +213,17 @@ export function StaffGridRow({
                 : t("grid.hoursUnder")
           }
         >
-          <div>{weeklyHours}h</div>
+          <div>{grossHours}h</div>
+          {schoolHours > 0 && (
+            <div className="text-[10px] font-normal text-blue-500">
+              +{schoolHours}h {t("grid.school")}
+            </div>
+          )}
+          {breakHours > 0 && (
+            <div className="text-[10px] font-normal text-neutral-300">
+              -{breakHours}h {t("grid.break")}
+            </div>
+          )}
           <div className="text-[10px] font-normal text-neutral-400">
             / {contractWeekly}h
           </div>

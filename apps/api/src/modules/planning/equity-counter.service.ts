@@ -195,9 +195,10 @@ export class EquityCounterService {
       }
 
       // Calculate overtime: excess minutes beyond adjusted contract limit
-      const WEEKS_PER_MONTH = 4.33;
+      const daysInMonthCount = new Date(year, month, 0).getDate();
+      const weeksInMonthCount = daysInMonthCount / 7;
       const contractLimitMinutes =
-        employee.contractHours * 60 * WEEKS_PER_MONTH;
+        employee.contractHours * 60 * weeksInMonthCount;
       const adjustedLimitMinutes =
         contractLimitMinutes * (1 + overtimeThresholdPercent / 100);
       const overtimeMinutes = Math.max(
