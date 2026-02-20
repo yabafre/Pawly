@@ -485,6 +485,19 @@ The following algorithm improvements were made to `PlanningGenerationService` du
 - Fill-to-contract bonus: +30 if <50% used, +15 if <80% used
 - Over-weekly penalty: -40 per excess hour
 
+### Shift type diversity scoring
+- **Problem**: The greedy algorithm treated ACC (08:30) before CHIR (09:00) every day. The deterministic tiebreaker always gave the same employee ACC → zero shift type rotation (testi = always ACC, cam = always CHIR).
+- **Solution 1**: Diversity penalty `-15 * sameTypeCount` (monthly cumulative). After 4 ACC shifts, the penalty is -60 (dominant over most scoring factors).
+- **Solution 2**: Yesterday same-type penalty `-20` — specifically discourages back-to-back same type days.
+- **Solution 3**: Intra-day slot alternation — on even days, ACC before CHIR (ascending startTime); on odd days, CHIR before ACC (descending). Prevents structural tiebreaker bias.
+- **Impact on VET**: None. VETs can only do VET (`requiredJobTypes: ["VET"]`), so all VETs get the same diversity penalty → relative ranking unchanged.
+
+### ROTATION_EQUITY fallback (prevent Saturday holes)
+- **Problem**: With 4 Saturdays x 2 non-VET slots = 8 assignments needed, but 3 ASV/APPRENTICE employees x `maxPerPeriod: 2` = max 6 → 2 holes inevitable.
+- **Solution**: When the eligibility filter leaves fewer employees than `requiredStaff` and some were only blocked by ROTATION_EQUITY, re-admit them with a soft warning violation.
+- Better to slightly exceed the rotation limit than leave slots empty.
+- The soft warning appears in the violations panel for admin visibility.
+
 ### Random tiebreaker
 - When two employees have equal scores, `Math.random() - 0.5` prevents deterministic bias
 
@@ -512,8 +525,8 @@ Claude Opus 4.6
 ### Completion Notes List
 
 - Story 6-3 core: StaffGrid, schedule view, conflict indicators, week navigator, keyboard nav, i18n
-- Algorithm improvements: breakMinutes persistence on Shift, border week shifts, applicableJobTypes, dynamic workDays reordering, stronger scoring, random tiebreaker, per-employee contractHours
-- Test counts: 506 API, 437 Web, 442 Validators = 1385 total
+- Algorithm improvements: breakMinutes persistence on Shift, border week shifts, applicableJobTypes, dynamic workDays reordering, stronger scoring, random tiebreaker, per-employee contractHours, shift type diversity scoring, ROTATION_EQUITY fallback, intra-day slot alternation
+- Test counts: 510 API (80 planning-generation), 437 Web, 442 Validators = 1389 total
 
 ### File List
 

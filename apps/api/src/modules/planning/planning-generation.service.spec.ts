@@ -915,21 +915,64 @@ describe('PlanningGenerationService', () => {
       expect(reordered[3].date).toBe('2026-03-09'); // Week 2 Mon
     });
 
-    it('uses dynamic workDays config — Wednesday off is processed first', () => {
-      // Clinic works Mon, Tue, Thu, Fri, Sat — Wednesday is off
+    it('uses dynamic workDays config — Wednesday off, edge days detected', () => {
+      // Clinic works Mon, Tue, Thu, Fri, Sat — Wednesday and Sunday off
+      // Edge days: Tue (next=Wed off) and Sat (next=Sun off)
       const customWorkDays = new Set([1, 2, 4, 5, 6]);
       const slots = [
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday (work)
-        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday (off)
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday (work)
+        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday (regular work, priority 2)
+        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday (off, priority 0)
+        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday (edge, priority 1)
       ];
 
       const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, customWorkDays);
 
-      // Wednesday (non-work day) should come first, then the work days in date order
+      // Wed (non-work, 0) → Sat (edge, 1) → Mon (regular, 2)
       expect(reordered[0].date).toBe('2026-03-04'); // Wed (non-work)
-      expect(reordered[1].date).toBe('2026-03-02'); // Mon (work)
-      expect(reordered[2].date).toBe('2026-03-07'); // Sat (work)
+      expect(reordered[1].date).toBe('2026-03-07'); // Sat (edge work day)
+      expect(reordered[2].date).toBe('2026-03-02'); // Mon (regular work)
+    });
+
+    it('gives edge work days higher priority than regular work days', () => {
+      // Mon-Sat clinic (Sunday off) → Saturday is the edge day (followed by Sunday)
+      const monSatWorkDays = new Set([1, 2, 3, 4, 5, 6]);
+      const slots = [
+        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday
+        { date: '2026-03-03', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Tuesday
+        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday
+        { date: '2026-03-05', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Thursday
+        { date: '2026-03-06', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Friday
+        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday (edge)
+      ];
+
+      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, monSatWorkDays);
+
+      // Saturday (edge, priority 1) should come before Mon-Fri (regular, priority 2)
+      expect(reordered[0].date).toBe('2026-03-07'); // Sat (edge work day)
+      expect(reordered[1].date).toBe('2026-03-02'); // Mon
+      expect(reordered[2].date).toBe('2026-03-03'); // Tue
+      expect(reordered[3].date).toBe('2026-03-04'); // Wed
+      expect(reordered[4].date).toBe('2026-03-05'); // Thu
+      expect(reordered[5].date).toBe('2026-03-06'); // Fri
+    });
+
+    it('treats all days as regular when clinic works every day (no edge days)', () => {
+      // Mon-Sun clinic → every day is a work day, every day is an edge day
+      // (each day's next is also a work day... actually all are edge days since
+      //  all 7 days are work days, every next day IS a work day, so NO edge days)
+      const allDaysWork = new Set([1, 2, 3, 4, 5, 6, 7]);
+      const slots = [
+        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday
+        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday
+        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday
+      ];
+
+      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, allDaysWork);
+
+      // All work days, no edge days → all priority 2, sorted by date
+      expect(reordered[0].date).toBe('2026-03-02'); // Mon
+      expect(reordered[1].date).toBe('2026-03-04'); // Wed
+      expect(reordered[2].date).toBe('2026-03-07'); // Sat
     });
   });
 
@@ -1370,6 +1413,71 @@ describe('PlanningGenerationService', () => {
       expect(result.assigned.length).toBe(0);
       expect(result.holeInfo).toBeDefined();
       expect(result.holeInfo!.reason).toContain('Hard rule violated');
+    });
+  });
+
+  // ─── ROTATION_EQUITY fallback ─────────────────────────────────
+
+  describe('ROTATION_EQUITY fallback when all employees blocked', () => {
+    it('re-admits rotation-blocked employees to avoid holes', () => {
+      const constraints = {
+        unavailableMap: new Map<string, Set<string>>(),
+        schoolDayMap: new Map<string, Set<string>>(),
+        hardRules: [
+          {
+            id: 'r-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            config: { targetDay: 'saturday', maxPerPeriod: 1 },
+            priority: 0,
+          },
+        ],
+        softRules: [] as Array<{
+          id: string;
+          name: string;
+          category: string;
+          config: Record<string, unknown>;
+          priority: number;
+        }>,
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      // Both ASV employees already have 1 Saturday shift each (at maxPerPeriod limit)
+      const alreadyAssigned = [
+        { employeeId: 'emp-1', date: '2026-03-07', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        { employeeId: 'emp-2', date: '2026-03-07', startTime: '14:00', endTime: '18:00', shiftTypeCode: 'SURGERY' },
+      ];
+
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        assignmentIndex.set(`${a.employeeId}|${a.date}`, [a]);
+      }
+
+      // Second Saturday slot — both are at maxPerPeriod
+      const slot = {
+        date: '2026-03-14', // Another Saturday
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot,
+        [mockEmployees[0], mockEmployees[1]], // emp-1, emp-2 — both at limit
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // Without fallback, this would be a hole. With fallback, one should be assigned.
+      expect(result.assigned.length).toBe(1);
+      expect(result.holeInfo).toBeUndefined();
+      // A soft warning should be emitted
+      expect(result.softViolations.length).toBeGreaterThanOrEqual(1);
+      expect(result.softViolations.some(v => v.message.includes('rotation limit'))).toBe(true);
     });
   });
 
@@ -2588,6 +2696,155 @@ describe('PlanningGenerationService', () => {
       );
       // emp-2 (no previous shift) should be assigned
       expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+  });
+
+  // ─── Shift type diversity scoring ─────────────────────────────────
+
+  describe('shift type diversity scoring', () => {
+    it('penalizes repeated shift type assignments', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      // emp-1 has 3 prior SURGERY shifts, emp-2 has 0
+      const alreadyAssigned = Array.from({ length: 3 }, (_, i) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${String(2 + i).padStart(2, '0')}`,
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        assignmentIndex.set(`${a.employeeId}|${a.date}`, [a]);
+      }
+
+      const slot = {
+        date: '2026-03-06', // Friday — not consecutive with emp-1's last shift (Thu 4)
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot,
+        [mockEmployees[0], mockEmployees[1]], // emp-1 (3 SURGERY) vs emp-2 (0 SURGERY)
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // emp-2 should win — emp-1 has -45 diversity penalty (3 * 15)
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+
+    it('penalizes yesterday same shift type for consecutive-day monotony', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      // emp-1 had SURGERY yesterday, emp-2 had RECEPTION yesterday
+      const alreadyAssigned = [
+        { employeeId: 'emp-1', date: '2026-03-04', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        { employeeId: 'emp-2', date: '2026-03-04', startTime: '14:00', endTime: '18:00', shiftTypeCode: 'RECEPTION' },
+      ];
+
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        assignmentIndex.set(`${a.employeeId}|${a.date}`, [a]);
+      }
+
+      const slot = {
+        date: '2026-03-05', // next day
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // emp-2 should win — emp-1 has -15 (type count) + -20 (yesterday same type) = -35
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+
+    it('encourages shift type alternation between employees', () => {
+      const constraints = {
+        unavailableMap: new Map(),
+        schoolDayMap: new Map(),
+        hardRules: [],
+        softRules: [],
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+
+      // After week 1: emp-1 has 4 RECEPTION, emp-2 has 4 SURGERY
+      const alreadyAssigned = [
+        ...Array.from({ length: 4 }, (_, i) => ({
+          employeeId: 'emp-1',
+          date: `2026-03-${String(2 + i).padStart(2, '0')}`,
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'RECEPTION',
+        })),
+        ...Array.from({ length: 4 }, (_, i) => ({
+          employeeId: 'emp-2',
+          date: `2026-03-${String(2 + i).padStart(2, '0')}`,
+          startTime: '14:00',
+          endTime: '18:00',
+          shiftTypeCode: 'SURGERY',
+        })),
+      ];
+
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        const existing = assignmentIndex.get(key) || [];
+        existing.push(a);
+        assignmentIndex.set(key, existing);
+      }
+
+      // Week 2 Monday: RECEPTION slot — emp-2 should be preferred (0 RECEPTION vs emp-1's 4)
+      const receptionSlot = {
+        date: '2026-03-09',
+        shiftTypeCode: 'RECEPTION',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+
+      const result = callPrivate('scoreAndAssign',
+        receptionSlot,
+        [mockEmployees[0], mockEmployees[1]], // emp-1 (4 RECEPTION) vs emp-2 (0 RECEPTION)
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // emp-2 should get RECEPTION — emp-1 has -60 penalty (4 * 15)
       expect(result.assigned[0].employeeId).toBe('emp-2');
     });
   });

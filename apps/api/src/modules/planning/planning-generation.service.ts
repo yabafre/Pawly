@@ -585,12 +585,24 @@ export class PlanningGenerationService {
       weeklyMinutesMap.set(emp.id, weekMin);
     }
 
+    // Pre-compute shift type counts per employee for diversity scoring
+    const employeeShiftTypeCounts = new Map<string, Map<string, number>>();
+    for (const a of alreadyAssigned) {
+      let typeCounts = employeeShiftTypeCounts.get(a.employeeId);
+      if (!typeCounts) {
+        typeCounts = new Map();
+        employeeShiftTypeCounts.set(a.employeeId, typeCounts);
+      }
+      typeCounts.set(a.shiftTypeCode, (typeCounts.get(a.shiftTypeCode) || 0) + 1);
+    }
+
     // Extract HARD CONTRACT_COMPLIANCE rules for eligibility filter
     const hardContractRules = constraints.hardRules.filter(
       (r) => r.category === 'CONTRACT_COMPLIANCE',
     );
 
-    // Filter eligible employees
+    // Filter eligible employees — track rotation-equity-blocked separately for fallback
+    const rotationEquityBlocked: EmployeeInfo[] = [];
     const eligible = employees.filter((emp) => {
       const unavailDates = constraints.unavailableMap.get(emp.id);
       if (unavailDates?.has(slot.date)) return false;
@@ -622,6 +634,7 @@ export class PlanningGenerationService {
       for (const rule of constraints.hardRules) {
         if (rule.category === 'ROTATION_EQUITY') {
           if (this.violatesHardRotationEquity(rule, slot, emp, alreadyAssigned, constraints.quarterlyShifts)) {
+            rotationEquityBlocked.push(emp);
             return false;
           }
         }
@@ -671,6 +684,24 @@ export class PlanningGenerationService {
 
       return true;
     });
+
+    // Fallback: if not enough eligible employees but some were only blocked by
+    // ROTATION_EQUITY, re-admit them to avoid leaving the slot empty.
+    // Better to slightly exceed rotation limits than create holes.
+    if (eligible.length < slot.requiredStaff && rotationEquityBlocked.length > 0) {
+      eligible.push(...rotationEquityBlocked);
+      for (const emp of rotationEquityBlocked) {
+        softViols.push({
+          ruleId: constraints.hardRules.find(r => r.category === 'ROTATION_EQUITY')?.id || '00000000-0000-0000-0000-000000000000',
+          ruleName: 'Rotation equity relaxed',
+          category: 'ROTATION_EQUITY',
+          message: `${emp.firstName} ${emp.lastName} assigned to ${slot.shiftTypeCode} on ${slot.date} despite reaching rotation limit (no other employee available)`,
+          affectedEmployeeId: emp.id,
+          affectedDate: slot.date,
+          severity: 'warning' as const,
+        });
+      }
+    }
 
     // Check HARD rules (slot-level: STAFFING_MINIMUM, SKILL_REQUIREMENT)
     for (const rule of constraints.hardRules) {
@@ -846,6 +877,18 @@ export class PlanningGenerationService {
         checkDate = this.getPreviousDate(checkDate);
       }
       score -= consecutiveDays * 8;
+
+      // Shift type diversity — penalize repeated same shift type to encourage rotation
+      const empTypeCounts = employeeShiftTypeCounts.get(emp.id);
+      const sameTypeCount = empTypeCounts?.get(slot.shiftTypeCode) || 0;
+      score -= sameTypeCount * 15;
+
+      // Yesterday same-type penalty — strongly discourage consecutive days on same shift type
+      const prevDate = this.getPreviousDate(slot.date);
+      const prevDayShifts = assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
+      if (prevDayShifts.some(s => s.shiftTypeCode === slot.shiftTypeCode)) {
+        score -= 20;
+      }
 
       // FIX 5: Soft rule scoring adjustments weighted by priority
       for (const rule of constraints.softRules) {
@@ -1584,15 +1627,27 @@ export class PlanningGenerationService {
 
   /**
    * Reorder slots so that within each ISO week, non-workday slots are processed
-   * BEFORE workday slots. Which days are "work days" is determined by the clinic's
-   * workDays configuration — NOT hardcoded to Saturday/Sunday.
-   * This prevents the greedy algorithm from exhausting weekly budgets on
-   * regular work days and leaving hard-to-fill non-workday slots unfilled.
+   * BEFORE workday slots, with edge work days (last work day before an off day)
+   * getting intermediate priority. This 3-tier system prevents the greedy algorithm
+   * from exhausting weekly budgets on regular work days and leaving harder-to-fill
+   * edge and non-workday slots unfilled.
+   *
+   * Priority: non-work(0) → edge-work(1) → regular-work(2)
+   * Example Mon-Sat clinic (Sun off): Sun(0) → Sat(1) → Mon-Fri(2)
    */
   private reorderSlotsNonWorkDaysFirst(
     slots: SlotRequirement[],
     workDaySet: Set<number>,
   ): SlotRequirement[] {
+    // Identify edge work days: work days whose next day is NOT a work day
+    const edgeWorkDays = new Set<number>();
+    for (const isoDay of workDaySet) {
+      const nextDay = isoDay === 7 ? 1 : isoDay + 1;
+      if (!workDaySet.has(nextDay)) {
+        edgeWorkDays.add(isoDay);
+      }
+    }
+
     // Group by ISO week
     const weekGroups = new Map<string, SlotRequirement[]>();
     for (const slot of slots) {
@@ -1602,21 +1657,30 @@ export class PlanningGenerationService {
       weekGroups.set(weekKey, group);
     }
 
+    const getPriority = (isoDay: number): number => {
+      if (!workDaySet.has(isoDay)) return 0;
+      if (edgeWorkDays.has(isoDay)) return 1;
+      return 2;
+    };
+
     const result: SlotRequirement[] = [];
     const sortedWeeks = [...weekGroups.keys()].sort();
     for (const weekKey of sortedWeeks) {
       const group = weekGroups.get(weekKey)!;
-      // Sort: non-workdays first (priority 0), then workdays (priority 1)
       group.sort((a, b) => {
         const dateA = new Date(`${a.date}T00:00:00Z`);
         const dateB = new Date(`${b.date}T00:00:00Z`);
         const isoDayA = dateA.getUTCDay() === 0 ? 7 : dateA.getUTCDay();
         const isoDayB = dateB.getUTCDay() === 0 ? 7 : dateB.getUTCDay();
-        const priorityA = workDaySet.has(isoDayA) ? 1 : 0;
-        const priorityB = workDaySet.has(isoDayB) ? 1 : 0;
+        const priorityA = getPriority(isoDayA);
+        const priorityB = getPriority(isoDayB);
         if (priorityA !== priorityB) return priorityA - priorityB;
         if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.startTime.localeCompare(b.startTime);
+        // Alternate intra-day slot order on even vs odd days to prevent
+        // the same shift type from always being processed first
+        const dayNum = dateA.getUTCDate();
+        const direction = dayNum % 2 === 0 ? 1 : -1;
+        return direction * a.startTime.localeCompare(b.startTime);
       });
       result.push(...group);
     }

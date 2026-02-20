@@ -107,6 +107,8 @@ After:  Sat -> Mon -> Tue -> Wed -> Thu -> Fri (Saturday served first)
 
 **Dynamic**: Uses the clinic's `workDays` config (NOT hardcoded Saturday/Sunday). If the clinic works Saturday but not Wednesday, Wednesday will be processed first.
 
+**Intra-day alternation**: On even-numbered days (2nd, 4th, ...), slots on the same date are sorted by `startTime` ascending (earliest first). On odd-numbered days (1st, 3rd, ...), the order is reversed. This prevents the same shift type from always being processed first, which would give one employee a systematic advantage via the tiebreaker.
+
 **Between weeks**: Chronological order is maintained. Week 1 complete, then Week 2, etc.
 
 ---
@@ -136,6 +138,8 @@ Each employee is tested sequentially. **One failure = eliminated**.
 | 3 | **Required job type** | If the slot requires a job type (e.g., VET), only VETs pass | Absolute |
 | 4 | **HARD ROTATION_EQUITY** | Hard rotation rule (e.g., max 2 Saturdays/month). Blocks if exceeded. Supports `applicableJobTypes` to target specific job types. | Rule |
 | 5 | **HARD CONTRACT_COMPLIANCE** | Hard hour limit. Calc: `weekMin + slotMinutes > contractHours * 60 * (1 + overtimeTolerance%)` | Rule |
+
+**ROTATION_EQUITY fallback**: If the eligibility filter leaves fewer employees than `requiredStaff` AND some employees were only blocked by ROTATION_EQUITY (not by unavailability, overlap, or contract), those employees are **re-admitted** with a soft warning. This prevents holes when the rotation limit is too tight for the available staffing (e.g., 4 Saturdays x 2 slots = 8 assignments needed, but 3 employees x 2 max = only 6 available).
 
 **Important note on CONTRACT_COMPLIANCE**:
 - Effective weekly limit = `min(emp.contractHours, rule.maxWeeklyHours)`
@@ -172,6 +176,8 @@ Each eligible employee receives a **base score of 100**, then bonuses/penalties:
 | **Weekly hours over limit** | -40 * excess hours | Strong penalty for exceeding | **Dominant** |
 | **Fill-to-contract** | +30 if <50% used, +15 if <80% | Massive preference for employees far from their limit | **Dominant** |
 | **Consecutive days** | -8 per consecutive day | Avoids 6+ consecutive work days | Moderate |
+| **Shift type diversity** | -15 per same-type count | Penalizes repeated same `shiftTypeCode` (monthly cumulative) | **Strong** |
+| **Yesterday same type** | -20 | Extra penalty if employee had same `shiftTypeCode` on previous day | **Strong** |
 | **SOFT ROTATION_EQUITY** | -25 * priorityWeight | If max per period reached | Moderate |
 | **SOFT CONTRACT_COMPLIANCE** | -15/h * priorityWeight (weekly), -10/h (monthly) | Soft overage | Moderate |
 
@@ -194,21 +200,28 @@ Each eligible employee receives a **base score of 100**, then bonuses/penalties:
                     +----------------+--------------------+
                                      |
                     +----------------v--------------------+
+                    |  MODERATE-STRONG FACTORS (~15-20pts) |
+                    |                                     |
+                    |  6. Shift type diversity (-15/count) |
+                    |  7. Yesterday same type (-20)        |
+                    +----------------+--------------------+
+                                     |
+                    +----------------v--------------------+
                     |  MODERATE FACTORS (~10-20pts)        |
                     |                                     |
-                    |  6. Job type match (+15)             |
-                    |  7. Monthly contract (+10)           |
-                    |  8. Soft CONTRACT_COMPLIANCE penalty |
-                    |  9. Consecutive days (-8/day)        |
-                    |  10. New employee (+20)              |
+                    |  8. Job type match (+15)             |
+                    |  9. Monthly contract (+10)           |
+                    |  10. Soft CONTRACT_COMPLIANCE penalty|
+                    |  11. Consecutive days (-8/day)       |
+                    |  12. New employee (+20)              |
                     +----------------+--------------------+
                                      |
                     +----------------v--------------------+
                     |  FINE FACTORS (~5-10pts)             |
                     |                                     |
-                    |  11. Weekend/Saturday equity (+10)   |
-                    |  12. Holiday equity (+/-5)           |
-                    |  13. Overtime equity (-5/h)          |
+                    |  13. Weekend/Saturday equity (+10)   |
+                    |  14. Holiday equity (+/-5)           |
+                    |  15. Overtime equity (-5/h)          |
                     +-------------------------------------+
 ```
 
@@ -314,6 +327,8 @@ Optional field `applicableJobTypes: string[]` on `ROTATION_EQUITY` rule config.
 3. **Processing order affects results**: Reordering (non-workdays first) mitigates this issue but does not eliminate it completely.
 
 4. **Random tiebreaker**: Two successive runs may produce slightly different results when scores are close.
+
+5. **ROTATION_EQUITY fallback**: When all employees hit the hard rotation limit, the algorithm relaxes the constraint with a warning rather than leaving the slot empty. This is a deliberate trade-off: filled slots with a soft violation are better than holes.
 
 ---
 
