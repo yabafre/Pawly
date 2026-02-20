@@ -1,331 +1,331 @@
-# Algorithme de Planification Pawly - Document de Référence
+# Pawly Planning Algorithm - Reference Document
 
-## Vue d'ensemble
+## Overview
 
-L'algorithme de planification est un **algorithme greedy (glouton) slot-par-slot** implémenté dans `PlanningGenerationService.generateMonthlyPlan()`. Il assigne des employés aux créneaux définis par un template hebdomadaire, en respectant des contraintes dures (bloquantes) et molles (avertissements).
+The planning algorithm is a **slot-by-slot greedy algorithm** implemented in `PlanningGenerationService.generateMonthlyPlan()`. It assigns employees to slots defined by a weekly template, respecting hard constraints (blocking) and soft constraints (warnings).
 
 ```
-Template Hebdo → Expansion au mois → Réordonnancement → Scoring slot par slot → Shifts en BDD
+Weekly Template -> Month Expansion -> Reordering -> Slot-by-Slot Scoring -> Shifts to DB
 ```
 
 ---
 
-## Phase 1 : Entrées
+## Phase 1: Inputs
 
-### 1.1 Template hebdomadaire
-- Défini par l'admin (Story 6-1)
-- Structure : `{ days: TemplateDay[] }` où chaque `TemplateDay` contient :
-  - `dayOfWeek` : 1 (lundi) à 7 (dimanche)
-  - `slots: TemplateSlot[]` :
-    - `shiftTypeCode` : code du type de quart (ex: `CHIR`, `ACC`, `VET`)
-    - `requiredStaff` : nombre d'employés requis
-    - `requiredJobTypes?` : filtre optionnel par métier (ex: `['VET']`)
+### 1.1 Weekly Template
+- Defined by admin (Story 6-1)
+- Structure: `{ days: TemplateDay[] }` where each `TemplateDay` contains:
+  - `dayOfWeek`: 1 (Monday) to 7 (Sunday)
+  - `slots: TemplateSlot[]`:
+    - `shiftTypeCode`: shift type code (e.g., `CHIR`, `ACC`, `VET`)
+    - `requiredStaff`: number of required employees
+    - `requiredJobTypes?`: optional job type filter (e.g., `['VET']`)
 
-### 1.2 Configuration opérationnelle de la clinique
-- `workDays` : jours travaillés (ex: `['MONDAY', 'TUESDAY', ..., 'SATURDAY']`)
-- `closedDays` : jours fermés spécifiques (ex: jours fériés)
-- `specialDays` : jours avec horaires modifiés (startTime/endTime override)
+### 1.2 Clinic Operational Configuration
+- `workDays`: working days (e.g., `['MONDAY', 'TUESDAY', ..., 'SATURDAY']`)
+- `closedDays`: specific closed days (e.g., public holidays)
+- `specialDays`: days with modified hours (startTime/endTime override)
 
-### 1.3 Types de quarts (`ClinicShiftType`)
-- `code` : identifiant unique (ex: `CHIR`)
-- `startTime` / `endTime` : horaires par défaut (ex: `08:00` - `18:00`)
-- **`breakMinutes`** : temps de pause en minutes (ex: `60`)
-  - **Heures nettes = (endTime - startTime) - breakMinutes**
-  - Ex: 08:00-18:00 avec 60 min pause = **9h nettes** (pas 10h)
+### 1.3 Shift Types (`ClinicShiftType`)
+- `code`: unique identifier (e.g., `CHIR`)
+- `startTime` / `endTime`: default hours (e.g., `08:00` - `18:00`)
+- **`breakMinutes`**: break time in minutes (e.g., `60`)
+  - **Net hours = (endTime - startTime) - breakMinutes**
+  - E.g.: 08:00-18:00 with 60 min break = **9h net** (not 10h)
 
-### 1.4 Employés actifs
+### 1.4 Active Employees
 - `id`, `firstName`, `lastName`
-- `jobType` : VET, ASV, APPRENTICE, etc.
-- `contractHours` : heures contractuelles hebdomadaires (ex: `35`)
+- `jobType`: VET, ASV, APPRENTICE, etc.
+- `contractHours`: weekly contract hours (e.g., `35`)
 
-### 1.5 Contraintes chargées (`loadConstraints`)
+### 1.5 Loaded Constraints (`loadConstraints`)
 
-| Contrainte | Source | Description |
+| Constraint | Source | Description |
 |------------|--------|-------------|
-| `unavailableMap` | `Unavailability` (Prisma) | Map `employeeId → Set<dates>` de dates indisponibles |
-| `schoolDayMap` | `Unavailability` type=SCHOOL | Dates d'école des apprentis (comptent 7h/jour) |
-| `hardRules` | `PlanningRule` ruleType=HARD | Règles bloquantes (empêchent l'assignation) |
-| `softRules` | `PlanningRule` ruleType=SOFT | Règles d'avertissement (pénalité de score) |
-| `equityMap` | `EquityCounter` | Compteurs d'équité cumulés (samedis, weekends, fériés, heures sup) |
-| `quarterlyShifts` | `Shift` historique | Shifts des autres mois du trimestre (si règle ROTATION_EQUITY trimestrielle) |
+| `unavailableMap` | `Unavailability` (Prisma) | Map `employeeId -> Set<dates>` of unavailable dates |
+| `schoolDayMap` | `Unavailability` type=SCHOOL | Apprentice school dates (count as 7h/day) |
+| `hardRules` | `PlanningRule` ruleType=HARD | Blocking rules (prevent assignment) |
+| `softRules` | `PlanningRule` ruleType=SOFT | Warning rules (score penalty) |
+| `equityMap` | `EquityCounter` | Cumulative equity counters (Saturdays, weekends, holidays, overtime) |
+| `quarterlyShifts` | `Shift` history | Shifts from other months in the quarter (if quarterly ROTATION_EQUITY rule) |
 
 ---
 
-## Phase 1b : Chargement des shifts frontaliers (Border Week Shifts)
+## Phase 1b: Border Week Shifts Loading
 
-**Méthode** : `loadBorderWeekShifts(clinicId, month)`
+**Method**: `loadBorderWeekShifts(clinicId, month)`
 
-**Problème** : Les semaines ISO ne s'alignent pas sur les mois. Si mars commence un mercredi, la semaine ISO contient lundi-mardi de février. Sans ces shifts, le calcul hebdomadaire sous-estime les heures et peut dépasser les limites contractuelles.
+**Problem**: ISO weeks do not align with months. If March starts on a Wednesday, the ISO week contains Monday-Tuesday from February. Without these shifts, the weekly calculation underestimates hours and may exceed contract limits.
 
-**Solution** :
-1. Calculer les bornes ISO de la première et dernière semaine du mois
-2. Identifier les jours hors-mois dans ces semaines (ex: 23-28 février pour la semaine du 1er mars)
-3. Charger les shifts existants en DB pour ces jours (`prisma.shift.findMany`)
-4. Les injecter dans :
-   - `allShiftsForScoring` — pour le calcul `weeklyMinutesMap` (heures hebdo)
-   - `assignmentIndex` — pour les checks de chevauchement et jours consécutifs
-5. **Ne PAS les persister** — seuls les `assignedShifts` (nouveaux) sont écrits en DB
+**Solution**:
+1. Calculate ISO bounds of the first and last week of the month
+2. Identify out-of-month days in these weeks (e.g., Feb 23-28 for the week of March 1st)
+3. Load existing DB shifts for these days (`prisma.shift.findMany`)
+4. Inject them into:
+   - `allShiftsForScoring` — for `weeklyMinutesMap` calculation (weekly hours)
+   - `assignmentIndex` — for overlap and consecutive day checks
+5. **Do NOT persist them** — only `assignedShifts` (new) are written to DB
 
 ```
-Février (déjà généré)    Mars (en cours de génération)
-... Lun 23 → Dim 1er ←── borderShifts chargés
-    ─────── Semaine ISO 9 ───────
+February (already generated)    March (being generated)
+... Mon 23 -> Sun 1st <-- borderShifts loaded
+    ------- ISO Week 9 -------
 ```
 
-**Impact** : Un employé ayant déjà travaillé 35h en février (lun-ven) ne sera PAS assigné au dimanche 1er mars si sa limite hebdo est atteinte.
+**Impact**: An employee who already worked 35h in February (Mon-Fri) will NOT be assigned to Sunday March 1st if their weekly limit is reached.
 
 ---
 
-## Phase 2 : Expansion du template au mois
+## Phase 2: Template Expansion to Month
 
-**Méthode** : `expandTemplateToMonth(template, month, operationalConfig, shiftTypeMap)`
+**Method**: `expandTemplateToMonth(template, month, operationalConfig, shiftTypeMap)`
 
-Pour chaque jour du mois :
-1. **Skip** si jour fermé (`closedDays`)
-2. **Skip** si pas dans le template (`templateDayNumbers`)
-3. Pour chaque slot du template de ce jour :
-   - Récupérer les horaires du `shiftTypeMap` (via `shiftTypeCode`)
-   - Si **jour spécial** : clamper les horaires dans la fenêtre spéciale
-   - Créer un `SlotRequirement` : `{ date, shiftTypeCode, startTime, endTime, breakMinutes, requiredStaff, requiredJobTypes }`
+For each day of the month:
+1. **Skip** if closed day (`closedDays`)
+2. **Skip** if not in template (`templateDayNumbers`)
+3. For each template slot for that day:
+   - Retrieve hours from `shiftTypeMap` (via `shiftTypeCode`)
+   - If **special day**: clamp hours within the special window
+   - Create a `SlotRequirement`: `{ date, shiftTypeCode, startTime, endTime, breakMinutes, requiredStaff, requiredJobTypes }`
 
-**Résultat** : Liste plate de `SlotRequirement[]` pour tout le mois.
-
----
-
-## Phase 3 : Réordonnancement des slots
-
-**Méthode** : `reorderSlotsNonWorkDaysFirst(slots, workDaySet)`
-
-**Principe** : Au sein de chaque semaine ISO, les slots des jours **non travaillés** sont traités AVANT les jours travaillés.
-
-**Pourquoi** : Sans cela, l'algorithme traite lundi→vendredi d'abord, épuisant le budget horaire des employés. Quand il arrive au samedi, personne n'a de budget restant → tous les slots samedi restent vides.
-
-```
-Avant : Lun → Mar → Mer → Jeu → Ven → Sam (budget épuisé)
-Après : Sam → Lun → Mar → Mer → Jeu → Ven (samedi servi en premier)
-```
-
-**Dynamique** : Utilise la config `workDays` de la clinique (PAS de samedi/dimanche en dur). Si la clinique travaille le samedi mais pas le mercredi, le mercredi sera traité en premier.
-
-**Entre les semaines** : L'ordre chronologique est maintenu. Semaine 1 complète, puis Semaine 2, etc.
+**Result**: Flat list of `SlotRequirement[]` for the entire month.
 
 ---
 
-## Phase 4 : Scoring et assignation (coeur de l'algorithme)
+## Phase 3: Slot Reordering
 
-**Méthode** : `scoreAndAssign(slot, employees, constraints, ...)`
+**Method**: `reorderSlotsNonWorkDaysFirst(slots, workDaySet)`
 
-Pour chaque `SlotRequirement`, l'algorithme :
+**Principle**: Within each ISO week, slots for **non-work days** are processed BEFORE work day slots.
 
-### 4.1 Pré-calculs
+**Why**: Without this, the algorithm processes Monday->Friday first, exhausting employee hour budgets. When it reaches Saturday, no one has remaining budget -> all Saturday slots remain empty.
 
-| Calcul | Description |
-|--------|-------------|
-| `slotMinutes` | Durée nette du créneau : `(endTime - startTime) - breakMinutes` |
-| `weekBounds` | Bornes ISO de la semaine du slot |
-| `weeklyMinutesMap` | Minutes travaillées cette semaine pour chaque employé (shifts + jours d'école 7h). **Inclut les border shifts** des mois adjacents (voir Phase 0). |
+```
+Before: Mon -> Tue -> Wed -> Thu -> Fri -> Sat (budget exhausted)
+After:  Sat -> Mon -> Tue -> Wed -> Thu -> Fri (Saturday served first)
+```
 
-### 4.2 Filtrage d'éligibilité (éliminatoire)
+**Dynamic**: Uses the clinic's `workDays` config (NOT hardcoded Saturday/Sunday). If the clinic works Saturday but not Wednesday, Wednesday will be processed first.
 
-Chaque employé est testé séquentiellement. **Un seul échec = éliminé**.
+**Between weeks**: Chronological order is maintained. Week 1 complete, then Week 2, etc.
 
-| # | Filtre | Description | Priorité |
+---
+
+## Phase 4: Scoring and Assignment (algorithm core)
+
+**Method**: `scoreAndAssign(slot, employees, constraints, ...)`
+
+For each `SlotRequirement`, the algorithm:
+
+### 4.1 Pre-calculations
+
+| Calculation | Description |
+|-------------|-------------|
+| `slotMinutes` | Net slot duration: `(endTime - startTime) - breakMinutes` |
+| `weekBounds` | ISO bounds of the slot's week |
+| `weeklyMinutesMap` | Minutes worked this week per employee (shifts + school days 7h). **Includes border shifts** from adjacent months (see Phase 1b). |
+
+### 4.2 Eligibility Filtering (eliminatory)
+
+Each employee is tested sequentially. **One failure = eliminated**.
+
+| # | Filter | Description | Priority |
 |---|--------|-------------|----------|
-| 1 | **Indisponibilité** | Employé indisponible ce jour-là (vacances, maladie, école, autre) | Absolu |
-| 2 | **Chevauchement horaire** | Employé déjà assigné à un créneau qui chevauche | Absolu |
-| 3 | **Job type requis** | Si le slot exige un type de métier (ex: VET), seuls les VET passent | Absolu |
-| 4 | **HARD ROTATION_EQUITY** | Règle dure de rotation (ex: max 2 samedis/mois). Bloque si dépassé. Supporte `applicableJobTypes` pour cibler certains métiers. | Règle |
-| 5 | **HARD CONTRACT_COMPLIANCE** | Limite horaire dure. Calcul : `weekMin + slotMinutes > contractHours * 60 * (1 + overtimeTolerance%)` | Règle |
+| 1 | **Unavailability** | Employee unavailable on this day (vacation, sick, school, other) | Absolute |
+| 2 | **Time overlap** | Employee already assigned to an overlapping slot | Absolute |
+| 3 | **Required job type** | If the slot requires a job type (e.g., VET), only VETs pass | Absolute |
+| 4 | **HARD ROTATION_EQUITY** | Hard rotation rule (e.g., max 2 Saturdays/month). Blocks if exceeded. Supports `applicableJobTypes` to target specific job types. | Rule |
+| 5 | **HARD CONTRACT_COMPLIANCE** | Hard hour limit. Calc: `weekMin + slotMinutes > contractHours * 60 * (1 + overtimeTolerance%)` | Rule |
 
-**Note importante sur CONTRACT_COMPLIANCE** :
-- La limite hebdomadaire effective = `min(emp.contractHours, rule.maxWeeklyHours)`
-- Un employé à 25h de contrat avec une règle à 35h/semaine est limité à 25h
-- Un employé à 35h de contrat avec une règle à 35h/semaine est limité à 35h
-- L'`overtimeThresholdPercent` (ex: 10%) autorise un léger dépassement : 35h * 1.10 = 38.5h
+**Important note on CONTRACT_COMPLIANCE**:
+- Effective weekly limit = `min(emp.contractHours, rule.maxWeeklyHours)`
+- An employee at 25h contract with a 35h/week rule is limited to 25h
+- An employee at 35h contract with a 35h/week rule is limited to 35h
+- `overtimeThresholdPercent` (e.g., 10%) allows slight overage: 35h * 1.10 = 38.5h
 
-### 4.3 Vérification des règles dures au niveau du slot
+### 4.3 Slot-Level Hard Rule Verification
 
-Avant le scoring, on vérifie les règles HARD liées au slot lui-même :
+Before scoring, HARD rules related to the slot itself are checked:
 
-| Règle | Description | Effet |
-|-------|-------------|-------|
-| `STAFFING_MINIMUM` | Nombre minimum requis (par job type optionnel) | Si pas assez d'éligibles → violation bloquante, slot = trou |
-| `SKILL_REQUIREMENT` | Types de métiers requis pour ce shift type | Si un type manque parmi les éligibles → violation bloquante |
+| Rule | Description | Effect |
+|------|-------------|--------|
+| `STAFFING_MINIMUM` | Minimum required staff (optional job type filter) | If not enough eligible -> blocking violation, slot = hole |
+| `SKILL_REQUIREMENT` | Required job types for this shift type | If a type is missing among eligible -> blocking violation |
 
-Si une violation HARD au slot est détectée → **aucun employé n'est assigné** et le slot devient un trou.
+If a HARD slot violation is detected -> **no employee is assigned** and the slot becomes a hole.
 
-### 4.4 Système de scoring (classement des éligibles)
+### 4.4 Scoring System (ranking eligible employees)
 
-Chaque employé éligible reçoit un **score de base de 100**, puis des bonus/malus :
+Each eligible employee receives a **base score of 100**, then bonuses/penalties:
 
-| Facteur | Bonus/Malus | Condition | Poids |
-|---------|-------------|-----------|-------|
-| **Équité weekend** | +10 | Employé en dessous de la moyenne de weekends | Faible |
-| **Équité samedi** | +10 | Employé en dessous de la moyenne de samedis | Faible |
-| **Équité fériés** | +5 / -5 | En dessous / au-dessus de la moyenne de fériés | Faible |
-| **Équité heures sup** | -5/h excédentaire | Au-dessus de la moyenne d'overtime | Modéré |
-| **Nouvel employé** (pas d'equity) | +20 | Pas encore de compteur d'équité | Modéré |
-| **Contrat mensuel** | +10 | Si l'assignation reste dans le budget mensuel | Modéré |
-| **Job type match** | +15 | Le job type de l'employé correspond au slot | Modéré |
-| **Répartition mensuelle** | -25 * excès / +15 * déficit | Écart par rapport à la moyenne de shifts | Fort |
-| **Heures hebdo sous limite** | +50 * ratio restant | Plus il reste de budget hebdo, plus le bonus est fort | **Dominant** |
-| **Heures hebdo au-dessus** | -40 * heures excédentaires | Pénalité forte pour dépassement | **Dominant** |
-| **Fill-to-contract** | +30 si <50% utilisé, +15 si <80% | Préférence massive pour les employés loin de leur limite | **Dominant** |
-| **Jours consécutifs** | -8 par jour consécutif | Évite 6+ jours de travail de suite | Modéré |
-| **SOFT ROTATION_EQUITY** | -25 * priorityWeight | Si max par période atteint | Modéré |
-| **SOFT CONTRACT_COMPLIANCE** | -15/h * priorityWeight (hebdo), -10/h (mensuel) | Dépassement soft | Modéré |
+| Factor | Bonus/Penalty | Condition | Weight |
+|--------|---------------|-----------|--------|
+| **Weekend equity** | +10 | Employee below average weekend count | Low |
+| **Saturday equity** | +10 | Employee below average Saturday count | Low |
+| **Holiday equity** | +5 / -5 | Below / above average holiday count | Low |
+| **Overtime equity** | -5/excess hour | Above average overtime | Moderate |
+| **New employee** (no equity) | +20 | No equity counter yet | Moderate |
+| **Monthly contract** | +10 | If assignment stays within monthly budget | Moderate |
+| **Job type match** | +15 | Employee job type matches the slot | Moderate |
+| **Monthly distribution** | -25 * excess / +15 * deficit | Deviation from average shift count | Strong |
+| **Weekly hours under limit** | +50 * remaining ratio | More remaining weekly budget = stronger bonus | **Dominant** |
+| **Weekly hours over limit** | -40 * excess hours | Strong penalty for exceeding | **Dominant** |
+| **Fill-to-contract** | +30 if <50% used, +15 if <80% | Massive preference for employees far from their limit | **Dominant** |
+| **Consecutive days** | -8 per consecutive day | Avoids 6+ consecutive work days | Moderate |
+| **SOFT ROTATION_EQUITY** | -25 * priorityWeight | If max per period reached | Moderate |
+| **SOFT CONTRACT_COMPLIANCE** | -15/h * priorityWeight (weekly), -10/h (monthly) | Soft overage | Moderate |
 
-### 4.5 Hiérarchie effective des facteurs de scoring
+### 4.5 Effective Scoring Factor Hierarchy
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │  FACTEURS DOMINANTS (total ~130pts)  │
-                    │                                     │
-                    │  1. Heures hebdo restantes (+50)     │
-                    │  2. Fill-to-contract (+30)           │
-                    │  3. Pénalité dépassement hebdo (-40) │
-                    └──────────────┬──────────────────────┘
-                                   │
-                    ┌──────────────▼──────────────────────┐
-                    │  FACTEURS FORTS (~25pts chacun)      │
-                    │                                     │
-                    │  4. Répartition mensuelle shifts     │
-                    │  5. Soft ROTATION_EQUITY penalty     │
-                    └──────────────┬──────────────────────┘
-                                   │
-                    ┌──────────────▼──────────────────────┐
-                    │  FACTEURS MODÉRÉS (~10-20pts)        │
-                    │                                     │
-                    │  6. Job type match (+15)             │
-                    │  7. Contrat mensuel (+10)            │
-                    │  8. Soft CONTRACT_COMPLIANCE penalty │
-                    │  9. Jours consécutifs (-8/jour)      │
-                    │  10. Nouvel employé (+20)            │
-                    └──────────────┬──────────────────────┘
-                                   │
-                    ┌──────────────▼──────────────────────┐
-                    │  FACTEURS FINS (~5-10pts)            │
-                    │                                     │
-                    │  11. Équité weekend/samedi (+10)     │
-                    │  12. Équité fériés (+/-5)            │
-                    │  13. Équité overtime (-5/h)          │
-                    └─────────────────────────────────────┘
+                    +-------------------------------------+
+                    |  DOMINANT FACTORS (total ~130pts)    |
+                    |                                     |
+                    |  1. Weekly remaining hours (+50)     |
+                    |  2. Fill-to-contract (+30)           |
+                    |  3. Weekly overage penalty (-40)     |
+                    +----------------+--------------------+
+                                     |
+                    +----------------v--------------------+
+                    |  STRONG FACTORS (~25pts each)        |
+                    |                                     |
+                    |  4. Monthly shift distribution       |
+                    |  5. Soft ROTATION_EQUITY penalty     |
+                    +----------------+--------------------+
+                                     |
+                    +----------------v--------------------+
+                    |  MODERATE FACTORS (~10-20pts)        |
+                    |                                     |
+                    |  6. Job type match (+15)             |
+                    |  7. Monthly contract (+10)           |
+                    |  8. Soft CONTRACT_COMPLIANCE penalty |
+                    |  9. Consecutive days (-8/day)        |
+                    |  10. New employee (+20)              |
+                    +----------------+--------------------+
+                                     |
+                    +----------------v--------------------+
+                    |  FINE FACTORS (~5-10pts)             |
+                    |                                     |
+                    |  11. Weekend/Saturday equity (+10)   |
+                    |  12. Holiday equity (+/-5)           |
+                    |  13. Overtime equity (-5/h)          |
+                    +-------------------------------------+
 ```
 
-### 4.6 Résolution des égalités
+### 4.6 Tie Resolution
 
-Quand deux employés ont le même score → **tiebreaker aléatoire** (`Math.random() - 0.5`).
+When two employees have the same score -> **random tiebreaker** (`Math.random() - 0.5`).
 
-Sans cela, le même employé gagnait systématiquement les égalités (tri stable + ordre DB constant), créant un biais.
+Without this, the same employee would systematically win ties (stable sort + constant DB order), creating bias.
 
-### 4.7 Assignation
+### 4.7 Assignment
 
-Les `slot.requiredStaff` meilleurs scores sont assignés. Pour chaque assigné :
-1. Vérification des violations SOFT (enregistrées comme warnings)
-2. Ajout au tableau `assigned`
-3. Mise à jour de `employeeMinutes` avec les minutes nettes (heures brutes - pause)
+The `slot.requiredStaff` top scores are assigned. For each assignee:
+1. Check for SOFT violations (recorded as warnings)
+2. Add to `assigned` array
+3. Update `employeeMinutes` with net minutes (gross hours - break)
 
-Si `toAssign.length < slot.requiredStaff` → **trou (hole)** avec raison.
-
----
-
-## Phase 5 : Persistance
-
-1. **Transaction atomique** (`$transaction`) :
-   - Suppression de tous les shifts `GENERATED` du mois
-   - Création batch des nouveaux shifts (`createManyAndReturn`)
-2. Retour du `GenerationResult` avec stats, trous et violations
+If `toAssign.length < slot.requiredStaff` -> **hole** with reason.
 
 ---
 
-## Calcul des heures — Résumé
+## Phase 5: Persistence
 
-| Contexte | Formule |
-|----------|---------|
-| Minutes nettes d'un créneau | `(endTime - startTime) - breakMinutes` |
-| Minutes hebdo d'un employé | `Σ (shifts de la semaine nets) + Σ (jours d'école × 420min)` |
-| Limite hebdo effective | `min(emp.contractHours, rule.maxWeeklyHours) × 60` |
-| Tolérance overtime | `limite × (1 + overtimeThresholdPercent / 100)` |
-| Limite mensuelle | `emp.contractHours × 60 × 4.33` |
-
-**Jours d'école** : Les apprentis en école comptent 7h (420 min) par jour d'école vers leur budget hebdomadaire. Un apprenti à 35h avec 2 jours d'école (14h) n'a que 21h de budget pour les shifts.
+1. **Atomic transaction** (`$transaction`):
+   - Delete all `GENERATED` shifts for the month
+   - Batch create new shifts (`createManyAndReturn`)
+2. Return `GenerationResult` with stats, holes, and violations
 
 ---
 
-## Catégories de règles
+## Hour Calculation Summary
 
-### HARD (bloquantes — empêchent l'assignation)
+| Context | Formula |
+|---------|---------|
+| Net minutes for a slot | `(endTime - startTime) - breakMinutes` |
+| Weekly minutes for an employee | `Sum(week's net shifts) + Sum(school days x 420min)` |
+| Effective weekly limit | `min(emp.contractHours, rule.maxWeeklyHours) x 60` |
+| Overtime tolerance | `limit x (1 + overtimeThresholdPercent / 100)` |
+| Monthly limit | `emp.contractHours x 60 x 4.33` |
 
-| Catégorie | Config | Effet |
-|-----------|--------|-------|
-| `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours`, `overtimeThresholdPercent` | Élimine les employés dépassant les limites |
-| `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | Si pas assez d'éligibles → slot entier = trou |
-| `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | Si un job type manque → slot = trou |
-| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Bloque si max dépassé (mensuel ou trimestriel). Si `applicableJobTypes` est défini, ne s'applique qu'aux job types listés. |
+**School days**: Apprentices at school count 7h (420 min) per school day toward their weekly budget. An apprentice at 35h with 2 school days (14h) only has 21h budget remaining for shifts.
 
-### SOFT (avertissements — pénalité de score)
+---
 
-| Catégorie | Config | Effet |
-|-----------|--------|-------|
-| `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours` | Pénalité de score proportionnelle au dépassement |
-| `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | Warning si sous le minimum recommandé |
-| `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | Warning si job type manquant |
-| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Pénalité de score (-25 × poids priorité). Respecte `applicableJobTypes`. |
+## Rule Categories
+
+### HARD (blocking — prevent assignment)
+
+| Category | Config | Effect |
+|----------|--------|--------|
+| `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours`, `overtimeThresholdPercent` | Eliminates employees exceeding limits |
+| `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | If not enough eligible -> entire slot = hole |
+| `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | If a job type is missing -> slot = hole |
+| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Blocks if max exceeded (monthly or quarterly). If `applicableJobTypes` is set, only applies to listed job types. |
+
+### SOFT (warnings — score penalty)
+
+| Category | Config | Effect |
+|----------|--------|--------|
+| `CONTRACT_COMPLIANCE` | `maxWeeklyHours`, `maxMonthlyHours` | Score penalty proportional to overage |
+| `STAFFING_MINIMUM` | `shiftTypeCode`, `minStaff`, `jobTypes?` | Warning if below recommended minimum |
+| `SKILL_REQUIREMENT` | `shiftTypeCode`, `requiredJobTypes` | Warning if job type missing |
+| `ROTATION_EQUITY` | `targetDay`, `maxPerPeriod`, `trackingPeriod`, `applicableJobTypes?` | Score penalty (-25 x priority weight). Respects `applicableJobTypes`. |
 
 ### applicableJobTypes (ROTATION_EQUITY)
 
-Champ optionnel `applicableJobTypes: string[]` sur la config des règles `ROTATION_EQUITY`.
+Optional field `applicableJobTypes: string[]` on `ROTATION_EQUITY` rule config.
 
-**Exemple** : La règle "ASV équité" (max 2 samedis/mois) avec `applicableJobTypes: ["ASV"]` ne bloque que les ASV. Les VET peuvent travailler autant de samedis que nécessaire.
+**Example**: The "ASV equity" rule (max 2 Saturdays/month) with `applicableJobTypes: ["ASV"]` only blocks ASVs. VETs can work as many Saturdays as needed.
 
-**Sans ce champ** : La règle s'applique à TOUS les employés (comportement par défaut, rétrocompatible).
+**Without this field**: The rule applies to ALL employees (default behavior, backward compatible).
 
-**Appliqué dans** :
-- `violatesHardRotationEquity` — skip si l'employé n'est pas dans la liste
-- `checkRotationEquity` — idem pour les violations soft
-- Scoring dans `scoreAndAssign` — idem pour la pénalité de score
-
----
-
-## Paramètres de config et leur impact
-
-| Paramètre | Où le configurer | Impact |
-|-----------|-----------------|--------|
-| `contractHours` (employé) | Fiche employé | Limite hebdo de base |
-| `breakMinutes` (shift type) | Settings > Types de quarts | Réduit les heures nettes comptabilisées |
-| `workDays` | Settings > Général | Détermine quels jours sont "non-travaillés" (traités en priorité) |
-| `closedDays` | Settings > Général | Jours sautés complètement |
-| `maxWeeklyHours` (règle) | Settings > Règles planning | Cap supplémentaire hebdo (min avec contractHours) |
-| `maxMonthlyHours` (règle) | Settings > Règles planning | Cap mensuel absolu |
-| `overtimeThresholdPercent` (règle) | Settings > Règles planning | Tolérance de dépassement (ex: 10% = 35h → 38.5h max) |
-| `minStaff` (règle) | Settings > Règles planning | Minimum requis par créneau |
-| `targetDays` + `maxPerPeriod` (règle) | Settings > Règles planning | Rotation équitable (ex: max 2 samedis/mois) |
-| `trackingPeriod` (règle) | Settings > Règles planning | `monthly` ou `quarterly` pour la rotation |
-| `priority` (règle) | Settings > Règles planning | Poids multiplicateur pour les pénalités soft (0-10) |
+**Applied in**:
+- `violatesHardRotationEquity` — skip if employee is not in the list
+- `checkRotationEquity` — same for soft violations
+- Scoring in `scoreAndAssign` — same for score penalty
 
 ---
 
-## Limites connues de l'algorithme
+## Config Parameters and Their Impact
 
-1. **Greedy sans backtracking** : L'algorithme ne revient jamais sur une décision. Si un mauvais choix est fait tôt, il ne peut pas être corrigé plus tard.
-
-2. **Pas d'optimisation globale** : Ne cherche pas la solution "optimale" mathématiquement. Le scoring heuristique donne de bons résultats mais pas nécessairement les meilleurs.
-
-3. **Ordre de traitement impacte le résultat** : Le réordonnancement (non-workdays first) atténue ce problème mais ne l'élimine pas complètement.
-
-4. **Tiebreaker aléatoire** : Deux exécutions successives peuvent donner des résultats légèrement différents quand les scores sont proches.
+| Parameter | Where to Configure | Impact |
+|-----------|--------------------|--------|
+| `contractHours` (employee) | Employee profile | Base weekly limit |
+| `breakMinutes` (shift type) | Settings > Shift Types | Reduces net hours counted |
+| `workDays` | Settings > General | Determines which days are "non-work" (processed first) |
+| `closedDays` | Settings > General | Days skipped entirely |
+| `maxWeeklyHours` (rule) | Settings > Planning Rules | Additional weekly cap (min with contractHours) |
+| `maxMonthlyHours` (rule) | Settings > Planning Rules | Absolute monthly cap |
+| `overtimeThresholdPercent` (rule) | Settings > Planning Rules | Overage tolerance (e.g., 10% = 35h -> 38.5h max) |
+| `minStaff` (rule) | Settings > Planning Rules | Minimum required per slot |
+| `targetDays` + `maxPerPeriod` (rule) | Settings > Planning Rules | Fair rotation (e.g., max 2 Saturdays/month) |
+| `trackingPeriod` (rule) | Settings > Planning Rules | `monthly` or `quarterly` for rotation |
+| `priority` (rule) | Settings > Planning Rules | Multiplier weight for soft penalties (0-10) |
 
 ---
 
-## Fichiers clés
+## Known Algorithm Limitations
 
-| Fichier | Rôle |
-|---------|------|
-| `apps/api/src/modules/planning/planning-generation.service.ts` | Algorithme complet |
-| `apps/api/src/modules/planning/planning.service.ts` | Gestion des règles + validation |
-| `apps/api/src/modules/planning/planning-template.service.ts` | CRUD templates |
-| `apps/api/src/modules/planning/equity-counter.service.ts` | Compteurs d'équité |
-| `apps/api/src/modules/clinic/clinic.service.ts` | Config opérationnelle + shift types |
-| `packages/validators/src/planning/planning-generation.schema.ts` | Schémas Zod |
-| `apps/api/prisma/schema/ShiftType.prisma` | Modèle Prisma (breakMinutes) |
-| `apps/api/prisma/schema/Planning.prisma` | Modèle Shift + PlanningRule |
+1. **Greedy with no backtracking**: The algorithm never revisits a decision. If a bad choice is made early, it cannot be corrected later.
+
+2. **No global optimization**: Does not seek the mathematically "optimal" solution. Heuristic scoring produces good results but not necessarily the best.
+
+3. **Processing order affects results**: Reordering (non-workdays first) mitigates this issue but does not eliminate it completely.
+
+4. **Random tiebreaker**: Two successive runs may produce slightly different results when scores are close.
+
+---
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `apps/api/src/modules/planning/planning-generation.service.ts` | Complete algorithm |
+| `apps/api/src/modules/planning/planning.service.ts` | Rule management + validation |
+| `apps/api/src/modules/planning/planning-template.service.ts` | Template CRUD |
+| `apps/api/src/modules/planning/equity-counter.service.ts` | Equity counters |
+| `apps/api/src/modules/clinic/clinic.service.ts` | Operational config + shift types |
+| `packages/validators/src/planning/planning-generation.schema.ts` | Zod schemas |
+| `apps/api/prisma/schema/ShiftType.prisma` | Prisma model (breakMinutes) |
+| `apps/api/prisma/schema/Planning.prisma` | Shift + PlanningRule model |
