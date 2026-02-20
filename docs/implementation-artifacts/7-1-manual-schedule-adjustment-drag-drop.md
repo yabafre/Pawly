@@ -520,10 +520,63 @@ Story 7.1 is the natural continuation: 6.3 created the read-only StaffGrid, 7.1 
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Code review: 14 issues identified (6 CRITICAL, 4 HIGH, 4 MEDIUM), all fixed
+- Pre-existing TS errors in test files fixed (const assertions for WorkDays, RuleType)
+
 ### Completion Notes List
 
+- `@dnd-kit/core` v6 used (NOT `@dnd-kit/react` beta, NOT `@dnd-kit/sortable`)
+- `DndGridContext` was inlined into `StaffGrid.tsx` instead of a separate wrapper file
+- DnD tests added to existing `schedule-view.spec.tsx` instead of a separate `drag-drop.spec.tsx`
+- `preValidateMove` changed from `.query()` to `.mutation()` to prevent React Query caching validation results
+- `createManualShift` backend ignores client-provided startTime/endTime and resolves from `ClinicShiftType` DB record
+- AssignShiftModal uses client-side eligibility (unavailabilityIndex + shiftIndex) instead of calling `preValidateMove` per employee
+- `StaffGridRow` wrapped with `React.memo` for performance (prevents 620 cell re-renders per drag-over)
+- `preValidateMove` uses `Promise.all` for 5 parallel DB queries after shift ownership check
+- `workDays` in operationalConfig uses uppercase day names (`MONDAY`, `TUESDAY`, etc.) mapped via `dayNameToIso`
+- `moveShift` validates date format (regex), date validity (isNaN), and time overlap (ConflictException)
+- Optimistic update: `onMutate` snapshots cache, `onError` rolls back, `onSettled` invalidates
+- 1502 total tests green (545 API + 480 Web + 477 Validators)
+
 ### File List
+
+**New files (10):**
+- `packages/validators/src/planning/shift-mutation.schema.ts` — Zod schemas for moveShift, createManualShift, deleteShift, preValidateMove inputs + MoveValidationResult output
+- `packages/validators/src/planning/shift-mutation.schema.test.ts` — 30 validator tests
+- `apps/web/src/app/[locale]/admin/planning/_actions/shift-mutation-actions.ts` — ZSA server actions for 4 shift mutations
+- `apps/web/src/app/[locale]/admin/planning/_hooks/useDragAndDrop.ts` — DnD state management (activeShift, dropFeedbackMap, debounced preValidateMove)
+- `apps/web/src/app/[locale]/admin/planning/_hooks/useShiftMutations.ts` — React Query mutations with optimistic update pattern
+- `apps/web/src/app/[locale]/admin/planning/_components/DraggableShiftCell.tsx` — ShiftCell wrapper with useDraggable
+- `apps/web/src/app/[locale]/admin/planning/_components/DroppableGridCell.tsx` — Grid cell wrapper with useDroppable + visual feedback
+- `apps/web/src/app/[locale]/admin/planning/_components/DragGhost.tsx` — DragOverlay ghost shift chip
+- `apps/web/src/app/[locale]/admin/planning/_components/AssignShiftModal.tsx` — Employee selection modal for hole assignment
+- `docs/implementation-artifacts/7-1-manual-schedule-adjustment-drag-drop.md` — This story file
+
+**Modified files (23):**
+- `apps/api/src/modules/planning/planning-generation.service.ts` — +346 lines: moveShift, createManualShift, deleteShift, preValidateMove, timesOverlap helper
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — +24 tests: moveShift (8), createManualShift (3), deleteShift (3), preValidateMove (10)
+- `apps/api/src/trpc/routers/planning.router.ts` — +4 procedures: moveShift, createManualShift, deleteShift, preValidateMove
+- `apps/api/src/trpc/routers/planning.router.spec.ts` — +12 tests: ADMIN/EMPLOYEE guards + clinicId from ctx
+- `apps/web/src/app/[locale]/admin/planning/_components/StaffGrid.tsx` — DndContext integration, sensors, keyboard coordinate getter, announcements
+- `apps/web/src/app/[locale]/admin/planning/_components/StaffGridRow.tsx` — DroppableGridCell wrapping, DraggableShiftCell usage, React.memo, getDropFeedback prop
+- `apps/web/src/app/[locale]/admin/planning/_components/HoleCell.tsx` — onHoleClick callback prop
+- `apps/web/src/app/[locale]/admin/planning/_components/ScheduleViewWrapper.tsx` — useShiftMutations, AssignShiftModal state, shiftIndex/unavailabilityIndex for modal
+- `apps/web/src/app/[locale]/admin/planning/__tests__/schedule-view.spec.tsx` — +30 DnD component tests
+- `apps/web/src/app/[locale]/admin/planning/__tests__/generation.spec.tsx` — TS error fixes
+- `apps/web/src/app/[locale]/admin/planning/templates/__tests__/templates.spec.tsx` — TS error fixes
+- `apps/web/src/app/[locale]/admin/settings/__tests__/shift-types.spec.tsx` — TS error fixes
+- `apps/web/src/i18n/langs/en.json` — +38 keys: admin.dragDrop namespace
+- `apps/web/src/i18n/langs/fr.json` — +38 keys: admin.dragDrop namespace
+- `apps/web/package.json` — +@dnd-kit/core, @dnd-kit/utilities
+- `apps/web/src/app/globals.css` — animate-shake keyframes
+- `apps/api/src/modules/clinic/clinic.service.spec.ts` — TS const assertion fix
+- `apps/api/src/modules/planning/planning-template.service.spec.ts` — TS const assertion fix
+- `apps/api/src/modules/planning/planning.service.spec.ts` — TS const assertion fix
+- `apps/api/src/trpc/routers/clinic.router.spec.ts` — TS const assertion fix
+- `packages/validators/src/planning/index.ts` — Export shift-mutation schemas
+- `docs/implementation-artifacts/sprint-status.yaml` — Story 7-1 → done
+- `pnpm-lock.yaml` — Lockfile update for dnd-kit packages
