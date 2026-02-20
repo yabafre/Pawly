@@ -15,6 +15,7 @@ model Shift {
   startTime     String      @map("start_time")
   endTime       String      @map("end_time")
   shiftTypeCode String      @default("OTHER") @map("shift_type_code")
+  breakMinutes  Int         @default(0) @map("break_minutes")
   source        ShiftSource @default(MANUAL)
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

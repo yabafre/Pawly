@@ -55,6 +55,7 @@ export const shiftTypeFieldsSchema = z.object({
   code: z.string().min(1).max(10).toUpperCase(),
   startTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
   endTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+  breakMinutes: z.number().int().min(0).max(300).default(0),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color"),
 });
 

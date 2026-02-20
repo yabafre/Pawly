@@ -409,6 +409,12 @@
         "confirm": "Regénérer",
         "cancel": "Annuler"
       },
+      "confirmDelete": {
+        "title": "Supprimer les créneaux générés ?",
+        "description": "Les {count} créneaux générés pour ce mois seront définitivement supprimés. Cette action est irréversible. Les créneaux manuels seront conservés.",
+        "confirm": "Supprimer",
+        "cancel": "Annuler"
+      },
       "existing": {
         "title": "Créneaux du mois",
         "totalShifts": "Total",
@@ -416,7 +422,9 @@
         "manual": "Manuels",
         "employees": "Employés",
         "daysWithShifts": "{count} jour(s) planifié(s)",
-        "deleteGenerated": "Supprimer les générés"
+        "deleteGenerated": "Supprimer les générés",
+        "warnings": "avertissements",
+        "warningsTitle": "Avertissements & violations"
       },
       "toast": {
         "generated": "Planning généré avec succès",
@@ -429,6 +437,72 @@
         "noTemplate": "Veuillez sélectionner un modèle",
         "noMonth": "Veuillez sélectionner un mois cible",
         "loadFailed": "Impossible de charger les données"
+      }
+    },
+    "scheduleView": {
+      "title": "Vue du planning",
+      "subtitle": "Visualisez le planning généré avec les affectations et les indicateurs de conflits",
+      "emptyState": {
+        "title": "Aucun créneau généré",
+        "description": "Générez un planning pour voir la grille de planification"
+      },
+      "weekNavigator": {
+        "label": "Semaine",
+        "weekOf": "Semaine du {date}",
+        "previous": "Semaine précédente",
+        "next": "Semaine suivante"
+      },
+      "grid": {
+        "employeeColumn": "Employé",
+        "hoursColumn": "Heures",
+        "hoursLabel": "{actual}h / {contract}h",
+        "hoursOver": "Dépassement horaire",
+        "hoursUnder": "Sous le contrat",
+        "hoursOk": "Conforme au contrat",
+        "closedDay": "Fermé",
+        "dayOff": "Jour de repos",
+        "nonWorkDay": "Jour non travaillé",
+        "school": "école",
+        "break": "pause"
+      },
+      "shift": {
+        "generated": "Généré",
+        "manual": "Manuel",
+        "timeRange": "{start} - {end}"
+      },
+      "hole": {
+        "label": "Créneau vide",
+        "tooltip": "{shiftType} : {assigned}/{required} employés affectés",
+        "ctaLabel": "Cliquer pour affecter"
+      },
+      "absence": {
+        "vacation": "Congés",
+        "sick": "Arrêt maladie",
+        "school": "École",
+        "other": "Absence"
+      },
+      "conflict": {
+        "hardTitle": "Conflit",
+        "softTitle": "Avertissement",
+        "hardCount": "{count, plural, one {# conflit} other {# conflits}}",
+        "softCount": "{count, plural, one {# avertissement} other {# avertissements}}",
+        "details": "Détails du conflit",
+        "rule": "Règle : {name}",
+        "category": "Catégorie : {category}"
+      },
+      "accessibility": {
+        "gridLabel": "Grille de planning du personnel",
+        "cellLabel": "{employee}, {day} {date}, {shiftType} {timeRange}",
+        "holeCellLabel": "Créneau vide, {day} {date}, {shiftType}. Cliquer pour affecter.",
+        "absenceCellLabel": "{employee}, {day} {date}, {type}",
+        "closedCellLabel": "{day} {date}, clinique fermée",
+        "conflictAnnouncement": "{count, plural, one {# conflit détecté} other {# conflits détectés}}"
+      },
+      "responsive": {
+        "fullView": "Semaine complète",
+        "liteView": "Vue 3 jours",
+        "previousDays": "Jours précédents",
+        "nextDays": "Jours suivants"
       }
     },
     "settings": {
@@ -454,6 +528,21 @@
           "helper": "Données normalisées pour les règles bloquantes."
         }
       }
+    },
+    "apprenticeDeclarations": {
+      "title": "Déclarations jours d'école des apprentis",
+      "subtitle": "Confirmez le statut des jours d'école pour chaque apprenti avant de générer le planning",
+      "allDeclared": "Toutes les déclarations des apprentis sont complètes pour ce mois",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "Jours d'école fournis",
+        "NO_SCHOOL_THIS_MONTH": "Pas d'école ce mois",
+        "MISSING": "Déclaration manquante"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirmer : pas d'école",
+        "removeDeclaration": "Supprimer la déclaration"
+      },
+      "empty": "Aucun apprenti dans cette clinique"
     }
   },
   "brand": {
@@ -731,6 +820,7 @@
         "codePlaceholder": "CHIR",
         "startTime": "Début",
         "endTime": "Fin",
+        "breakMinutes": "Pause (min)",
         "color": "Couleur",
         "addShiftType": "Ajouter un type de poste",
         "removeShiftType": "Supprimer",
@@ -927,6 +1017,8 @@
     "toast": {
       "created": "Employé créé avec succès",
       "updated": "Employé mis à jour avec succès",
+      "createFailed": "Impossible de créer l'employé",
+      "updateFailed": "Impossible de mettre à jour l'employé",
       "deactivated": "Employé désactivé",
       "activated": "Employé réactivé",
       "invitationResent": "Invitation renvoyée avec succès",
@@ -1026,6 +1118,8 @@
         "codePlaceholder": "ex : MATIN",
         "startTime": "Heure de début",
         "endTime": "Heure de fin",
+        "breakMinutes": "Pause (min)",
+        "breakMinutesPlaceholder": "ex : 60",
         "color": "Couleur"
       },
       "form": {

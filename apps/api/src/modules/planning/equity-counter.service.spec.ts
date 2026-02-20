@@ -582,8 +582,8 @@ describe('EquityCounterService', () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
         { id: 'emp-1', contractHours: 1 }, // Very low contract hours
       ]);
-      // Give enough work to exceed the limit: 1hr * 60 * 4.33 = 259.8 min limit
-      // If we work 300 min, overtime = 300 - 260 = 40
+      // Give enough work to exceed the limit: 1hr * 60 * (31/7) ≈ 265.7 min limit
+      // If we work 300 min, overtime = 300 - 266 = 34
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
@@ -596,7 +596,9 @@ describe('EquityCounterService', () => {
 
       await service.recalculateForPeriod(clinicId, 2026, 3);
 
-      const expectedOvertime = Math.max(0, Math.round(300 - 1 * 60 * 4.33));
+      // March 2026 = 31 days → weeksInMonth = 31/7
+      const weeksInMonth = 31 / 7;
+      const expectedOvertime = Math.max(0, Math.round(300 - 1 * 60 * weeksInMonth));
 
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -657,9 +659,11 @@ describe('EquityCounterService', () => {
 
       await service.recalculateForPeriod(clinicId, 2026, 3);
 
-      // contractLimit = 1 * 60 * 4.33 = 259.8
-      // overtime = 570 - 259.8 = 310.2, rounded = 310
-      const expectedOvertime = Math.max(0, Math.round(570 - 1 * 60 * 4.33));
+      // March 2026 = 31 days → weeksInMonth = 31/7
+      // contractLimit = 1 * 60 * (31/7) ≈ 265.7
+      // overtime = 570 - 265.7 ≈ 304.3, rounded = 304
+      const weeksInMonth = 31 / 7;
+      const expectedOvertime = Math.max(0, Math.round(570 - 1 * 60 * weeksInMonth));
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -689,10 +693,12 @@ describe('EquityCounterService', () => {
 
       await service.recalculateForPeriod(clinicId, 2026, 3);
 
-      // contractLimit = 1 * 60 * 4.33 = 259.8
+      // March 2026 = 31 days → weeksInMonth = 31/7
+      // contractLimit = 1 * 60 * (31/7) ≈ 265.7
       // overnight shift: 1440 - 1320 + 360 = 480 minutes
-      // overtime = 480 - 259.8 = 220.2, rounded = 220
-      const expectedOvertime = Math.max(0, Math.round(480 - 1 * 60 * 4.33));
+      // overtime = 480 - 265.7 ≈ 214.3, rounded = 214
+      const weeksInMonth = 31 / 7;
+      const expectedOvertime = Math.max(0, Math.round(480 - 1 * 60 * weeksInMonth));
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {

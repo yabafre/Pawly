@@ -453,9 +453,32 @@ describe("completeOnboardingSchema", () => {
       ...validCompleteOnboarding,
       // code gets uppercased by the transform
       shiftTypes: [
-        { ...validShiftType, code: validShiftType.code.toUpperCase() },
+        {
+          ...validShiftType,
+          code: validShiftType.code.toUpperCase(),
+          breakMinutes: 0,
+        },
       ],
     });
+  });
+
+  it("should default breakMinutes to 0 in onboarding shift types", () => {
+    const result = completeOnboardingSchema.safeParse(validCompleteOnboarding);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.shiftTypes[0].breakMinutes).toBe(0);
+    }
+  });
+
+  it("should accept explicit breakMinutes in onboarding shift types", () => {
+    const result = completeOnboardingSchema.safeParse({
+      ...validCompleteOnboarding,
+      shiftTypes: [{ ...validShiftType, breakMinutes: 60 }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.shiftTypes[0].breakMinutes).toBe(60);
+    }
   });
 });
 

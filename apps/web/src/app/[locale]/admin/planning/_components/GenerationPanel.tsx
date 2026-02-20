@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/select";
 import { useGeneration } from "../_hooks/useGeneration";
 import { useTemplates } from "../templates/_hooks/useTemplates";
-import { GenerationResultView } from "./GenerationResultView";
 import { MonthShiftsSummary } from "./MonthShiftsSummary";
 import { ConfirmRegenerateDialog } from "./ConfirmRegenerateDialog";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import type { GenerationResult } from "@pawly/validators";
 
 function getMonthOptions(locale: string) {
@@ -33,16 +33,23 @@ function getMonthOptions(locale: string) {
   return options;
 }
 
-export function GenerationPanel() {
+type Props = {
+  month: string;
+  onMonthChange: (month: string) => void;
+};
+
+export function GenerationPanel({ month, onMonthChange }: Props) {
   const t = useTranslations("admin.planningGeneration");
   const locale = useLocale();
   const monthOptions = getMonthOptions(locale);
 
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const selectedMonth = month;
+  const setSelectedMonth = onMonthChange;
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { templates, isPending: isLoadingTemplates } = useTemplates();
   const {
@@ -162,24 +169,31 @@ export function GenerationPanel() {
         </div>
       </div>
 
-      {/* Generation result (ephemeral, after clicking generate) */}
-      {generationResult && (
-        <GenerationResultView result={generationResult} />
-      )}
-
       {/* Persistent month summary (survives refresh) */}
       <MonthShiftsSummary
         shifts={shifts}
         isLoading={isLoadingShifts}
-        onDeleteGenerated={() => deleteGenerated({ month: selectedMonth })}
+        month={selectedMonth}
+        onDeleteGenerated={() => setShowDeleteConfirm(true)}
         isDeleting={isDeleting}
         isGenerating={isGenerating}
+        generationResult={generationResult}
       />
 
       <ConfirmRegenerateDialog
         open={showConfirm}
         onOpenChange={setShowConfirm}
         onConfirm={handleConfirmRegenerate}
+        existingCount={existingGeneratedCount}
+      />
+
+      <ConfirmDeleteDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          deleteGenerated({ month: selectedMonth });
+        }}
         existingCount={existingGeneratedCount}
       />
     </div>

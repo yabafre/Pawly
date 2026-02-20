@@ -27,6 +27,7 @@ const onboardingStatusSchema = z.object({
       code: z.string(),
       startTime: z.string(),
       endTime: z.string(),
+      breakMinutes: z.number(),
       color: z.string(),
     }),
   ),

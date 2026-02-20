@@ -90,6 +90,7 @@ export class ClinicService {
             code: st.code,
             startTime: st.startTime,
             endTime: st.endTime,
+            breakMinutes: st.breakMinutes ?? 0,
             color: st.color,
           })),
         });
@@ -156,6 +157,7 @@ export class ClinicService {
             code: st.code,
             startTime: st.startTime,
             endTime: st.endTime,
+            breakMinutes: st.breakMinutes ?? 0,
             color: st.color,
           })),
         });
@@ -267,6 +269,7 @@ export class ClinicService {
           code: data.code,
           startTime: data.startTime,
           endTime: data.endTime,
+          breakMinutes: data.breakMinutes ?? 0,
           color: data.color,
         },
       });
@@ -298,6 +301,7 @@ export class ClinicService {
           ...(data.code !== undefined && { code: data.code }),
           ...(data.startTime !== undefined && { startTime: data.startTime }),
           ...(data.endTime !== undefined && { endTime: data.endTime }),
+          ...(data.breakMinutes !== undefined && { breakMinutes: data.breakMinutes }),
           ...(data.color !== undefined && { color: data.color }),
         },
       });

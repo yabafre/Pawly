@@ -27,6 +27,7 @@ export const useOnboardingStatus = () => {
           code: st.code,
           startTime: st.startTime,
           endTime: st.endTime,
+          breakMinutes: st.breakMinutes ?? 0,
           color: st.color,
         })),
       }

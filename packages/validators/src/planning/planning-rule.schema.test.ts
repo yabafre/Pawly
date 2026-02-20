@@ -115,6 +115,45 @@ describe("rotationEquityConfigSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts optional applicableJobTypes array", () => {
+    const result = rotationEquityConfigSchema.safeParse({
+      targetDay: "saturday",
+      maxPerPeriod: 2,
+      trackingPeriod: "monthly",
+      applicableJobTypes: ["ASV"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts applicableJobTypes with multiple job types", () => {
+    const result = rotationEquityConfigSchema.safeParse({
+      targetDay: "saturday",
+      maxPerPeriod: 2,
+      trackingPeriod: "monthly",
+      applicableJobTypes: ["ASV", "VET"],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts config without applicableJobTypes (applies to all)", () => {
+    const result = rotationEquityConfigSchema.safeParse({
+      targetDay: "saturday",
+      maxPerPeriod: 2,
+      trackingPeriod: "quarterly",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty strings in applicableJobTypes", () => {
+    const result = rotationEquityConfigSchema.safeParse({
+      targetDay: "saturday",
+      maxPerPeriod: 2,
+      trackingPeriod: "monthly",
+      applicableJobTypes: [""],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ── Skill Requirement Config ────────────────────────────────────────────────
@@ -211,6 +250,36 @@ describe("contractComplianceConfigSchema", () => {
     const result = contractComplianceConfigSchema.safeParse({
       maxWeeklyHours: 35,
       overtimeThresholdPercent: -5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts config with minRestHoursBetweenShifts only", () => {
+    const result = contractComplianceConfigSchema.safeParse({
+      minRestHoursBetweenShifts: 11,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts config with all fields including minRestHoursBetweenShifts", () => {
+    const result = contractComplianceConfigSchema.safeParse({
+      maxWeeklyHours: 35,
+      maxMonthlyHours: 151,
+      minRestHoursBetweenShifts: 11,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects minRestHoursBetweenShifts below 1", () => {
+    const result = contractComplianceConfigSchema.safeParse({
+      minRestHoursBetweenShifts: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects minRestHoursBetweenShifts above 24", () => {
+    const result = contractComplianceConfigSchema.safeParse({
+      minRestHoursBetweenShifts: 25,
     });
     expect(result.success).toBe(false);
   });

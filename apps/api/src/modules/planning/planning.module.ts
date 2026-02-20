@@ -6,6 +6,7 @@ import { PlanningTemplateService } from './planning-template.service';
 import { PlanningGenerationService } from './planning-generation.service';
 import { EquityCounterService } from './equity-counter.service';
 import { EquityCounterScheduler } from './equity-counter.scheduler';
+import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 
 @Module({
   imports: [PrismaModule, ClinicModule],
@@ -15,12 +16,14 @@ import { EquityCounterScheduler } from './equity-counter.scheduler';
     PlanningGenerationService,
     EquityCounterService,
     EquityCounterScheduler,
+    ApprenticeDeclarationService,
   ],
   exports: [
     PlanningService,
     PlanningTemplateService,
     PlanningGenerationService,
     EquityCounterService,
+    ApprenticeDeclarationService,
   ],
 })
 export class PlanningModule {}

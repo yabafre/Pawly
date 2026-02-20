@@ -250,8 +250,8 @@ describe('ClinicService', () => {
       });
       expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith({
         data: [
-          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
-          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', color: '#0000FF' },
+          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
+          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
         ],
       });
       expect(result).toEqual(createManyResult);
@@ -361,8 +361,8 @@ describe('ClinicService', () => {
       });
       expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith({
         data: [
-          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
-          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', color: '#0000FF' },
+          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
+          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
         ],
       });
 

@@ -106,26 +106,49 @@ export class EmployeeService {
     const forceClearEndDate = data.contractType === 'CDI';
     const email = data.email || null;
 
-    // If employee has an email, create a User account and link them
+    // If employee has an email, create or reuse a User account and link them
     if (email) {
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
       });
+
+      // If a User exists, allow linking only if they belong to the same clinic
+      // and don't already have an Employee record
       if (existingUser) {
-        throw new BadRequestException(
-          `A user account with email ${email} already exists`,
-        );
+        if (existingUser.clinicId !== clinicId) {
+          throw new BadRequestException(
+            `A user account with email ${email} already exists in another clinic`,
+          );
+        }
+
+        const existingEmployee = await this.prisma.employee.findFirst({
+          where: { userId: existingUser.id },
+        });
+        if (existingEmployee) {
+          throw new BadRequestException(
+            `An employee is already linked to the user account with email ${email}`,
+          );
+        }
       }
 
       const result = await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email,
-            name: `${data.firstName} ${data.lastName}`,
-            role: 'EMPLOYEE',
-            clinicId,
-          },
-        });
+        let userId: string;
+
+        if (existingUser) {
+          // Reuse existing User (e.g., admin who is also an employee)
+          userId = existingUser.id;
+        } else {
+          // Create a new User with EMPLOYEE role
+          const user = await tx.user.create({
+            data: {
+              email,
+              name: `${data.firstName} ${data.lastName}`,
+              role: 'EMPLOYEE',
+              clinicId,
+            },
+          });
+          userId = user.id;
+        }
 
         return tx.employee.create({
           data: {
@@ -143,7 +166,7 @@ export class EmployeeService {
                 ? null
                 : new Date(data.endDate),
             clinicId,
-            userId: user.id,
+            userId,
           },
         });
       });

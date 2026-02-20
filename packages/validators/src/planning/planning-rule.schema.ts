@@ -37,6 +37,7 @@ export const rotationEquityConfigSchema = z.object({
   targetDay: z.enum(DAYS_OF_WEEK),
   maxPerPeriod: z.number().int().min(1, "Max per period must be at least 1"),
   trackingPeriod: z.enum(TRACKING_PERIODS),
+  applicableJobTypes: z.array(z.string().min(1)).optional(),
 });
 export type RotationEquityConfig = z.infer<typeof rotationEquityConfigSchema>;
 
@@ -55,10 +56,11 @@ export const contractComplianceConfigSchema = z
     maxWeeklyHours: z.number().int().min(1).optional(),
     maxMonthlyHours: z.number().int().min(1).optional(),
     overtimeThresholdPercent: z.number().min(0).max(100).optional(),
+    minRestHoursBetweenShifts: z.number().min(1).max(24).optional(),
   })
   .refine(
-    (data) => data.maxWeeklyHours || data.maxMonthlyHours,
-    "At least one hour limit (weekly or monthly) must be defined"
+    (data) => data.maxWeeklyHours || data.maxMonthlyHours || data.minRestHoursBetweenShifts,
+    "At least one constraint (hour limit or rest hours) must be defined"
   );
 export type ContractComplianceConfig = z.infer<
   typeof contractComplianceConfigSchema

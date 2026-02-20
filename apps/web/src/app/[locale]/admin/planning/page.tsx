@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { GenerationPanel } from "./_components/GenerationPanel";
+import { PlanningPageClient } from "./_components/PlanningPageClient";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -9,7 +9,7 @@ export default async function PlanningPage({ params }: Props) {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in space-y-6">
-      <GenerationPanel />
+      <PlanningPageClient />
     </div>
   );
 }

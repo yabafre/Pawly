@@ -176,6 +176,11 @@ export function ShiftTypesPanel() {
                   <Clock className="h-3.5 w-3.5" strokeWidth={1.5} />
                   <span>
                     {st.startTime} — {st.endTime}
+                    {st.breakMinutes > 0 && (
+                      <span className="ml-1.5 text-neutral-400">
+                        ({st.breakMinutes} {t("fields.breakMinutes").toLowerCase()})
+                      </span>
+                    )}
                   </span>
                 </div>
 

@@ -46,6 +46,11 @@ export const useCreateEmployee = () => {
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
         toast.success(t("created"));
       },
+      onError: (err) => {
+        toast.error(t("createFailed"), {
+          description: err.message,
+        });
+      },
     },
   );
   return { createEmployee: mutate, isPending, error };
@@ -60,6 +65,11 @@ export const useUpdateEmployee = () => {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.employees() });
         toast.success(t("updated"));
+      },
+      onError: (err) => {
+        toast.error(t("updateFailed"), {
+          description: err.message,
+        });
       },
     },
   );

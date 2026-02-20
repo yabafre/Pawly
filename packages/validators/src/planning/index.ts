@@ -93,3 +93,44 @@ export type {
   GenerationStats,
   GenerationResult,
 } from "./planning-generation.schema";
+
+export {
+  APPRENTICE_MONTH_STATUSES,
+  listApprenticeDeclarationsSchema,
+  upsertNoSchoolSchema,
+  deleteDeclarationSchema,
+  getDeclarationStatusSchema,
+  apprenticeDeclarationRowSchema,
+} from "./apprentice-declaration.schema";
+
+export type {
+  ApprenticeMonthStatusType,
+  ListApprenticeDeclarationsInput,
+  UpsertNoSchoolInput,
+  DeleteDeclarationInput,
+  GetDeclarationStatusInput,
+  ApprenticeDeclarationRow,
+} from "./apprentice-declaration.schema";
+
+export {
+  SCHOOL_DAY_MINUTES,
+  scheduleViewInputSchema,
+  weekNavigationSchema,
+  scheduleEmployeeSchema,
+  scheduleDayInfoSchema,
+  scheduleShiftSchema,
+  scheduleUnavailabilitySchema,
+  scheduleHoleSchema,
+  scheduleViewDataSchema,
+} from "./schedule-view.schema";
+
+export type {
+  ScheduleViewInput,
+  WeekNavigation,
+  ScheduleEmployee,
+  ScheduleDayInfo,
+  ScheduleShift,
+  ScheduleUnavailability,
+  ScheduleHole,
+  ScheduleViewData,
+} from "./schedule-view.schema";

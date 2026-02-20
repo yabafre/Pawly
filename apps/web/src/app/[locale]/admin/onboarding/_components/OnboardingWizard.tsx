@@ -36,6 +36,7 @@ export interface OnboardingFormValues {
     code: string;
     startTime: string;
     endTime: string;
+    breakMinutes: number;
     color: string;
   }>;
 }
@@ -52,6 +53,7 @@ interface OnboardingInitialData {
     code: string;
     startTime: string;
     endTime: string;
+    breakMinutes: number;
     color: string;
   }>;
 }
@@ -116,6 +118,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
               code: st.code,
               startTime: st.startTime,
               endTime: st.endTime,
+              breakMinutes: st.breakMinutes ?? 0,
               color: st.color,
             }))
           : [
@@ -124,6 +127,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
                 code: "CHIR",
                 startTime: "08:30",
                 endTime: "18:30",
+                breakMinutes: 0,
                 color: "#4F46E5",
               },
               {
@@ -131,6 +135,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
                 code: "ACC",
                 startTime: "09:00",
                 endTime: "19:30",
+                breakMinutes: 0,
                 color: "#F97316",
               },
             ],

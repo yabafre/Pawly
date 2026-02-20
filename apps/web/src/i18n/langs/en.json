@@ -409,6 +409,12 @@
         "confirm": "Regenerate",
         "cancel": "Cancel"
       },
+      "confirmDelete": {
+        "title": "Delete generated shifts?",
+        "description": "This will permanently delete {count} generated shift(s) for this month. This action cannot be undone. Manual shifts will be preserved.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
       "existing": {
         "title": "Month Shifts",
         "totalShifts": "Total",
@@ -416,7 +422,9 @@
         "manual": "Manual",
         "employees": "Employees",
         "daysWithShifts": "{count} day(s) planned",
-        "deleteGenerated": "Delete generated"
+        "deleteGenerated": "Delete generated",
+        "warnings": "warnings",
+        "warningsTitle": "Warnings & violations"
       },
       "toast": {
         "generated": "Planning generated successfully",
@@ -429,6 +437,72 @@
         "noTemplate": "Please select a template",
         "noMonth": "Please select a target month",
         "loadFailed": "Unable to load data"
+      }
+    },
+    "scheduleView": {
+      "title": "Schedule Overview",
+      "subtitle": "View the generated planning grid with employee assignments and conflict indicators",
+      "emptyState": {
+        "title": "No shifts generated",
+        "description": "Generate a planning first to see the schedule grid"
+      },
+      "weekNavigator": {
+        "label": "Week",
+        "weekOf": "Week of {date}",
+        "previous": "Previous week",
+        "next": "Next week"
+      },
+      "grid": {
+        "employeeColumn": "Employee",
+        "hoursColumn": "Hours",
+        "hoursLabel": "{actual}h / {contract}h",
+        "hoursOver": "Over contract hours",
+        "hoursUnder": "Under contract hours",
+        "hoursOk": "Within contract hours",
+        "closedDay": "Closed",
+        "dayOff": "Day off",
+        "nonWorkDay": "Non-work day",
+        "school": "school",
+        "break": "break"
+      },
+      "shift": {
+        "generated": "Generated",
+        "manual": "Manual",
+        "timeRange": "{start} - {end}"
+      },
+      "hole": {
+        "label": "Empty slot",
+        "tooltip": "{shiftType}: {assigned}/{required} staff assigned",
+        "ctaLabel": "Click to assign"
+      },
+      "absence": {
+        "vacation": "Vacation",
+        "sick": "Sick leave",
+        "school": "School",
+        "other": "Absence"
+      },
+      "conflict": {
+        "hardTitle": "Conflict",
+        "softTitle": "Warning",
+        "hardCount": "{count, plural, one {# conflict} other {# conflicts}}",
+        "softCount": "{count, plural, one {# warning} other {# warnings}}",
+        "details": "Conflict details",
+        "rule": "Rule: {name}",
+        "category": "Category: {category}"
+      },
+      "accessibility": {
+        "gridLabel": "Staff schedule grid",
+        "cellLabel": "{employee}, {day} {date}, {shiftType} {timeRange}",
+        "holeCellLabel": "Empty slot, {day} {date}, {shiftType}. Click to assign.",
+        "absenceCellLabel": "{employee}, {day} {date}, {type}",
+        "closedCellLabel": "{day} {date}, clinic closed",
+        "conflictAnnouncement": "{count, plural, one {# conflict detected} other {# conflicts detected}}"
+      },
+      "responsive": {
+        "fullView": "Full week",
+        "liteView": "3-day view",
+        "previousDays": "Previous days",
+        "nextDays": "Next days"
       }
     },
     "settings": {
@@ -454,6 +528,21 @@
           "helper": "Normalized data for downstream hard rules."
         }
       }
+    },
+    "apprenticeDeclarations": {
+      "title": "Apprentice School Day Declarations",
+      "subtitle": "Confirm school day status for each apprentice before generating the schedule",
+      "allDeclared": "All apprentice declarations are complete for this month",
+      "status": {
+        "SCHOOL_DAYS_PROVIDED": "School days provided",
+        "NO_SCHOOL_THIS_MONTH": "No school this month",
+        "MISSING": "Declaration missing"
+      },
+      "actions": {
+        "confirmNoSchool": "Confirm: no school",
+        "removeDeclaration": "Remove declaration"
+      },
+      "empty": "No apprentices in this clinic"
     }
   },
   "brand": {
@@ -731,6 +820,7 @@
         "codePlaceholder": "SURG",
         "startTime": "Start",
         "endTime": "End",
+        "breakMinutes": "Break (min)",
         "color": "Color",
         "addShiftType": "Add shift type",
         "removeShiftType": "Remove",
@@ -927,6 +1017,8 @@
     "toast": {
       "created": "Employee created successfully",
       "updated": "Employee updated successfully",
+      "createFailed": "Unable to create employee",
+      "updateFailed": "Unable to update employee",
       "deactivated": "Employee deactivated",
       "activated": "Employee reactivated",
       "invitationResent": "Invitation email resent successfully",
@@ -1026,6 +1118,8 @@
         "codePlaceholder": "e.g. MORNING",
         "startTime": "Start time",
         "endTime": "End time",
+        "breakMinutes": "Break (min)",
+        "breakMinutesPlaceholder": "e.g. 60",
         "color": "Color"
       },
       "form": {

@@ -20,6 +20,7 @@ const updateShiftTypeFieldsSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)")
     .optional(),
+  breakMinutes: z.number().int().min(0).max(300).optional(),
   color: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color")
