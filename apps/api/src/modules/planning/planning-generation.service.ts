@@ -1477,6 +1477,23 @@ export class PlanningGenerationService {
     });
     if (!shiftType) throw new NotFoundException(`Shift type '${input.shiftTypeCode}' not found`);
 
+    // Check for time overlap on the target employee + date
+    const existingShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: input.employeeId,
+        clinicId,
+        date: new Date(`${input.date}T00:00:00.000Z`),
+      },
+    });
+
+    for (const existing of existingShifts) {
+      if (this.timesOverlap(shiftType.startTime, shiftType.endTime, existing.startTime, existing.endTime)) {
+        throw new ConflictException(
+          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+        );
+      }
+    }
+
     const created = await this.prisma.shift.create({
       data: {
         date: new Date(`${input.date}T00:00:00.000Z`),
@@ -1628,7 +1645,7 @@ export class PlanningGenerationService {
       }
     }
 
-    // SOFT CONTRACT_COMPLIANCE check
+    // CONTRACT_COMPLIANCE check — respects HARD vs SOFT ruleType
     const shiftMinutes = this.calculateShiftMinutes(shift.startTime, shift.endTime) - (shift.breakMinutes || 0);
     const weekBounds = this.getWeekBounds(input.targetDate);
 
@@ -1655,13 +1672,17 @@ export class PlanningGenerationService {
     for (const rule of rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE')) {
       const config = rule.config as Record<string, unknown>;
       const maxWeekly = config.maxWeeklyHours as number | undefined;
+      const overtimeTol = rule.ruleType === 'HARD'
+        ? 1 + ((config.overtimeThresholdPercent as number) || 0) / 100
+        : 1;
       const effectiveLimit = maxWeekly
         ? Math.min(employee.contractHours, maxWeekly)
         : employee.contractHours;
 
-      if (projectedWeeklyMinutes > effectiveLimit * 60) {
+      if (projectedWeeklyMinutes > effectiveLimit * 60 * overtimeTol) {
         const overHours = Math.round((projectedWeeklyMinutes - effectiveLimit * 60) / 60 * 10) / 10;
-        soft.push({
+        const bucket = rule.ruleType === 'HARD' ? hard : soft;
+        bucket.push({
           rule: 'CONTRACT_COMPLIANCE',
           message: `Overtime risk: ${overHours}h over weekly limit (${effectiveLimit}h)`,
         });
@@ -1680,7 +1701,7 @@ export class PlanningGenerationService {
       }
     }
 
-    // SOFT ROTATION_EQUITY check — load monthShifts once before the loop
+    // ROTATION_EQUITY check — load monthShifts once before the loop
     const monthShifts = await this.prisma.shift.findMany({
       where: {
         employeeId: input.targetEmployeeId,
@@ -1690,10 +1711,17 @@ export class PlanningGenerationService {
       },
     });
 
+    // Pre-load quarterly shifts (other months in same quarter) for quarterly-tracked rules
+    const quarter = Math.floor((monthNum - 1) / 3);
+    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
+    const quarterEnd = new Date(Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999));
+    let quarterlyShifts: typeof monthShifts | null = null;
+
     for (const rule of rules.filter((r) => r.category === 'ROTATION_EQUITY')) {
       const config = rule.config as Record<string, unknown>;
       const targetDay = config.targetDay as string;
       const maxPerPeriod = config.maxPerPeriod as number;
+      const trackingPeriod = config.trackingPeriod as string | undefined;
       const dayMap: Record<string, number> = {
         monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
         friday: 5, saturday: 6, sunday: 7,
@@ -1706,15 +1734,33 @@ export class PlanningGenerationService {
         continue;
       }
 
-      const targetDayCount = monthShifts.filter((s) => {
+      // Load quarterly shifts lazily on first quarterly rule
+      let shiftPool = monthShifts;
+      if (trackingPeriod === 'quarterly') {
+        if (!quarterlyShifts) {
+          quarterlyShifts = await this.prisma.shift.findMany({
+            where: {
+              employeeId: input.targetEmployeeId,
+              clinicId,
+              date: { gte: quarterStart, lte: quarterEnd },
+              id: { not: input.shiftId },
+              NOT: { date: { gte: monthStart, lte: monthEnd } },
+            },
+          });
+        }
+        shiftPool = [...monthShifts, ...quarterlyShifts];
+      }
+
+      const targetDayCount = shiftPool.filter((s) => {
         const d = s.date.getUTCDay() === 0 ? 7 : s.date.getUTCDay();
         return d === ruleDayIso;
       }).length;
 
       if (targetDayCount + 1 > maxPerPeriod) {
-        soft.push({
+        const bucket = rule.ruleType === 'HARD' ? hard : soft;
+        bucket.push({
           rule: 'ROTATION_EQUITY',
-          message: `${employee.firstName} ${employee.lastName} would have ${targetDayCount + 1} ${targetDay} shifts (max ${maxPerPeriod})`,
+          message: `${employee.firstName} ${employee.lastName} would have ${targetDayCount + 1} ${targetDay} shifts (${trackingPeriod || 'monthly'}, max ${maxPerPeriod})`,
         });
       }
     }

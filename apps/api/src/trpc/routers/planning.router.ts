@@ -262,7 +262,7 @@ export const planningRouter = router({
 
   preValidateMove: subscribedProcedure
     .input(preValidateMoveInputSchema)
-    .mutation(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
       return ctx.planningGenerationService.preValidateMove(
         ctx.user.clinicId,

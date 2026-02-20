@@ -81,15 +81,47 @@ export function useDragAndDrop(
   );
 
   const onDragEnd = useCallback(
-    (event: DragEndEvent) => {
+    async (event: DragEndEvent) => {
       const { over } = event;
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
       if (over && activeShift) {
         const targetData = over.data.current as { employeeId?: string; date?: string } | undefined;
         if (targetData?.employeeId && targetData?.date) {
+          // Skip same-cell drops
+          if (targetData.employeeId === activeShift.employeeId && targetData.date === activeShift.date) {
+            setActiveShift(null);
+            setDropFeedbackMap(new Map());
+            lastValidatedKey.current = "";
+            return;
+          }
+
           const key = `${targetData.employeeId}|${targetData.date}`;
-          const feedbackEntry = dropFeedbackMap.get(key);
+          let feedbackEntry = dropFeedbackMap.get(key);
+
+          // If debounce hadn't fired yet, run synchronous validation before proceeding
+          if (!feedbackEntry) {
+            try {
+              const [result] = await preValidateMoveAction({
+                shiftId: activeShift.id,
+                targetEmployeeId: targetData.employeeId,
+                targetDate: targetData.date,
+              });
+              if (result) {
+                const validation = result as MoveValidationResult;
+                const feedback: DropFeedback =
+                  validation.hard.length > 0 ? "blocked" : validation.soft.length > 0 ? "warning" : "valid";
+                const reasons: string[] =
+                  validation.hard.length > 0
+                    ? validation.hard.map((v) => v.message || v.rule)
+                    : validation.soft.map((v) => v.message || v.rule);
+                feedbackEntry = { feedback, reasons };
+              }
+            } catch {
+              feedbackEntry = { feedback: "blocked", reasons: [] };
+            }
+          }
+
           // Only move if not blocked
           if (feedbackEntry?.feedback === "blocked") {
             toast.error(t("dropBlocked"), {

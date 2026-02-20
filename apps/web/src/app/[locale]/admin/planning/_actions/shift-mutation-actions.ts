@@ -30,5 +30,5 @@ export const deleteShiftAction = createServerAction()
 export const preValidateMoveAction = createServerAction()
   .input(preValidateMoveInputSchema)
   .handler(async ({ input }) => {
-    return trpc.planning.preValidateMove.mutate(input);
+    return trpc.planning.preValidateMove.query(input);
   });

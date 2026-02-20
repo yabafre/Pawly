@@ -32,8 +32,8 @@ export const useShiftMutations = (month?: string) => {
   const { mutate: moveShift, isPending: isMoving } =
     useServerActionMutation(moveShiftAction, {
       onMutate: async () => {
-        // Cancel in-flight queries to avoid overwriting optimistic update
-        await queryClient.cancelQueries({ queryKey: QueryKeyFactory.planningScheduleView() });
+        // Cancel in-flight queries for this month to avoid overwriting rollback snapshot
+        await queryClient.cancelQueries({ queryKey: QueryKeyFactory.planningScheduleView(month) });
         // Snapshot previous data for rollback
         const previous = queryClient.getQueryData(QueryKeyFactory.planningScheduleView(month));
         return { previous };
