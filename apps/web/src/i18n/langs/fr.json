@@ -505,6 +505,44 @@
         "nextDays": "Jours suivants"
       }
     },
+    "dragDrop": {
+      "moveSuccess": "Créneau déplacé avec succès",
+      "moveError": "Échec du déplacement du créneau",
+      "createSuccess": "Créneau créé avec succès",
+      "createError": "Échec de la création du créneau",
+      "deleteSuccess": "Créneau supprimé avec succès",
+      "deleteError": "Échec de la suppression du créneau",
+      "dragging": "Déplacement en cours…",
+      "dropHere": "Déposer ici pour affecter",
+      "dropBlocked": "Dépôt impossible ici",
+      "dropWarning": "Dépôt autorisé avec avertissements",
+      "validating": "Validation…",
+      "assignModal": {
+        "title": "Affecter un créneau",
+        "subtitle": "Sélectionnez un employé pour remplir ce poste",
+        "date": "Date : {date}",
+        "shiftType": "Créneau : {shiftType} ({start} - {end})",
+        "eligible": "Éligible",
+        "blocked": "Bloqué",
+        "warning": "Avertissement",
+        "noEligible": "Aucun employé éligible pour ce créneau",
+        "assign": "Affecter",
+        "cancel": "Annuler"
+      },
+      "deleteConfirm": {
+        "title": "Supprimer le créneau",
+        "message": "Êtes-vous sûr de vouloir supprimer ce créneau ?",
+        "confirm": "Supprimer",
+        "cancel": "Annuler"
+      },
+      "accessibility": {
+        "dragHandle": "Glisser pour déplacer le créneau",
+        "dropTarget": "Zone de dépôt pour {employee} le {date}",
+        "shiftMoved": "Créneau déplacé vers {employee} le {date}",
+        "shiftCreated": "Créneau affecté à {employee}",
+        "shiftDeleted": "Créneau supprimé"
+      }
+    },
     "settings": {
       "badge": "Paramètres clinique",
       "title": "Paramètres opérationnels",

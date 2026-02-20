@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -22,6 +23,7 @@ import type {
   ScheduleShift,
   ScheduleUnavailability,
   ScheduleHole,
+  MoveValidationResult,
 } from '@pawly/validators';
 
 type SlotRequirement = {
@@ -1374,6 +1376,396 @@ export class PlanningGenerationService {
       violations,
       templateId: templateId ?? undefined,
     };
+  }
+
+  // ── Shift mutation methods (Story 7.1: Manual Schedule Adjustment) ──────
+
+  async moveShift(
+    clinicId: string,
+    shiftId: string,
+    target: { targetEmployeeId?: string; targetDate?: string },
+  ): Promise<ScheduleShift> {
+    const shift = await this.prisma.shift.findUnique({ where: { id: shiftId } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.clinicId !== clinicId) throw new ForbiddenException('Shift does not belong to this clinic');
+
+    if (target.targetDate) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(target.targetDate)) {
+        throw new BadRequestException('Invalid date format');
+      }
+      const parsedDate = new Date(`${target.targetDate}T00:00:00.000Z`);
+      if (isNaN(parsedDate.getTime())) {
+        throw new BadRequestException('Invalid date value');
+      }
+    }
+
+    if (target.targetEmployeeId) {
+      const employee = await this.prisma.employee.findFirst({
+        where: { id: target.targetEmployeeId, clinicId, isActive: true },
+      });
+      if (!employee) throw new NotFoundException('Target employee not found or inactive');
+    }
+
+    // Check for time overlap on the target employee + date
+    const overlapEmployeeId = target.targetEmployeeId || shift.employeeId;
+    const overlapDate = target.targetDate
+      ? new Date(`${target.targetDate}T00:00:00.000Z`)
+      : shift.date;
+
+    const existingShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: overlapEmployeeId,
+        clinicId,
+        date: overlapDate,
+        id: { not: shiftId },
+      },
+    });
+
+    for (const existing of existingShifts) {
+      if (this.timesOverlap(shift.startTime, shift.endTime, existing.startTime, existing.endTime)) {
+        throw new ConflictException(
+          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+        );
+      }
+    }
+
+    const updated = await this.prisma.shift.update({
+      where: { id: shiftId },
+      data: {
+        ...(target.targetEmployeeId && { employeeId: target.targetEmployeeId }),
+        ...(target.targetDate && { date: new Date(`${target.targetDate}T00:00:00.000Z`) }),
+        source: 'MANUAL',
+      },
+    });
+
+    const shiftTypes = await this.clinicService.listShiftTypes(clinicId);
+    const colorMap = new Map(shiftTypes.map((st) => [st.code, st.color]));
+
+    return {
+      id: updated.id,
+      date: updated.date.toISOString().split('T')[0],
+      startTime: updated.startTime,
+      endTime: updated.endTime,
+      shiftTypeCode: updated.shiftTypeCode,
+      breakMinutes: updated.breakMinutes,
+      source: updated.source as 'GENERATED' | 'MANUAL',
+      employeeId: updated.employeeId,
+      isConfirmed: updated.isConfirmed,
+      shiftTypeColor: colorMap.get(updated.shiftTypeCode) ?? null,
+    };
+  }
+
+  async createManualShift(
+    clinicId: string,
+    input: {
+      employeeId: string;
+      date: string;
+      shiftTypeCode: string;
+      startTime: string;
+      endTime: string;
+      breakMinutes?: number;
+    },
+  ): Promise<ScheduleShift> {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: input.employeeId, clinicId, isActive: true },
+    });
+    if (!employee) throw new NotFoundException('Employee not found or inactive');
+
+    // Lookup ClinicShiftType for accurate times
+    const shiftType = await this.prisma.clinicShiftType.findFirst({
+      where: { code: input.shiftTypeCode, clinicId },
+    });
+    if (!shiftType) throw new NotFoundException(`Shift type '${input.shiftTypeCode}' not found`);
+
+    // Check for time overlap on the target employee + date
+    const existingShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: input.employeeId,
+        clinicId,
+        date: new Date(`${input.date}T00:00:00.000Z`),
+      },
+    });
+
+    for (const existing of existingShifts) {
+      if (this.timesOverlap(shiftType.startTime, shiftType.endTime, existing.startTime, existing.endTime)) {
+        throw new ConflictException(
+          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+        );
+      }
+    }
+
+    const created = await this.prisma.shift.create({
+      data: {
+        date: new Date(`${input.date}T00:00:00.000Z`),
+        startTime: shiftType.startTime,
+        endTime: shiftType.endTime,
+        shiftTypeCode: input.shiftTypeCode,
+        breakMinutes: shiftType.breakMinutes,
+        source: 'MANUAL',
+        employeeId: input.employeeId,
+        clinicId,
+      },
+    });
+
+    const shiftTypes = await this.clinicService.listShiftTypes(clinicId);
+    const colorMap = new Map(shiftTypes.map((st) => [st.code, st.color]));
+
+    return {
+      id: created.id,
+      date: created.date.toISOString().split('T')[0],
+      startTime: created.startTime,
+      endTime: created.endTime,
+      shiftTypeCode: created.shiftTypeCode,
+      breakMinutes: created.breakMinutes,
+      source: created.source as 'GENERATED' | 'MANUAL',
+      employeeId: created.employeeId,
+      isConfirmed: created.isConfirmed,
+      shiftTypeColor: colorMap.get(created.shiftTypeCode) ?? null,
+    };
+  }
+
+  async deleteShift(
+    clinicId: string,
+    shiftId: string,
+  ): Promise<{ deleted: true }> {
+    const shift = await this.prisma.shift.findUnique({ where: { id: shiftId } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.clinicId !== clinicId) throw new ForbiddenException('Shift does not belong to this clinic');
+
+    await this.prisma.shift.delete({ where: { id: shiftId } });
+    return { deleted: true };
+  }
+
+  async preValidateMove(
+    clinicId: string,
+    input: { shiftId: string; targetEmployeeId: string; targetDate: string },
+  ): Promise<MoveValidationResult> {
+    const hard: Array<{ rule: string; message: string }> = [];
+    const soft: Array<{ rule: string; message: string }> = [];
+
+    // Load the shift
+    const shift = await this.prisma.shift.findUnique({ where: { id: input.shiftId } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.clinicId !== clinicId) throw new ForbiddenException('Shift does not belong to this clinic');
+
+    // Parallelize independent DB queries after shift ownership check
+    const targetDateObj = new Date(`${input.targetDate}T00:00:00.000Z`);
+    const [year, monthNum] = input.targetDate.substring(0, 7).split('-').map(Number);
+    const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+
+    const [employee, operationalConfig, unavailabilities, existingShifts, rules] = await Promise.all([
+      this.prisma.employee.findFirst({
+        where: { id: input.targetEmployeeId, clinicId, isActive: true },
+        select: { id: true, firstName: true, lastName: true, jobType: true, contractHours: true },
+      }),
+      this.clinicService.getOperationalConfig(clinicId),
+      this.prisma.unavailability.findMany({
+        where: {
+          employeeId: input.targetEmployeeId,
+          clinicId,
+          startDate: { lte: new Date(`${input.targetDate}T23:59:59.999Z`) },
+          endDate: { gte: new Date(`${input.targetDate}T00:00:00.000Z`) },
+        },
+      }),
+      this.prisma.shift.findMany({
+        where: {
+          employeeId: input.targetEmployeeId,
+          clinicId,
+          date: targetDateObj,
+          id: { not: input.shiftId },
+        },
+      }),
+      this.planningService.listRules(clinicId, { isActive: true }),
+    ]);
+
+    // Verify target employee
+    if (!employee) {
+      hard.push({ rule: 'EMPLOYEE', message: 'Target employee not found or inactive' });
+      return { hard, soft };
+    }
+
+    // Check closed/non-work days
+    const dayNameToIso: Record<string, number> = {
+      MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6, SUNDAY: 7,
+    };
+    const workDaySet = new Set(
+      operationalConfig.workDays.map((d: string) => dayNameToIso[d]).filter(Boolean),
+    );
+    const closedDateSet = new Set(
+      operationalConfig.closedDays.map((cd: { date: string }) => cd.date),
+    );
+
+    if (closedDateSet.has(input.targetDate)) {
+      hard.push({ rule: 'CLOSED_DAY', message: 'Target date is a closed day' });
+    }
+
+    const targetIsoDay = targetDateObj.getUTCDay() === 0 ? 7 : targetDateObj.getUTCDay();
+    if (!workDaySet.has(targetIsoDay)) {
+      hard.push({ rule: 'NON_WORK_DAY', message: 'Target date is not a work day' });
+    }
+
+    // Check unavailabilities
+    for (const ua of unavailabilities) {
+      if (ua.daysOfWeek.length === 0) {
+        hard.push({
+          rule: 'UNAVAILABILITY',
+          message: `Employee is unavailable (${ua.type}${ua.reason ? ': ' + ua.reason : ''})`,
+        });
+      } else if (ua.daysOfWeek.includes(targetIsoDay)) {
+        hard.push({
+          rule: 'UNAVAILABILITY',
+          message: `Employee has recurring unavailability on this day (${ua.type})`,
+        });
+      }
+    }
+
+    // Check time overlap with existing shifts
+    for (const existing of existingShifts) {
+      if (this.timesOverlap(shift.startTime, shift.endTime, existing.startTime, existing.endTime)) {
+        hard.push({
+          rule: 'OVERLAP',
+          message: `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+        });
+        break;
+      }
+    }
+
+    // HARD SKILL_REQUIREMENT check
+    for (const rule of rules.filter((r) => r.ruleType === 'HARD' && r.category === 'SKILL_REQUIREMENT')) {
+      const config = rule.config as Record<string, unknown>;
+      if (config.shiftTypeCode === shift.shiftTypeCode) {
+        const requiredJobTypes = config.requiredJobTypes as string[];
+        if (requiredJobTypes && !requiredJobTypes.includes(employee.jobType)) {
+          hard.push({
+            rule: 'SKILL_REQUIREMENT',
+            message: `Employee job type ${employee.jobType} does not match required: ${requiredJobTypes.join(', ')}`,
+          });
+        }
+      }
+    }
+
+    // CONTRACT_COMPLIANCE check — respects HARD vs SOFT ruleType
+    const shiftMinutes = this.calculateShiftMinutes(shift.startTime, shift.endTime) - (shift.breakMinutes || 0);
+    const weekBounds = this.getWeekBounds(input.targetDate);
+
+    const weekShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: input.targetEmployeeId,
+        clinicId,
+        date: {
+          gte: new Date(`${weekBounds.start}T00:00:00.000Z`),
+          lte: new Date(`${weekBounds.end}T23:59:59.999Z`),
+        },
+        id: { not: input.shiftId },
+      },
+    });
+
+    let weeklyMinutes = 0;
+    for (const ws of weekShifts) {
+      weeklyMinutes += this.calculateShiftMinutes(ws.startTime, ws.endTime) - (ws.breakMinutes || 0);
+    }
+
+    const projectedWeeklyMinutes = weeklyMinutes + shiftMinutes;
+    const contractWeeklyMinutes = employee.contractHours * 60;
+
+    for (const rule of rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE')) {
+      const config = rule.config as Record<string, unknown>;
+      const maxWeekly = config.maxWeeklyHours as number | undefined;
+      const overtimeTol = rule.ruleType === 'HARD'
+        ? 1 + ((config.overtimeThresholdPercent as number) || 0) / 100
+        : 1;
+      const effectiveLimit = maxWeekly
+        ? Math.min(employee.contractHours, maxWeekly)
+        : employee.contractHours;
+
+      if (projectedWeeklyMinutes > effectiveLimit * 60 * overtimeTol) {
+        const overHours = Math.round((projectedWeeklyMinutes - effectiveLimit * 60) / 60 * 10) / 10;
+        const bucket = rule.ruleType === 'HARD' ? hard : soft;
+        bucket.push({
+          rule: 'CONTRACT_COMPLIANCE',
+          message: `Overtime risk: ${overHours}h over weekly limit (${effectiveLimit}h)`,
+        });
+        break;
+      }
+    }
+
+    // If no contract rules exist, still warn based on contractHours
+    if (rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE').length === 0) {
+      if (projectedWeeklyMinutes > contractWeeklyMinutes) {
+        const overHours = Math.round((projectedWeeklyMinutes - contractWeeklyMinutes) / 60 * 10) / 10;
+        soft.push({
+          rule: 'CONTRACT_COMPLIANCE',
+          message: `Overtime risk: ${overHours}h over contract hours (${employee.contractHours}h/week)`,
+        });
+      }
+    }
+
+    // ROTATION_EQUITY check — load monthShifts once before the loop
+    const monthShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: input.targetEmployeeId,
+        clinicId,
+        date: { gte: monthStart, lte: monthEnd },
+        id: { not: input.shiftId },
+      },
+    });
+
+    // Pre-load quarterly shifts (other months in same quarter) for quarterly-tracked rules
+    const quarter = Math.floor((monthNum - 1) / 3);
+    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
+    const quarterEnd = new Date(Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999));
+    let quarterlyShifts: typeof monthShifts | null = null;
+
+    for (const rule of rules.filter((r) => r.category === 'ROTATION_EQUITY')) {
+      const config = rule.config as Record<string, unknown>;
+      const targetDay = config.targetDay as string;
+      const maxPerPeriod = config.maxPerPeriod as number;
+      const trackingPeriod = config.trackingPeriod as string | undefined;
+      const dayMap: Record<string, number> = {
+        monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
+        friday: 5, saturday: 6, sunday: 7,
+      };
+      const ruleDayIso = dayMap[targetDay];
+      if (!ruleDayIso || ruleDayIso !== targetIsoDay) continue;
+
+      const applicableJobTypes = config.applicableJobTypes as string[] | undefined;
+      if (applicableJobTypes && applicableJobTypes.length > 0 && !applicableJobTypes.includes(employee.jobType)) {
+        continue;
+      }
+
+      // Load quarterly shifts lazily on first quarterly rule
+      let shiftPool = monthShifts;
+      if (trackingPeriod === 'quarterly') {
+        if (!quarterlyShifts) {
+          quarterlyShifts = await this.prisma.shift.findMany({
+            where: {
+              employeeId: input.targetEmployeeId,
+              clinicId,
+              date: { gte: quarterStart, lte: quarterEnd },
+              id: { not: input.shiftId },
+              NOT: { date: { gte: monthStart, lte: monthEnd } },
+            },
+          });
+        }
+        shiftPool = [...monthShifts, ...quarterlyShifts];
+      }
+
+      const targetDayCount = shiftPool.filter((s) => {
+        const d = s.date.getUTCDay() === 0 ? 7 : s.date.getUTCDay();
+        return d === ruleDayIso;
+      }).length;
+
+      if (targetDayCount + 1 > maxPerPeriod) {
+        const bucket = rule.ruleType === 'HARD' ? hard : soft;
+        bucket.push({
+          rule: 'ROTATION_EQUITY',
+          message: `${employee.firstName} ${employee.lastName} would have ${targetDayCount + 1} ${targetDay} shifts (${trackingPeriod || 'monthly'}, max ${maxPerPeriod})`,
+        });
+      }
+    }
+
+    return { hard, soft };
   }
 
   private computeHoles(

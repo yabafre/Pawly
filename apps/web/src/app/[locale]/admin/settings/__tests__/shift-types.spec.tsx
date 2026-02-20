@@ -225,6 +225,7 @@ describe("ShiftTypeFormSheet", () => {
       code: "AM",
       startTime: "08:00",
       endTime: "12:00",
+      breakMinutes: 0,
       color: "#4F46E5",
     };
 
@@ -275,6 +276,7 @@ describe("ShiftTypeFormSheet", () => {
           code: "AM",
           startTime: "08:00",
           endTime: "12:00",
+          breakMinutes: 0,
           color: "#4F46E5",
         }}
       />,
@@ -294,6 +296,7 @@ describe("PlanningRuleConfigEditor with shift types dropdown", () => {
       code: "AM",
       startTime: "08:00",
       endTime: "12:00",
+      breakMinutes: 0,
       color: "#4F46E5",
     },
     {
@@ -302,6 +305,7 @@ describe("PlanningRuleConfigEditor with shift types dropdown", () => {
       code: "SURGERY",
       startTime: "09:00",
       endTime: "17:00",
+      breakMinutes: 0,
       color: "#F43F5E",
     },
   ];

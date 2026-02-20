@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { CalendarX } from "lucide-react";
 import { StaffGrid } from "./StaffGrid";
 import { WeekNavigator } from "./WeekNavigator";
+import { AssignShiftModal } from "./AssignShiftModal";
 import { useScheduleView } from "../_hooks/useScheduleView";
-import type { ScheduleViewData } from "@pawly/validators";
+import { useShiftMutations } from "../_hooks/useShiftMutations";
+import type { ScheduleHole, ScheduleShift, ScheduleUnavailability } from "@pawly/validators";
 
 type Props = {
   month: string;
@@ -23,6 +25,56 @@ export function ScheduleViewWrapper({ month }: Props) {
     goToWeek,
   } = useScheduleView(month);
 
+  const { moveShift, createManualShift } = useShiftMutations(month);
+
+  // AssignShiftModal state
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedHole, setSelectedHole] = useState<ScheduleHole | null>(null);
+
+  const handleHoleClick = useCallback((hole: ScheduleHole, _employeeId: string) => {
+    setSelectedHole(hole);
+    setAssignModalOpen(true);
+  }, []);
+
+  const handleAssign = useCallback(
+    (input: {
+      employeeId: string;
+      date: string;
+      shiftTypeCode: string;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+    }) => {
+      createManualShift(input);
+    },
+    [createManualShift],
+  );
+
+  // Build lookup indexes for AssignShiftModal eligibility checking
+  const shiftIndex = useMemo(() => {
+    const map = new Map<string, ScheduleShift[]>();
+    if (!scheduleData?.shifts) return map;
+    for (const s of scheduleData.shifts) {
+      const key = `${s.employeeId}|${s.date}`;
+      const arr = map.get(key) || [];
+      arr.push(s);
+      map.set(key, arr);
+    }
+    return map;
+  }, [scheduleData?.shifts]);
+
+  const unavailabilityIndex = useMemo(() => {
+    const map = new Map<string, ScheduleUnavailability[]>();
+    if (!scheduleData?.unavailabilities) return map;
+    for (const u of scheduleData.unavailabilities) {
+      const key = `${u.employeeId}|${u.date}`;
+      const arr = map.get(key) || [];
+      arr.push(u);
+      map.set(key, arr);
+    }
+    return map;
+  }, [scheduleData?.unavailabilities]);
+
   // Build conflict map from violations for cell-level lookup
   const conflictMap = useMemo(() => {
     const map = new Map<
@@ -31,9 +83,6 @@ export function ScheduleViewWrapper({ month }: Props) {
     >();
     if (!scheduleData?.violations) return map;
 
-    // Slot-level violations (STAFFING_MINIMUM, SKILL_REQUIREMENT) don't set
-    // affectedEmployeeId — they surface as holes in the grid, not cell overlays.
-    // Only employee-scoped violations appear as cell-level conflict indicators.
     for (const v of scheduleData.violations.hard) {
       if (v.affectedEmployeeId && v.affectedDate) {
         const key = `${v.affectedEmployeeId}|${v.affectedDate}`;
@@ -92,7 +141,7 @@ export function ScheduleViewWrapper({ month }: Props) {
         />
       </div>
 
-      {/* Staff Grid */}
+      {/* Staff Grid with DnD */}
       <StaffGrid
         employees={scheduleData.employees}
         days={currentWeekData.days}
@@ -100,6 +149,19 @@ export function ScheduleViewWrapper({ month }: Props) {
         unavailabilities={currentWeekData.unavailabilities}
         holes={currentWeekData.holes}
         conflictMap={conflictMap}
+        moveShift={moveShift}
+        onHoleClick={handleHoleClick}
+      />
+
+      {/* Assign Shift Modal */}
+      <AssignShiftModal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        hole={selectedHole}
+        employees={scheduleData.employees}
+        unavailabilityIndex={unavailabilityIndex}
+        shiftIndex={shiftIndex}
+        onAssign={handleAssign}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type {
   ScheduleEmployee,
   ScheduleDayInfo,
@@ -20,6 +21,10 @@ import { WeekNavigator } from "../_components/WeekNavigator";
 import { ConflictIndicator } from "../_components/ConflictIndicator";
 import { WarningBadge } from "../_components/WarningBadge";
 import { useGridKeyboard } from "../_hooks/useGridKeyboard";
+import { DraggableShiftCell } from "../_components/DraggableShiftCell";
+import { DroppableGridCell } from "../_components/DroppableGridCell";
+import { DragGhost } from "../_components/DragGhost";
+import { AssignShiftModal } from "../_components/AssignShiftModal";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -62,6 +67,44 @@ vi.mock("../_hooks/useGridKeyboard", async () => {
     useGridKeyboard: vi.fn((actual as any).useGridKeyboard),
   };
 });
+
+vi.mock("@dnd-kit/core", () => ({
+  useDraggable: vi.fn(() => ({
+    attributes: { "aria-roledescription": "sortable" },
+    listeners: {},
+    setNodeRef: vi.fn(),
+    isDragging: false,
+    transform: null,
+  })),
+  useDroppable: vi.fn(() => ({
+    setNodeRef: vi.fn(),
+    isOver: false,
+  })),
+  DragOverlay: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
+  DndContext: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  PointerSensor: vi.fn(),
+  KeyboardSensor: vi.fn(),
+  useSensor: vi.fn(),
+  useSensors: vi.fn(() => []),
+  closestCenter: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: any) =>
+    open ? <div data-testid="dialog">{children}</div> : null,
+  DialogContent: ({ children }: any) => <div>{children}</div>,
+  DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogTitle: ({ children }: any) => <div>{children}</div>,
+  DialogDescription: ({ children }: any) => <div>{children}</div>,
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -309,6 +352,7 @@ describe("StaffGrid", () => {
         unavailabilities={[]}
         holes={[]}
         conflictMap={emptyConflictMap}
+        moveShift={() => {}}
       />,
       { wrapper: Wrapper },
     );
@@ -327,6 +371,7 @@ describe("StaffGrid", () => {
         unavailabilities={[]}
         holes={[]}
         conflictMap={emptyConflictMap}
+        moveShift={() => {}}
       />,
       { wrapper: Wrapper },
     );
@@ -373,6 +418,7 @@ describe("StaffGrid", () => {
         unavailabilities={[]}
         holes={[]}
         conflictMap={emptyConflictMap}
+        moveShift={() => {}}
       />,
       { wrapper: Wrapper },
     );
@@ -392,6 +438,7 @@ describe("StaffGrid", () => {
         unavailabilities={[]}
         holes={[]}
         conflictMap={emptyConflictMap}
+        moveShift={() => {}}
       />,
       { wrapper: Wrapper },
     );
@@ -835,5 +882,563 @@ describe("useGridKeyboard", () => {
 
     expect(result.current.gridRef).toBeDefined();
     expect(result.current.gridRef.current).toBeNull();
+  });
+});
+
+// ===========================================================================
+// DraggableShiftCell
+// ===========================================================================
+
+describe("DraggableShiftCell", () => {
+  const draggableShift: ScheduleShift = {
+    id: "00000000-0000-0000-0000-dddddddddddd",
+    date: "2026-03-03",
+    startTime: "08:00",
+    endTime: "12:00",
+    shiftTypeCode: "SURGERY",
+    breakMinutes: 0,
+    source: "MANUAL",
+    employeeId: "00000000-0000-0000-0000-000000000001",
+    isConfirmed: false,
+    shiftTypeColor: "#4f46e5",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset to default non-dragging state
+    vi.mocked(useDraggable).mockReturnValue({
+      attributes: { "aria-roledescription": "sortable" } as any,
+      listeners: {} as any,
+      setNodeRef: vi.fn(),
+      isDragging: false,
+      transform: null,
+      node: { current: null } as any,
+      activatorEvent: null,
+      active: null,
+      over: null,
+      rect: { current: null } as any,
+    });
+  });
+
+  it("renders with drag handle aria-label", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    expect(screen.getByLabelText("dragHandle")).toBeInTheDocument();
+  });
+
+  it("renders shift cell content", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    expect(screen.getByText("SURGERY")).toBeInTheDocument();
+  });
+
+  it("applies cursor-grab class when not dragging", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    const el = screen.getByLabelText("dragHandle");
+    expect(el.className).toContain("cursor-grab");
+    expect(el.className).not.toContain("cursor-grabbing");
+  });
+
+  it("applies opacity-30 and cursor-grabbing when dragging", () => {
+    vi.mocked(useDraggable).mockReturnValue({
+      attributes: {} as any,
+      listeners: {} as any,
+      setNodeRef: vi.fn(),
+      isDragging: true,
+      transform: null,
+      node: { current: null } as any,
+      activatorEvent: null,
+      active: null,
+      over: null,
+      rect: { current: null } as any,
+    });
+
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    const el = screen.getByLabelText("dragHandle");
+    expect(el.className).toContain("opacity-30");
+    expect(el.className).toContain("cursor-grabbing");
+  });
+
+  it("passes shift id as draggable id", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    expect(useDraggable).toHaveBeenCalledWith(
+      expect.objectContaining({ id: draggableShift.id }),
+    );
+  });
+
+  it("passes shift data to useDraggable", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    expect(useDraggable).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { shift: draggableShift } }),
+    );
+  });
+
+  it("renders time range from ShiftCell", () => {
+    render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
+    expect(screen.getByText("08:00 - 12:00")).toBeInTheDocument();
+  });
+});
+
+// ===========================================================================
+// DroppableGridCell
+// ===========================================================================
+
+describe("DroppableGridCell", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useDroppable).mockReturnValue({
+      setNodeRef: vi.fn(),
+      isOver: false,
+      active: null,
+      over: null,
+      node: { current: null } as any,
+      rect: { current: null } as any,
+    });
+  });
+
+  it("renders children inside a gridcell", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={false}
+        dropFeedback={null}
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByRole("gridcell")).toBeInTheDocument();
+    expect(screen.getByText("Content")).toBeInTheDocument();
+  });
+
+  it("sets droppable id to employeeId|date", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={false}
+        dropFeedback={null}
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    expect(useDroppable).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "emp-1|2026-03-03" }),
+    );
+  });
+
+  it("passes employeeId and date as droppable data", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={false}
+        dropFeedback={null}
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    expect(useDroppable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { employeeId: "emp-1", date: "2026-03-03" },
+      }),
+    );
+  });
+
+  it("applies no feedback styles when not dragging", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={false}
+        dropFeedback="valid"
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell.className).not.toContain("ring-emerald-400");
+  });
+
+  it("applies valid feedback styles when dragging and isOver", () => {
+    vi.mocked(useDroppable).mockReturnValue({
+      setNodeRef: vi.fn(),
+      isOver: true,
+      active: null,
+      over: null,
+      node: { current: null } as any,
+      rect: { current: null } as any,
+    });
+
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={true}
+        dropFeedback="valid"
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell.className).toContain("ring-emerald-400");
+    expect(cell.className).toContain("bg-emerald-50/50");
+  });
+
+  it("applies blocked feedback styles when dragging and isOver", () => {
+    vi.mocked(useDroppable).mockReturnValue({
+      setNodeRef: vi.fn(),
+      isOver: true,
+      active: null,
+      over: null,
+      node: { current: null } as any,
+      rect: { current: null } as any,
+    });
+
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={true}
+        dropFeedback="blocked"
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell.className).toContain("ring-rose-400");
+    expect(cell.className).toContain("bg-rose-50/50");
+  });
+
+  it("applies warning feedback styles when dragging and isOver", () => {
+    vi.mocked(useDroppable).mockReturnValue({
+      setNodeRef: vi.fn(),
+      isOver: true,
+      active: null,
+      over: null,
+      node: { current: null } as any,
+      rect: { current: null } as any,
+    });
+
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={true}
+        dropFeedback="warning"
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell.className).toContain("ring-orange-400");
+    expect(cell.className).toContain("bg-orange-50/50");
+  });
+
+  it("does not apply feedback styles when isOver is false even if dragging", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={true}
+        dropFeedback="valid"
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell.className).not.toContain("ring-emerald-400");
+  });
+
+  it("sets tabIndex and data attributes from props", () => {
+    render(
+      <DroppableGridCell
+        employeeId="emp-1"
+        date="2026-03-03"
+        isDragging={false}
+        dropFeedback={null}
+        tabIndex={0}
+        rowIndex={1}
+        colIndex={2}
+      >
+        <span>Content</span>
+      </DroppableGridCell>,
+      { wrapper: Wrapper },
+    );
+    const cell = screen.getByRole("gridcell");
+    expect(cell).toHaveAttribute("tabindex", "0");
+    expect(cell).toHaveAttribute("data-row", "1");
+    expect(cell).toHaveAttribute("data-col", "2");
+  });
+});
+
+// ===========================================================================
+// DragGhost
+// ===========================================================================
+
+describe("DragGhost", () => {
+  const ghostShift: ScheduleShift = {
+    id: "00000000-0000-0000-0000-eeeeeeeeeeee",
+    date: "2026-03-03",
+    startTime: "08:00",
+    endTime: "12:00",
+    shiftTypeCode: "SURGERY",
+    breakMinutes: 0,
+    source: "MANUAL",
+    employeeId: "00000000-0000-0000-0000-000000000001",
+    isConfirmed: false,
+    shiftTypeColor: "#4f46e5",
+  };
+
+  it("renders ShiftCell when activeShift is provided", () => {
+    render(<DragGhost activeShift={ghostShift} />, { wrapper: Wrapper });
+    expect(screen.getByText("SURGERY")).toBeInTheDocument();
+    expect(screen.getByText("08:00 - 12:00")).toBeInTheDocument();
+  });
+
+  it("renders empty overlay when no active shift", () => {
+    const { container } = render(<DragGhost activeShift={null} />, {
+      wrapper: Wrapper,
+    });
+    expect(
+      container.querySelector('[data-testid="drag-overlay"]'),
+    ).toBeInTheDocument();
+    // No shift content inside
+    expect(screen.queryByText("SURGERY")).not.toBeInTheDocument();
+  });
+
+  it("wraps ShiftCell in a styled container for the overlay", () => {
+    const { container } = render(<DragGhost activeShift={ghostShift} />, {
+      wrapper: Wrapper,
+    });
+    const overlay = container.querySelector('[data-testid="drag-overlay"]');
+    expect(overlay).toBeInTheDocument();
+    // The styled wrapper should be inside the overlay
+    expect(overlay?.querySelector(".shadow-lg")).not.toBeNull();
+  });
+});
+
+// ===========================================================================
+// AssignShiftModal
+// ===========================================================================
+
+describe("AssignShiftModal", () => {
+  const modalHole: ScheduleHole = {
+    date: "2026-03-03",
+    shiftTypeCode: "RECEPTION",
+    requiredStaff: 2,
+    assignedStaff: 1,
+    reason: "Not enough eligible employees",
+  };
+
+  const modalEmployees: ScheduleEmployee[] = [
+    {
+      id: "00000000-0000-0000-0000-000000000001",
+      firstName: "Alice",
+      lastName: "Martin",
+      jobType: "VET",
+      contractHours: 35,
+      color: "#6366f1",
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000002",
+      firstName: "Bob",
+      lastName: "Dupont",
+      jobType: "ASV",
+      contractHours: 28,
+      color: null,
+    },
+  ];
+
+  const defaultModalProps = {
+    open: true,
+    onClose: vi.fn(),
+    hole: modalHole,
+    employees: modalEmployees,
+    onAssign: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders modal with title when open", () => {
+    render(<AssignShiftModal {...defaultModalProps} />, { wrapper: Wrapper });
+    expect(screen.getByText("title")).toBeInTheDocument();
+  });
+
+  it("renders subtitle description", () => {
+    render(<AssignShiftModal {...defaultModalProps} />, { wrapper: Wrapper });
+    expect(screen.getByText("subtitle")).toBeInTheDocument();
+  });
+
+  it("does not render when open is false", () => {
+    render(<AssignShiftModal {...defaultModalProps} open={false} />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.queryByText("title")).not.toBeInTheDocument();
+  });
+
+  it("lists all employees", () => {
+    render(<AssignShiftModal {...defaultModalProps} />, { wrapper: Wrapper });
+    expect(screen.getByText("Alice Martin")).toBeInTheDocument();
+    expect(screen.getByText("Bob Dupont")).toBeInTheDocument();
+  });
+
+  it("shows employee job types", () => {
+    render(<AssignShiftModal {...defaultModalProps} />, { wrapper: Wrapper });
+    expect(screen.getByText("VET")).toBeInTheDocument();
+    expect(screen.getByText("ASV")).toBeInTheDocument();
+  });
+
+  it("shows blocked status for employees with unavailability", () => {
+    const unavailabilityIndex = new Map<string, ScheduleUnavailability[]>([
+      [
+        "00000000-0000-0000-0000-000000000001|2026-03-03",
+        [
+          {
+            employeeId: "00000000-0000-0000-0000-000000000001",
+            date: "2026-03-03",
+            type: "VACATION",
+            reason: "Holidays",
+          },
+        ],
+      ],
+    ]);
+
+    render(
+      <AssignShiftModal
+        {...defaultModalProps}
+        unavailabilityIndex={unavailabilityIndex}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // emp-1 (Alice) should be blocked — find her button and check disabled
+    const buttons = screen.getAllByRole("button");
+    const aliceButton = buttons.find((b) =>
+      b.textContent?.includes("Alice"),
+    );
+    expect(aliceButton).toBeDefined();
+    expect(aliceButton).toBeDisabled();
+  });
+
+  it("shows blocked status for employees with overlapping shift type", () => {
+    const shiftIndex = new Map<string, ScheduleShift[]>([
+      [
+        "00000000-0000-0000-0000-000000000002|2026-03-03",
+        [
+          {
+            id: "existing-shift",
+            date: "2026-03-03",
+            startTime: "08:00",
+            endTime: "12:00",
+            shiftTypeCode: "RECEPTION", // Same as hole shiftTypeCode
+            breakMinutes: 0,
+            source: "GENERATED",
+            employeeId: "00000000-0000-0000-0000-000000000002",
+            isConfirmed: false,
+            shiftTypeColor: null,
+          },
+        ],
+      ],
+    ]);
+
+    render(
+      <AssignShiftModal {...defaultModalProps} shiftIndex={shiftIndex} />,
+      { wrapper: Wrapper },
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const bobButton = buttons.find((b) => b.textContent?.includes("Bob"));
+    expect(bobButton).toBeDefined();
+    expect(bobButton).toBeDisabled();
+  });
+
+  it("calls onAssign with correct payload when clicking eligible employee", () => {
+    const onAssign = vi.fn();
+    render(
+      <AssignShiftModal {...defaultModalProps} onAssign={onAssign} />,
+      { wrapper: Wrapper },
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const aliceButton = buttons.find((b) =>
+      b.textContent?.includes("Alice"),
+    );
+    expect(aliceButton).toBeDefined();
+
+    fireEvent.click(aliceButton!);
+
+    expect(onAssign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        employeeId: "00000000-0000-0000-0000-000000000001",
+        date: "2026-03-03",
+        shiftTypeCode: "RECEPTION",
+      }),
+    );
+  });
+
+  it("calls onClose after assigning a shift", () => {
+    const onClose = vi.fn();
+    const onAssign = vi.fn();
+    render(
+      <AssignShiftModal
+        {...defaultModalProps}
+        onClose={onClose}
+        onAssign={onAssign}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const aliceButton = buttons.find((b) =>
+      b.textContent?.includes("Alice"),
+    );
+    fireEvent.click(aliceButton!);
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("calls onClose when cancel button is clicked", () => {
+    const onClose = vi.fn();
+    render(
+      <AssignShiftModal {...defaultModalProps} onClose={onClose} />,
+      { wrapper: Wrapper },
+    );
+
+    const cancelButton = screen.getByText("cancel");
+    fireEvent.click(cancelButton);
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("returns null when hole is null", () => {
+    const { container } = render(
+      <AssignShiftModal {...defaultModalProps} hole={null} />,
+      { wrapper: Wrapper },
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("shows noEligible message when employees array is empty", () => {
+    render(
+      <AssignShiftModal {...defaultModalProps} employees={[]} />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByText("noEligible")).toBeInTheDocument();
+  });
+
+  it("displays date and shiftType info from hole", () => {
+    render(<AssignShiftModal {...defaultModalProps} />, { wrapper: Wrapper });
+    // The t() mock returns the key, so we look for the translated key strings
+    expect(screen.getByText("date")).toBeInTheDocument();
+    expect(screen.getByText("shiftType")).toBeInTheDocument();
   });
 });

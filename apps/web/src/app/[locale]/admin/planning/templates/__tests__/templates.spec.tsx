@@ -30,8 +30,8 @@ vi.mock("../_hooks/useTemplates", () => ({
 vi.mock("@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes", () => ({
   useClinicShiftTypes: () => ({
     shiftTypes: [
-      { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
-      { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00" },
+      { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
+      { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00", breakMinutes: 0 },
     ],
     isPending: false,
   }),
@@ -65,8 +65,8 @@ import { TemplateEditor } from "../_components/TemplateEditor";
 
 describe("TemplateList", () => {
   const shiftTypes = [
-    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
-    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00" },
+    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
+    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00", breakMinutes: 0 },
   ];
 
   const mockOnEdit = vi.fn();
@@ -168,7 +168,7 @@ describe("TemplateList", () => {
 
 describe("TemplateWeekPreview", () => {
   const shiftTypes = [
-    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
+    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
   ];
 
   it("renders 7 day columns", () => {
@@ -218,8 +218,8 @@ describe("TemplateWeekPreview", () => {
 
 describe("TemplateSlotForm", () => {
   const shiftTypes = [
-    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
-    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00" },
+    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
+    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00", breakMinutes: 0 },
   ];
 
   it("renders shift type dropdown and staff count input", () => {
@@ -281,8 +281,8 @@ describe("TemplateSlotForm", () => {
 
 describe("TemplateEditor", () => {
   const shiftTypes = [
-    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
-    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00" },
+    { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
+    { id: "st-2", code: "RECEPTION", name: "Reception", color: "#00ff00", startTime: "09:00", endTime: "17:00", breakMinutes: 0 },
   ];
 
   const mockOnSave = vi.fn();
@@ -500,7 +500,7 @@ describe("TemplateEditor", () => {
 describe("FR/EN rendering", () => {
   it("renders translation keys for day labels", () => {
     const shiftTypes = [
-      { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00" },
+      { id: "st-1", code: "SURGERY", name: "Surgery", color: "#ff0000", startTime: "08:00", endTime: "12:00", breakMinutes: 0 },
     ];
 
     render(

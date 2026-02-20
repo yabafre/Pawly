@@ -11,6 +11,8 @@
     "i18n:check": "tsx scripts/check-translations.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@pawly/types": "workspace:*",
     "@pawly/validators": "workspace:*",

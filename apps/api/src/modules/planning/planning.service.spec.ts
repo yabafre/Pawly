@@ -102,7 +102,7 @@ describe('PlanningService', () => {
         config: { targetDay: 'saturday', maxPerPeriod: 2, trackingPeriod: 'monthly' },
       };
 
-      await service.createRule(clinicId, input);
+      await service.createRule(clinicId, input as any);
 
       expect(mockClinicService.listShiftTypes).not.toHaveBeenCalled();
       expect(mockPrismaService.planningRule.create).toHaveBeenCalled();

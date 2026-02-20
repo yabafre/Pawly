@@ -20,6 +20,10 @@ import {
   listShiftsForMonthSchema,
   deleteGeneratedShiftsSchema,
   scheduleViewInputSchema,
+  moveShiftInputSchema,
+  createManualShiftInputSchema,
+  deleteShiftInputSchema,
+  preValidateMoveInputSchema,
   listApprenticeDeclarationsSchema,
   upsertNoSchoolSchema,
   deleteDeclarationSchema,
@@ -221,6 +225,48 @@ export const planningRouter = router({
       return ctx.planningGenerationService.getScheduleViewForMonth(
         ctx.user.clinicId,
         input.month,
+      );
+    }),
+
+  // Shift mutation procedures (Story 7.1: Manual Schedule Adjustment)
+  moveShift: subscribedProcedure
+    .input(moveShiftInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.moveShift(
+        ctx.user.clinicId,
+        input.shiftId,
+        { targetEmployeeId: input.targetEmployeeId, targetDate: input.targetDate },
+      );
+    }),
+
+  createManualShift: subscribedProcedure
+    .input(createManualShiftInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.createManualShift(
+        ctx.user.clinicId,
+        input,
+      );
+    }),
+
+  deleteShift: subscribedProcedure
+    .input(deleteShiftInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.deleteShift(
+        ctx.user.clinicId,
+        input.shiftId,
+      );
+    }),
+
+  preValidateMove: subscribedProcedure
+    .input(preValidateMoveInputSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.preValidateMove(
+        ctx.user.clinicId,
+        input,
       );
     }),
 

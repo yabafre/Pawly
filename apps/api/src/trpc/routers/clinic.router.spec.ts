@@ -157,7 +157,7 @@ describe('clinicRouter', () => {
 
   it('calls clinicService.updateOperationalConfig with validated payload', async () => {
     const payload = {
-      workDays: ['MONDAY', 'TUESDAY'],
+      workDays: ['MONDAY', 'TUESDAY'] as ('MONDAY' | 'TUESDAY')[],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
       closedDays: [{ date: '2026-12-25', reason: 'Holiday' }],

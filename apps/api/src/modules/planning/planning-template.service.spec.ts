@@ -336,7 +336,7 @@ describe('PlanningTemplateService', () => {
                 {
                   shiftTypeCode: 'SURGERY',
                   requiredStaff: 1,
-                  requiredJobTypes: ['INVALID_JOB'],
+                  requiredJobTypes: ['INVALID_JOB' as any],
                 },
               ],
             },
