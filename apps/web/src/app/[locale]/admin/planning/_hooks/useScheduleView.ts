@@ -16,11 +16,17 @@ function getWeekBoundaries(days: ScheduleDayInfo[]): ScheduleDayInfo[][] {
 
   for (const day of days) {
     currentWeek.push(day);
-    // End of week on Sunday (dayOfWeek === 7) or last day of month
     if (day.dayOfWeek === 7 || day === days[days.length - 1]) {
       weeks.push(currentWeek);
       currentWeek = [];
     }
+  }
+
+  // Merge leading partial week (< 3 days) into the next week to avoid
+  // a confusing 1-day tab when the month starts on a Sunday.
+  if (weeks.length > 1 && weeks[0].length < 3) {
+    weeks[1] = [...weeks[0], ...weeks[1]];
+    weeks.shift();
   }
 
   return weeks;

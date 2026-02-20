@@ -1,5 +1,9 @@
 import { z } from "@pawly/zod";
 
+// ── Shared domain constants ──────────────────────────────────────────
+
+export const SCHOOL_DAY_MINUTES = 420; // 7h standard school day in France
+
 // ── Schedule view input schema ────────────────────────────────────────
 
 const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -18,7 +22,7 @@ export const weekNavigationSchema = z.object({
     .number()
     .int()
     .min(0)
-    .max(5, "A month has at most 5-6 weeks"),
+    .max(5, "A month has at most 6 weeks (offset 0-5)"),
 });
 export type WeekNavigation = z.infer<typeof weekNavigationSchema>;
 

@@ -2,12 +2,13 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import type {
-  ScheduleEmployee,
-  ScheduleDayInfo,
-  ScheduleShift,
-  ScheduleUnavailability,
-  ScheduleHole,
+import {
+  SCHOOL_DAY_MINUTES,
+  type ScheduleEmployee,
+  type ScheduleDayInfo,
+  type ScheduleShift,
+  type ScheduleUnavailability,
+  type ScheduleHole,
 } from "@pawly/validators";
 import { ShiftCell } from "./ShiftCell";
 import { HoleCell } from "./HoleCell";
@@ -29,7 +30,7 @@ type Props = {
   days: ScheduleDayInfo[];
   rowIndex: number;
   shiftIndex: Map<string, ScheduleShift[]>;
-  unavailabilityIndex: Map<string, ScheduleUnavailability>;
+  unavailabilityIndex: Map<string, ScheduleUnavailability[]>;
   holeIndex: Map<string, ScheduleHole[]>;
   conflictMap: Map<string, ConflictEntry[]>;
   getCellTabIndex: (row: number, col: number) => number;
@@ -43,8 +44,6 @@ function getEmployeeColorFallback(id: string): string {
   const hue = Math.abs(hash) % 360;
   return `hsl(${hue}, 60%, 70%)`;
 }
-
-const SCHOOL_DAY_MINUTES = 420; // 7h standard school day
 
 export function StaffGridRow({
   employee,
@@ -77,8 +76,8 @@ export function StaffGridRow({
         breakMinutesTotal += shift.breakMinutes || 0;
       }
       // Count school days as 7h toward weekly total
-      const unavailability = unavailabilityIndex.get(`${employee.id}|${day.date}`);
-      const hasSchool = unavailability?.type === "SCHOOL";
+      const dayUnavailabilities = unavailabilityIndex.get(`${employee.id}|${day.date}`) || [];
+      const hasSchool = dayUnavailabilities.some((u) => u.type === "SCHOOL");
       if (hasSchool) schoolMinutes += SCHOOL_DAY_MINUTES;
     }
     return {
@@ -118,7 +117,8 @@ export function StaffGridRow({
       {days.map((day, colIndex) => {
         const cellKey = `${employee.id}|${day.date}`;
         const dayShifts = shiftIndex.get(cellKey) || [];
-        const unavailability = unavailabilityIndex.get(cellKey);
+        const cellUnavailabilities = unavailabilityIndex.get(cellKey) || [];
+        const unavailability = cellUnavailabilities[0];
         const dayHoles = holeIndex.get(day.date) || [];
         const conflicts = conflictMap.get(cellKey) || [];
 

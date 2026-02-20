@@ -77,9 +77,12 @@ export function StaffGrid({
   }, [shifts]);
 
   const unavailabilityIndex = useMemo(() => {
-    const map = new Map<string, ScheduleUnavailability>();
+    const map = new Map<string, ScheduleUnavailability[]>();
     for (const u of unavailabilities) {
-      map.set(`${u.employeeId}|${u.date}`, u);
+      const key = `${u.employeeId}|${u.date}`;
+      const arr = map.get(key) || [];
+      arr.push(u);
+      map.set(key, arr);
     }
     return map;
   }, [unavailabilities]);
@@ -112,7 +115,7 @@ export function StaffGrid({
             onClick={() => setDayOffset((prev) => Math.max(0, prev - 1))}
             disabled={safeDayOffset === 0}
             className="p-1 rounded-lg hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label={t("responsive.liteView")}
+            aria-label={t("responsive.previousDays")}
           >
             <ChevronLeft size={18} />
           </button>
@@ -124,7 +127,7 @@ export function StaffGrid({
             onClick={() => setDayOffset((prev) => Math.min(maxOffset, prev + 1))}
             disabled={safeDayOffset >= maxOffset}
             className="p-1 rounded-lg hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            aria-label={t("responsive.liteView")}
+            aria-label={t("responsive.nextDays")}
           >
             <ChevronRight size={18} />
           </button>

@@ -500,7 +500,9 @@
       },
       "responsive": {
         "fullView": "Full week",
-        "liteView": "3-day view"
+        "liteView": "3-day view",
+        "previousDays": "Previous days",
+        "nextDays": "Next days"
       }
     },
     "settings": {

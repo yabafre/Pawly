@@ -113,6 +113,7 @@ export type {
 } from "./apprentice-declaration.schema";
 
 export {
+  SCHOOL_DAY_MINUTES,
   scheduleViewInputSchema,
   weekNavigationSchema,
   scheduleEmployeeSchema,

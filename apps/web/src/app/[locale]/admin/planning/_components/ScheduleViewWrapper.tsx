@@ -31,6 +31,9 @@ export function ScheduleViewWrapper({ month }: Props) {
     >();
     if (!scheduleData?.violations) return map;
 
+    // Slot-level violations (STAFFING_MINIMUM, SKILL_REQUIREMENT) don't set
+    // affectedEmployeeId — they surface as holes in the grid, not cell overlays.
+    // Only employee-scoped violations appear as cell-level conflict indicators.
     for (const v of scheduleData.violations.hard) {
       if (v.affectedEmployeeId && v.affectedDate) {
         const key = `${v.affectedEmployeeId}|${v.affectedDate}`;

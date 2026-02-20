@@ -14,7 +14,7 @@ import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
-import type { GenerationResult } from '@pawly/validators';
+import type { GenerationResult, HardViolation, SoftViolation } from '@pawly/validators';
 import type {
   ScheduleViewData,
   ScheduleEmployee,
@@ -80,7 +80,7 @@ type ConstraintMap = {
 export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
-  private static readonly SCHOOL_DAY_MINUTES = 420; // 7h standard school day in France
+  private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
     friday: 5, saturday: 6, sunday: 7,
@@ -454,8 +454,8 @@ export class PlanningGenerationService {
     const hardRules = rules.filter((r) => r.ruleType === 'HARD').map(mapRule);
     const softRules = rules.filter((r) => r.ruleType === 'SOFT').map(mapRule);
 
-    // Load all months up to the target month for cumulative equity data
-    const allMonths = Array.from({ length: month }, (_, i) => i + 1);
+    // Load months before the target month for cumulative equity data (exclude current month to avoid circular scoring)
+    const allMonths = month > 1 ? Array.from({ length: month - 1 }, (_, i) => i + 1) : [];
     const counters = await this.equityCounterService.getCountersForPeriod(
       clinicId,
       year,
@@ -630,17 +630,18 @@ export class PlanningGenerationService {
         return false;
       }
 
-      // FIX 1: HARD ROTATION_EQUITY with trackingPeriod support
+      // HARD ROTATION_EQUITY with trackingPeriod support
+      let blockedByRotationEquity = false;
       for (const rule of constraints.hardRules) {
         if (rule.category === 'ROTATION_EQUITY') {
           if (this.violatesHardRotationEquity(rule, slot, emp, alreadyAssigned, constraints.quarterlyShifts)) {
-            rotationEquityBlocked.push(emp);
-            return false;
+            blockedByRotationEquity = true;
+            break;
           }
         }
       }
 
-      // FIX 1: HARD CONTRACT_COMPLIANCE — block if exceeding hard limits
+      // HARD CONTRACT_COMPLIANCE — always checked, even if rotation-blocked
       // Per-employee contractHours is always the base; rule maxWeeklyHours is an additional cap
       for (const rule of hardContractRules) {
         const config = rule.config;
@@ -682,12 +683,17 @@ export class PlanningGenerationService {
         }
       }
 
+      if (blockedByRotationEquity) {
+        rotationEquityBlocked.push(emp);
+        return false;
+      }
+
       return true;
     });
 
     // Fallback: if not enough eligible employees but some were only blocked by
-    // ROTATION_EQUITY, re-admit them to avoid leaving the slot empty.
-    // Better to slightly exceed rotation limits than create holes.
+    // ROTATION_EQUITY (and NOT by contract compliance), re-admit them to avoid leaving
+    // the slot empty. Better to slightly exceed rotation limits than create holes.
     if (eligible.length < slot.requiredStaff && rotationEquityBlocked.length > 0) {
       eligible.push(...rotationEquityBlocked);
       for (const emp of rotationEquityBlocked) {
@@ -784,7 +790,7 @@ export class PlanningGenerationService {
     const scored = eligible.map((emp) => {
       let score = 100;
 
-      // FIX 7: Full equity scoring (weekend, holiday, overtime)
+      // Full equity scoring (weekend, holiday, overtime)
       const equity = constraints.equityMap.get(emp.id);
       if (equity) {
         const date = new Date(`${slot.date}T00:00:00.000Z`);
@@ -802,7 +808,7 @@ export class PlanningGenerationService {
           }
         }
 
-        // FIX 7: Holiday equity — prefer employees with fewer holiday shifts
+        // Holiday equity — prefer employees with fewer holiday shifts
         const avgHoliday = this.getAverageEquity(constraints.equityMap, 'holidayCount');
         if (equity.holidayCount < avgHoliday) {
           score += 5;
@@ -810,7 +816,7 @@ export class PlanningGenerationService {
           score -= 5;
         }
 
-        // FIX 7: Overtime equity — penalize employees with more historical overtime
+        // Overtime equity — penalize employees with more historical overtime
         const avgOvertime = this.getAverageOvertimeMinutes(constraints.equityMap);
         if (equity.overtimeMinutes > avgOvertime) {
           score -= Math.round(((equity.overtimeMinutes - avgOvertime) / 60) * 5);
@@ -890,7 +896,7 @@ export class PlanningGenerationService {
         score -= 20;
       }
 
-      // FIX 5: Soft rule scoring adjustments weighted by priority
+      // Soft rule scoring adjustments weighted by priority
       for (const rule of constraints.softRules) {
         const priorityWeight = 1 + rule.priority / 10;
 
@@ -1009,7 +1015,7 @@ export class PlanningGenerationService {
           );
         }
 
-        // FIX 6: SOFT STAFFING_MINIMUM warning
+        // SOFT STAFFING_MINIMUM warning
         if (
           rule.category === 'STAFFING_MINIMUM' &&
           rule.config.shiftTypeCode === slot.shiftTypeCode
@@ -1032,7 +1038,7 @@ export class PlanningGenerationService {
           }
         }
 
-        // FIX 6: SOFT SKILL_REQUIREMENT warning
+        // SOFT SKILL_REQUIREMENT warning
         if (
           rule.category === 'SKILL_REQUIREMENT' &&
           rule.config.shiftTypeCode === slot.shiftTypeCode
@@ -1332,7 +1338,7 @@ export class PlanningGenerationService {
         endDate: monthEnd.toISOString(),
       }).catch(() => {
         this.logger.warn('Failed to validate shifts against rules');
-        return { hardViolations: [] as any[], softViolations: [] as any[] };
+        return { hardViolations: [] as HardViolation[], softViolations: [] as SoftViolation[] };
       }),
     ]);
 
@@ -1416,7 +1422,7 @@ export class PlanningGenerationService {
     return holes;
   }
 
-  // FIX 4: checkRotationEquity now supports trackingPeriod (monthly/quarterly) + job type filter
+  // checkRotationEquity: supports trackingPeriod (monthly/quarterly) + job type filter
   private checkRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
@@ -1465,7 +1471,7 @@ export class PlanningGenerationService {
     }
   }
 
-  // FIX 2+3: checkContractCompliance now handles maxWeeklyHours and overtimeThresholdPercent
+  // Soft CONTRACT_COMPLIANCE: checks maxWeeklyHours and maxMonthlyHours caps
   private checkContractCompliance(
     rule: RuleEntry,
     slot: SlotRequirement,
@@ -1495,7 +1501,7 @@ export class PlanningGenerationService {
       }
     }
 
-    // FIX 2: Check maxWeeklyHours
+    // Check maxWeeklyHours
     const maxWeeklyHours = config.maxWeeklyHours as number | undefined;
     if (maxWeeklyHours) {
       const weekMin = weeklyMinutesMap.get(employee.id) || 0;
@@ -1683,7 +1689,7 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // FIX 4: violatesHardRotationEquity now supports quarterly tracking + job type filter
+  // violatesHardRotationEquity: supports quarterly tracking + job type filter
   private violatesHardRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
@@ -1711,7 +1717,7 @@ export class PlanningGenerationService {
     const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
     if (slotIsoDay !== targetIsoDay) return false;
 
-    // FIX 4: Include quarterly historical shifts when trackingPeriod is "quarterly"
+    // Include quarterly historical shifts when trackingPeriod is "quarterly"
     const shiftPool = trackingPeriod === 'quarterly'
       ? [...alreadyAssigned, ...quarterlyShifts]
       : alreadyAssigned;
@@ -1746,7 +1752,7 @@ export class PlanningGenerationService {
     return total / equityMap.size;
   }
 
-  // FIX 7: Average overtime minutes across all employees
+  // Average overtime minutes across all employees
   private getAverageOvertimeMinutes(
     equityMap: Map<string, { overtimeMinutes: number }>,
   ): number {
@@ -1826,7 +1832,7 @@ export class PlanningGenerationService {
     }));
   }
 
-  // FIX 5: Count target-day shifts for an employee (monthly or quarterly)
+  // Count target-day shifts for an employee (monthly or quarterly)
   private countTargetDayShifts(
     rule: RuleEntry,
     employee: EmployeeInfo,
