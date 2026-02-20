@@ -189,7 +189,7 @@ development_status:
   # Key Points: Greedy Scoring Algorithm, templates, blocking constraints.
   # FRs: FR4, FR5, FR7
   # ===========================================================================
-  epic-6: in-progress
+  epic-6: done
   6-1-planning-template-definition-admin: done
   6-2-greedy-generation-algorithm-blocking-rules: done
   6-3-schedule-visualization-conflict-indicators: done
