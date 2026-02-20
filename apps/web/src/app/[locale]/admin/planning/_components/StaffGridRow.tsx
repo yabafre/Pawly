@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
   SCHOOL_DAY_MINUTES,
@@ -10,12 +10,16 @@ import {
   type ScheduleUnavailability,
   type ScheduleHole,
 } from "@pawly/validators";
-import { ShiftCell } from "./ShiftCell";
+import { DraggableShiftCell } from "./DraggableShiftCell";
 import { HoleCell } from "./HoleCell";
 import { AbsenceCell } from "./AbsenceCell";
 import { ClosedDayColumn } from "./ClosedDayColumn";
 import { ConflictIndicator } from "./ConflictIndicator";
 import { WarningBadge } from "./WarningBadge";
+import { DroppableGridCell } from "./DroppableGridCell";
+import type { DropFeedback } from "../_hooks/useDragAndDrop";
+
+type GetDropFeedbackFn = (key: string) => DropFeedback;
 
 const JOB_TYPE_STYLES: Record<string, string> = {
   VET: "bg-neutral-100 text-neutral-500",
@@ -34,6 +38,9 @@ type Props = {
   holeIndex: Map<string, ScheduleHole[]>;
   conflictMap: Map<string, ConflictEntry[]>;
   getCellTabIndex: (row: number, col: number) => number;
+  isDragging: boolean;
+  getDropFeedback: GetDropFeedbackFn;
+  onHoleClick?: (hole: ScheduleHole, employeeId: string) => void;
 };
 
 function getEmployeeColorFallback(id: string): string {
@@ -45,7 +52,7 @@ function getEmployeeColorFallback(id: string): string {
   return `hsl(${hue}, 60%, 70%)`;
 }
 
-export function StaffGridRow({
+export const StaffGridRow = React.memo(function StaffGridRow({
   employee,
   days,
   rowIndex,
@@ -54,6 +61,9 @@ export function StaffGridRow({
   holeIndex,
   conflictMap,
   getCellTabIndex,
+  isDragging,
+  getDropFeedback,
+  onHoleClick,
 }: Props) {
   const t = useTranslations("admin.scheduleView");
   const color = employee.color || getEmployeeColorFallback(employee.id);
@@ -126,6 +136,8 @@ export function StaffGridRow({
         const softConflicts = conflicts.filter((c) => c.severity === "warning");
 
         const tabIndex = getCellTabIndex(rowIndex, colIndex);
+        const dropKey = `${employee.id}|${day.date}`;
+        const dropFeedback = getDropFeedback(dropKey);
 
         // Closed or non-work day
         if (day.isClosed || !day.isWorkDay) {
@@ -157,23 +169,27 @@ export function StaffGridRow({
           );
         }
 
-        // Shift(s) + possible holes + conflict overlay
+        // Shift(s) + possible holes + conflict overlay — wrapped in DroppableGridCell
         return (
-          <div
+          <DroppableGridCell
             key={day.date}
-            role="gridcell"
+            employeeId={employee.id}
+            date={day.date}
+            isDragging={isDragging}
+            dropFeedback={dropFeedback}
             tabIndex={tabIndex}
-            data-row={rowIndex}
-            data-col={colIndex}
-            className={`border-b border-neutral-100 p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset ${
-              hardConflicts.length > 0 ? "bg-[#F97316]/10 ring-2 ring-[#F97316] ring-inset" : ""
-            }`}
+            rowIndex={rowIndex}
+            colIndex={colIndex}
+            className={hardConflicts.length > 0 ? "bg-[#F97316]/10 ring-2 ring-[#F97316] ring-inset" : ""}
           >
             {dayShifts.map((shift) => (
-              <ShiftCell key={shift.id} shift={shift} />
+              <DraggableShiftCell key={shift.id} shift={shift} />
             ))}
             {dayShifts.length === 0 && dayHoles.length > 0 && (
-              <HoleCell holes={dayHoles} />
+              <HoleCell
+                holes={dayHoles}
+                onHoleClick={onHoleClick ? (hole) => onHoleClick(hole, employee.id) : undefined}
+              />
             )}
             {dayShifts.length === 0 && dayHoles.length === 0 && (
               <div className="h-full min-h-[48px]" />
@@ -184,7 +200,7 @@ export function StaffGridRow({
             {softConflicts.length > 0 && (
               <WarningBadge warnings={softConflicts} />
             )}
-          </div>
+          </DroppableGridCell>
         );
       })}
 
@@ -227,4 +243,4 @@ export function StaffGridRow({
       </div>
     </div>
   );
-}
+});

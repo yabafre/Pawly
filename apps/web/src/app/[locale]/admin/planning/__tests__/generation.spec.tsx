@@ -303,7 +303,7 @@ describe("MonthShiftsSummary", () => {
 
   it("renders nothing when loading", () => {
     const { container } = render(
-      <MonthShiftsSummary shifts={[]} isLoading={true} />,
+      <MonthShiftsSummary shifts={[]} isLoading={true} month="2026-03" />,
       { wrapper: Wrapper },
     );
     expect(container.firstChild).toBeNull();
@@ -311,7 +311,7 @@ describe("MonthShiftsSummary", () => {
 
   it("renders nothing when no shifts", () => {
     const { container } = render(
-      <MonthShiftsSummary shifts={[]} isLoading={false} />,
+      <MonthShiftsSummary shifts={[]} isLoading={false} month="2026-03" />,
       { wrapper: Wrapper },
     );
     expect(container.firstChild).toBeNull();
@@ -319,7 +319,7 @@ describe("MonthShiftsSummary", () => {
 
   it("renders stats with correct counts", () => {
     render(
-      <MonthShiftsSummary shifts={mockShifts} isLoading={false} />,
+      <MonthShiftsSummary shifts={mockShifts} isLoading={false} month="2026-03" />,
       { wrapper: Wrapper },
     );
 
@@ -330,7 +330,7 @@ describe("MonthShiftsSummary", () => {
 
   it("renders shift type badges", () => {
     render(
-      <MonthShiftsSummary shifts={mockShifts} isLoading={false} />,
+      <MonthShiftsSummary shifts={mockShifts} isLoading={false} month="2026-03" />,
       { wrapper: Wrapper },
     );
 
@@ -344,6 +344,7 @@ describe("MonthShiftsSummary", () => {
       <MonthShiftsSummary
         shifts={mockShifts}
         isLoading={false}
+        month="2026-03"
         onDeleteGenerated={onDelete}
       />,
       { wrapper: Wrapper },
@@ -358,6 +359,7 @@ describe("MonthShiftsSummary", () => {
       <MonthShiftsSummary
         shifts={mockShifts}
         isLoading={false}
+        month="2026-03"
         onDeleteGenerated={vi.fn()}
         isDeleting={true}
       />,
@@ -373,6 +375,7 @@ describe("MonthShiftsSummary", () => {
       <MonthShiftsSummary
         shifts={mockShifts}
         isLoading={false}
+        month="2026-03"
         onDeleteGenerated={vi.fn()}
         isGenerating={true}
       />,

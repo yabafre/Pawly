@@ -134,3 +134,19 @@ export type {
   ScheduleHole,
   ScheduleViewData,
 } from "./schedule-view.schema";
+
+export {
+  moveShiftInputSchema,
+  createManualShiftInputSchema,
+  deleteShiftInputSchema,
+  preValidateMoveInputSchema,
+  moveValidationResultSchema,
+} from "./shift-mutation.schema";
+
+export type {
+  MoveShiftInput,
+  CreateManualShiftInput,
+  DeleteShiftInput,
+  PreValidateMoveInput,
+  MoveValidationResult,
+} from "./shift-mutation.schema";

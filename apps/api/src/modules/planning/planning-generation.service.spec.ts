@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
@@ -7,7 +7,33 @@ import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
-import type { TemplateData } from '@pawly/validators';
+import type { TemplateData, HoleInfo, HardViolation, SoftViolation } from '@pawly/validators';
+
+type SlotRequirement = {
+  date: string;
+  shiftTypeCode: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  requiredStaff: number;
+  requiredJobTypes?: string[];
+};
+
+type AssignedShift = {
+  employeeId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  shiftTypeCode: string;
+  breakMinutes?: number;
+};
+
+type ScoreAndAssignResult = {
+  assigned: AssignedShift[];
+  holeInfo?: HoleInfo;
+  hardViolations: HardViolation[];
+  softViolations: SoftViolation[];
+};
 
 describe('PlanningGenerationService', () => {
   let service: PlanningGenerationService;
@@ -102,13 +128,18 @@ describe('PlanningGenerationService', () => {
   ];
 
   const mockPrismaService = {
-    employee: { findMany: jest.fn() },
+    employee: { findMany: jest.fn(), findFirst: jest.fn() },
     unavailability: { findMany: jest.fn() },
     shift: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
       createManyAndReturn: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
       deleteMany: jest.fn(),
     },
+    clinicShiftType: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -191,7 +222,7 @@ describe('PlanningGenerationService', () => {
     ]);
 
     it('correctly maps template days to calendar dates for March 2026', () => {
-      const slots = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
@@ -224,14 +255,14 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithClosed,
         shiftTypeMap,
       );
 
-      const march2Slots = slots.filter((s) => s.date === '2026-03-02');
+      const march2Slots = (slots as SlotRequirement[]).filter((s) => s.date === '2026-03-02');
       expect(march2Slots.length).toBe(0);
     });
 
@@ -249,7 +280,7 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithSpecial,
@@ -269,26 +300,26 @@ describe('PlanningGenerationService', () => {
     it('handles months with 4 and 5 weeks correctly', () => {
       // February 2026: 28 days, starts on Sunday
       // Mon: 2,9,16,23 → 4 Mondays
-      const feb = callPrivate('expandTemplateToMonth',
+      const feb: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-02',
         mockOperationalConfig,
         shiftTypeMap,
       );
-      const febMondays = feb.filter(
+      const febMondays = (feb as SlotRequirement[]).filter(
         (s) =>
           new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
       );
       expect(febMondays.length).toBe(8); // 4 Mondays × 2 slots
 
       // March 2026 has 5 Mondays
-      const mar = callPrivate('expandTemplateToMonth',
+      const mar: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
         shiftTypeMap,
       );
-      const marMondays = mar.filter(
+      const marMondays = (mar as SlotRequirement[]).filter(
         (s) =>
           new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
       );
@@ -305,7 +336,7 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
         templateWithSaturday,
         '2026-03',
         mockOperationalConfig, // workDays: 1-5, no Saturday
@@ -315,7 +346,7 @@ describe('PlanningGenerationService', () => {
       // March 2026 Saturdays: 7,14,21,28 → 4
       expect(slots.length).toBe(4);
       expect(
-        slots.every(
+        (slots as SlotRequirement[]).every(
           (s) =>
             new Date(`${s.date}T00:00:00Z`).getUTCDay() === 6,
         ),
@@ -482,7 +513,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -509,7 +540,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -549,7 +580,7 @@ describe('PlanningGenerationService', () => {
         [`emp-1|2026-03-02`, alreadyAssigned],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -577,7 +608,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -604,7 +635,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -660,7 +691,7 @@ describe('PlanningGenerationService', () => {
         assignmentIndex.set(key, existing);
       }
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -699,7 +730,7 @@ describe('PlanningGenerationService', () => {
         assignmentIndex.set(key, existing);
       }
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees.slice(0, 2), // emp-1 and emp-2 only
         baseConstraints,
@@ -743,7 +774,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees.filter((e) => e.jobType === 'VET'),
         { ...baseConstraints, equityMap },
@@ -784,7 +815,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 and emp-2
         baseConstraints,
@@ -814,7 +845,7 @@ describe('PlanningGenerationService', () => {
 
       // emp-2 already has 14h (school) + would be 18h
       // emp-1 has 0h + would be 4h
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]],
         { ...baseConstraints, schoolDayMap },
@@ -862,7 +893,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         baseConstraints,
@@ -1006,7 +1037,7 @@ describe('PlanningGenerationService', () => {
       // Run multiple times to account for random tiebreaker
       let emp2Count = 0;
       for (let i = 0; i < 5; i++) {
-        const result = callPrivate('scoreAndAssign',
+        const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
           slot,
           [mockEmployees[0], mockEmployees[1]], // emp-1 (30h) and emp-2 (0h)
           {
@@ -1287,7 +1318,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         constraints,
@@ -1348,7 +1379,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees.filter(e => e.jobType === 'VET'), // emp-1 and emp-3
         constraints,
@@ -1398,7 +1429,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees,
         constraints,
@@ -1463,7 +1494,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1, emp-2 — both at limit
         constraints,
@@ -1526,7 +1557,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0]], // Only emp-1
         constraints,
@@ -1576,7 +1607,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0]],
         constraints,
@@ -1644,7 +1675,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 and emp-2
         constraints,
@@ -1720,7 +1751,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0]], // only emp-1
         constraints,
@@ -1784,7 +1815,7 @@ describe('PlanningGenerationService', () => {
 
       // With only emp-1 available and at the limit, they'll still be assigned (soft rule)
       // but with a lower score due to high priority penalty
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[2]], // emp-1 and emp-3
         constraintsHigh,
@@ -1868,7 +1899,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mixedEmployees,
         constraints,
@@ -1938,7 +1969,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         partTimeEmployee,
         constraints,
@@ -1991,7 +2022,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         mockEmployees, // only emp-1 available
         constraints,
@@ -2494,7 +2525,7 @@ describe('PlanningGenerationService', () => {
         startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
       }));
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints, alreadyAssigned,
         new Map(), new Map(), 31 / 7,
       );
@@ -2521,7 +2552,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1, requiredJobTypes: ['VET'],
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[2]], // emp-1, emp-3 (both VET)
         constraints, [], new Map(), new Map(), 31 / 7,
@@ -2564,7 +2595,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2590,7 +2621,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-03', [nextShift]],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, [mockEmployees[0]], constraints,
         [nextShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2614,7 +2645,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2650,7 +2681,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2673,7 +2704,7 @@ describe('PlanningGenerationService', () => {
         mockEmployees.map(e => [`${e.id}|2026-03-02`, [prevShifts.find(s => s.employeeId === e.id)!]]),
       );
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints,
         prevShifts, assignmentIndex, new Map(), 31 / 7,
       );
@@ -2699,7 +2730,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, [mockEmployees[0], mockEmployees[1]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2744,7 +2775,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 (3 SURGERY) vs emp-2 (0 SURGERY)
         constraints,
@@ -2786,7 +2817,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot,
         [mockEmployees[0], mockEmployees[1]],
         constraints,
@@ -2844,7 +2875,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         receptionSlot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 (4 RECEPTION) vs emp-2 (0 RECEPTION)
         constraints,
@@ -2877,7 +2908,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -2906,7 +2937,7 @@ describe('PlanningGenerationService', () => {
         { employeeId: 'emp-3', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
       ]).flat();
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints,
         alreadyAssigned, new Map(), new Map(), 31 / 7,
       );
@@ -2934,7 +2965,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -2957,7 +2988,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 3,
       };
 
-      const result = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -3094,6 +3125,398 @@ describe('PlanningGenerationService', () => {
       } catch (error: any) {
         expect(error.message).toContain('2026-05');
       }
+    });
+  });
+
+  // ─── moveShift ────────────────────────────────────────────────────
+
+  describe('moveShift', () => {
+    const mockShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2025-03-03T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: false,
+    };
+
+    beforeEach(() => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...mockShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+    });
+
+    it('moves a shift to another employee', async () => {
+      const result = await service.moveShift(clinicId, 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(result.employeeId).toBe('emp-2');
+      expect(result.source).toBe('MANUAL');
+      expect(mockPrismaService.shift.update).toHaveBeenCalledWith({
+        where: { id: 'shift-1' },
+        data: expect.objectContaining({
+          employeeId: 'emp-2',
+          source: 'MANUAL',
+        }),
+      });
+    });
+
+    it('moves a shift to another date', async () => {
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...mockShift,
+        date: new Date('2025-03-04T00:00:00.000Z'),
+        source: 'MANUAL',
+      });
+      const result = await service.moveShift(clinicId, 'shift-1', {
+        targetDate: '2025-03-04',
+      });
+      expect(result.date).toBe('2025-03-04');
+      expect(result.source).toBe('MANUAL');
+    });
+
+    it('throws NotFoundException when shift does not exist', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(null);
+      await expect(
+        service.moveShift(clinicId, 'non-existent', { targetEmployeeId: 'emp-2' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when shift belongs to another clinic', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        ...mockShift,
+        clinicId: 'other-clinic',
+      });
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
+      ).rejects.toThrow('Shift does not belong to this clinic');
+    });
+
+    it('throws BadRequestException for invalid date format', async () => {
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetDate: '2025/03/04' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException for invalid date value', async () => {
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetDate: '2025-13-45' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when target employee not found', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'non-existent' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when shift overlaps with existing', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        { ...mockShift, id: 'shift-2', startTime: '10:00', endTime: '14:00' },
+      ]);
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
+      ).rejects.toThrow('overlaps');
+    });
+  });
+
+  // ─── createManualShift ────────────────────────────────────────────
+
+  describe('createManualShift', () => {
+    beforeEach(() => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 30,
+        clinicId,
+      });
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2025-03-03T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 30,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId,
+      });
+    });
+
+    it('creates a manual shift using shift type times from DB', async () => {
+      const result = await service.createManualShift(clinicId, {
+        employeeId: 'emp-1',
+        date: '2025-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '09:00',  // These should be IGNORED
+        endTime: '17:00',    // Backend uses ClinicShiftType times
+        breakMinutes: 0,
+      });
+      expect(result.startTime).toBe('08:00');
+      expect(result.endTime).toBe('12:00');
+      expect(result.breakMinutes).toBe(30);
+      expect(result.source).toBe('MANUAL');
+      expect(mockPrismaService.shift.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 30,
+          source: 'MANUAL',
+        }),
+      });
+    });
+
+    it('throws NotFoundException when employee not found', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'non-existent',
+          date: '2025-03-03',
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when shift type not found', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue(null);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2025-03-03',
+          shiftTypeCode: 'UNKNOWN',
+          startTime: '08:00',
+          endTime: '12:00',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── deleteShift ─────────────────────────────────────────────────
+
+  describe('deleteShift', () => {
+    const mockShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+    };
+
+    it('deletes a shift and returns { deleted: true }', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
+      mockPrismaService.shift.delete.mockResolvedValue(mockShift);
+      const result = await service.deleteShift(clinicId, 'shift-1');
+      expect(result).toEqual({ deleted: true });
+      expect(mockPrismaService.shift.delete).toHaveBeenCalledWith({
+        where: { id: 'shift-1' },
+      });
+    });
+
+    it('throws NotFoundException when shift does not exist', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(null);
+      await expect(
+        service.deleteShift(clinicId, 'non-existent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when shift belongs to another clinic', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        ...mockShift,
+        clinicId: 'other-clinic',
+      });
+      await expect(
+        service.deleteShift(clinicId, 'shift-1'),
+      ).rejects.toThrow('Shift does not belong to this clinic');
+    });
+  });
+
+  // ─── preValidateMove ─────────────────────────────────────────────
+
+  describe('preValidateMove', () => {
+    const mockShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2025-03-03T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+    };
+
+    const defaultInput = {
+      shiftId: 'shift-1',
+      targetEmployeeId: 'emp-2',
+      targetDate: '2025-03-04',
+    };
+
+    // preValidateMove uses dayNameToIso = { MONDAY:1, TUESDAY:2, ... }
+    // so workDays must use MONDAY/TUESDAY/etc. format (not '1','2','3')
+    const preValidateOperationalConfig = {
+      ...mockOperationalConfig,
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]); // Bob ASV
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]); // no existing shifts
+      mockClinicService.getOperationalConfig.mockResolvedValue(preValidateOperationalConfig);
+      mockPlanningService.listRules.mockResolvedValue([]);
+    });
+
+    it('returns empty violations when move is valid', async () => {
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toHaveLength(0);
+      expect(result.soft).toHaveLength(0);
+    });
+
+    it('throws NotFoundException when shift not found', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(null);
+      await expect(
+        service.preValidateMove(clinicId, defaultInput),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException for wrong clinic', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        ...mockShift,
+        clinicId: 'other-clinic',
+      });
+      await expect(
+        service.preValidateMove(clinicId, defaultInput),
+      ).rejects.toThrow('Shift does not belong to this clinic');
+    });
+
+    it('returns HARD EMPLOYEE violation when target employee not found', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'EMPLOYEE' }),
+        ]),
+      );
+    });
+
+    it('returns HARD CLOSED_DAY violation when target date is closed', async () => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...preValidateOperationalConfig,
+        closedDays: [{ id: 'cd-1', date: '2025-03-04', reason: 'Holiday' }],
+      });
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CLOSED_DAY' }),
+        ]),
+      );
+    });
+
+    it('returns HARD NON_WORK_DAY violation when target date is not a work day', async () => {
+      // 2025-03-08 is a Saturday (day 6), not in workDays [MONDAY..FRIDAY]
+      const result = await service.preValidateMove(clinicId, {
+        ...defaultInput,
+        targetDate: '2025-03-08',
+      });
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'NON_WORK_DAY' }),
+        ]),
+      );
+    });
+
+    it('returns HARD UNAVAILABILITY violation when employee has unavailability', async () => {
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        { type: 'VACATION', reason: 'Holidays', daysOfWeek: [] },
+      ]);
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'UNAVAILABILITY' }),
+        ]),
+      );
+    });
+
+    it('returns HARD OVERLAP violation when shift times overlap', async () => {
+      // shift.findMany is called multiple times in preValidateMove:
+      // 1st call: existingShifts (in Promise.all) — return overlapping shift
+      // 2nd call: weekShifts — return empty
+      // 3rd call: monthShifts — return empty
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([
+          { startTime: '10:00', endTime: '14:00', breakMinutes: 0 },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'OVERLAP' }),
+        ]),
+      );
+    });
+
+    it('returns HARD SKILL_REQUIREMENT violation when employee job type mismatches', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-1',
+          category: 'SKILL_REQUIREMENT',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 5,
+          config: {
+            shiftTypeCode: 'SURGERY',
+            requiredJobTypes: ['VET'],
+          },
+        },
+      ]);
+      // emp-2 is ASV, SURGERY requires VET
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'SKILL_REQUIREMENT' }),
+        ]),
+      );
+    });
+
+    it('returns SOFT CONTRACT_COMPLIANCE violation when overtime risk', async () => {
+      // emp-2 has 35h contract. shift is 08:00-12:00 = 4h (240min net).
+      // Existing week: 4 shifts totalling 33h = 1980min.
+      // Projected = 1980 + 240 = 2220min = 37h > 35h contract.
+      // shift.findMany calls in preValidateMove:
+      // 1st: existingShifts (Promise.all) — no overlap
+      // 2nd: weekShifts — heavy week
+      // 3rd: monthShifts — empty
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },  // 6h net = total 33h
+        ]) // weekShifts
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.soft).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
     });
   });
 });

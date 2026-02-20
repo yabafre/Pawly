@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-19'
+updated: '2026-02-20'
+# 2026-02-20: Story 7-1 code review done → done. 14 issues found (6 CRITICAL, 4 HIGH, 4 MEDIUM), all fixed. H1: createManualShift backend ClinicShiftType lookup. H2: DraggableShiftCell transform removal. H3: stale closure fix in onDragOver. H4: toast for blocked drops. H5: AssignShiftModal client-side eligibility. H6: N+1 ROTATION_EQUITY query hoist. M3/M4: optimistic update pattern (onMutate/onSettled). M6: StaffGridRow React.memo. M7: preValidateMove .query→.mutation. M8: moveShift overlap/date validation. M9: Promise.all parallelization. +65 new tests (24 service + 12 router + 30 web). 1502 total tests (545 API + 480 Web + 477 Validators). Build green.
+# 2026-02-20: Story 7-1 created (ready-for-dev). Manual Schedule Adjustment (Drag & Drop). @dnd-kit/core for DndContext+useDraggable+useDroppable+DragOverlay, shift mutation methods (moveShift/createManualShift/deleteShift/preValidateMove), optimistic UI with React Query cache, AssignShiftModal for hole assignment, keyboard DnD fallback, drop target visual feedback (green/orange/red), i18n FR/EN. Epic 7 → in-progress.
 # 2026-02-19: Story 6-3 algorithm improvements: breakMinutes per ClinicShiftType (net hours = brut - pause), dynamic non-workday reordering (replaces hardcoded Saturday), stronger workload balancing (×50 weekly ratio, fill-to-contract +30/+15), random tiebreaker, per-employee contractHours enforcement. Added planning-algorithm-reference.md documentation. 1334 total tests (474 API + 437 Web + 423 Validators). Build green.
 # 2026-02-19: Story 6-3 implemented → review. 10/10 tasks done. Backend getScheduleViewForMonth aggregation (Promise.all parallel fetch: employees+shifts+unavailabilities+config+shiftTypes, day metadata builder, unavailability expansion one-time+recurring, hole detection via template expectations, violations from validateShiftsAgainstRules), getScheduleView tRPC procedure, server action/hook with week navigation (client-side slicing), CSS Grid StaffGrid (200px+repeat(N,minmax(120px,1fr))), ShiftCell/HoleCell/AbsenceCell/ClosedDayColumn cell types, ConflictIndicator (hard=rose AlertCircle popover) + WarningBadge (soft=orange AlertTriangle), WeekNavigator (week tabs + prev/next), PlanningPageClient orchestrator (lifted month state), ARIA grid keyboard nav (roving tabindex, arrow keys), i18n FR/EN (~80 keys), 102 new tests (58 validators + 12 service + 3 router + 21 web + 8 existing test fixes). 1308 total tests (457 API + 436 Web + 415 Validators). Build green.
 # 2026-02-19: Story 6-3 created (ready-for-dev). Schedule Visualization & Conflict Indicators. StaffGrid CSS Grid (rows=employees, cols=days), ShiftCell/HoleCell/AbsenceCell/ClosedDayColumn cell types, backend getScheduleViewForMonth aggregation (shifts+employees+unavailabilities+template expectations+violations), week navigation (client-side slicing), conflict indicators (Hard=Vital Orange AlertCircle, Soft=subtle warning badge), ARIA grid pattern with keyboard nav, responsive 7-day/3-day views, i18n FR/EN.
@@ -201,8 +203,8 @@ development_status:
   # Key Points: Drag & Drop with dnd-kit, equity alerts, variance audit.
   # FRs: FR6, FR8
   # ===========================================================================
-  epic-7: backlog
-  7-1-manual-schedule-adjustment-drag-drop: backlog
+  epic-7: in-progress
+  7-1-manual-schedule-adjustment-drag-drop: done
   7-2-equity-alerts-management-soft-rules: backlog
   7-3-absence-request-validation-workflow: backlog
   7-4-planning-health-bar: backlog

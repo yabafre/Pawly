@@ -6,9 +6,10 @@ import type { ScheduleHole } from "@pawly/validators";
 
 type Props = {
   holes: ScheduleHole[];
+  onHoleClick?: (hole: ScheduleHole) => void;
 };
 
-export function HoleCell({ holes }: Props) {
+export function HoleCell({ holes, onHoleClick }: Props) {
   const t = useTranslations("admin.scheduleView.hole");
 
   return (
@@ -29,10 +30,11 @@ export function HoleCell({ holes }: Props) {
             assigned: hole.assignedStaff,
             required: hole.requiredStaff,
           })}
+          onClick={() => onHoleClick?.(hole)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              (e.currentTarget as HTMLElement).click();
+              onHoleClick?.(hole);
             }
           }}
         >

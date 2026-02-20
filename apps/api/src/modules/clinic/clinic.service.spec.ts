@@ -227,8 +227,8 @@ describe('ClinicService', () => {
     const clinicId = 'clinic-uuid-4';
     const shiftTypesInput = {
       shiftTypes: [
-        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
-        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', color: '#0000FF' },
+        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
+        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
       ],
     };
 
@@ -294,8 +294,8 @@ describe('ClinicService', () => {
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
       shiftTypes: [
-        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
-        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', color: '#0000FF' },
+        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
+        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
       ],
     };
 

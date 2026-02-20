@@ -43,6 +43,10 @@ describe('planningRouter', () => {
     listShiftsForMonth: jest.fn(),
     deleteGeneratedShifts: jest.fn(),
     getScheduleViewForMonth: jest.fn(),
+    moveShift: jest.fn(),
+    createManualShift: jest.fn(),
+    deleteShift: jest.fn(),
+    preValidateMove: jest.fn(),
   };
 
   const mockPrisma = {
@@ -102,9 +106,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 24 procedures', () => {
+  it('should export all 28 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(24);
+    expect(procedures).toHaveLength(28);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -127,6 +131,10 @@ describe('planningRouter', () => {
         'listShiftsForMonth',
         'deleteGeneratedShifts',
         'getScheduleView',
+        'moveShift',
+        'createManualShift',
+        'deleteShift',
+        'preValidateMove',
         'listApprenticeDeclarations',
         'upsertNoSchool',
         'deleteApprenticeDeclaration',
@@ -983,6 +991,158 @@ describe('planningRouter', () => {
       await expect(
         caller.getScheduleView({ month: 'invalid' }),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+  });
+
+  // ─── moveShift ────────────────────────────────────────────────────
+
+  describe('moveShift', () => {
+    const shiftId = '550e8400-e29b-41d4-a716-446655440001';
+    const targetEmployeeId = '550e8400-e29b-41d4-a716-446655440002';
+    const mockResult = {
+      id: shiftId,
+      date: '2025-03-04',
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'MANUAL',
+      employeeId: targetEmployeeId,
+      isConfirmed: false,
+      shiftTypeColor: '#4f46e5',
+    };
+
+    it('should allow ADMIN to move a shift', async () => {
+      mockPlanningGenerationService.moveShift.mockResolvedValue(mockResult);
+      const caller = createAdminCaller();
+      const result = await caller.moveShift({
+        shiftId,
+        targetEmployeeId,
+        targetDate: '2025-03-04',
+      });
+      expect(result).toEqual(mockResult);
+      expect(mockPlanningGenerationService.moveShift).toHaveBeenCalledWith(
+        'clinic-123',
+        shiftId,
+        { targetEmployeeId, targetDate: '2025-03-04' },
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.moveShift({ shiftId, targetEmployeeId }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it('should use clinicId from context', async () => {
+      mockPlanningGenerationService.moveShift.mockResolvedValue(mockResult);
+      const caller = createAdminCaller();
+      await caller.moveShift({ shiftId, targetEmployeeId });
+      expect(mockPlanningGenerationService.moveShift).toHaveBeenCalledWith(
+        'clinic-123', // from ctx.user.clinicId, not from input
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+  });
+
+  // ─── createManualShift ────────────────────────────────────────────
+
+  describe('createManualShift', () => {
+    const employeeId = '550e8400-e29b-41d4-a716-446655440003';
+    const mockResult = {
+      id: '550e8400-e29b-41d4-a716-446655440004',
+      date: '2025-03-03',
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 30,
+      source: 'MANUAL',
+      employeeId,
+      isConfirmed: false,
+      shiftTypeColor: '#4f46e5',
+    };
+
+    const validInput = {
+      employeeId,
+      date: '2025-03-03',
+      shiftTypeCode: 'SURGERY',
+      startTime: '08:00',
+      endTime: '12:00',
+      breakMinutes: 0,
+    };
+
+    it('should allow ADMIN to create a manual shift', async () => {
+      mockPlanningGenerationService.createManualShift.mockResolvedValue(mockResult);
+      const caller = createAdminCaller();
+      const result = await caller.createManualShift(validInput);
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.createManualShift(validInput),
+      ).rejects.toThrow(TRPCError);
+    });
+  });
+
+  // ─── deleteShift ─────────────────────────────────────────────────
+
+  describe('deleteShift', () => {
+    const shiftId = '550e8400-e29b-41d4-a716-446655440005';
+
+    it('should allow ADMIN to delete a shift', async () => {
+      mockPlanningGenerationService.deleteShift.mockResolvedValue({ deleted: true });
+      const caller = createAdminCaller();
+      const result = await caller.deleteShift({ shiftId });
+      expect(result).toEqual({ deleted: true });
+      expect(mockPlanningGenerationService.deleteShift).toHaveBeenCalledWith(
+        'clinic-123',
+        shiftId,
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.deleteShift({ shiftId }),
+      ).rejects.toThrow(TRPCError);
+    });
+  });
+
+  // ─── preValidateMove ─────────────────────────────────────────────
+
+  describe('preValidateMove', () => {
+    const shiftId = '550e8400-e29b-41d4-a716-446655440006';
+    const targetEmployeeId = '550e8400-e29b-41d4-a716-446655440007';
+    const mockResult = { hard: [], soft: [] };
+
+    it('should allow ADMIN to pre-validate a move', async () => {
+      mockPlanningGenerationService.preValidateMove.mockResolvedValue(mockResult);
+      const caller = createAdminCaller();
+      const result = await caller.preValidateMove({
+        shiftId,
+        targetEmployeeId,
+        targetDate: '2025-03-04',
+      });
+      expect(result).toEqual(mockResult);
+      expect(mockPlanningGenerationService.preValidateMove).toHaveBeenCalledWith(
+        'clinic-123',
+        { shiftId, targetEmployeeId, targetDate: '2025-03-04' },
+      );
+    });
+
+    it('should reject EMPLOYEE with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+      await expect(
+        caller.preValidateMove({
+          shiftId,
+          targetEmployeeId,
+          targetDate: '2025-03-04',
+        }),
+      ).rejects.toThrow(TRPCError);
     });
   });
 });

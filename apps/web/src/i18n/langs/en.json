@@ -505,6 +505,44 @@
         "nextDays": "Next days"
       }
     },
+    "dragDrop": {
+      "moveSuccess": "Shift moved successfully",
+      "moveError": "Failed to move shift",
+      "createSuccess": "Shift created successfully",
+      "createError": "Failed to create shift",
+      "deleteSuccess": "Shift deleted successfully",
+      "deleteError": "Failed to delete shift",
+      "dragging": "Moving shift…",
+      "dropHere": "Drop here to assign",
+      "dropBlocked": "Cannot drop here",
+      "dropWarning": "Drop allowed with warnings",
+      "validating": "Validating…",
+      "assignModal": {
+        "title": "Assign Shift",
+        "subtitle": "Select an employee to fill this slot",
+        "date": "Date: {date}",
+        "shiftType": "Shift: {shiftType} ({start} - {end})",
+        "eligible": "Eligible",
+        "blocked": "Blocked",
+        "warning": "Warning",
+        "noEligible": "No eligible employees for this slot",
+        "assign": "Assign",
+        "cancel": "Cancel"
+      },
+      "deleteConfirm": {
+        "title": "Delete Shift",
+        "message": "Are you sure you want to delete this shift?",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
+      "accessibility": {
+        "dragHandle": "Drag to move shift",
+        "dropTarget": "Drop zone for {employee} on {date}",
+        "shiftMoved": "Shift moved to {employee} on {date}",
+        "shiftCreated": "Shift assigned to {employee}",
+        "shiftDeleted": "Shift deleted"
+      }
+    },
     "settings": {
       "badge": "Clinic settings",
       "title": "Operational Parameters",
