@@ -590,6 +590,8 @@ So that I get a valid planning proposal with minimal manual effort.
 **And** it returns an object containing assignments, remaining holes, and detected conflicts
 **And** visual loading feedback is shown if generation takes > 1s (NFR2).
 
+**Reference:** See `docs/implementation-artifacts/planning-algorithm-reference.md` for the complete algorithm specification.
+
 ### Story 6.3: Schedule Visualization & Conflict Indicators
 As an admin,
 I want to visualize the generated planning in an interactive grid,
@@ -600,6 +602,8 @@ So that I can immediately identify coverage issues or rule violations.
 **When** a planning is loaded
 **Then** empty slots ("Holes") are displayed with a dashed neutral outline and a "+" CTA icon
 **And** Hard Conflicts are highlighted using "Vital Orange" with an explicit error icon and message.
+
+**Reference:** See `docs/implementation-artifacts/planning-algorithm-reference.md` for the complete algorithm specification (scoring, constraints, border week shifts, applicableJobTypes).
 
 ## Epic 7: Admin Arbitration & Final Validation
 
