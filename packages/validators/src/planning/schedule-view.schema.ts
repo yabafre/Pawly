@@ -1,4 +1,5 @@
 import { z } from "@pawly/zod";
+import { equityContextSchema } from "./planning-generation.schema";
 
 // ── Shared domain constants ──────────────────────────────────────────
 
@@ -97,6 +98,21 @@ export const scheduleHoleSchema = z.object({
 });
 export type ScheduleHole = z.infer<typeof scheduleHoleSchema>;
 
+// ── Equity summary entry schema ──────────────────────────────────────
+
+export const equitySummaryEntrySchema = z.object({
+  employeeId: z.string().uuid(),
+  counters: z.array(
+    z.object({
+      counterType: z.string(),
+      count: z.number(),
+      clinicAverage: z.number(),
+      maxPerPeriod: z.number().nullable(),
+    })
+  ),
+});
+export type EquitySummaryEntry = z.infer<typeof equitySummaryEntrySchema>;
+
 // ── Schedule view data schema (full response) ─────────────────────────
 
 export const scheduleViewDataSchema = z.object({
@@ -124,12 +140,16 @@ export const scheduleViewDataSchema = z.object({
         ruleName: z.string(),
         category: z.string(),
         message: z.string(),
+        messageKey: z.string().optional(),
+        messageParams: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
         affectedEmployeeId: z.string().uuid().optional(),
         affectedDate: z.string().optional(),
         severity: z.literal("warning"),
+        equityContext: equityContextSchema.optional(),
       })
     ),
   }),
+  equitySummary: z.array(equitySummaryEntrySchema).optional(),
   templateId: z.string().uuid().optional(),
 });
 export type ScheduleViewData = z.infer<typeof scheduleViewDataSchema>;

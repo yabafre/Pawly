@@ -47,6 +47,15 @@ describe('planningRouter', () => {
     createManualShift: jest.fn(),
     deleteShift: jest.fn(),
     preValidateMove: jest.fn(),
+    publishPlan: jest.fn(),
+    getPublicationStatus: jest.fn(),
+  };
+
+  const mockApprenticeDeclarationService = {
+    listForMonth: jest.fn(),
+    getUndeclaredApprentices: jest.fn(),
+    upsertNoSchool: jest.fn(),
+    deleteDeclaration: jest.fn(),
   };
 
   const mockPrisma = {
@@ -85,6 +94,7 @@ describe('planningRouter', () => {
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
       planningGenerationService: mockPlanningGenerationService as any,
+      apprenticeDeclarationService: mockApprenticeDeclarationService as any,
     } as any);
   };
 
@@ -97,6 +107,7 @@ describe('planningRouter', () => {
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
       planningGenerationService: mockPlanningGenerationService as any,
+      apprenticeDeclarationService: mockApprenticeDeclarationService as any,
     } as any);
   };
 
@@ -106,9 +117,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 28 procedures', () => {
+  it('should export all 30 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(28);
+    expect(procedures).toHaveLength(30);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -135,6 +146,8 @@ describe('planningRouter', () => {
         'createManualShift',
         'deleteShift',
         'preValidateMove',
+        'publishPlan',
+        'getPublicationStatus',
         'listApprenticeDeclarations',
         'upsertNoSchool',
         'deleteApprenticeDeclaration',
@@ -1143,6 +1156,89 @@ describe('planningRouter', () => {
           targetDate: '2025-03-04',
         }),
       ).rejects.toThrow(TRPCError);
+    });
+  });
+
+  // ─── publishPlan ──────────────────────────────────────────────────
+  describe('publishPlan', () => {
+    it('should be accessible to ADMIN role', async () => {
+      mockPlanningGenerationService.publishPlan.mockResolvedValue({
+        publishedAt: new Date().toISOString(),
+        notifiedCount: 3,
+      });
+
+      const caller = createAdminCaller();
+      const result = await caller.publishPlan({ month: '2026-03' });
+
+      expect(result).toHaveProperty('publishedAt');
+      expect(result).toHaveProperty('notifiedCount');
+      expect(mockPlanningGenerationService.publishPlan).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        'user-1', // ctx.user.sub
+      );
+    });
+
+    it('should reject EMPLOYEE role with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.publishPlan({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.publishPlan({ month: '2026-03' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    it('should reject invalid month format', async () => {
+      const caller = createAdminCaller();
+
+      await expect(
+        caller.publishPlan({ month: 'invalid' }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+      await expect(
+        caller.publishPlan({ month: '2026-13' }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+      await expect(
+        caller.publishPlan({ month: '2026-0' }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+  });
+
+  // ─── getPublicationStatus ─────────────────────────────────────────
+  describe('getPublicationStatus', () => {
+    it('should be accessible to ADMIN role', async () => {
+      mockPlanningGenerationService.getPublicationStatus.mockResolvedValue({
+        status: 'PUBLISHED',
+        publishedAt: '2026-03-15T10:00:00.000Z',
+        publishedBy: 'user-1',
+      });
+
+      const caller = createAdminCaller();
+      const result = await caller.getPublicationStatus({ month: '2026-03' });
+
+      expect(result).toEqual({
+        status: 'PUBLISHED',
+        publishedAt: '2026-03-15T10:00:00.000Z',
+        publishedBy: 'user-1',
+      });
+      expect(mockPlanningGenerationService.getPublicationStatus).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+      );
+    });
+
+    it('should reject EMPLOYEE role with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.getPublicationStatus({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.getPublicationStatus({ month: '2026-03' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });
 });

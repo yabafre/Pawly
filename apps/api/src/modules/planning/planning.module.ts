@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { ClinicModule } from '@/modules/clinic/clinic.module';
+import { MailModule } from '@/modules/mail/mail.module';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { PlanningGenerationService } from './planning-generation.service';
@@ -9,7 +10,7 @@ import { EquityCounterScheduler } from './equity-counter.scheduler';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 
 @Module({
-  imports: [PrismaModule, ClinicModule],
+  imports: [PrismaModule, ClinicModule, MailModule],
   providers: [
     PlanningService,
     PlanningTemplateService,

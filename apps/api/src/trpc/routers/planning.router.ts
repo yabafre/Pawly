@@ -28,6 +28,7 @@ import {
   upsertNoSchoolSchema,
   deleteDeclarationSchema,
   getDeclarationStatusSchema,
+  publishPlanInputSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -267,6 +268,28 @@ export const planningRouter = router({
       return ctx.planningGenerationService.preValidateMove(
         ctx.user.clinicId,
         input,
+      );
+    }),
+
+  // Publication procedures (Story 7.2)
+  publishPlan: subscribedProcedure
+    .input(publishPlanInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.publishPlan(
+        ctx.user.clinicId,
+        input.month,
+        ctx.user.sub,
+      );
+    }),
+
+  getPublicationStatus: subscribedProcedure
+    .input(publishPlanInputSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.getPublicationStatus(
+        ctx.user.clinicId,
+        input.month,
       );
     }),
 

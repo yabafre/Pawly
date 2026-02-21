@@ -543,6 +543,35 @@
         "shiftDeleted": "Créneau supprimé"
       }
     },
+    "publication": {
+      "publishSuccess": "Planning publié — les employés ont été notifiés",
+      "publishError": "Échec de la publication du planning",
+      "confirmTitle": "Publier le planning",
+      "confirmDescription": "Cela enverra une notification par email à tous les employés concernés. Cette action est irréversible.",
+      "confirmDescriptionWithWarnings": "Il reste encore {count, plural, one {# avertissement} other {# avertissements}}. Cela enverra une notification par email à tous les employés concernés. Cette action est irréversible.",
+      "cancel": "Annuler",
+      "confirmPublish": "Publier",
+      "publishing": "Publication…"
+    },
+    "equity": {
+      "badgeLabel": "Indicateur d'équité",
+      "popoverTitle": "Compteurs d'équité",
+      "popoverHint": "Valeur / moyenne clinique",
+      "counterType": {
+        "SATURDAY_WORKED": "Samedis",
+        "WEEKEND_TOTAL": "Week-ends",
+        "HOLIDAY_WORKED": "Jours fériés",
+        "OVERTIME_HOURS": "Heures sup."
+      }
+    },
+    "violations": {
+      "rotationEquity": {
+        "exceeded": "{employeeName} a {currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
+      },
+      "contractCompliance": {
+        "overtime": "{employeeName} : {currentWeeklyHours}h cette semaine, dépasse la limite contractuelle de {maxWeeklyHours}h"
+      }
+    },
     "settings": {
       "badge": "Paramètres clinique",
       "title": "Paramètres opérationnels",

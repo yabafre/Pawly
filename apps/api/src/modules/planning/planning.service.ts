@@ -23,6 +23,15 @@ import {
   skillRequirementConfigSchema,
   contractComplianceConfigSchema,
 } from '@pawly/validators';
+import type { CounterWithEmployee } from './equity-counter.service';
+
+export type EquityContext = {
+  counterType: string;
+  currentCount: number;
+  maxPerPeriod: number;
+  clinicAverage: number;
+  trend: 'below_average' | 'average' | 'above_average';
+};
 
 type HardViolation = {
   ruleId: string;
@@ -39,9 +48,12 @@ type SoftViolation = {
   ruleName: string;
   category: PlanningRuleCategory;
   message: string;
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
   affectedEmployeeId?: string;
   affectedDate?: string;
   severity: 'warning';
+  equityContext?: EquityContext;
 };
 
 @Injectable()
@@ -131,6 +143,7 @@ export class PlanningService {
   async validateShiftsAgainstRules(
     clinicId: string,
     input: ValidateShiftsInput,
+    options?: { equityCounters?: CounterWithEmployee[] },
   ): Promise<{
     hardViolations: HardViolation[];
     softViolations: SoftViolation[];
@@ -174,10 +187,10 @@ export class PlanningService {
           this.evaluateSkillRequirement(rule, config, validShifts, hardViolations, softViolations);
           break;
         case 'ROTATION_EQUITY':
-          this.evaluateRotationEquity(rule, config, validShifts, softViolations);
+          this.evaluateRotationEquity(rule, config, validShifts, softViolations, options?.equityCounters);
           break;
         case 'CONTRACT_COMPLIANCE':
-          this.evaluateContractCompliance(rule, config, validShifts, softViolations);
+          this.evaluateContractCompliance(rule, config, validShifts, softViolations, options?.equityCounters);
           break;
       }
     }
@@ -276,9 +289,11 @@ export class PlanningService {
     config: Record<string, unknown>,
     shifts: Array<{ date: Date; employee: { id: string } }>,
     softViolations: SoftViolation[],
+    equityCounters?: CounterWithEmployee[],
   ) {
     const targetDay = config.targetDay as string;
     const maxPerPeriod = config.maxPerPeriod as number;
+    const trackingPeriod = config.trackingPeriod as string | undefined;
 
     // Map day name to ISO day number
     const dayNameToIso: Record<string, number> = {
@@ -288,8 +303,16 @@ export class PlanningService {
     const targetIsoDay = dayNameToIso[targetDay];
     if (!targetIsoDay) return;
 
-    // Count per employee
+    // Map targetDay to equity counter type for clinic average
+    const dayToCounterType: Record<string, string> = {
+      saturday: 'SATURDAY_WORKED',
+      sunday: 'WEEKEND_TOTAL',
+    };
+    const counterType = dayToCounterType[targetDay];
+
+    // Count per employee + collect shift dates for date spreading
     const countByEmployee = new Map<string, number>();
+    const datesByEmployee = new Map<string, string[]>();
     for (const shift of shifts) {
       const shiftDate = new Date(shift.date);
       const day = shiftDate.getUTCDay();
@@ -298,18 +321,63 @@ export class PlanningService {
 
       const current = countByEmployee.get(shift.employee.id) || 0;
       countByEmployee.set(shift.employee.id, current + 1);
+
+      const dateStr = shiftDate.toISOString().split('T')[0];
+      const dates = datesByEmployee.get(shift.employee.id) || [];
+      dates.push(dateStr);
+      datesByEmployee.set(shift.employee.id, dates);
+    }
+
+    // Compute clinic average from equity counters or shift data
+    let clinicAverage = 0;
+    if (equityCounters && counterType) {
+      const relevantCounters = equityCounters.filter(c => c.counterType === counterType);
+      if (relevantCounters.length > 0) {
+        clinicAverage = relevantCounters.reduce((sum, c) => sum + c.count, 0) / relevantCounters.length;
+      }
+    } else {
+      const allCounts = Array.from(countByEmployee.values());
+      if (allCounts.length > 0) {
+        clinicAverage = allCounts.reduce((a, b) => a + b, 0) / allCounts.length;
+      }
     }
 
     for (const [employeeId, count] of countByEmployee) {
       if (count > maxPerPeriod) {
-        softViolations.push({
-          ruleId: rule.id,
-          ruleName: rule.name,
-          category: rule.category as PlanningRuleCategory,
-          message: `Employee has ${count} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod} per period`,
-          affectedEmployeeId: employeeId,
-          severity: 'warning',
-        });
+        const dates = datesByEmployee.get(employeeId) || [];
+        const trend: EquityContext['trend'] =
+          count > clinicAverage + 0.5 ? 'above_average' :
+          count < clinicAverage - 0.5 ? 'below_average' : 'average';
+
+        const equityContext: EquityContext = {
+          counterType: counterType || `${targetDay.toUpperCase()}_SHIFTS`,
+          currentCount: count,
+          maxPerPeriod,
+          clinicAverage: Math.round(clinicAverage * 10) / 10,
+          trend,
+        };
+
+        // Spread violation across each affected date (subtask 1.4)
+        for (const dateStr of dates) {
+          softViolations.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            category: rule.category as PlanningRuleCategory,
+            message: `Employee has ${count} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod} per ${trackingPeriod || 'period'}`,
+            messageKey: 'violations.rotationEquity.exceeded',
+            messageParams: {
+              employeeId,
+              currentCount: count,
+              maxPerPeriod,
+              targetDay,
+              trackingPeriod: trackingPeriod || 'monthly',
+            },
+            affectedEmployeeId: employeeId,
+            affectedDate: dateStr,
+            severity: 'warning',
+            equityContext,
+          });
+        }
       }
     }
   }
@@ -319,6 +387,7 @@ export class PlanningService {
     config: Record<string, unknown>,
     shifts: Array<{ startTime: string; endTime: string; employee: { id: string; contractHours: number } }>,
     softViolations: SoftViolation[],
+    equityCounters?: CounterWithEmployee[],
   ) {
     const maxMonthlyHours = config.maxMonthlyHours as number | undefined;
 
@@ -336,16 +405,58 @@ export class PlanningService {
       hoursByEmployee.set(shift.employee.id, current);
     }
 
+    // Compute clinic average hours
+    let clinicAverageHours = 0;
+    if (equityCounters) {
+      const overtimeCounters = equityCounters.filter(c => c.counterType === 'OVERTIME_HOURS');
+      if (overtimeCounters.length > 0) {
+        const avgHistoricalOvertime = overtimeCounters.reduce((sum, c) => sum + c.count, 0) / overtimeCounters.length / 60;
+        const allEmployeeHours = Array.from(hoursByEmployee.values());
+        if (allEmployeeHours.length > 0) {
+          const currentAvg = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+          clinicAverageHours = currentAvg + avgHistoricalOvertime;
+        }
+      } else {
+        const allEmployeeHours = Array.from(hoursByEmployee.values());
+        if (allEmployeeHours.length > 0) {
+          clinicAverageHours = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+        }
+      }
+    } else {
+      const allEmployeeHours = Array.from(hoursByEmployee.values());
+      if (allEmployeeHours.length > 0) {
+        clinicAverageHours = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+      }
+    }
+
     for (const [employeeId, data] of hoursByEmployee) {
       const totalHours = Math.round(data.total / 60);
       if (totalHours > maxMonthlyHours) {
+        const overtimeMinutes = Math.round(data.total - maxMonthlyHours * 60);
+        const trend: EquityContext['trend'] =
+          totalHours > clinicAverageHours + 2 ? 'above_average' :
+          totalHours < clinicAverageHours - 2 ? 'below_average' : 'average';
+
         softViolations.push({
           ruleId: rule.id,
           ruleName: rule.name,
           category: rule.category as PlanningRuleCategory,
           message: `Employee total ${totalHours}h exceeds maximum ${maxMonthlyHours}h`,
+          messageKey: 'violations.contractCompliance.overtime',
+          messageParams: {
+            employeeId,
+            currentMonthlyHours: totalHours,
+            maxMonthlyHours,
+          },
           affectedEmployeeId: employeeId,
           severity: 'warning',
+          equityContext: {
+            counterType: 'OVERTIME_HOURS',
+            currentCount: totalHours,
+            maxPerPeriod: maxMonthlyHours,
+            clinicAverage: Math.round(clinicAverageHours * 10) / 10,
+            trend,
+          },
         });
       }
     }

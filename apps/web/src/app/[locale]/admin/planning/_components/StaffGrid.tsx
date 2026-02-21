@@ -23,6 +23,7 @@ import type {
   ScheduleShift,
   ScheduleUnavailability,
   ScheduleHole,
+  EquitySummaryEntry,
 } from "@pawly/validators";
 
 type ConflictMap = Map<string, Array<{ message: string; severity: "blocking" | "warning" }>>;
@@ -34,6 +35,7 @@ type Props = {
   unavailabilities: ScheduleUnavailability[];
   holes: ScheduleHole[];
   conflictMap: ConflictMap;
+  equitySummary?: EquitySummaryEntry[];
   moveShift: (input: { shiftId: string; targetEmployeeId?: string; targetDate?: string }) => void;
   onHoleClick?: (hole: ScheduleHole, employeeId: string) => void;
 };
@@ -114,6 +116,7 @@ export function StaffGrid({
   unavailabilities,
   holes,
   conflictMap,
+  equitySummary,
   moveShift,
   onHoleClick,
 }: Props) {
@@ -222,6 +225,15 @@ export function StaffGrid({
     return map;
   }, [holes]);
 
+  const equitySummaryMap = useMemo(() => {
+    const map = new Map<string, EquitySummaryEntry>();
+    if (!equitySummary) return map;
+    for (const entry of equitySummary) {
+      map.set(entry.employeeId, entry);
+    }
+    return map;
+  }, [equitySummary]);
+
   const { gridRef, getCellTabIndex, handleGridKeyDown } = useGridKeyboard({
     rowCount: employees.length,
     colCount,
@@ -296,6 +308,7 @@ export function StaffGrid({
                 unavailabilityIndex={unavailabilityIndex}
                 holeIndex={holeIndex}
                 conflictMap={conflictMap}
+                equitySummaryEntry={equitySummaryMap.get(employee.id)}
                 getCellTabIndex={getCellTabIndex}
                 isDragging={!!activeShift}
                 getDropFeedback={getDropFeedback}

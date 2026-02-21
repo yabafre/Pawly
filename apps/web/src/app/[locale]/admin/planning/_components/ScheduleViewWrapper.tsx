@@ -6,8 +6,11 @@ import { CalendarX } from "lucide-react";
 import { StaffGrid } from "./StaffGrid";
 import { WeekNavigator } from "./WeekNavigator";
 import { AssignShiftModal } from "./AssignShiftModal";
+import { PlanningHealthBar } from "./PlanningHealthBar";
+import { PublishConfirmDialog } from "./PublishConfirmDialog";
 import { useScheduleView } from "../_hooks/useScheduleView";
 import { useShiftMutations } from "../_hooks/useShiftMutations";
+import { usePublish } from "../_hooks/usePublish";
 import type { ScheduleHole, ScheduleShift, ScheduleUnavailability } from "@pawly/validators";
 
 type Props = {
@@ -26,6 +29,15 @@ export function ScheduleViewWrapper({ month }: Props) {
   } = useScheduleView(month);
 
   const { moveShift, createManualShift } = useShiftMutations(month);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+
+  const { publicationStatus, publishPlan, isPublishing } = usePublish(month, {
+    onPublishSuccess: () => setPublishDialogOpen(false),
+  });
+
+  const handlePublishConfirm = useCallback(() => {
+    publishPlan({ month });
+  }, [publishPlan, month]);
 
   // AssignShiftModal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -124,8 +136,21 @@ export function ScheduleViewWrapper({ month }: Props) {
     );
   }
 
+  const hardViolationCount = scheduleData.violations.hard.length;
+  const softViolationCount = scheduleData.violations.soft.length;
+  const totalShifts = scheduleData.shifts.length;
+  const isPublished = publicationStatus?.status === "PUBLISHED";
+
   return (
     <div className="space-y-4">
+      {/* Health Bar */}
+      <PlanningHealthBar
+        hardViolationCount={hardViolationCount}
+        softViolationCount={softViolationCount}
+        totalShifts={totalShifts}
+        onPublish={isPublished ? undefined : () => setPublishDialogOpen(true)}
+      />
+
       {/* Header: title + week navigator */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -149,6 +174,7 @@ export function ScheduleViewWrapper({ month }: Props) {
         unavailabilities={currentWeekData.unavailabilities}
         holes={currentWeekData.holes}
         conflictMap={conflictMap}
+        equitySummary={scheduleData.equitySummary}
         moveShift={moveShift}
         onHoleClick={handleHoleClick}
       />
@@ -162,6 +188,15 @@ export function ScheduleViewWrapper({ month }: Props) {
         unavailabilityIndex={unavailabilityIndex}
         shiftIndex={shiftIndex}
         onAssign={handleAssign}
+      />
+
+      {/* Publish Confirm Dialog */}
+      <PublishConfirmDialog
+        open={publishDialogOpen}
+        onClose={() => setPublishDialogOpen(false)}
+        onConfirm={handlePublishConfirm}
+        softViolationCount={softViolationCount}
+        isPublishing={isPublishing}
       />
     </div>
   );

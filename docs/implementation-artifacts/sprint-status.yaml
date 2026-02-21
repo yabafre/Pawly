@@ -28,7 +28,8 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-20'
+updated: '2026-02-21'
+# 2026-02-21: Story 7-2 created (ready-for-dev). Equity Alerts Management (Soft Rules). Enrich validateShiftsAgainstRules with equity counter context (currentCount/maxPerPeriod/clinicAverage), PlanningHealthBar wired into ScheduleViewWrapper with real violation data, PlanningPeriodStatus Prisma model (DRAFT/PUBLISHED per month), publishPlan tRPC mutation with hard-conflict gate + Resend email notifications, EmployeeEquityBadge on StaffGridRow name cell, EquityDetailPopover with full breakdown, employeeViolationMap for employee-level soft violations, structured i18n message keys replacing raw English strings, PublishConfirmDialog with soft warning summary.
 # 2026-02-20: Story 7-1 code review done → done. 14 issues found (6 CRITICAL, 4 HIGH, 4 MEDIUM), all fixed. H1: createManualShift backend ClinicShiftType lookup. H2: DraggableShiftCell transform removal. H3: stale closure fix in onDragOver. H4: toast for blocked drops. H5: AssignShiftModal client-side eligibility. H6: N+1 ROTATION_EQUITY query hoist. M3/M4: optimistic update pattern (onMutate/onSettled). M6: StaffGridRow React.memo. M7: preValidateMove .query→.mutation. M8: moveShift overlap/date validation. M9: Promise.all parallelization. +65 new tests (24 service + 12 router + 30 web). 1502 total tests (545 API + 480 Web + 477 Validators). Build green.
 # 2026-02-20: Story 7-1 created (ready-for-dev). Manual Schedule Adjustment (Drag & Drop). @dnd-kit/core for DndContext+useDraggable+useDroppable+DragOverlay, shift mutation methods (moveShift/createManualShift/deleteShift/preValidateMove), optimistic UI with React Query cache, AssignShiftModal for hole assignment, keyboard DnD fallback, drop target visual feedback (green/orange/red), i18n FR/EN. Epic 7 → in-progress.
 # 2026-02-19: Story 6-3 algorithm improvements: breakMinutes per ClinicShiftType (net hours = brut - pause), dynamic non-workday reordering (replaces hardcoded Saturday), stronger workload balancing (×50 weekly ratio, fill-to-contract +30/+15), random tiebreaker, per-employee contractHours enforcement. Added planning-algorithm-reference.md documentation. 1334 total tests (474 API + 437 Web + 423 Validators). Build green.
@@ -205,7 +206,7 @@ development_status:
   # ===========================================================================
   epic-7: in-progress
   7-1-manual-schedule-adjustment-drag-drop: done
-  7-2-equity-alerts-management-soft-rules: backlog
+  7-2-equity-alerts-management-soft-rules: done
   7-3-absence-request-validation-workflow: backlog
   7-4-planning-health-bar: backlog
   7-5-admin-variance-view: backlog

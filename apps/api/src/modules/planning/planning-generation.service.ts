@@ -9,13 +9,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
+import { MailService } from '@/modules/mail/mail.service';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
-import type { GenerationResult, HardViolation, SoftViolation } from '@pawly/validators';
+import type { GenerationResult, HardViolation, SoftViolation, EquitySummaryEntry } from '@pawly/validators';
 import type {
   ScheduleViewData,
   ScheduleEmployee,
@@ -25,6 +26,7 @@ import type {
   ScheduleHole,
   MoveValidationResult,
 } from '@pawly/validators';
+import type { CounterWithEmployee } from './equity-counter.service';
 
 type SlotRequirement = {
   date: string;
@@ -91,6 +93,7 @@ export class PlanningGenerationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clinicService: ClinicService,
+    private readonly mailService: MailService,
     private readonly planningService: PlanningService,
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
@@ -1195,6 +1198,7 @@ export class PlanningGenerationService {
       unavailabilities,
       operationalConfig,
       shiftTypes,
+      equityCounters,
     ] = await Promise.all([
       this.prisma.employee.findMany({
         where: { clinicId, isActive: true },
@@ -1224,6 +1228,10 @@ export class PlanningGenerationService {
       }),
       this.clinicService.getOperationalConfig(clinicId),
       this.clinicService.listShiftTypes(clinicId),
+      this.equityCounterService.getCountersForPeriod(clinicId, year, [monthNum]).catch(() => {
+        this.logger.warn('Failed to fetch equity counters for schedule view');
+        return [] as CounterWithEmployee[];
+      }),
     ]);
 
     // Build work day set from ClinicConfig.workDays (e.g., ["MONDAY", "TUESDAY", ...])
@@ -1327,7 +1335,7 @@ export class PlanningGenerationService {
     let holes: ScheduleHole[] = [];
     const templateId = shifts.find((s) => s.source === 'GENERATED' && s.planningTemplateId)?.planningTemplateId;
 
-    // Parallelize template fetch + validation rules
+    // Parallelize template fetch + validation rules (with equity counters for enrichment)
     const [template, validationResult] = await Promise.all([
       templateId
         ? this.planningTemplateService.getTemplateById(clinicId, templateId).catch(() => {
@@ -1338,6 +1346,8 @@ export class PlanningGenerationService {
       this.planningService.validateShiftsAgainstRules(clinicId, {
         startDate: monthStart.toISOString(),
         endDate: monthEnd.toISOString(),
+      }, {
+        equityCounters: equityCounters.length > 0 ? equityCounters : undefined,
       }).catch(() => {
         this.logger.warn('Failed to validate shifts against rules');
         return { hardViolations: [] as HardViolation[], softViolations: [] as SoftViolation[] };
@@ -1366,6 +1376,10 @@ export class PlanningGenerationService {
       soft: validationResult.softViolations,
     };
 
+    // Build equity summary per employee from equity counters
+    const rules = await this.planningService.listRules(clinicId, { isActive: true });
+    const equitySummary = this.buildEquitySummary(equityCounters, rules);
+
     return {
       month,
       employees: scheduleEmployees,
@@ -1374,6 +1388,7 @@ export class PlanningGenerationService {
       unavailabilities: expandedUnavailabilities,
       holes,
       violations,
+      equitySummary: equitySummary.length > 0 ? equitySummary : undefined,
       templateId: templateId ?? undefined,
     };
   }
@@ -1667,6 +1682,7 @@ export class PlanningGenerationService {
     }
 
     const projectedWeeklyMinutes = weeklyMinutes + shiftMinutes;
+    const projectedWeeklyHours = Math.round(projectedWeeklyMinutes / 60 * 10) / 10;
     const contractWeeklyMinutes = employee.contractHours * 60;
 
     for (const rule of rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE')) {
@@ -1684,7 +1700,7 @@ export class PlanningGenerationService {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${overHours}h over weekly limit (${effectiveLimit}h)`,
+          message: `Overtime risk: ${projectedWeeklyHours}h this week, contract limit ${employee.contractHours}h`,
         });
         break;
       }
@@ -1693,10 +1709,9 @@ export class PlanningGenerationService {
     // If no contract rules exist, still warn based on contractHours
     if (rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE').length === 0) {
       if (projectedWeeklyMinutes > contractWeeklyMinutes) {
-        const overHours = Math.round((projectedWeeklyMinutes - contractWeeklyMinutes) / 60 * 10) / 10;
         soft.push({
           rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${overHours}h over contract hours (${employee.contractHours}h/week)`,
+          message: `Overtime risk: ${projectedWeeklyHours}h this week, contract limit ${employee.contractHours}h`,
         });
       }
     }
@@ -1760,12 +1775,210 @@ export class PlanningGenerationService {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'ROTATION_EQUITY',
-          message: `${employee.firstName} ${employee.lastName} would have ${targetDayCount + 1} ${targetDay} shifts (${trackingPeriod || 'monthly'}, max ${maxPerPeriod})`,
+          message: `${employee.firstName} ${employee.lastName} — would be ${targetDayCount + 1}th ${targetDay} this ${trackingPeriod || 'month'} (max ${maxPerPeriod})`,
         });
       }
     }
 
     return { hard, soft };
+  }
+
+  async publishPlan(
+    clinicId: string,
+    month: string,
+    userId: string,
+  ): Promise<{ publishedAt: string; notifiedCount: number }> {
+    if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
+      throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(Date.UTC(year, monthNum - 1, 1));
+    const endDate = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+
+    // Quick-exit: if already published and no changes, skip re-publishing
+    const existingStatus = await this.prisma.planningPeriodStatus.findUnique({
+      where: { clinicId_month: { clinicId, month } },
+    });
+    if (existingStatus?.status === 'PUBLISHED') {
+      const shiftsModifiedAfterPublish = await this.prisma.shift.count({
+        where: {
+          clinicId,
+          date: { gte: startDate, lte: endDate },
+          updatedAt: { gt: existingStatus.publishedAt! },
+        },
+      });
+      if (shiftsModifiedAfterPublish === 0) {
+        return {
+          publishedAt: existingStatus.publishedAt!.toISOString(),
+          notifiedCount: 0,
+        };
+      }
+    }
+
+    // Atomic: validate hard violations + upsert status inside transaction
+    const now = await this.prisma.$transaction(async (tx) => {
+      // Lighter hard-violation check: validate shifts against rules directly
+      const { hardViolations } = await this.planningService.validateShiftsAgainstRules(
+        clinicId,
+        { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      );
+
+      if (hardViolations.length > 0) {
+        throw new ConflictException(
+          `Cannot publish: ${hardViolations.length} hard violation(s) remain. Resolve them before publishing.`,
+        );
+      }
+
+      const publishedAt = new Date();
+      await tx.planningPeriodStatus.upsert({
+        where: { clinicId_month: { clinicId, month } },
+        create: {
+          clinicId,
+          month,
+          status: 'PUBLISHED',
+          publishedAt,
+          publishedBy: userId,
+        },
+        update: {
+          status: 'PUBLISHED',
+          publishedAt,
+          publishedBy: userId,
+        },
+      });
+
+      return publishedAt;
+    });
+
+    // Email sending stays outside the transaction (fire-and-forget after commit)
+    const [employees, clinic] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: {
+          clinicId,
+          isActive: true,
+          email: { not: null },
+          shifts: { some: { date: { gte: startDate, lte: endDate } } },
+        },
+        select: { id: true, firstName: true, email: true },
+      }),
+      this.prisma.clinic.findUniqueOrThrow({
+        where: { id: clinicId },
+        select: { name: true },
+      }),
+    ]);
+
+    let notifiedCount = 0;
+    for (const emp of employees) {
+      try {
+        await this.mailService.sendSchedulePublicationEmail(
+          emp.email!,
+          emp.firstName,
+          month,
+          clinic.name,
+        );
+        notifiedCount++;
+      } catch (err) {
+        this.logger.warn(`Failed to notify ${emp.email} for ${month}: ${err}`);
+      }
+    }
+
+    this.logger.log(
+      `Published plan for clinic ${clinicId}, month ${month}. Notified ${notifiedCount}/${employees.length} employees.`,
+    );
+
+    return {
+      publishedAt: now.toISOString(),
+      notifiedCount,
+    };
+  }
+
+  async getPublicationStatus(
+    clinicId: string,
+    month: string,
+  ): Promise<{ status: 'DRAFT' | 'PUBLISHED'; publishedAt: string | null; publishedBy: string | null }> {
+    if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
+      throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
+    }
+
+    const record = await this.prisma.planningPeriodStatus.findUnique({
+      where: { clinicId_month: { clinicId, month } },
+    });
+
+    if (!record) {
+      return { status: 'DRAFT', publishedAt: null, publishedBy: null };
+    }
+
+    return {
+      status: record.status as 'DRAFT' | 'PUBLISHED',
+      publishedAt: record.publishedAt?.toISOString() ?? null,
+      publishedBy: record.publishedBy,
+    };
+  }
+
+  private buildEquitySummary(
+    equityCounters: CounterWithEmployee[],
+    rules?: Array<{ category: string; config: unknown }>,
+  ): EquitySummaryEntry[] {
+    if (equityCounters.length === 0) return [];
+
+    // Build maxPerPeriod lookup from ROTATION_EQUITY rules: counterType → maxPerPeriod
+    const dayToCounterType: Record<string, string> = {
+      saturday: 'SATURDAY_WORKED',
+      sunday: 'WEEKEND_TOTAL',
+    };
+    const maxPerPeriodByType = new Map<string, number>();
+    if (rules) {
+      for (const rule of rules) {
+        if (rule.category !== 'ROTATION_EQUITY') continue;
+        const config = rule.config as Record<string, unknown>;
+        const targetDay = config.targetDay as string | undefined;
+        const maxPerPeriod = config.maxPerPeriod as number | undefined;
+        if (targetDay && maxPerPeriod !== undefined) {
+          const ct = dayToCounterType[targetDay];
+          if (ct) {
+            maxPerPeriodByType.set(ct, maxPerPeriod);
+          }
+        }
+      }
+    }
+
+    // Group counters by employee
+    const byEmployee = new Map<string, Array<{ counterType: string; count: number }>>();
+    for (const counter of equityCounters) {
+      const existing = byEmployee.get(counter.employee.id) || [];
+      existing.push({ counterType: counter.counterType, count: counter.count });
+      byEmployee.set(counter.employee.id, existing);
+    }
+
+    // Compute clinic averages per counter type
+    const avgByType = new Map<string, { sum: number; count: number }>();
+    for (const counter of equityCounters) {
+      const entry = avgByType.get(counter.counterType) || { sum: 0, count: 0 };
+      entry.sum += counter.count;
+      entry.count += 1;
+      avgByType.set(counter.counterType, entry);
+    }
+
+    const clinicAverages = new Map<string, number>();
+    for (const [type, data] of avgByType) {
+      clinicAverages.set(type, Math.round((data.sum / data.count) * 10) / 10);
+    }
+
+    // Build summary entries
+    const entries: EquitySummaryEntry[] = [];
+    for (const [employeeId, counters] of byEmployee) {
+      entries.push({
+        employeeId,
+        counters: counters.map(c => ({
+          counterType: c.counterType,
+          count: c.count,
+          clinicAverage: clinicAverages.get(c.counterType) ?? 0,
+          maxPerPeriod: maxPerPeriodByType.get(c.counterType) ?? null,
+        })),
+      });
+    }
+
+    return entries;
   }
 
   private computeHoles(

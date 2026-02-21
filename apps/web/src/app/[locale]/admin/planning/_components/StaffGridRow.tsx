@@ -9,6 +9,7 @@ import {
   type ScheduleShift,
   type ScheduleUnavailability,
   type ScheduleHole,
+  type EquitySummaryEntry,
 } from "@pawly/validators";
 import { DraggableShiftCell } from "./DraggableShiftCell";
 import { HoleCell } from "./HoleCell";
@@ -16,6 +17,7 @@ import { AbsenceCell } from "./AbsenceCell";
 import { ClosedDayColumn } from "./ClosedDayColumn";
 import { ConflictIndicator } from "./ConflictIndicator";
 import { WarningBadge } from "./WarningBadge";
+import { EmployeeEquityBadge } from "./EmployeeEquityBadge";
 import { DroppableGridCell } from "./DroppableGridCell";
 import type { DropFeedback } from "../_hooks/useDragAndDrop";
 
@@ -37,6 +39,7 @@ type Props = {
   unavailabilityIndex: Map<string, ScheduleUnavailability[]>;
   holeIndex: Map<string, ScheduleHole[]>;
   conflictMap: Map<string, ConflictEntry[]>;
+  equitySummaryEntry?: EquitySummaryEntry;
   getCellTabIndex: (row: number, col: number) => number;
   isDragging: boolean;
   getDropFeedback: GetDropFeedbackFn;
@@ -60,6 +63,7 @@ export const StaffGridRow = React.memo(function StaffGridRow({
   unavailabilityIndex,
   holeIndex,
   conflictMap,
+  equitySummaryEntry,
   getCellTabIndex,
   isDragging,
   getDropFeedback,
@@ -114,8 +118,9 @@ export const StaffGridRow = React.memo(function StaffGridRow({
           style={{ backgroundColor: color }}
         />
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-neutral-900 truncate">
-            {employee.firstName} {employee.lastName.charAt(0)}.
+          <div className="flex items-center gap-1 text-sm font-semibold text-neutral-900 truncate">
+            <span className="truncate">{employee.firstName} {employee.lastName.charAt(0)}.</span>
+            {equitySummaryEntry && <EmployeeEquityBadge entry={equitySummaryEntry} />}
           </div>
           <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeClass}`}>
             {employee.jobType}

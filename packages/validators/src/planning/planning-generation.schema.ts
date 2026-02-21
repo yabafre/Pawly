@@ -56,6 +56,17 @@ export const holeInfoSchema = z.object({
 });
 export type HoleInfo = z.infer<typeof holeInfoSchema>;
 
+// ── Equity context schema ────────────────────────────────────────────────
+
+export const equityContextSchema = z.object({
+  counterType: z.string(),
+  currentCount: z.number(),
+  maxPerPeriod: z.number(),
+  clinicAverage: z.number(),
+  trend: z.enum(["below_average", "average", "above_average"]),
+});
+export type EquityContext = z.infer<typeof equityContextSchema>;
+
 // ── Violation schemas ────────────────────────────────────────────────────
 
 export const hardViolationSchema = z.object({
@@ -74,9 +85,12 @@ export const softViolationSchema = z.object({
   ruleName: z.string(),
   category: z.string(),
   message: z.string(),
+  messageKey: z.string().optional(),
+  messageParams: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   affectedEmployeeId: z.string().uuid().optional(),
   affectedDate: z.string().optional(),
   severity: z.literal("warning"),
+  equityContext: equityContextSchema.optional(),
 });
 export type SoftViolation = z.infer<typeof softViolationSchema>;
 
