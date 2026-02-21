@@ -566,10 +566,10 @@
     },
     "violations": {
       "rotationEquity": {
-        "exceeded": "{employeeName} has {currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
+        "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
       },
       "contractCompliance": {
-        "overtime": "{employeeName}: {currentWeeklyHours}h this week, exceeds contract limit of {maxWeeklyHours}h"
+        "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
       }
     },
     "settings": {

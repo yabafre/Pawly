@@ -104,34 +104,7 @@ describe("EmployeeEquityBadge", () => {
     expect(screen.getByText("popoverHint")).toBeInTheDocument();
   });
 
-  it("should show popover on mouse enter", () => {
-    render(<EmployeeEquityBadge entry={mockEntryAbove} />);
-
-    // Before hover, popover should not be visible
-    expect(screen.queryByText("popoverTitle")).not.toBeInTheDocument();
-
-    // Mouse enter the trigger button
-    const button = screen.getByRole("button");
-    fireEvent.mouseEnter(button);
-
-    // Popover should appear
-    expect(screen.getByText("popoverTitle")).toBeInTheDocument();
-  });
-
-  it("should hide popover on mouse leave", () => {
-    render(<EmployeeEquityBadge entry={mockEntryAbove} />);
-
-    // Show the popover
-    const button = screen.getByRole("button");
-    fireEvent.mouseEnter(button);
-    expect(screen.getByText("popoverTitle")).toBeInTheDocument();
-
-    // Mouse leave should hide the popover
-    fireEvent.mouseLeave(button);
-    expect(screen.queryByText("popoverTitle")).not.toBeInTheDocument();
-  });
-
-  it("should close popover on Escape key", () => {
+  it("should close popover on Escape key via Radix", () => {
     render(<EmployeeEquityBadge entry={mockEntryAbove} />);
 
     // Show the popover via click
@@ -139,9 +112,10 @@ describe("EmployeeEquityBadge", () => {
     fireEvent.click(button);
     expect(screen.getByText("popoverTitle")).toBeInTheDocument();
 
-    // Pressing Escape on the container should close the popover (WCAG fix)
-    const container = button.closest(".relative.inline-flex")!;
-    fireEvent.keyDown(container, { key: "Escape" });
+    // Radix Popover handles Escape automatically on the content
+    const popoverContent = screen.getByText("popoverTitle").closest("[data-radix-popper-content-wrapper]")
+      ?? screen.getByText("popoverTitle").parentElement!;
+    fireEvent.keyDown(popoverContent, { key: "Escape" });
     expect(screen.queryByText("popoverTitle")).not.toBeInTheDocument();
   });
 

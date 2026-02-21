@@ -147,6 +147,7 @@ export class PlanningService {
   ): Promise<{
     hardViolations: HardViolation[];
     softViolations: SoftViolation[];
+    rules: Array<{ id: string; name: string; category: string; ruleType: string; config: unknown; priority: number }>;
   }> {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
@@ -195,7 +196,7 @@ export class PlanningService {
       }
     }
 
-    return { hardViolations, softViolations };
+    return { hardViolations, softViolations, rules };
   }
 
   private evaluateStaffingMinimum(
@@ -304,9 +305,10 @@ export class PlanningService {
     if (!targetIsoDay) return;
 
     // Map targetDay to equity counter type for clinic average
+    // Note: only SATURDAY_WORKED has a dedicated counter; sunday falls through
+    // to shift-data average (WEEKEND_TOTAL includes both sat+sun, not sunday-only)
     const dayToCounterType: Record<string, string> = {
       saturday: 'SATURDAY_WORKED',
-      sunday: 'WEEKEND_TOTAL',
     };
     const counterType = dayToCounterType[targetDay];
 
@@ -366,7 +368,6 @@ export class PlanningService {
             message: `Employee has ${count} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod} per ${trackingPeriod || 'period'}`,
             messageKey: 'violations.rotationEquity.exceeded',
             messageParams: {
-              employeeId,
               currentCount: count,
               maxPerPeriod,
               targetDay,
@@ -444,7 +445,6 @@ export class PlanningService {
           message: `Employee total ${totalHours}h exceeds maximum ${maxMonthlyHours}h`,
           messageKey: 'violations.contractCompliance.overtime',
           messageParams: {
-            employeeId,
             currentMonthlyHours: totalHours,
             maxMonthlyHours,
           },

@@ -30,7 +30,7 @@ export function PublishConfirmDialog({
   const t = useTranslations("admin.publication");
 
   return (
-    <AlertDialog open={open}>
+    <AlertDialog open={open} onOpenChange={(v) => { if (!v && !isPublishing) onClose(); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("confirmTitle")}</AlertDialogTitle>

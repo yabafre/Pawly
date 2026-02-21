@@ -1350,7 +1350,7 @@ export class PlanningGenerationService {
         equityCounters: equityCounters.length > 0 ? equityCounters : undefined,
       }).catch(() => {
         this.logger.warn('Failed to validate shifts against rules');
-        return { hardViolations: [] as HardViolation[], softViolations: [] as SoftViolation[] };
+        return { hardViolations: [] as HardViolation[], softViolations: [] as SoftViolation[], rules: [] as Array<{ id: string; name: string; category: string; ruleType: string; config: unknown; priority: number }> };
       }),
     ]);
 
@@ -1376,9 +1376,8 @@ export class PlanningGenerationService {
       soft: validationResult.softViolations,
     };
 
-    // Build equity summary per employee from equity counters
-    const rules = await this.planningService.listRules(clinicId, { isActive: true });
-    const equitySummary = this.buildEquitySummary(equityCounters, rules);
+    // Build equity summary per employee from equity counters (reuse rules from validation)
+    const equitySummary = this.buildEquitySummary(equityCounters, validationResult.rules);
 
     return {
       month,
@@ -1696,11 +1695,10 @@ export class PlanningGenerationService {
         : employee.contractHours;
 
       if (projectedWeeklyMinutes > effectiveLimit * 60 * overtimeTol) {
-        const overHours = Math.round((projectedWeeklyMinutes - effectiveLimit * 60) / 60 * 10) / 10;
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${projectedWeeklyHours}h this week, contract limit ${employee.contractHours}h`,
+          message: `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
         });
         break;
       }
@@ -1922,9 +1920,9 @@ export class PlanningGenerationService {
     if (equityCounters.length === 0) return [];
 
     // Build maxPerPeriod lookup from ROTATION_EQUITY rules: counterType → maxPerPeriod
+    // Note: only SATURDAY_WORKED has a dedicated counter; sunday has no distinct counter
     const dayToCounterType: Record<string, string> = {
       saturday: 'SATURDAY_WORKED',
-      sunday: 'WEEKEND_TOTAL',
     };
     const maxPerPeriodByType = new Map<string, number>();
     if (rules) {

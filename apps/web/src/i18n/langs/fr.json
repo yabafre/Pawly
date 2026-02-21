@@ -566,10 +566,10 @@
     },
     "violations": {
       "rotationEquity": {
-        "exceeded": "{employeeName} a {currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
+        "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
       },
       "contractCompliance": {
-        "overtime": "{employeeName} : {currentWeeklyHours}h cette semaine, dépasse la limite contractuelle de {maxWeeklyHours}h"
+        "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
       }
     },
     "settings": {

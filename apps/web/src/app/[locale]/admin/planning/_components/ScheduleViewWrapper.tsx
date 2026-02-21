@@ -91,7 +91,7 @@ export function ScheduleViewWrapper({ month }: Props) {
   const conflictMap = useMemo(() => {
     const map = new Map<
       string,
-      Array<{ message: string; severity: "blocking" | "warning" }>
+      Array<{ message: string; messageKey?: string; messageParams?: Record<string, string | number>; severity: "blocking" | "warning" }>
     >();
     if (!scheduleData?.violations) return map;
 
@@ -108,7 +108,12 @@ export function ScheduleViewWrapper({ month }: Props) {
       if (v.affectedEmployeeId && v.affectedDate) {
         const key = `${v.affectedEmployeeId}|${v.affectedDate}`;
         const arr = map.get(key) || [];
-        arr.push({ message: v.message, severity: "warning" });
+        arr.push({
+          message: v.message,
+          messageKey: v.messageKey,
+          messageParams: v.messageParams,
+          severity: "warning",
+        });
         map.set(key, arr);
       }
     }
