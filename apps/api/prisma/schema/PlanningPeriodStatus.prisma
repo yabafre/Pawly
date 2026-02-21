@@ -1,0 +1,20 @@
+model PlanningPeriodStatus {
+  id          String                   @id @default(cuid())
+  clinicId    String                   @map("clinic_id")
+  clinic      Clinic                   @relation(fields: [clinicId], references: [id])
+  month       String                   // "YYYY-MM"
+  status      PlanningPeriodStatusType @default(DRAFT)
+  publishedAt DateTime?                @map("published_at")
+  publishedBy String?                  @map("published_by")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([clinicId, month])
+  @@index([clinicId])
+  @@map("planning_period_statuses")
+}
+
+enum PlanningPeriodStatusType {
+  DRAFT
+  PUBLISHED
+}

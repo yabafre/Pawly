@@ -543,6 +543,35 @@
         "shiftDeleted": "Shift deleted"
       }
     },
+    "publication": {
+      "publishSuccess": "Schedule published — employees have been notified",
+      "publishError": "Failed to publish schedule",
+      "confirmTitle": "Publish Schedule",
+      "confirmDescription": "This will notify all employees of their schedule by email. This action cannot be undone.",
+      "confirmDescriptionWithWarnings": "There are still {count, plural, one {# soft warning} other {# soft warnings}} remaining. This will notify all employees of their schedule by email. This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirmPublish": "Publish",
+      "publishing": "Publishing…"
+    },
+    "equity": {
+      "badgeLabel": "Equity indicator",
+      "popoverTitle": "Equity Counters",
+      "popoverHint": "Value / clinic average",
+      "counterType": {
+        "SATURDAY_WORKED": "Saturdays",
+        "WEEKEND_TOTAL": "Weekends",
+        "HOLIDAY_WORKED": "Holidays",
+        "OVERTIME_HOURS": "Overtime (h)"
+      }
+    },
+    "violations": {
+      "rotationEquity": {
+        "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
+      },
+      "contractCompliance": {
+        "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+      }
+    },
     "settings": {
       "badge": "Clinic settings",
       "title": "Operational Parameters",

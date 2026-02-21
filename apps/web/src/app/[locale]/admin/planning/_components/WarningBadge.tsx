@@ -8,7 +8,12 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 
-type WarningEntry = { message: string; severity: "blocking" | "warning" };
+type WarningEntry = {
+  message: string;
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
+  severity: "blocking" | "warning";
+};
 
 type Props = {
   warnings: WarningEntry[];
@@ -16,6 +21,7 @@ type Props = {
 
 export function WarningBadge({ warnings }: Props) {
   const t = useTranslations("admin.scheduleView.conflict");
+  const tv = useTranslations("admin");
 
   if (warnings.length === 0) return null;
 
@@ -36,7 +42,7 @@ export function WarningBadge({ warnings }: Props) {
         </p>
         {warnings.map((w, i) => (
           <p key={i} className="text-[11px] text-neutral-600 leading-snug">
-            {w.message}
+            {w.messageKey ? tv(w.messageKey, w.messageParams) : w.message}
           </p>
         ))}
       </PopoverContent>

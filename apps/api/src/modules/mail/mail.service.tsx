@@ -117,6 +117,31 @@ export class MailService {
     }
   }
 
+  async sendSchedulePublicationEmail(
+    employeeEmail: string,
+    firstName: string,
+    month: string,
+    clinicName: string,
+  ) {
+    try {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard`;
+
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: employeeEmail,
+        subject: `${clinicName} — Votre planning pour ${month} est publié`,
+        html: `<p>Bonjour ${firstName},</p><p>Le planning pour <strong>${month}</strong> a été publié par ${clinicName}.</p><p>Consultez vos créneaux sur <a href="${dashboardUrl}">votre espace Pawly</a>.</p><p>L'équipe Pawly</p>`,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send schedule publication email to ${employeeEmail}: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending schedule publication email', err);
+    }
+  }
+
   async sendSchoolDaysReminder(
     apprenticeEmail: string,
     name: string,

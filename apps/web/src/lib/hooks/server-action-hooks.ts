@@ -25,6 +25,7 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   planningShifts: (month?: string) => ["planning", "shifts", month ?? "all"],
   planningGeneration: () => ["planning", "generation"],
   planningScheduleView: (month?: string) => ["planning", "schedule-view", month ?? "all"],
+  publicationStatus: (month?: string) => ["planning", "publication-status", month ?? "all"],
   equityCounters: () => ["planning", "equity-counters"],
   equityQuarterlySummary: () => ["planning", "equity-quarterly"],
   clinic: () => ["clinic"],
