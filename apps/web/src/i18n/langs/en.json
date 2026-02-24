@@ -610,6 +610,70 @@
         "removeDeclaration": "Remove declaration"
       },
       "empty": "No apprentices in this clinic"
+    },
+    "absences": {
+      "title": "Absence Requests",
+      "subtitle": "Review and manage employee absence requests.",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 pending} other {# pending}}",
+      "list": {
+        "empty": "No absence requests.",
+        "emptyPending": "No pending absence requests.",
+        "dayCount": "{count, plural, =0 {No days} =1 {1 day} other {# days}}",
+        "from": "From",
+        "to": "To",
+        "reason": "Reason",
+        "noReason": "No reason provided",
+        "rejectionReason": "Rejection reason",
+        "employee": "Employee"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "approving": "Approving...",
+        "rejecting": "Rejecting..."
+      },
+      "rejectDialog": {
+        "title": "Reject absence request",
+        "description": "Please provide a reason for rejecting this absence request.",
+        "reasonLabel": "Rejection reason",
+        "reasonPlaceholder": "Explain why this request is being rejected...",
+        "confirm": "Confirm rejection",
+        "cancel": "Cancel"
+      },
+      "adminCreate": {
+        "title": "Create absence",
+        "subtitle": "Create an absence directly for an employee (auto-approved).",
+        "selectEmployee": "Select employee",
+        "selectType": "Absence type",
+        "submit": "Create absence",
+        "submitting": "Creating..."
+      },
+      "types": {
+        "PAID_LEAVE": "Paid Leave",
+        "SICK_LEAVE": "Sick Leave",
+        "TRAINING": "Training",
+        "CHILD_SICK": "Child Sick",
+        "OTHER": "Other"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "toast": {
+        "approved": "Absence request approved.",
+        "rejected": "Absence request rejected.",
+        "created": "Absence created successfully.",
+        "errorApprove": "Failed to approve absence request.",
+        "errorReject": "Failed to reject absence request.",
+        "errorCreate": "Failed to create absence."
+      }
     }
   },
   "brand": {
@@ -682,7 +746,8 @@
     "nav": {
       "title": "Pawly Employee",
       "home": "Home",
-      "schoolDays": "School Days"
+      "schoolDays": "School Days",
+      "absences": "Absences"
     },
     "schoolDays": {
       "title": "School Days Declaration",
@@ -719,6 +784,49 @@
         "declared": "Declared",
         "notDeclared": "Not declared",
         "schoolDaysFor": "School days for {month}"
+      }
+    },
+    "absences": {
+      "title": "Absence Requests",
+      "subtitle": "Submit and track your absence requests.",
+      "form": {
+        "title": "Request an absence",
+        "selectType": "Select absence type",
+        "dateRange": "Date range",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "reason": "Reason (optional)",
+        "reasonPlaceholder": "Describe the reason for your absence...",
+        "submit": "Submit request",
+        "submitting": "Submitting..."
+      },
+      "types": {
+        "PAID_LEAVE": "Paid Leave",
+        "SICK_LEAVE": "Sick Leave",
+        "TRAINING": "Training",
+        "CHILD_SICK": "Child Sick",
+        "OTHER": "Other"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "label": "{status, select, PENDING {Pending} APPROVED {Approved} REJECTED {Rejected} other {Unknown}}"
+      },
+      "dayCount": "{count, plural, =0 {No days} =1 {1 day} other {# days}}",
+      "list": {
+        "title": "My requests",
+        "empty": "No absence requests yet.",
+        "rejectionReason": "Rejection reason",
+        "from": "From",
+        "to": "To"
+      },
+      "overlap": {
+        "warning": "Overlap detected with an existing absence or unavailability from {startDate} to {endDate}."
+      },
+      "toast": {
+        "success": "Absence request submitted successfully.",
+        "error": "Failed to submit absence request."
       }
     },
     "title": "Dashboard",

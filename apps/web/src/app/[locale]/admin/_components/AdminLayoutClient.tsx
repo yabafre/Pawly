@@ -4,7 +4,7 @@ import { QueryKeyFactory } from "@/lib/hooks/server-action-hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, CheckCircle2, CreditCard, FileText, LayoutTemplate, LogOut, PawPrint, Scale, Settings2, Users } from "lucide-react";
+import { Bell, Calendar, CalendarOff, CheckCircle2, CreditCard, FileText, LayoutTemplate, LogOut, PawPrint, Scale, Settings2, Users } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
@@ -29,10 +29,10 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     const navItems = [
         { href: "/admin/dashboard", icon: FileText, labelKey: "dashboard" as const },
         { href: "/admin/employees", icon: Users, labelKey: "employees" as const },
+        { href: "/admin/employees/absences", icon: CalendarOff, labelKey: "requests" as const },
         { href: "/admin/planning", icon: Calendar, labelKey: "planning" as const },
         { href: "/admin/planning/templates", icon: LayoutTemplate, labelKey: "templates" as const },
         { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters" as const },
-        { href: "/admin/requests", icon: CheckCircle2, labelKey: "requests" as const },
         { href: "/admin/billing", icon: CreditCard, labelKey: "billing" as const },
         { href: "/admin/settings", icon: Settings2, labelKey: "settings" as const },
     ];

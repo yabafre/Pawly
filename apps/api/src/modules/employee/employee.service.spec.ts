@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EmployeeService } from './employee.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { MailService } from '@/modules/mail/mail.service';
@@ -51,6 +51,13 @@ describe('EmployeeService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    absence: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -58,6 +65,8 @@ describe('EmployeeService', () => {
     sendSchoolDaysNotification: jest.fn().mockResolvedValue(undefined),
     sendSchoolDaysReminder: jest.fn().mockResolvedValue(undefined),
     sendEmployeeInvitationEmail: jest.fn().mockResolvedValue(undefined),
+    sendAbsenceRequestNotification: jest.fn().mockResolvedValue(undefined),
+    sendAbsenceReviewNotification: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockAuthService = {
@@ -1004,6 +1013,29 @@ describe('EmployeeService', () => {
     });
   });
 
+  const mockAbsence = {
+    id: 'absence-1',
+    clinicId,
+    employeeId: 'emp-1',
+    type: 'PAID_LEAVE',
+    startDate: new Date('2026-03-10'),
+    endDate: new Date('2026-03-14'),
+    reason: 'Vacances familiales',
+    status: 'PENDING',
+    reviewedBy: null,
+    reviewedAt: null,
+    rejectionReason: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    employee: {
+      firstName: 'Jean',
+      lastName: 'Dupont',
+      email: 'jean@clinic.fr',
+      jobType: 'VET',
+      userId: 'user-emp-1',
+    },
+  };
+
   describe('listUndeclaredApprentices', () => {
     it('returns apprentices without SCHOOL declarations for the month', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
@@ -1065,6 +1097,751 @@ describe('EmployeeService', () => {
       const result = await service.listUndeclaredApprentices(clinicId, '2026-04');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // ==================== Absence Request Tests ====================
+
+  describe('mapAbsenceTypeToUnavailability', () => {
+    it('maps PAID_LEAVE to VACATION', () => {
+      expect(service.mapAbsenceTypeToUnavailability('PAID_LEAVE' as any)).toBe('VACATION');
+    });
+
+    it('maps SICK_LEAVE to SICK', () => {
+      expect(service.mapAbsenceTypeToUnavailability('SICK_LEAVE' as any)).toBe('SICK');
+    });
+
+    it('maps TRAINING to SCHOOL', () => {
+      expect(service.mapAbsenceTypeToUnavailability('TRAINING' as any)).toBe('SCHOOL');
+    });
+
+    it('maps CHILD_SICK to SICK', () => {
+      expect(service.mapAbsenceTypeToUnavailability('CHILD_SICK' as any)).toBe('SICK');
+    });
+
+    it('maps OTHER to OTHER', () => {
+      expect(service.mapAbsenceTypeToUnavailability('OTHER' as any)).toBe('OTHER');
+    });
+  });
+
+  describe('createAbsenceRequest', () => {
+    const createInput = {
+      type: 'PAID_LEAVE' as const,
+      startDate: '2026-03-10T00:00:00.000Z',
+      endDate: '2026-03-14T23:59:59.999Z',
+      reason: 'Vacances familiales',
+    };
+
+    it('creates an absence with PENDING status', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+
+      const result = await service.createAbsenceRequest(clinicId, 'emp-1', createInput);
+
+      expect(result).toEqual(mockAbsence);
+      expect(mockPrismaService.absence.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          clinicId,
+          employeeId: 'emp-1',
+          type: 'PAID_LEAVE',
+          status: 'PENDING',
+          reason: 'Vacances familiales',
+        }),
+      });
+    });
+
+    it('validates employee exists and belongs to clinic via findById', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createAbsenceRequest(clinicId, 'nonexistent', createInput),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockPrismaService.absence.create).not.toHaveBeenCalled();
+    });
+
+    it('converts date strings to Date objects', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+
+      await service.createAbsenceRequest(clinicId, 'emp-1', createInput);
+
+      const callData = mockPrismaService.absence.create.mock.calls[0][0].data;
+      expect(callData.startDate).toBeInstanceOf(Date);
+      expect(callData.endDate).toBeInstanceOf(Date);
+    });
+
+    it('sets reason to null when not provided', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+
+      await service.createAbsenceRequest(clinicId, 'emp-1', {
+        ...createInput,
+        reason: '',
+      });
+
+      expect(mockPrismaService.absence.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ reason: null }),
+      });
+    });
+
+    it('sends fire-and-forget admin notification', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.user.findMany.mockResolvedValue([
+        { email: 'admin@clinic.fr', name: 'Admin' },
+      ]);
+
+      await service.createAbsenceRequest(clinicId, 'emp-1', createInput);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { clinicId, role: 'ADMIN' },
+        select: { email: true, name: true },
+      });
+      expect(mockMailService.sendAbsenceRequestNotification).toHaveBeenCalledWith(
+        'admin@clinic.fr',
+        'Admin',
+        'Jean Dupont',
+        'PAID_LEAVE',
+        expect.any(Date),
+        expect.any(Date),
+        expect.any(Number),
+      );
+    });
+  });
+
+  describe('reviewAbsence', () => {
+    it('throws NotFoundException when absence not found', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.reviewAbsence(clinicId, 'admin-1', 'nonexistent', 'approve'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when absence is already reviewed', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue({
+        ...mockAbsence,
+        status: 'APPROVED',
+      });
+
+      await expect(
+        service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'approve'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException for REJECTED absence', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue({
+        ...mockAbsence,
+        status: 'REJECTED',
+      });
+
+      await expect(
+        service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'reject'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('approves absence via $transaction (update + unavailability create)', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+      const updatedAbsence = {
+        ...mockAbsence,
+        status: 'APPROVED',
+        reviewedBy: 'admin-1',
+        reviewedAt: new Date(),
+      };
+      mockPrismaService.absence.update.mockResolvedValue(updatedAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({
+        id: 'unavail-new',
+        type: 'VACATION',
+      });
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      const result = await service.reviewAbsence(
+        clinicId,
+        'admin-1',
+        'absence-1',
+        'approve',
+      );
+
+      expect(result).toEqual(updatedAbsence);
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.absence.update).toHaveBeenCalledWith({
+        where: { id: 'absence-1' },
+        data: expect.objectContaining({
+          status: 'APPROVED',
+          reviewedBy: 'admin-1',
+          reviewedAt: expect.any(Date),
+        }),
+      });
+      expect(mockPrismaService.unavailability.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          clinicId,
+          employeeId: 'emp-1',
+          type: 'VACATION',
+          reason: 'Approved absence request',
+          daysOfWeek: [],
+        }),
+      });
+    });
+
+    it('sends approval notification email when employee has email', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+      const updatedAbsence = { ...mockAbsence, status: 'APPROVED' };
+      mockPrismaService.absence.update.mockResolvedValue(updatedAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'approve');
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendAbsenceReviewNotification).toHaveBeenCalledWith(
+        'jean@clinic.fr',
+        'Jean',
+        'APPROVED',
+        'PAID_LEAVE',
+        mockAbsence.startDate,
+        mockAbsence.endDate,
+      );
+    });
+
+    it('does not send notification when employee has no email', async () => {
+      const absenceNoEmail = {
+        ...mockAbsence,
+        employee: { ...mockAbsence.employee, email: null },
+      };
+      mockPrismaService.absence.findFirst.mockResolvedValue(absenceNoEmail);
+      const updatedAbsence = { ...absenceNoEmail, status: 'APPROVED' };
+      mockPrismaService.absence.update.mockResolvedValue(updatedAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'approve');
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendAbsenceReviewNotification).not.toHaveBeenCalled();
+    });
+
+    it('rejects absence by updating status to REJECTED with reason', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+      const rejectedAbsence = {
+        ...mockAbsence,
+        status: 'REJECTED',
+        reviewedBy: 'admin-1',
+        rejectionReason: 'Période de forte activité',
+      };
+      mockPrismaService.absence.update.mockResolvedValue(rejectedAbsence);
+
+      const result = await service.reviewAbsence(
+        clinicId,
+        'admin-1',
+        'absence-1',
+        'reject',
+        'Période de forte activité',
+      );
+
+      expect(result).toEqual(rejectedAbsence);
+      expect(mockPrismaService.absence.update).toHaveBeenCalledWith({
+        where: { id: 'absence-1' },
+        data: expect.objectContaining({
+          status: 'REJECTED',
+          reviewedBy: 'admin-1',
+          reviewedAt: expect.any(Date),
+          rejectionReason: 'Période de forte activité',
+        }),
+      });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('sets rejectionReason to null when not provided on reject', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+      mockPrismaService.absence.update.mockResolvedValue({
+        ...mockAbsence,
+        status: 'REJECTED',
+      });
+
+      await service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'reject');
+
+      expect(mockPrismaService.absence.update).toHaveBeenCalledWith({
+        where: { id: 'absence-1' },
+        data: expect.objectContaining({
+          rejectionReason: null,
+        }),
+      });
+    });
+
+    it('sends rejection notification email with reason', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+      mockPrismaService.absence.update.mockResolvedValue({
+        ...mockAbsence,
+        status: 'REJECTED',
+      });
+
+      await service.reviewAbsence(
+        clinicId,
+        'admin-1',
+        'absence-1',
+        'reject',
+        'Trop de congés simultanés',
+      );
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendAbsenceReviewNotification).toHaveBeenCalledWith(
+        'jean@clinic.fr',
+        'Jean',
+        'REJECTED',
+        'PAID_LEAVE',
+        mockAbsence.startDate,
+        mockAbsence.endDate,
+        'Trop de congés simultanés',
+      );
+    });
+  });
+
+  describe('listAbsences', () => {
+    it('returns absences scoped by clinicId', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([mockAbsence]);
+
+      const result = await service.listAbsences(clinicId, {});
+
+      expect(result).toEqual([mockAbsence]);
+      expect(mockPrismaService.absence.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ clinicId }),
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+    });
+
+    it('filters by employeeId when provided', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+
+      await service.listAbsences(clinicId, { employeeId: 'emp-1' });
+
+      expect(mockPrismaService.absence.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ clinicId, employeeId: 'emp-1' }),
+        }),
+      );
+    });
+
+    it('filters by status when provided', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+
+      await service.listAbsences(clinicId, { status: 'PENDING' });
+
+      expect(mockPrismaService.absence.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ clinicId, status: 'PENDING' }),
+        }),
+      );
+    });
+
+    it('filters by month date range when provided', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+
+      await service.listAbsences(clinicId, { month: '2026-03' });
+
+      const call = mockPrismaService.absence.findMany.mock.calls[0][0];
+      expect(call.where.startDate).toEqual({
+        lte: new Date(Date.UTC(2026, 2, 31, 23, 59, 59, 999)),
+      });
+      expect(call.where.endDate).toEqual({
+        gte: new Date(Date.UTC(2026, 2, 1)),
+      });
+    });
+
+    it('includes employee relation with name and jobType', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+
+      await service.listAbsences(clinicId, {});
+
+      expect(mockPrismaService.absence.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            employee: {
+              select: { firstName: true, lastName: true, jobType: true },
+            },
+          },
+        }),
+      );
+    });
+
+    it('applies all filters simultaneously', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+
+      await service.listAbsences(clinicId, {
+        employeeId: 'emp-1',
+        status: 'APPROVED',
+        month: '2026-03',
+      });
+
+      const call = mockPrismaService.absence.findMany.mock.calls[0][0];
+      expect(call.where.clinicId).toBe(clinicId);
+      expect(call.where.employeeId).toBe('emp-1');
+      expect(call.where.status).toBe('APPROVED');
+      expect(call.where.startDate).toBeDefined();
+      expect(call.where.endDate).toBeDefined();
+    });
+  });
+
+  describe('getAbsenceById', () => {
+    it('returns absence when found with matching clinicId', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
+
+      const result = await service.getAbsenceById(clinicId, 'absence-1');
+
+      expect(result).toEqual(mockAbsence);
+      expect(mockPrismaService.absence.findFirst).toHaveBeenCalledWith({
+        where: { id: 'absence-1', clinicId },
+        include: {
+          employee: {
+            select: { firstName: true, lastName: true, jobType: true, email: true },
+          },
+        },
+      });
+    });
+
+    it('throws NotFoundException when absence not found', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getAbsenceById(clinicId, 'nonexistent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('does not return absence from another clinic', async () => {
+      mockPrismaService.absence.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getAbsenceById(otherClinicId, 'absence-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('adminCreateAbsence', () => {
+    const adminInput = {
+      employeeId: 'emp-1',
+      type: 'PAID_LEAVE' as const,
+      startDate: '2026-03-10T00:00:00.000Z',
+      endDate: '2026-03-14T23:59:59.999Z',
+      reason: 'Congé accordé par la direction',
+    };
+
+    it('creates an absence with APPROVED status via $transaction', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      const approvedAbsence = {
+        ...mockAbsence,
+        status: 'APPROVED',
+        reviewedBy: 'admin-1',
+        reviewedAt: new Date(),
+        reason: 'Congé accordé par la direction',
+      };
+      mockPrismaService.absence.create.mockResolvedValue(approvedAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({ id: 'unavail-new' });
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      const result = await service.adminCreateAbsence(clinicId, 'admin-1', adminInput);
+
+      expect(result).toEqual(approvedAbsence);
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('validates employee exists via findById before creating', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.adminCreateAbsence(clinicId, 'admin-1', adminInput),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('creates matching unavailability with mapped type', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.adminCreateAbsence(clinicId, 'admin-1', adminInput);
+
+      expect(mockPrismaService.unavailability.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          clinicId,
+          employeeId: 'emp-1',
+          type: 'VACATION',
+          reason: 'Approved absence request',
+          daysOfWeek: [],
+        }),
+      });
+    });
+
+    it('sends notification email when employee has email', async () => {
+      const employeeWithEmail = { ...mockEmployee, email: 'jean@clinic.fr' };
+      mockPrismaService.employee.findFirst.mockResolvedValue(employeeWithEmail);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.adminCreateAbsence(clinicId, 'admin-1', adminInput);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendAbsenceReviewNotification).toHaveBeenCalledWith(
+        'jean@clinic.fr',
+        'Jean',
+        'APPROVED',
+        'PAID_LEAVE',
+        expect.any(Date),
+        expect.any(Date),
+      );
+    });
+
+    it('does not send notification when employee has no email', async () => {
+      const employeeNoEmail = { ...mockEmployee, email: null };
+      mockPrismaService.employee.findFirst.mockResolvedValue(employeeNoEmail);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.adminCreateAbsence(clinicId, 'admin-1', adminInput);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockMailService.sendAbsenceReviewNotification).not.toHaveBeenCalled();
+    });
+
+    it('sets reason to null when not provided in input', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
+      mockPrismaService.unavailability.create.mockResolvedValue({});
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+          unavailability: mockPrismaService.unavailability,
+        };
+        return fn(txClient);
+      });
+
+      await service.adminCreateAbsence(clinicId, 'admin-1', {
+        ...adminInput,
+        reason: '',
+      });
+
+      expect(mockPrismaService.absence.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ reason: null }),
+      });
+    });
+  });
+
+  describe('countPendingAbsences', () => {
+    it('returns count of pending absences for clinic', async () => {
+      mockPrismaService.absence.count.mockResolvedValue(5);
+
+      const result = await service.countPendingAbsences(clinicId);
+
+      expect(result).toBe(5);
+      expect(mockPrismaService.absence.count).toHaveBeenCalledWith({
+        where: { clinicId, status: 'PENDING' },
+      });
+    });
+
+    it('returns 0 when no pending absences exist', async () => {
+      mockPrismaService.absence.count.mockResolvedValue(0);
+
+      const result = await service.countPendingAbsences(clinicId);
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('checkOverlap', () => {
+    it('returns hasOverlap false when no overlaps found', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+
+      const result = await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      expect(result).toEqual({
+        hasOverlap: false,
+        overlappingAbsences: [],
+        overlappingUnavailabilities: [],
+      });
+    });
+
+    it('returns hasOverlap true when overlapping absences exist', async () => {
+      const overlappingAbsence = {
+        id: 'absence-2',
+        type: 'SICK_LEAVE',
+        startDate: new Date('2026-03-12'),
+        endDate: new Date('2026-03-16'),
+      };
+      mockPrismaService.absence.findMany.mockResolvedValue([overlappingAbsence]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+
+      const result = await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      expect(result.hasOverlap).toBe(true);
+      expect(result.overlappingAbsences).toEqual([overlappingAbsence]);
+      expect(result.overlappingUnavailabilities).toEqual([]);
+    });
+
+    it('returns hasOverlap true when overlapping unavailabilities exist', async () => {
+      const overlappingUnavail = {
+        id: 'unavail-1',
+        type: 'VACATION',
+        startDate: new Date('2026-03-08'),
+        endDate: new Date('2026-03-11'),
+      };
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([overlappingUnavail]);
+
+      const result = await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      expect(result.hasOverlap).toBe(true);
+      expect(result.overlappingAbsences).toEqual([]);
+      expect(result.overlappingUnavailabilities).toEqual([overlappingUnavail]);
+    });
+
+    it('queries only APPROVED absences for overlap', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+
+      await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      expect(mockPrismaService.absence.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          clinicId,
+          employeeId: 'emp-1',
+          status: 'APPROVED',
+        }),
+        select: { id: true, type: true, startDate: true, endDate: true },
+      });
+    });
+
+    it('uses correct date overlap logic (startDate lte end, endDate gte start)', async () => {
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+
+      await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      const absenceCall = mockPrismaService.absence.findMany.mock.calls[0][0];
+      expect(absenceCall.where.startDate).toEqual({
+        lte: new Date('2026-03-14T23:59:59.999Z'),
+      });
+      expect(absenceCall.where.endDate).toEqual({
+        gte: new Date('2026-03-10T00:00:00.000Z'),
+      });
+
+      const unavailCall = mockPrismaService.unavailability.findMany.mock.calls[0][0];
+      expect(unavailCall.where.startDate).toEqual({
+        lte: new Date('2026-03-14T23:59:59.999Z'),
+      });
+      expect(unavailCall.where.endDate).toEqual({
+        gte: new Date('2026-03-10T00:00:00.000Z'),
+      });
+    });
+
+    it('returns both overlapping absences and unavailabilities together', async () => {
+      const overlappingAbsence = {
+        id: 'absence-2',
+        type: 'TRAINING',
+        startDate: new Date('2026-03-12'),
+        endDate: new Date('2026-03-13'),
+      };
+      const overlappingUnavail = {
+        id: 'unavail-1',
+        type: 'SICK',
+        startDate: new Date('2026-03-09'),
+        endDate: new Date('2026-03-10'),
+      };
+      mockPrismaService.absence.findMany.mockResolvedValue([overlappingAbsence]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([overlappingUnavail]);
+
+      const result = await service.checkOverlap(
+        clinicId,
+        'emp-1',
+        '2026-03-10T00:00:00.000Z',
+        '2026-03-14T23:59:59.999Z',
+      );
+
+      expect(result.hasOverlap).toBe(true);
+      expect(result.overlappingAbsences).toHaveLength(1);
+      expect(result.overlappingUnavailabilities).toHaveLength(1);
     });
   });
 });

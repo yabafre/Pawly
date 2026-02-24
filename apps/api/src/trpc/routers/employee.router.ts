@@ -13,6 +13,11 @@ import {
   hardRuleRangeSchema,
   declareSchoolDaysSchema,
   listSchoolDaysSchema,
+  createAbsenceRequestSchema,
+  reviewAbsenceSchema,
+  listAbsencesSchema,
+  absenceIdSchema,
+  adminCreateAbsenceSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -121,6 +126,115 @@ export const employeeRouter = router({
       return ctx.employeeService.listUndeclaredApprentices(
         ctx.user.clinicId,
         input.month,
+      );
+    }),
+
+  // ==================== Absence Request Procedures ====================
+
+  createAbsenceRequest: subscribedProcedure
+    .input(createAbsenceRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role === 'EMPLOYEE') {
+        try {
+          await ctx.employeeService.validateEmployeeOwnership(ctx.user.sub, input.employeeId);
+        } catch {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own absence requests' });
+        }
+      }
+      return ctx.employeeService.createAbsenceRequest(ctx.user.clinicId, input.employeeId, input);
+    }),
+
+  reviewAbsence: subscribedProcedure
+    .input(reviewAbsenceSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can review absence requests' });
+      }
+      return ctx.employeeService.reviewAbsence(
+        ctx.user.clinicId,
+        ctx.user.sub,
+        input.absenceId,
+        input.action,
+        input.rejectionReason,
+      );
+    }),
+
+  listAbsences: subscribedProcedure
+    .input(listAbsencesSchema)
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.role === 'EMPLOYEE') {
+        // Employees can only see their own absences
+        const user = await ctx.prisma.user.findUnique({
+          where: { id: ctx.user.sub },
+          select: { employee: { select: { id: true } } },
+        });
+        if (!user?.employee) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'No employee record found' });
+        }
+        return ctx.employeeService.listAbsences(ctx.user.clinicId, {
+          ...input,
+          employeeId: user.employee.id,
+        });
+      }
+      return ctx.employeeService.listAbsences(ctx.user.clinicId, input);
+    }),
+
+  getAbsence: subscribedProcedure
+    .input(absenceIdSchema)
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.role === 'EMPLOYEE') {
+        const user = await ctx.prisma.user.findUnique({
+          where: { id: ctx.user.sub },
+          select: { employee: { select: { id: true } } },
+        });
+        if (!user?.employee) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'No employee record found' });
+        }
+        const absence = await ctx.employeeService.getAbsenceById(ctx.user.clinicId, input.id);
+        if (absence.employeeId !== user.employee.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only view your own absence requests' });
+        }
+        return absence;
+      }
+      return ctx.employeeService.getAbsenceById(ctx.user.clinicId, input.id);
+    }),
+
+  adminCreateAbsence: subscribedProcedure
+    .input(adminCreateAbsenceSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can create absences directly' });
+      }
+      return ctx.employeeService.adminCreateAbsence(ctx.user.clinicId, ctx.user.sub, input);
+    }),
+
+  countPendingAbsences: subscribedProcedure
+    .query(async ({ ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can view pending absence count' });
+      }
+      return ctx.employeeService.countPendingAbsences(ctx.user.clinicId);
+    }),
+
+  checkAbsenceOverlap: subscribedProcedure
+    .input(z.object({
+      employeeId: z.string().uuid(),
+      startDate: z.string().datetime(),
+      endDate: z.string().datetime(),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.role === 'EMPLOYEE') {
+        try {
+          await ctx.employeeService.validateEmployeeOwnership(ctx.user.sub, input.employeeId);
+        } catch {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only check your own absence overlaps' });
+        }
+      }
+      return ctx.employeeService.checkOverlap(
+        ctx.user.clinicId,
+        input.employeeId,
+        input.startDate,
+        input.endDate,
       );
     }),
 });

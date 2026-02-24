@@ -29,10 +29,20 @@ describe('employeeRouter', () => {
     resendInvitation: jest.fn(),
     validateEmployeeOwnership: jest.fn(),
     listUndeclaredApprentices: jest.fn(),
+    createAbsenceRequest: jest.fn(),
+    reviewAbsence: jest.fn(),
+    listAbsences: jest.fn(),
+    getAbsenceById: jest.fn(),
+    adminCreateAbsence: jest.fn(),
+    countPendingAbsences: jest.fn(),
+    checkOverlap: jest.fn(),
   };
 
   const mockPrisma = {
     subscription: {
+      findUnique: jest.fn(),
+    },
+    user: {
       findUnique: jest.fn(),
     },
   };
@@ -66,9 +76,9 @@ describe('employeeRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 14 procedures', () => {
+  it('should export all 21 procedures', () => {
     const procedures = Object.keys(employeeRouter._def.procedures);
-    expect(procedures).toHaveLength(14);
+    expect(procedures).toHaveLength(21);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'list',
@@ -85,6 +95,13 @@ describe('employeeRouter', () => {
         'declareSchoolDays',
         'listSchoolDays',
         'listUndeclaredApprentices',
+        'createAbsenceRequest',
+        'reviewAbsence',
+        'listAbsences',
+        'getAbsence',
+        'adminCreateAbsence',
+        'countPendingAbsences',
+        'checkAbsenceOverlap',
       ]),
     );
   });
@@ -673,6 +690,713 @@ describe('employeeRouter', () => {
 
       await expect(
         caller.listSchoolDays({ ...validInput, employeeId: 'not-uuid' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── createAbsenceRequest ─────────────────────────────────────────
+
+  describe('createAbsenceRequest', () => {
+    const validInput = {
+      employeeId: '550e8400-e29b-41d4-a716-446655440000',
+      type: 'PAID_LEAVE' as const,
+      startDate: '2026-04-01T00:00:00.000Z',
+      endDate: '2026-04-05T23:59:59.000Z',
+      reason: 'Family vacation',
+    };
+
+    it('ADMIN can create an absence request for any employee', async () => {
+      const mockResult = { id: 'abs-1', ...validInput, status: 'PENDING' };
+      mockEmployeeService.createAbsenceRequest.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.createAbsenceRequest(validInput);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.createAbsenceRequest).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput.employeeId,
+        validInput,
+      );
+      expect(mockEmployeeService.validateEmployeeOwnership).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE can create an absence request for their own employee record', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
+      mockEmployeeService.createAbsenceRequest.mockResolvedValue({ id: 'abs-1', status: 'PENDING' });
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.createAbsenceRequest(validInput);
+
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        validInput.employeeId,
+      );
+      expect(mockEmployeeService.createAbsenceRequest).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput.employeeId,
+        validInput,
+      );
+    });
+
+    it('EMPLOYEE is FORBIDDEN when creating for another employee', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.createAbsenceRequest(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.createAbsenceRequest).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid employeeId UUID', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.createAbsenceRequest({ ...validInput, employeeId: 'not-uuid' }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid date range (endDate before startDate)', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.createAbsenceRequest({
+          ...validInput,
+          startDate: '2026-04-10T00:00:00.000Z',
+          endDate: '2026-04-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid absence type', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.createAbsenceRequest({ ...validInput, type: 'INVALID_TYPE' as any }),
+      ).rejects.toThrow();
+    });
+
+    it('accepts request without optional reason', async () => {
+      mockEmployeeService.createAbsenceRequest.mockResolvedValue({ id: 'abs-1' });
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const { reason: _reason, ...inputWithoutReason } = validInput;
+      await caller.createAbsenceRequest(inputWithoutReason);
+
+      expect(mockEmployeeService.createAbsenceRequest).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput.employeeId,
+        expect.objectContaining({ type: 'PAID_LEAVE' }),
+      );
+    });
+  });
+
+  // ─── reviewAbsence ────────────────────────────────────────────────
+
+  describe('reviewAbsence', () => {
+    const approveInput = {
+      absenceId: '550e8400-e29b-41d4-a716-446655440000',
+      action: 'approve' as const,
+    };
+
+    const rejectInput = {
+      absenceId: '550e8400-e29b-41d4-a716-446655440000',
+      action: 'reject' as const,
+      rejectionReason: 'Insufficient staffing',
+    };
+
+    it('ADMIN can approve an absence request', async () => {
+      const mockResult = { id: approveInput.absenceId, status: 'APPROVED' };
+      mockEmployeeService.reviewAbsence.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.reviewAbsence(approveInput);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.reviewAbsence).toHaveBeenCalledWith(
+        'clinic-123',
+        'user-1',
+        approveInput.absenceId,
+        'approve',
+        undefined,
+      );
+    });
+
+    it('ADMIN can reject an absence request with reason', async () => {
+      const mockResult = { id: rejectInput.absenceId, status: 'REJECTED' };
+      mockEmployeeService.reviewAbsence.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.reviewAbsence(rejectInput);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.reviewAbsence).toHaveBeenCalledWith(
+        'clinic-123',
+        'user-1',
+        rejectInput.absenceId,
+        'reject',
+        'Insufficient staffing',
+      );
+    });
+
+    it('throws FORBIDDEN for EMPLOYEE role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.reviewAbsence(approveInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.reviewAbsence).not.toHaveBeenCalled();
+    });
+
+    it('throws FORBIDDEN for STAFF role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'STAFF' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.reviewAbsence(approveInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects reject action without rejectionReason', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(
+        caller.reviewAbsence({
+          absenceId: '550e8400-e29b-41d4-a716-446655440000',
+          action: 'reject',
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+
+    it('rejects invalid absenceId UUID', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.reviewAbsence({ ...approveInput, absenceId: 'not-a-uuid' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── listAbsences ─────────────────────────────────────────────────
+
+  describe('listAbsences', () => {
+    it('ADMIN can list absences with filters', async () => {
+      const mockResult = [{ id: 'abs-1', status: 'PENDING' }];
+      mockEmployeeService.listAbsences.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const input = { status: 'PENDING' as const, month: '2026-04' };
+      const result = await caller.listAbsences(input);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.listAbsences).toHaveBeenCalledWith(
+        'clinic-123',
+        input,
+      );
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('ADMIN can list absences without any filters', async () => {
+      mockEmployeeService.listAbsences.mockResolvedValue([]);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.listAbsences({});
+
+      expect(mockEmployeeService.listAbsences).toHaveBeenCalledWith(
+        'clinic-123',
+        {},
+      );
+    });
+
+    it('EMPLOYEE sees only their own absences (forced employeeId)', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        employee: { id: 'emp-1' },
+      });
+      mockEmployeeService.listAbsences.mockResolvedValue([]);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await caller.listAbsences({ status: 'APPROVED' as const });
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        select: { employee: { select: { id: true } } },
+      });
+      expect(mockEmployeeService.listAbsences).toHaveBeenCalledWith(
+        'clinic-123',
+        { status: 'APPROVED', employeeId: 'emp-1' },
+      );
+    });
+
+    it('EMPLOYEE with no employee record throws FORBIDDEN', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: null });
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.listAbsences({})).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.listAbsences).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE with null user result throws FORBIDDEN', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.listAbsences({})).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid status enum', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.listAbsences({ status: 'INVALID' as any }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid month format', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.listAbsences({ month: 'not-a-month' }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── getAbsence ───────────────────────────────────────────────────
+
+  describe('getAbsence', () => {
+    const validId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('ADMIN can get any absence by id', async () => {
+      const mockAbsence = { id: validId, employeeId: 'emp-other', status: 'PENDING' };
+      mockEmployeeService.getAbsenceById.mockResolvedValue(mockAbsence);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.getAbsence({ id: validId });
+
+      expect(result).toEqual(mockAbsence);
+      expect(mockEmployeeService.getAbsenceById).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+      expect(mockEmployeeService.validateEmployeeOwnership).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE can get their own absence', async () => {
+      const mockAbsence = { id: validId, employeeId: 'emp-1', status: 'APPROVED' };
+      mockEmployeeService.getAbsenceById.mockResolvedValue(mockAbsence);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        employee: { id: 'emp-1' },
+      });
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.getAbsence({ id: validId });
+
+      expect(result).toEqual(mockAbsence);
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        select: { employee: { select: { id: true } } },
+      });
+      expect(mockEmployeeService.getAbsenceById).toHaveBeenCalledWith(
+        'clinic-123',
+        validId,
+      );
+    });
+
+    it('EMPLOYEE is FORBIDDEN when accessing another employee absence', async () => {
+      const mockAbsence = { id: validId, employeeId: 'emp-other' };
+      mockEmployeeService.getAbsenceById.mockResolvedValue(mockAbsence);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        employee: { id: 'emp-1' },
+      });
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.getAbsence({ id: validId })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid UUID id', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(caller.getAbsence({ id: 'bad-id' })).rejects.toThrow();
+    });
+
+    it('passes through service error when absence not found', async () => {
+      mockEmployeeService.getAbsenceById.mockRejectedValue(
+        new TRPCError({ code: 'NOT_FOUND', message: 'Absence not found' }),
+      );
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.getAbsence({ id: validId })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
+    });
+  });
+
+  // ─── adminCreateAbsence ───────────────────────────────────────────
+
+  describe('adminCreateAbsence', () => {
+    const validInput = {
+      employeeId: '550e8400-e29b-41d4-a716-446655440000',
+      type: 'SICK_LEAVE' as const,
+      startDate: '2026-04-01T00:00:00.000Z',
+      endDate: '2026-04-03T23:59:59.000Z',
+      reason: 'Medical certificate provided',
+    };
+
+    it('ADMIN can create absence directly (auto-approved)', async () => {
+      const mockResult = { id: 'abs-admin', ...validInput, status: 'APPROVED' };
+      mockEmployeeService.adminCreateAbsence.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.adminCreateAbsence(validInput);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.adminCreateAbsence).toHaveBeenCalledWith(
+        'clinic-123',
+        'user-1',
+        validInput,
+      );
+    });
+
+    it('throws FORBIDDEN for EMPLOYEE role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.adminCreateAbsence(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.adminCreateAbsence).not.toHaveBeenCalled();
+    });
+
+    it('throws FORBIDDEN for STAFF role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'STAFF' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.adminCreateAbsence(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('rejects invalid employeeId UUID', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.adminCreateAbsence({ ...validInput, employeeId: 'not-uuid' }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid date range (endDate before startDate)', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.adminCreateAbsence({
+          ...validInput,
+          startDate: '2026-04-10T00:00:00.000Z',
+          endDate: '2026-04-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid absence type', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.adminCreateAbsence({ ...validInput, type: 'UNKNOWN' as any }),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ─── countPendingAbsences ─────────────────────────────────────────
+
+  describe('countPendingAbsences', () => {
+    it('ADMIN can get pending absence count', async () => {
+      mockEmployeeService.countPendingAbsences.mockResolvedValue(5);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.countPendingAbsences();
+
+      expect(result).toBe(5);
+      expect(mockEmployeeService.countPendingAbsences).toHaveBeenCalledWith(
+        'clinic-123',
+      );
+    });
+
+    it('returns zero when no pending absences', async () => {
+      mockEmployeeService.countPendingAbsences.mockResolvedValue(0);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.countPendingAbsences();
+
+      expect(result).toBe(0);
+    });
+
+    it('throws FORBIDDEN for EMPLOYEE role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.countPendingAbsences()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.countPendingAbsences).not.toHaveBeenCalled();
+    });
+
+    it('throws FORBIDDEN for STAFF role', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'STAFF' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.countPendingAbsences()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+  });
+
+  // ─── checkAbsenceOverlap ─────────────────────────────────────────
+
+  describe('checkAbsenceOverlap', () => {
+    const validInput = {
+      employeeId: '550e8400-e29b-41d4-a716-446655440000',
+      startDate: '2026-04-01T00:00:00.000Z',
+      endDate: '2026-04-05T23:59:59.000Z',
+    };
+
+    it('ADMIN can check overlap for any employee', async () => {
+      const mockResult = { hasOverlap: false, overlapping: [] };
+      mockEmployeeService.checkOverlap.mockResolvedValue(mockResult);
+
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'ADMIN' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.checkAbsenceOverlap(validInput);
+
+      expect(result).toEqual(mockResult);
+      expect(mockEmployeeService.checkOverlap).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput.employeeId,
+        validInput.startDate,
+        validInput.endDate,
+      );
+      expect(mockEmployeeService.validateEmployeeOwnership).not.toHaveBeenCalled();
+    });
+
+    it('EMPLOYEE can check overlap for their own record', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockResolvedValue(undefined);
+      mockEmployeeService.checkOverlap.mockResolvedValue({ hasOverlap: true, overlapping: [{ id: 'abs-1' }] });
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      const result = await caller.checkAbsenceOverlap(validInput);
+
+      expect(result).toEqual({ hasOverlap: true, overlapping: [{ id: 'abs-1' }] });
+      expect(mockEmployeeService.validateEmployeeOwnership).toHaveBeenCalledWith(
+        'user-1',
+        validInput.employeeId,
+      );
+      expect(mockEmployeeService.checkOverlap).toHaveBeenCalledWith(
+        'clinic-123',
+        validInput.employeeId,
+        validInput.startDate,
+        validInput.endDate,
+      );
+    });
+
+    it('EMPLOYEE is FORBIDDEN when checking overlap for another employee', async () => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      mockEmployeeService.validateEmployeeOwnership.mockRejectedValue(
+        new TRPCError({ code: 'FORBIDDEN', message: 'You can only manage your own employee record' }),
+      );
+
+      const caller = createCaller({
+        user: { ...authenticatedUser, role: 'EMPLOYEE' },
+        prisma: mockPrisma as any,
+        employeeService: mockEmployeeService as any,
+      } as any);
+
+      await expect(caller.checkAbsenceOverlap(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+      expect(mockEmployeeService.checkOverlap).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid employeeId UUID', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.checkAbsenceOverlap({ ...validInput, employeeId: 'bad' }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid startDate format', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.checkAbsenceOverlap({ ...validInput, startDate: '2026-04-01' }),
+      ).rejects.toThrow();
+    });
+
+    it('rejects invalid endDate format', async () => {
+      const caller = createAuthenticatedCaller();
+
+      await expect(
+        caller.checkAbsenceOverlap({ ...validInput, endDate: 'not-a-date' }),
       ).rejects.toThrow();
     });
   });
