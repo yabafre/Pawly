@@ -10,6 +10,7 @@ import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
 import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import type { EnvConfig } from '@/config/index';
+import type { AbsenceType } from '@pawly/validators';
 
 @Injectable()
 export class MailService {
@@ -175,7 +176,7 @@ export class MailService {
     adminEmail: string,
     adminName: string | undefined,
     employeeName: string,
-    absenceType: string,
+    absenceType: AbsenceType,
     startDate: Date,
     endDate: Date,
     dayCount: number,
@@ -214,7 +215,7 @@ export class MailService {
     employeeEmail: string,
     firstName: string,
     status: 'APPROVED' | 'REJECTED',
-    absenceType: string,
+    absenceType: AbsenceType,
     startDate: Date,
     endDate: Date,
     rejectionReason?: string,

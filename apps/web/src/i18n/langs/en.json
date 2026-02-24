@@ -651,6 +651,7 @@
         "subtitle": "Create an absence directly for an employee (auto-approved).",
         "selectEmployee": "Select employee",
         "selectType": "Absence type",
+        "reasonPlaceholder": "Describe the reason for the absence...",
         "submit": "Create absence",
         "submitting": "Creating..."
       },

@@ -36,6 +36,9 @@ export const useCreateAbsenceRequest = (employeeId: string) => {
         queryClient.invalidateQueries({
           queryKey: QueryKeyFactory.absences(employeeId),
         });
+        queryClient.invalidateQueries({
+          queryKey: QueryKeyFactory.pendingAbsenceCount(),
+        });
         toast.success(t("success"));
       },
       onError: () => {
@@ -45,6 +48,8 @@ export const useCreateAbsenceRequest = (employeeId: string) => {
   );
   return { createAbsence: mutate, isPending, error };
 };
+
+const EMPTY_OVERLAP = { hasOverlap: false, overlappingAbsences: [], overlappingUnavailabilities: [] } as const;
 
 export const useCheckOverlap = (
   employeeId: string,
@@ -58,7 +63,7 @@ export const useCheckOverlap = (
     enabled,
   });
   return {
-    overlap: data ?? { hasOverlap: false, overlappingAbsences: [], overlappingUnavailabilities: [] },
+    overlap: enabled ? (data ?? EMPTY_OVERLAP) : EMPTY_OVERLAP,
     isChecking: isPending && enabled,
   };
 };

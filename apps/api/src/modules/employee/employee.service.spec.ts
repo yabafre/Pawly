@@ -1103,24 +1103,27 @@ describe('EmployeeService', () => {
   // ==================== Absence Request Tests ====================
 
   describe('mapAbsenceTypeToUnavailability', () => {
+    const mapType = (type: string) =>
+      (service as any).mapAbsenceTypeToUnavailability(type);
+
     it('maps PAID_LEAVE to VACATION', () => {
-      expect(service.mapAbsenceTypeToUnavailability('PAID_LEAVE' as any)).toBe('VACATION');
+      expect(mapType('PAID_LEAVE')).toBe('VACATION');
     });
 
     it('maps SICK_LEAVE to SICK', () => {
-      expect(service.mapAbsenceTypeToUnavailability('SICK_LEAVE' as any)).toBe('SICK');
+      expect(mapType('SICK_LEAVE')).toBe('SICK');
     });
 
-    it('maps TRAINING to SCHOOL', () => {
-      expect(service.mapAbsenceTypeToUnavailability('TRAINING' as any)).toBe('SCHOOL');
+    it('maps TRAINING to OTHER', () => {
+      expect(mapType('TRAINING')).toBe('OTHER');
     });
 
     it('maps CHILD_SICK to SICK', () => {
-      expect(service.mapAbsenceTypeToUnavailability('CHILD_SICK' as any)).toBe('SICK');
+      expect(mapType('CHILD_SICK')).toBe('SICK');
     });
 
     it('maps OTHER to OTHER', () => {
-      expect(service.mapAbsenceTypeToUnavailability('OTHER' as any)).toBe('OTHER');
+      expect(mapType('OTHER')).toBe('OTHER');
     });
   });
 
@@ -1134,6 +1137,8 @@ describe('EmployeeService', () => {
 
     it('creates an absence with PENDING status', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.user.findMany.mockResolvedValue([]);
 
@@ -1163,6 +1168,8 @@ describe('EmployeeService', () => {
 
     it('converts date strings to Date objects', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.user.findMany.mockResolvedValue([]);
 
@@ -1175,6 +1182,8 @@ describe('EmployeeService', () => {
 
     it('sets reason to null when not provided', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.user.findMany.mockResolvedValue([]);
 
@@ -1190,6 +1199,8 @@ describe('EmployeeService', () => {
 
     it('sends fire-and-forget admin notification', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.user.findMany.mockResolvedValue([
         { email: 'admin@clinic.fr', name: 'Admin' },
@@ -1346,7 +1357,7 @@ describe('EmployeeService', () => {
       expect(mockMailService.sendAbsenceReviewNotification).not.toHaveBeenCalled();
     });
 
-    it('rejects absence by updating status to REJECTED with reason', async () => {
+    it('rejects absence by updating status to REJECTED with reason via $transaction', async () => {
       mockPrismaService.absence.findFirst.mockResolvedValue(mockAbsence);
       const rejectedAbsence = {
         ...mockAbsence,
@@ -1355,6 +1366,12 @@ describe('EmployeeService', () => {
         rejectionReason: 'Période de forte activité',
       };
       mockPrismaService.absence.update.mockResolvedValue(rejectedAbsence);
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+        };
+        return fn(txClient);
+      });
 
       const result = await service.reviewAbsence(
         clinicId,
@@ -1365,6 +1382,7 @@ describe('EmployeeService', () => {
       );
 
       expect(result).toEqual(rejectedAbsence);
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
       expect(mockPrismaService.absence.update).toHaveBeenCalledWith({
         where: { id: 'absence-1' },
         data: expect.objectContaining({
@@ -1374,7 +1392,6 @@ describe('EmployeeService', () => {
           rejectionReason: 'Période de forte activité',
         }),
       });
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
 
     it('sets rejectionReason to null when not provided on reject', async () => {
@@ -1382,6 +1399,12 @@ describe('EmployeeService', () => {
       mockPrismaService.absence.update.mockResolvedValue({
         ...mockAbsence,
         status: 'REJECTED',
+      });
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+        };
+        return fn(txClient);
       });
 
       await service.reviewAbsence(clinicId, 'admin-1', 'absence-1', 'reject');
@@ -1399,6 +1422,12 @@ describe('EmployeeService', () => {
       mockPrismaService.absence.update.mockResolvedValue({
         ...mockAbsence,
         status: 'REJECTED',
+      });
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
+        const txClient = {
+          absence: mockPrismaService.absence,
+        };
+        return fn(txClient);
       });
 
       await service.reviewAbsence(
@@ -1555,6 +1584,8 @@ describe('EmployeeService', () => {
 
     it('creates an absence with APPROVED status via $transaction', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       const approvedAbsence = {
         ...mockAbsence,
         status: 'APPROVED',
@@ -1590,6 +1621,8 @@ describe('EmployeeService', () => {
 
     it('creates matching unavailability with mapped type', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.unavailability.create.mockResolvedValue({});
       mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
@@ -1616,6 +1649,8 @@ describe('EmployeeService', () => {
     it('sends notification email when employee has email', async () => {
       const employeeWithEmail = { ...mockEmployee, email: 'jean@clinic.fr' };
       mockPrismaService.employee.findFirst.mockResolvedValue(employeeWithEmail);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.unavailability.create.mockResolvedValue({});
       mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
@@ -1643,6 +1678,8 @@ describe('EmployeeService', () => {
     it('does not send notification when employee has no email', async () => {
       const employeeNoEmail = { ...mockEmployee, email: null };
       mockPrismaService.employee.findFirst.mockResolvedValue(employeeNoEmail);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.unavailability.create.mockResolvedValue({});
       mockPrismaService.$transaction.mockImplementation(async (fn: any) => {
@@ -1662,6 +1699,8 @@ describe('EmployeeService', () => {
 
     it('sets reason to null when not provided in input', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.absence.findMany.mockResolvedValue([]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.absence.create.mockResolvedValue(mockAbsence);
       mockPrismaService.unavailability.create.mockResolvedValue({});
       mockPrismaService.$transaction.mockImplementation(async (fn: any) => {

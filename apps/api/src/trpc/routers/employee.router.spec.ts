@@ -36,6 +36,7 @@ describe('employeeRouter', () => {
     adminCreateAbsence: jest.fn(),
     countPendingAbsences: jest.fn(),
     checkOverlap: jest.fn(),
+    resolveEmployeeId: jest.fn(),
   };
 
   const mockPrisma = {
@@ -954,7 +955,7 @@ describe('employeeRouter', () => {
         'clinic-123',
         input,
       );
-      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockEmployeeService.resolveEmployeeId).not.toHaveBeenCalled();
     });
 
     it('ADMIN can list absences without any filters', async () => {
@@ -977,9 +978,7 @@ describe('employeeRouter', () => {
 
     it('EMPLOYEE sees only their own absences (forced employeeId)', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        employee: { id: 'emp-1' },
-      });
+      mockEmployeeService.resolveEmployeeId.mockResolvedValue('emp-1');
       mockEmployeeService.listAbsences.mockResolvedValue([]);
 
       const caller = createCaller({
@@ -990,10 +989,7 @@ describe('employeeRouter', () => {
 
       await caller.listAbsences({ status: 'APPROVED' as const });
 
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        select: { employee: { select: { id: true } } },
-      });
+      expect(mockEmployeeService.resolveEmployeeId).toHaveBeenCalledWith('user-1');
       expect(mockEmployeeService.listAbsences).toHaveBeenCalledWith(
         'clinic-123',
         { status: 'APPROVED', employeeId: 'emp-1' },
@@ -1002,7 +998,9 @@ describe('employeeRouter', () => {
 
     it('EMPLOYEE with no employee record throws FORBIDDEN', async () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-      mockPrisma.user.findUnique.mockResolvedValue({ employee: null });
+      mockEmployeeService.resolveEmployeeId.mockRejectedValue(
+        new Error('No employee record found for this user'),
+      );
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
@@ -1014,21 +1012,6 @@ describe('employeeRouter', () => {
         code: 'FORBIDDEN',
       });
       expect(mockEmployeeService.listAbsences).not.toHaveBeenCalled();
-    });
-
-    it('EMPLOYEE with null user result throws FORBIDDEN', async () => {
-      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const caller = createCaller({
-        user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
-        employeeService: mockEmployeeService as any,
-      } as any);
-
-      await expect(caller.listAbsences({})).rejects.toMatchObject({
-        code: 'FORBIDDEN',
-      });
     });
 
     it('rejects invalid status enum', async () => {
@@ -1077,9 +1060,7 @@ describe('employeeRouter', () => {
     it('EMPLOYEE can get their own absence', async () => {
       const mockAbsence = { id: validId, employeeId: 'emp-1', status: 'APPROVED' };
       mockEmployeeService.getAbsenceById.mockResolvedValue(mockAbsence);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        employee: { id: 'emp-1' },
-      });
+      mockEmployeeService.resolveEmployeeId.mockResolvedValue('emp-1');
 
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
@@ -1091,10 +1072,7 @@ describe('employeeRouter', () => {
       const result = await caller.getAbsence({ id: validId });
 
       expect(result).toEqual(mockAbsence);
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
-        select: { employee: { select: { id: true } } },
-      });
+      expect(mockEmployeeService.resolveEmployeeId).toHaveBeenCalledWith('user-1');
       expect(mockEmployeeService.getAbsenceById).toHaveBeenCalledWith(
         'clinic-123',
         validId,
@@ -1104,9 +1082,7 @@ describe('employeeRouter', () => {
     it('EMPLOYEE is FORBIDDEN when accessing another employee absence', async () => {
       const mockAbsence = { id: validId, employeeId: 'emp-other' };
       mockEmployeeService.getAbsenceById.mockResolvedValue(mockAbsence);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        employee: { id: 'emp-1' },
-      });
+      mockEmployeeService.resolveEmployeeId.mockResolvedValue('emp-1');
 
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({

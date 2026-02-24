@@ -26,6 +26,14 @@ import { listEmployeesAction } from "../_actions/admin-absence-actions";
 import type { DateRange } from "react-day-picker";
 import { fr, enUS } from "date-fns/locale";
 import { ABSENCE_TYPES } from "@pawly/validators";
+import type { AbsenceType } from "@pawly/validators";
+
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  jobType: string;
+}
 
 interface AdminAbsenceFormProps {
   open: boolean;
@@ -37,7 +45,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
   const tTypes = useTranslations("admin.absences.types");
   const locale = useLocale();
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<AbsenceType | "">("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reason, setReason] = useState("");
 
@@ -64,7 +72,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
     createAbsence(
       {
         employeeId: selectedEmployee,
-        type: selectedType as any,
+        type: selectedType as AbsenceType,
         startDate: dateRange.from.toISOString(),
         endDate: endDate.toISOString(),
         reason: reason || undefined,
@@ -105,7 +113,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
                 <SelectValue placeholder={t("adminCreate.selectEmployee")} />
               </SelectTrigger>
               <SelectContent>
-                {(employees ?? []).map((emp: any) => (
+                {(employees ?? ([] as Employee[])).map((emp: Employee) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.firstName} {emp.lastName} ({emp.jobType})
                   </SelectItem>
@@ -118,7 +126,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
             <Label className="text-sm font-semibold text-neutral-700">
               {t("adminCreate.selectType")}
             </Label>
-            <Select value={selectedType} onValueChange={setSelectedType}>
+            <Select value={selectedType} onValueChange={(v) => setSelectedType(v as AbsenceType)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder={t("adminCreate.selectType")} />
               </SelectTrigger>
@@ -154,7 +162,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder={t("list.noReason")}
+              placeholder={t("adminCreate.reasonPlaceholder")}
               rows={2}
               maxLength={500}
               className="rounded-xl resize-none"

@@ -18,6 +18,17 @@ import { Button } from "@/components/ui/button";
 import { differenceInCalendarDays } from "date-fns";
 import { useState } from "react";
 
+interface AbsenceItem {
+  id: string;
+  type: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  reason?: string | null;
+  rejectionReason?: string | null;
+  employee?: { firstName: string; lastName: string; jobType?: string };
+}
+
 const TYPE_ICONS: Record<string, LucideIcon> = {
   PAID_LEAVE: Plane,
   SICK_LEAVE: Thermometer,
@@ -33,7 +44,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 interface AbsencePendingListProps {
-  absences: any[];
+  absences: AbsenceItem[];
   isPending: boolean;
 }
 
@@ -74,7 +85,7 @@ export function AbsencePendingList({ absences, isPending: isLoading }: AbsencePe
   return (
     <>
       <div className="space-y-3">
-        {absences.map((absence: any) => {
+        {absences.map((absence) => {
           const Icon = TYPE_ICONS[absence.type] ?? HelpCircle;
           const dayCount =
             differenceInCalendarDays(

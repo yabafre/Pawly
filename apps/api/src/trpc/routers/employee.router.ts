@@ -18,6 +18,7 @@ import {
   listAbsencesSchema,
   absenceIdSchema,
   adminCreateAbsenceSchema,
+  checkAbsenceOverlapSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -163,17 +164,15 @@ export const employeeRouter = router({
     .input(listAbsencesSchema)
     .query(async ({ input, ctx }) => {
       if (ctx.user.role === 'EMPLOYEE') {
-        // Employees can only see their own absences
-        const user = await ctx.prisma.user.findUnique({
-          where: { id: ctx.user.sub },
-          select: { employee: { select: { id: true } } },
-        });
-        if (!user?.employee) {
+        let employeeId: string;
+        try {
+          employeeId = await ctx.employeeService.resolveEmployeeId(ctx.user.sub);
+        } catch {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'No employee record found' });
         }
         return ctx.employeeService.listAbsences(ctx.user.clinicId, {
           ...input,
-          employeeId: user.employee.id,
+          employeeId,
         });
       }
       return ctx.employeeService.listAbsences(ctx.user.clinicId, input);
@@ -183,15 +182,14 @@ export const employeeRouter = router({
     .input(absenceIdSchema)
     .query(async ({ input, ctx }) => {
       if (ctx.user.role === 'EMPLOYEE') {
-        const user = await ctx.prisma.user.findUnique({
-          where: { id: ctx.user.sub },
-          select: { employee: { select: { id: true } } },
-        });
-        if (!user?.employee) {
+        let employeeId: string;
+        try {
+          employeeId = await ctx.employeeService.resolveEmployeeId(ctx.user.sub);
+        } catch {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'No employee record found' });
         }
         const absence = await ctx.employeeService.getAbsenceById(ctx.user.clinicId, input.id);
-        if (absence.employeeId !== user.employee.id) {
+        if (absence.employeeId !== employeeId) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only view your own absence requests' });
         }
         return absence;
@@ -217,11 +215,7 @@ export const employeeRouter = router({
     }),
 
   checkAbsenceOverlap: subscribedProcedure
-    .input(z.object({
-      employeeId: z.string().uuid(),
-      startDate: z.string().datetime(),
-      endDate: z.string().datetime(),
-    }))
+    .input(checkAbsenceOverlapSchema)
     .query(async ({ input, ctx }) => {
       if (ctx.user.role === 'EMPLOYEE') {
         try {

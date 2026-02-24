@@ -53,6 +53,7 @@ export {
   listAbsencesSchema,
   absenceIdSchema,
   adminCreateAbsenceSchema,
+  checkAbsenceOverlapSchema,
 } from "./absence.schema";
 
 export type {
@@ -63,4 +64,5 @@ export type {
   ListAbsencesInput,
   AbsenceIdInput,
   AdminCreateAbsenceInput,
+  CheckAbsenceOverlapInput,
 } from "./absence.schema";

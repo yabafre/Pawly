@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -8,7 +9,6 @@ import {
 import { PrismaService } from '@/prisma/prisma.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { AuthService } from '@/modules/auth/auth.service';
-import { ConflictException } from '@nestjs/common';
 import type {
   CreateEmployeeInput,
   UpdateEmployeeInput,
@@ -65,6 +65,17 @@ export class EmployeeService {
     if (!user?.employee || user.employee.id !== employeeId) {
       throw new ForbiddenException('You can only manage your own employee record');
     }
+  }
+
+  async resolveEmployeeId(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { employee: { select: { id: true } } },
+    });
+    if (!user?.employee) {
+      throw new NotFoundException('No employee record found for this user');
+    }
+    return user.employee.id;
   }
 
   async findAll(clinicId: string, filters?: ListEmployeesInput) {
@@ -610,11 +621,11 @@ export class EmployeeService {
 
   // ==================== Absence Request Methods ====================
 
-  mapAbsenceTypeToUnavailability(absenceType: AbsenceType): UnavailabilityType {
+  private mapAbsenceTypeToUnavailability(absenceType: AbsenceType): UnavailabilityType {
     const mapping: Record<AbsenceType, UnavailabilityType> = {
       PAID_LEAVE: 'VACATION',
       SICK_LEAVE: 'SICK',
-      TRAINING: 'SCHOOL',
+      TRAINING: 'OTHER',
       CHILD_SICK: 'SICK',
       OTHER: 'OTHER',
     };
@@ -627,6 +638,11 @@ export class EmployeeService {
     input: CreateAbsenceRequestInput,
   ) {
     const employee = await this.findById(clinicId, employeeId);
+
+    const overlap = await this.checkOverlap(clinicId, employeeId, input.startDate, input.endDate);
+    if (overlap.hasOverlap) {
+      throw new ConflictException('An existing absence or unavailability overlaps with this date range');
+    }
 
     const absence = await this.prisma.absence.create({
       data: {
@@ -663,7 +679,7 @@ export class EmployeeService {
   ) {
     const absence = await this.prisma.absence.findFirst({
       where: { id: absenceId, clinicId },
-      include: { employee: { select: { firstName: true, lastName: true, email: true, userId: true } } },
+      include: { employee: { select: { firstName: true, lastName: true, email: true } } },
     });
 
     if (!absence) {
@@ -724,14 +740,22 @@ export class EmployeeService {
     }
 
     // REJECT
-    const updatedAbsence = await this.prisma.absence.update({
-      where: { id: absenceId },
-      data: {
-        status: 'REJECTED',
-        reviewedBy: userId,
-        reviewedAt: new Date(),
-        rejectionReason: rejectionReason || null,
-      },
+    const updatedAbsence = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.absence.findFirst({
+        where: { id: absenceId, clinicId, status: 'PENDING' },
+      });
+      if (!current) {
+        throw new ConflictException('Absence already reviewed');
+      }
+      return tx.absence.update({
+        where: { id: absenceId },
+        data: {
+          status: 'REJECTED',
+          reviewedBy: userId,
+          reviewedAt: new Date(),
+          rejectionReason: rejectionReason || null,
+        },
+      });
     });
 
     // Fire-and-forget: notify employee of rejection
@@ -807,6 +831,11 @@ export class EmployeeService {
     input: AdminCreateAbsenceInput,
   ) {
     const employee = await this.findById(clinicId, input.employeeId);
+
+    const overlap = await this.checkOverlap(clinicId, input.employeeId, input.startDate, input.endDate);
+    if (overlap.hasOverlap) {
+      throw new ConflictException('An existing absence or unavailability overlaps with this date range');
+    }
 
     const absence = await this.prisma.$transaction(async (tx) => {
       const created = await tx.absence.create({
@@ -915,7 +944,7 @@ export class EmployeeService {
   private async notifyAdminsOfAbsenceRequest(
     clinicId: string,
     employeeName: string,
-    type: string,
+    type: AbsenceType,
     startDate: Date,
     endDate: Date,
   ) {
@@ -929,17 +958,19 @@ export class EmployeeService {
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
       ) + 1;
 
-    for (const admin of admins) {
-      await this.mailService.sendAbsenceRequestNotification(
-        admin.email,
-        admin.name ?? undefined,
-        employeeName,
-        type,
-        startDate,
-        endDate,
-        dayCount,
-      );
-    }
+    await Promise.allSettled(
+      admins.map((admin) =>
+        this.mailService.sendAbsenceRequestNotification(
+          admin.email,
+          admin.name ?? undefined,
+          employeeName,
+          type,
+          startDate,
+          endDate,
+          dayCount,
+        ),
+      ),
+    );
   }
 
   private async findConstraintById(clinicId: string, id: string) {

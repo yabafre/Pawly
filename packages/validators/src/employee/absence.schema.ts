@@ -81,3 +81,13 @@ export const adminCreateAbsenceSchema = createAbsenceRequestSchema;
 export type AdminCreateAbsenceInput = z.infer<
   typeof adminCreateAbsenceSchema
 >;
+
+export const checkAbsenceOverlapSchema = z.object({
+  employeeId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+});
+
+export type CheckAbsenceOverlapInput = z.infer<
+  typeof checkAbsenceOverlapSchema
+>;

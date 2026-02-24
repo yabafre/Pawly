@@ -45,7 +45,10 @@ export const useReviewAbsence = () => {
       onSuccess: () => {
         invalidateAll();
       },
-      onError: () => {},
+      onError: (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        toast.error(message);
+      },
     }
   );
 

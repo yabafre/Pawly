@@ -2,10 +2,10 @@
 
 import { createServerAction } from "zsa";
 import { trpc } from "@/lib/trpc/client";
-import { z } from "@pawly/zod";
 import {
   createAbsenceRequestSchema,
   listAbsencesSchema,
+  checkAbsenceOverlapSchema,
 } from "@pawly/validators";
 
 export const createAbsenceRequestAction = createServerAction()
@@ -21,13 +21,7 @@ export const listMyAbsencesAction = createServerAction()
   });
 
 export const checkOverlapAction = createServerAction()
-  .input(
-    z.object({
-      employeeId: z.string().uuid(),
-      startDate: z.string().datetime(),
-      endDate: z.string().datetime(),
-    })
-  )
+  .input(checkAbsenceOverlapSchema)
   .handler(async ({ input }) => {
     return trpc.employee.checkAbsenceOverlap.query(input);
   });

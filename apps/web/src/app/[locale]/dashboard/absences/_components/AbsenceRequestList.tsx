@@ -13,6 +13,16 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 
+interface AbsenceItem {
+  id: string;
+  type: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  reason?: string | null;
+  rejectionReason?: string | null;
+}
+
 const TYPE_ICONS: Record<string, LucideIcon> = {
   PAID_LEAVE: Plane,
   SICK_LEAVE: Thermometer,
@@ -55,7 +65,7 @@ export function AbsenceRequestList({ employeeId }: AbsenceRequestListProps) {
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-neutral-900">{t("list.title")}</h2>
       <div className="space-y-3">
-        {absences.map((absence: any) => {
+        {absences.map((absence: AbsenceItem) => {
           const Icon = TYPE_ICONS[absence.type] ?? HelpCircle;
           const dayCount =
             differenceInCalendarDays(

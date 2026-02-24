@@ -12,6 +12,7 @@ import { useCreateAbsenceRequest, useCheckOverlap } from "../_hooks/useAbsences"
 import type { DateRange } from "react-day-picker";
 import { useLocale } from "next-intl";
 import { fr, enUS } from "date-fns/locale";
+import type { AbsenceType } from "@pawly/validators";
 
 interface AbsenceRequestFormProps {
   employeeId: string;
@@ -21,7 +22,7 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
   const t = useTranslations("dashboard.absences.form");
   const tOverlap = useTranslations("dashboard.absences.overlap");
   const locale = useLocale();
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<AbsenceType | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reason, setReason] = useState("");
 
@@ -32,7 +33,7 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
 
   const { overlap } = useCheckOverlap(employeeId, startDateISO, endDateISO);
 
-  const canSubmit = selectedType && dateRange?.from && !isPending;
+  const canSubmit = selectedType && dateRange?.from && !isPending && !overlap.hasOverlap;
 
   const handleSubmit = () => {
     if (!selectedType || !dateRange?.from) return;
@@ -41,7 +42,7 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
     createAbsence(
       {
         employeeId,
-        type: selectedType as any,
+        type: selectedType,
         startDate: dateRange.from.toISOString(),
         endDate: endDate.toISOString(),
         reason: reason || undefined,
@@ -66,7 +67,7 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
         <Label className="text-sm font-semibold text-neutral-700">
           {t("selectType")}
         </Label>
-        <AbsenceTypeSelector selected={selectedType} onSelect={setSelectedType} />
+        <AbsenceTypeSelector selected={selectedType} onSelect={(t) => setSelectedType(t as AbsenceType)} />
       </div>
 
       <div className="space-y-2">
