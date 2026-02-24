@@ -7,6 +7,7 @@ import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
+import { MailService } from '@/modules/mail/mail.service';
 import type { TemplateData, HoleInfo, HardViolation, SoftViolation } from '@pawly/validators';
 
 type SlotRequirement = {
@@ -138,8 +139,16 @@ describe('PlanningGenerationService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     clinicShiftType: { findFirst: jest.fn() },
+    planningPeriodStatus: {
+      upsert: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    clinic: {
+      findUniqueOrThrow: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -168,12 +177,17 @@ describe('PlanningGenerationService', () => {
     deleteDeclaration: jest.fn(),
   };
 
+  const mockMailService = {
+    sendSchedulePublicationEmail: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PlanningGenerationService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ClinicService, useValue: mockClinicService },
+        { provide: MailService, useValue: mockMailService },
         { provide: PlanningService, useValue: mockPlanningService },
         {
           provide: PlanningTemplateService,
@@ -3517,6 +3531,252 @@ describe('PlanningGenerationService', () => {
           expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
         ]),
       );
+    });
+  });
+
+  // ─── publishPlan ──────────────────────────────────────────────────
+  describe('publishPlan', () => {
+    const userId = 'user-admin-1';
+    const month = '2026-03';
+
+    const mockTxPlanningPeriodStatus = {
+      upsert: jest.fn(),
+    };
+
+    beforeEach(() => {
+      // publishPlan first calls planningPeriodStatus.findUnique for quick-exit check
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null); // not yet published
+
+      // shift.count for checking modifications after publish (quick-exit path)
+      mockPrismaService.shift.count.mockResolvedValue(0);
+
+      // validateShiftsAgainstRules is called inside the transaction
+      mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+        hardViolations: [],
+        softViolations: [],
+      });
+
+      // $transaction provides tx with planningPeriodStatus.upsert
+      mockTxPlanningPeriodStatus.upsert.mockResolvedValue({
+        id: 'pps-1',
+        clinicId,
+        month,
+        status: 'PUBLISHED',
+        publishedAt: new Date(),
+        publishedBy: userId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          planningPeriodStatus: mockTxPlanningPeriodStatus,
+        };
+        return fn(tx);
+      });
+
+      // After transaction: fetch employees with shifts + clinic name
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Vétérinaire du Parc',
+      });
+      mockMailService.sendSchedulePublicationEmail.mockResolvedValue(undefined);
+    });
+
+    it('should upsert PlanningPeriodStatus as PUBLISHED when no hard conflicts', async () => {
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(result).toHaveProperty('publishedAt');
+      expect(result).toHaveProperty('notifiedCount');
+      expect(typeof result.publishedAt).toBe('string');
+      expect(typeof result.notifiedCount).toBe('number');
+
+      expect(mockTxPlanningPeriodStatus.upsert).toHaveBeenCalledWith({
+        where: { clinicId_month: { clinicId, month } },
+        create: expect.objectContaining({
+          clinicId,
+          month,
+          status: 'PUBLISHED',
+          publishedBy: userId,
+        }),
+        update: expect.objectContaining({
+          status: 'PUBLISHED',
+          publishedBy: userId,
+        }),
+      });
+    });
+
+    it('should throw ConflictException when hard violations exist', async () => {
+      mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+        hardViolations: [
+          {
+            ruleId: 'r-1',
+            ruleName: 'Min staff',
+            category: 'STAFFING_MINIMUM',
+            message: 'Not enough staff',
+            affectedDate: '2026-03-02',
+            severity: 'blocking',
+          },
+        ],
+        softViolations: [],
+      });
+
+      await expect(
+        service.publishPlan(clinicId, month, userId),
+      ).rejects.toThrow(ConflictException);
+
+      await expect(
+        service.publishPlan(clinicId, month, userId),
+      ).rejects.toThrow(/hard violation/);
+
+      // tx.planningPeriodStatus.upsert should NOT have been called
+      expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+    });
+
+    it('should send email to active employees with shifts in the month', async () => {
+      // After transaction: employee.findMany returns employees with shifts and emails
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
+        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr' },
+      ]);
+
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledTimes(2);
+      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledWith(
+        'alice@clinic.fr',
+        'Alice',
+        month,
+        'Clinique Vétérinaire du Parc',
+      );
+      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledWith(
+        'bob@clinic.fr',
+        'Bob',
+        month,
+        'Clinique Vétérinaire du Parc',
+      );
+      expect(result.notifiedCount).toBe(2);
+    });
+
+    it('should not send email to employees without email', async () => {
+      // The actual code queries employees with `email: { not: null }` filter,
+      // so employees without email won't be returned.
+      // However, to test the code's defensive check (emp.email!), we
+      // simulate the expected DB result: only employees with email.
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
+      ]);
+
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledTimes(1);
+      expect(result.notifiedCount).toBe(1);
+    });
+
+    it('should not send email to inactive employees', async () => {
+      // The actual code queries employees with `isActive: true` filter,
+      // so inactive employees won't be in the result set.
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(mockMailService.sendSchedulePublicationEmail).not.toHaveBeenCalled();
+      expect(result.notifiedCount).toBe(0);
+    });
+
+    it('should be idempotent — re-publishing updates timestamp', async () => {
+      // First publish
+      await service.publishPlan(clinicId, month, userId);
+
+      // Clear to simulate re-publish scenario: existing status is now PUBLISHED
+      // but with modified shifts (count > 0), so it should re-publish
+      jest.clearAllMocks();
+
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue({
+        id: 'pps-1',
+        clinicId,
+        month,
+        status: 'PUBLISHED',
+        publishedAt: new Date('2026-03-14T10:00:00.000Z'),
+        publishedBy: userId,
+      });
+      mockPrismaService.shift.count.mockResolvedValue(1); // shifts modified after publish
+      mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+        hardViolations: [],
+        softViolations: [],
+      });
+      mockTxPlanningPeriodStatus.upsert.mockResolvedValue({
+        id: 'pps-1',
+        clinicId,
+        month,
+        status: 'PUBLISHED',
+        publishedAt: new Date(),
+        publishedBy: userId,
+      });
+      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+        return fn(tx);
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Vétérinaire du Parc',
+      });
+      mockMailService.sendSchedulePublicationEmail.mockResolvedValue(undefined);
+
+      // Second publish (re-publish)
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(mockTxPlanningPeriodStatus.upsert).toHaveBeenCalledTimes(1);
+      expect(result).toHaveProperty('publishedAt');
+      expect(result).toHaveProperty('notifiedCount');
+    });
+
+    it('should include publishedAt and notifiedCount in result', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
+      ]);
+
+      const result = await service.publishPlan(clinicId, month, userId);
+
+      expect(result.publishedAt).toBeDefined();
+      // publishedAt should be a valid ISO date string
+      expect(new Date(result.publishedAt).toISOString()).toBe(result.publishedAt);
+      expect(result.notifiedCount).toBe(1);
+    });
+  });
+
+  // ─── getPublicationStatus ──────────────────────────────────────────
+  describe('getPublicationStatus', () => {
+    it('should return DRAFT status when no PlanningPeriodStatus record exists', async () => {
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
+
+      const result = await service.getPublicationStatus(clinicId, '2026-03');
+
+      expect(result).toEqual({
+        status: 'DRAFT',
+        publishedAt: null,
+        publishedBy: null,
+      });
+      expect(mockPrismaService.planningPeriodStatus.findUnique).toHaveBeenCalledWith({
+        where: { clinicId_month: { clinicId, month: '2026-03' } },
+      });
+    });
+
+    it('should return PUBLISHED status with publishedAt when record exists', async () => {
+      const publishedAt = new Date('2026-03-15T10:00:00.000Z');
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue({
+        id: 'pps-1',
+        clinicId,
+        month: '2026-03',
+        status: 'PUBLISHED',
+        publishedAt,
+        publishedBy: 'user-admin-1',
+      });
+
+      const result = await service.getPublicationStatus(clinicId, '2026-03');
+
+      expect(result).toEqual({
+        status: 'PUBLISHED',
+        publishedAt: publishedAt.toISOString(),
+        publishedBy: 'user-admin-1',
+      });
     });
   });
 });

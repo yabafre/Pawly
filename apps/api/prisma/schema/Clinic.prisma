@@ -21,6 +21,7 @@ model Clinic {
   planningRules       PlanningRule[]
   equityCounters      EquityCounter[]
   apprenticeDeclarations ApprenticeMonthDeclaration[]
+  planningPeriodStatuses PlanningPeriodStatus[]
 
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

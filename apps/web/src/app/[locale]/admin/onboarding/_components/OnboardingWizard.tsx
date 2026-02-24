@@ -16,6 +16,7 @@ import {
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkDay } from "@pawly/validators";
+import type { OnboardingInitialData } from "@pawly/types";
 import { completeOnboardingAction } from "../_actions/onboarding-actions";
 import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
@@ -31,23 +32,6 @@ export interface OnboardingFormValues {
   workDays: WorkDay[];
   defaultStartTime: string;
   defaultEndTime: string;
-  shiftTypes: Array<{
-    name: string;
-    code: string;
-    startTime: string;
-    endTime: string;
-    breakMinutes: number;
-    color: string;
-  }>;
-}
-
-interface OnboardingInitialData {
-  clinicName: string;
-  config: {
-    workDays: string[];
-    defaultStartTime: string;
-    defaultEndTime: string;
-  } | null;
   shiftTypes: Array<{
     name: string;
     code: string;

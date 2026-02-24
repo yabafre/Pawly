@@ -89,30 +89,36 @@
     "nav": {
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
-      "planning": "Planning",
-      "settings": "Settings",
-      "requests": "Requests",
+      "team": "Team",
       "employees": "Employees",
       "absences": "Absences",
-      "billing": "Billing",
-      "planningRules": "Planning Rules",
+      "planning": "Planning",
+      "planningView": "Schedule",
+      "templates": "Templates",
       "equityCounters": "Equity",
-      "templates": "Templates"
+      "variance": "Variance",
+      "planningRules": "Rules",
+      "billing": "Billing",
+      "settings": "Settings"
     },
     "dashboard": {
       "overview": "Overview",
-      "weeklyTracking": "Weekly tracking and request status",
-      "autoGenerate": "Auto-Generate",
-      "weekPlanning": "Week planning",
-      "targetReached": "Target {hours}h reached",
+      "subtitle": "Summary of your clinic activity",
+      "monthlyPlanning": "Monthly planning",
+      "hoursPlanned": "{hours}h planned",
+      "shiftsCount": "{count, plural, =0 {No shifts} one {# shift} other {# shifts}}",
       "pendingRequests": "Pending requests",
-      "validateQuickly": "To validate quickly",
+      "pendingDetail": "{absences, plural, =0 {} one {# absence} other {# absences}}{both, select, true { + } other {}}{variances, plural, =0 {} one {# variance} other {# variances}}",
+      "noPending": "No pending requests",
       "activeTeam": "Active team",
-      "vetAndAsv": "Vets & ASV",
+      "teamBreakdown": "{count, plural, one {# team member} other {# team members}}",
       "quickSummary": "Quick summary",
       "week": "Week {number}",
-      "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
-      "apprenticesSchoolDays": "Apprentices have entered their school days."
+      "apprenticesOk": "All apprentices have declared their school days.",
+      "apprenticesWarning": "{count, plural, one {# apprentice hasn't} other {# apprentices haven't}} declared school days.",
+      "goToPlanning": "View planning",
+      "goToAbsences": "Manage absences",
+      "goToVariance": "View variances"
     },
     "planningRules": {
       "title": "Planning Rules",
@@ -217,10 +223,20 @@
         "title": "Planning Health",
         "conflicts": "{count, plural, =0 {No conflicts} one {# conflict} other {# conflicts}}",
         "warnings": "{count, plural, =0 {No warnings} one {# warning} other {# warnings}}",
+        "holes": "{count, plural, =0 {No holes} one {# hole} other {# holes}}",
         "ready": "{percent}% ready",
         "publish": "Publish",
         "publishBlocked": "Cannot publish — resolve conflicts first",
-        "healthy": "All clear — no violations detected"
+        "healthy": "All clear — no violations detected",
+        "emptyState": "No shifts generated yet — run generation first",
+        "published": "Published",
+        "publishedAt": "Published on {date}",
+        "detailTitle": "Health Details",
+        "categoryStaffing": "Staffing Minimum",
+        "categorySkill": "Skill Requirements",
+        "categoryEquity": "Rotation Equity",
+        "categoryContract": "Contract Compliance",
+        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}"
       }
     },
     "equityCounters": {
@@ -543,6 +559,35 @@
         "shiftDeleted": "Shift deleted"
       }
     },
+    "publication": {
+      "publishSuccess": "Schedule published — employees have been notified",
+      "publishError": "Failed to publish schedule",
+      "confirmTitle": "Publish Schedule",
+      "confirmDescription": "This will notify all employees of their schedule by email. This action cannot be undone.",
+      "confirmDescriptionWithWarnings": "There are still {count, plural, one {# soft warning} other {# soft warnings}} remaining. This will notify all employees of their schedule by email. This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirmPublish": "Publish",
+      "publishing": "Publishing…"
+    },
+    "equity": {
+      "badgeLabel": "Equity indicator",
+      "popoverTitle": "Equity Counters",
+      "popoverHint": "Value / clinic average",
+      "counterType": {
+        "SATURDAY_WORKED": "Saturdays",
+        "WEEKEND_TOTAL": "Weekends",
+        "HOLIDAY_WORKED": "Holidays",
+        "OVERTIME_HOURS": "Overtime (h)"
+      }
+    },
+    "violations": {
+      "rotationEquity": {
+        "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
+      },
+      "contractCompliance": {
+        "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+      }
+    },
     "settings": {
       "badge": "Clinic settings",
       "title": "Operational Parameters",
@@ -581,6 +626,139 @@
         "removeDeclaration": "Remove declaration"
       },
       "empty": "No apprentices in this clinic"
+    },
+    "absences": {
+      "title": "Absence Requests",
+      "subtitle": "Review and manage employee absence requests.",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 pending} other {# pending}}",
+      "list": {
+        "empty": "No absence requests.",
+        "emptyPending": "No pending absence requests.",
+        "dayCount": "{count, plural, =0 {No days} =1 {1 day} other {# days}}",
+        "from": "From",
+        "to": "To",
+        "reason": "Reason",
+        "noReason": "No reason provided",
+        "rejectionReason": "Rejection reason",
+        "employee": "Employee"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "approving": "Approving...",
+        "rejecting": "Rejecting..."
+      },
+      "rejectDialog": {
+        "title": "Reject absence request",
+        "description": "Please provide a reason for rejecting this absence request.",
+        "reasonLabel": "Rejection reason",
+        "reasonPlaceholder": "Explain why this request is being rejected...",
+        "confirm": "Confirm rejection",
+        "cancel": "Cancel"
+      },
+      "adminCreate": {
+        "title": "Create absence",
+        "subtitle": "Create an absence directly for an employee (auto-approved).",
+        "selectEmployee": "Select employee",
+        "selectType": "Absence type",
+        "reasonPlaceholder": "Describe the reason for the absence...",
+        "submit": "Create absence",
+        "submitting": "Creating..."
+      },
+      "types": {
+        "PAID_LEAVE": "Paid Leave",
+        "SICK_LEAVE": "Sick Leave",
+        "TRAINING": "Training",
+        "CHILD_SICK": "Child Sick",
+        "OTHER": "Other"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "toast": {
+        "approved": "Absence request approved.",
+        "rejected": "Absence request rejected.",
+        "created": "Absence created successfully.",
+        "errorApprove": "Failed to approve absence request.",
+        "errorReject": "Failed to reject absence request.",
+        "errorCreate": "Failed to create absence."
+      }
+    },
+    "variance": {
+      "title": "Attendance Variance",
+      "subtitle": "Compare planned schedules with actual confirmed attendance.",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 pending} other {# pending}}",
+      "types": {
+        "CLOCK_IN_DEVIATION": "Late arrival",
+        "CLOCK_OUT_DEVIATION": "Departure deviation",
+        "NO_SHOW": "Unconfirmed absence",
+        "EARLY_DEPARTURE": "Early departure"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "list": {
+        "empty": "No attendance variance for this period.",
+        "planned": "Planned",
+        "actual": "Actual",
+        "delta": "{minutes, plural, =0 {0 min} =1 {# min deviation} other {# min deviation}}",
+        "notConfirmed": "Not confirmed",
+        "reason": "Exception note",
+        "employee": "Employee",
+        "allEmployees": "All employees"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "exportCsv": "Export CSV"
+      },
+      "rejectDialog": {
+        "title": "Reject variance",
+        "description": "Provide a note explaining why this variance is rejected.",
+        "exceptionNoteLabel": "Exception note",
+        "exceptionNotePlaceholder": "Explain why this variance is rejected...",
+        "confirm": "Confirm rejection",
+        "cancel": "Cancel"
+      },
+      "stats": {
+        "totalEvents": "Total variances",
+        "pendingCount": "Pending",
+        "avgDelta": "Avg. deviation",
+        "noShowCount": "No-shows",
+        "minutes": "{count, plural, =0 {0 min} =1 {1 min} other {# min}}"
+      },
+      "monthSelector": {
+        "label": "Month"
+      },
+      "toast": {
+        "approved": "Variance approved.",
+        "rejected": "Variance rejected.",
+        "exported": "CSV export downloaded.",
+        "errorApprove": "Failed to approve variance.",
+        "errorReject": "Failed to reject variance.",
+        "errorExport": "Failed to export data."
+      },
+      "errors": {
+        "loadFailed": "Unable to load attendance variance.",
+        "loadFailedDescription": "Please retry or contact support.",
+        "retry": "Retry"
+      }
     }
   },
   "brand": {
@@ -653,7 +831,8 @@
     "nav": {
       "title": "Pawly Employee",
       "home": "Home",
-      "schoolDays": "School Days"
+      "schoolDays": "School Days",
+      "absences": "Absences"
     },
     "schoolDays": {
       "title": "School Days Declaration",
@@ -690,6 +869,49 @@
         "declared": "Declared",
         "notDeclared": "Not declared",
         "schoolDaysFor": "School days for {month}"
+      }
+    },
+    "absences": {
+      "title": "Absence Requests",
+      "subtitle": "Submit and track your absence requests.",
+      "form": {
+        "title": "Request an absence",
+        "selectType": "Select absence type",
+        "dateRange": "Date range",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "reason": "Reason (optional)",
+        "reasonPlaceholder": "Describe the reason for your absence...",
+        "submit": "Submit request",
+        "submitting": "Submitting..."
+      },
+      "types": {
+        "PAID_LEAVE": "Paid Leave",
+        "SICK_LEAVE": "Sick Leave",
+        "TRAINING": "Training",
+        "CHILD_SICK": "Child Sick",
+        "OTHER": "Other"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "label": "{status, select, PENDING {Pending} APPROVED {Approved} REJECTED {Rejected} other {Unknown}}"
+      },
+      "dayCount": "{count, plural, =0 {No days} =1 {1 day} other {# days}}",
+      "list": {
+        "title": "My requests",
+        "empty": "No absence requests yet.",
+        "rejectionReason": "Rejection reason",
+        "from": "From",
+        "to": "To"
+      },
+      "overlap": {
+        "warning": "Overlap detected with an existing absence or unavailability from {startDate} to {endDate}."
+      },
+      "toast": {
+        "success": "Absence request submitted successfully.",
+        "error": "Failed to submit absence request."
       }
     },
     "title": "Dashboard",
@@ -1144,8 +1366,7 @@
   "settings": {
     "tabs": {
       "operational": "General",
-      "shiftTypes": "Shift Types",
-      "planningRules": "Planning Rules"
+      "shiftTypes": "Shift Types"
     },
     "shiftTypes": {
       "title": "Shift Types",

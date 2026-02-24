@@ -9,6 +9,14 @@ enum AbsenceStatus {
   REJECTED
 }
 
+enum AbsenceType {
+  PAID_LEAVE
+  SICK_LEAVE
+  TRAINING
+  CHILD_SICK
+  OTHER
+}
+
 model Shift {
   id            String      @id @default(uuid())
   date          DateTime
@@ -46,6 +54,11 @@ model Absence {
   endDate   DateTime      @map("end_date")
   reason    String?
   status    AbsenceStatus @default(PENDING)
+  type      AbsenceType   @default(PAID_LEAVE)
+
+  reviewedBy      String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  rejectionReason String?   @map("rejection_reason")
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String   @map("employee_id")
@@ -58,6 +71,7 @@ model Absence {
 
   @@index([clinicId])
   @@index([employeeId])
+  @@index([clinicId, status])
 }
 
 model PlanningTemplate {
@@ -76,11 +90,29 @@ model PlanningTemplate {
   @@index([clinicId])
 }
 
+enum VarianceEventStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum VarianceEventType {
+  CLOCK_IN_DEVIATION
+  CLOCK_OUT_DEVIATION
+  NO_SHOW
+  EARLY_DEPARTURE
+}
+
 model VarianceEvent {
-  id          String   @id @default(uuid())
-  type        String // e.g., "CLOCK_IN_DEVIATION"
-  plannedTime DateTime @map("planned_time")
-  actualTime  DateTime @map("actual_time")
+  id            String              @id @default(uuid())
+  type          VarianceEventType
+  plannedTime   DateTime            @map("planned_time")
+  actualTime    DateTime            @map("actual_time")
+  deltaMinutes  Int                 @map("delta_minutes")
+  status        VarianceEventStatus @default(PENDING)
+  reviewedBy    String?             @map("reviewed_by")
+  reviewedAt    DateTime?           @map("reviewed_at")
+  exceptionNote String?             @map("exception_note")
 
   shift   Shift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   shiftId String @map("shift_id")
@@ -89,7 +121,9 @@ model VarianceEvent {
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([clinicId])
   @@index([shiftId])
+  @@index([clinicId, status])
 }

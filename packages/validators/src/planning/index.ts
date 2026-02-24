@@ -70,6 +70,7 @@ export type {
 } from "./planning-template.schema";
 
 export {
+  equityContextSchema,
   monthSchema,
   generatePlanSchema,
   listShiftsForMonthSchema,
@@ -83,6 +84,7 @@ export {
 } from "./planning-generation.schema";
 
 export type {
+  EquityContext,
   GeneratePlanInput,
   ListShiftsForMonthInput,
   DeleteGeneratedShiftsInput,
@@ -121,6 +123,7 @@ export {
   scheduleShiftSchema,
   scheduleUnavailabilitySchema,
   scheduleHoleSchema,
+  equitySummaryEntrySchema,
   scheduleViewDataSchema,
 } from "./schedule-view.schema";
 
@@ -132,6 +135,7 @@ export type {
   ScheduleShift,
   ScheduleUnavailability,
   ScheduleHole,
+  EquitySummaryEntry,
   ScheduleViewData,
 } from "./schedule-view.schema";
 
@@ -150,3 +154,36 @@ export type {
   PreValidateMoveInput,
   MoveValidationResult,
 } from "./shift-mutation.schema";
+
+export {
+  PLANNING_PERIOD_STATUSES,
+  publishPlanInputSchema,
+  planningPeriodStatusSchema,
+  publishPlanResultSchema,
+  publicationStatusResultSchema,
+} from "./equity-alert.schema";
+
+export type {
+  PublishPlanInput,
+  PlanningPeriodStatus,
+  PublishPlanResult,
+  PublicationStatusResult,
+} from "./equity-alert.schema";
+
+export {
+  VARIANCE_EVENT_STATUSES,
+  VARIANCE_EVENT_TYPES,
+  listVarianceEventsSchema,
+  reviewVarianceSchema,
+  getVarianceStatsSchema,
+  exportVarianceSchema,
+} from "./variance.schema";
+
+export type {
+  VarianceEventStatus,
+  VarianceEventType,
+  ListVarianceEventsInput,
+  ReviewVarianceInput,
+  GetVarianceStatsInput,
+  ExportVarianceInput,
+} from "./variance.schema";

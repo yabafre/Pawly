@@ -106,6 +106,27 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogDescription: ({ children }: any) => <div>{children}</div>,
 }));
 
+vi.mock("@/components/ui/alert-dialog", () => ({
+  AlertDialog: ({ children, open }: any) =>
+    open ? <div data-testid="alert-dialog">{children}</div> : null,
+  AlertDialogContent: ({ children }: any) => <div>{children}</div>,
+  AlertDialogHeader: ({ children }: any) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: any) => <div>{children}</div>,
+  AlertDialogDescription: ({ children }: any) => <div>{children}</div>,
+  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
+  AlertDialogAction: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+  AlertDialogCancel: ({ children }: any) => <button>{children}</button>,
+}));
+
+vi.mock("../_hooks/usePublish", () => ({
+  usePublish: vi.fn(() => ({
+    publicationStatus: { status: "DRAFT", publishedAt: null, publishedBy: null },
+    isLoadingStatus: false,
+    publishPlan: vi.fn(),
+    isPublishing: false,
+  })),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -324,8 +345,8 @@ describe("ScheduleViewWrapper", () => {
 
     render(<ScheduleViewWrapper month="2026-03" />, { wrapper: Wrapper });
 
-    // Title and subtitle
-    expect(screen.getByText("title")).toBeInTheDocument();
+    // Title and subtitle (HealthBar also renders "title" key, so use getAllByText)
+    expect(screen.getAllByText("title").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("subtitle")).toBeInTheDocument();
 
     // StaffGrid renders with role="grid"

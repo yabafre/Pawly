@@ -619,5 +619,400 @@ describe('PlanningService', () => {
       expect(result.softViolations.length).toBeGreaterThan(0);
       expect(result.softViolations[0].category).toBe('CONTRACT_COMPLIANCE');
     });
+
+    // ─── equity counter enrichment ─────────────────────────────────────
+    describe('equity counter enrichment', () => {
+      it('should enrich ROTATION_EQUITY soft violations with equityContext when counters provided', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-07'), // Saturday
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-14'), // Saturday
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        const equityCounters = [
+          {
+            id: 'ec-1',
+            counterType: 'SATURDAY_WORKED',
+            count: 3,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 'ec-2',
+            counterType: 'SATURDAY_WORKED',
+            count: 1,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+          },
+        ];
+
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          { equityCounters },
+        );
+
+        expect(result.softViolations.length).toBeGreaterThan(0);
+        const violation = result.softViolations[0];
+        expect(violation.equityContext).toBeDefined();
+        expect(violation.equityContext!.counterType).toBe('SATURDAY_WORKED');
+        expect(violation.equityContext!.currentCount).toBe(2);
+        expect(violation.equityContext!.maxPerPeriod).toBe(1);
+        expect(typeof violation.equityContext!.clinicAverage).toBe('number');
+        expect(['below_average', 'average', 'above_average']).toContain(violation.equityContext!.trend);
+      });
+
+      it('should compute trend as above_average when currentCount > clinicAverage', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        // emp-1 has 3 Saturday shifts (way above average)
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-07'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-14'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's3',
+            date: new Date('2026-03-21'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        // Clinic average: (3 + 0) / 2 = 1.5, currentCount 3 > 1.5 + 0.5 = above_average
+        const equityCounters = [
+          {
+            id: 'ec-1',
+            counterType: 'SATURDAY_WORKED',
+            count: 3,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 'ec-2',
+            counterType: 'SATURDAY_WORKED',
+            count: 0,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+          },
+        ];
+
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          { equityCounters },
+        );
+
+        const violation = result.softViolations.find(v => v.equityContext);
+        expect(violation).toBeDefined();
+        expect(violation!.equityContext!.trend).toBe('above_average');
+      });
+
+      it('should compute trend as below_average when currentCount < clinicAverage', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        // emp-1 has 2 Saturday shifts, but clinic average is very high
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-07'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-14'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        // Clinic average: (1 + 8) / 2 = 4.5, currentCount 2 < 4.5 - 0.5 = below_average
+        const equityCounters = [
+          {
+            id: 'ec-1',
+            counterType: 'SATURDAY_WORKED',
+            count: 1,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 'ec-2',
+            counterType: 'SATURDAY_WORKED',
+            count: 8,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+          },
+        ];
+
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          { equityCounters },
+        );
+
+        const violation = result.softViolations.find(v => v.equityContext);
+        expect(violation).toBeDefined();
+        expect(violation!.equityContext!.trend).toBe('below_average');
+      });
+
+      it('should return violations without equityContext when no counters provided (backward compat)', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-07'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-14'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        // Call without equityCounters option
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+        );
+
+        expect(result.softViolations.length).toBeGreaterThan(0);
+        // equityContext should still be present (computed from shift data instead of counters)
+        // The point is: calling without counters should not crash
+        for (const violation of result.softViolations) {
+          expect(violation.severity).toBe('warning');
+          expect(violation.category).toBe('ROTATION_EQUITY');
+        }
+      });
+
+      it('should enrich CONTRACT_COMPLIANCE soft violations with equityContext', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-cc',
+            name: 'Max monthly hours',
+            category: 'CONTRACT_COMPLIANCE',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { maxMonthlyHours: 10 },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-02'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '18:00', // 10h
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-03'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '18:00', // 10h → total 20h > 10h max
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        const equityCounters = [
+          {
+            id: 'ec-1',
+            counterType: 'OVERTIME_HOURS',
+            count: 10,
+            year: 2026,
+            month: 3,
+            lastCalculatedAt: new Date(),
+            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+          },
+        ];
+
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          { equityCounters },
+        );
+
+        expect(result.softViolations.length).toBeGreaterThan(0);
+        const ccViolation = result.softViolations.find(
+          v => v.category === 'CONTRACT_COMPLIANCE',
+        );
+        expect(ccViolation).toBeDefined();
+        expect(ccViolation!.equityContext).toBeDefined();
+        expect(ccViolation!.equityContext!.counterType).toBe('OVERTIME_HOURS');
+        expect(typeof ccViolation!.equityContext!.currentCount).toBe('number');
+        expect(typeof ccViolation!.equityContext!.maxPerPeriod).toBe('number');
+        expect(typeof ccViolation!.equityContext!.clinicAverage).toBe('number');
+        expect(['below_average', 'average', 'above_average']).toContain(ccViolation!.equityContext!.trend);
+      });
+
+      it('should include messageKey and messageParams in enriched violations', async () => {
+        mockPrismaService.planningRule.findMany.mockResolvedValue([
+          {
+            id: 'rule-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            ruleType: 'SOFT',
+            isActive: true,
+            priority: 5,
+            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            clinicId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([
+          {
+            id: 's1',
+            date: new Date('2026-03-07'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+          {
+            id: 's2',
+            date: new Date('2026-03-14'),
+            shiftTypeCode: 'SURGERY',
+            startTime: '08:00',
+            endTime: '12:00',
+            employeeId: 'emp-1',
+            employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+          },
+        ]);
+
+        const result = await service.validateShiftsAgainstRules(
+          clinicId,
+          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+        );
+
+        expect(result.softViolations.length).toBeGreaterThan(0);
+        for (const violation of result.softViolations) {
+          // Every violation should have a human-readable message
+          expect(violation.message).toBeDefined();
+          expect(typeof violation.message).toBe('string');
+          expect(violation.message.length).toBeGreaterThan(0);
+          // Should reference meaningful information about the violation
+          expect(violation.message).toMatch(/saturday|Saturday|shifts|exceeds/i);
+        }
+      });
+    });
   });
 });

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -18,7 +19,12 @@ import type {
   HardRuleRangeInput,
   DeclareSchoolDaysInput,
   ListSchoolDaysInput,
+  CreateAbsenceRequestInput,
+  ListAbsencesInput,
+  AdminCreateAbsenceInput,
+  AbsenceType,
 } from '@pawly/validators';
+import type { UnavailabilityType } from '@pawly/validators';
 
 type UnavailabilityRecord = {
   id: string;
@@ -59,6 +65,17 @@ export class EmployeeService {
     if (!user?.employee || user.employee.id !== employeeId) {
       throw new ForbiddenException('You can only manage your own employee record');
     }
+  }
+
+  async resolveEmployeeId(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { employee: { select: { id: true } } },
+    });
+    if (!user?.employee) {
+      throw new NotFoundException('No employee record found for this user');
+    }
+    return user.employee.id;
   }
 
   async findAll(clinicId: string, filters?: ListEmployeesInput) {
@@ -600,6 +617,360 @@ export class EmployeeService {
     return apprentices
       .filter((a) => a.unavailabilities.length === 0)
       .map(({ unavailabilities: _, ...rest }) => rest);
+  }
+
+  // ==================== Absence Request Methods ====================
+
+  private mapAbsenceTypeToUnavailability(absenceType: AbsenceType): UnavailabilityType {
+    const mapping: Record<AbsenceType, UnavailabilityType> = {
+      PAID_LEAVE: 'VACATION',
+      SICK_LEAVE: 'SICK',
+      TRAINING: 'OTHER',
+      CHILD_SICK: 'SICK',
+      OTHER: 'OTHER',
+    };
+    return mapping[absenceType];
+  }
+
+  async createAbsenceRequest(
+    clinicId: string,
+    employeeId: string,
+    input: CreateAbsenceRequestInput,
+  ) {
+    const employee = await this.findById(clinicId, employeeId);
+
+    const overlap = await this.checkOverlap(clinicId, employeeId, input.startDate, input.endDate);
+    if (overlap.hasOverlap) {
+      throw new ConflictException('An existing absence or unavailability overlaps with this date range');
+    }
+
+    const absence = await this.prisma.absence.create({
+      data: {
+        clinicId,
+        employeeId,
+        type: input.type,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        reason: input.reason || null,
+        status: 'PENDING',
+      },
+    });
+
+    // Fire-and-forget: notify clinic admin(s)
+    this.notifyAdminsOfAbsenceRequest(
+      clinicId,
+      `${employee.firstName} ${employee.lastName}`,
+      input.type,
+      new Date(input.startDate),
+      new Date(input.endDate),
+    ).catch((err) =>
+      this.logger.error('Failed to send absence request notification', err),
+    );
+
+    return absence;
+  }
+
+  async reviewAbsence(
+    clinicId: string,
+    userId: string,
+    absenceId: string,
+    action: 'approve' | 'reject',
+    rejectionReason?: string,
+  ) {
+    const absence = await this.prisma.absence.findFirst({
+      where: { id: absenceId, clinicId },
+      include: { employee: { select: { firstName: true, lastName: true, email: true } } },
+    });
+
+    if (!absence) {
+      throw new NotFoundException(`Absence ${absenceId} not found`);
+    }
+
+    if (absence.status !== 'PENDING') {
+      throw new ConflictException('Absence already reviewed');
+    }
+
+    if (action === 'approve') {
+      const updatedAbsence = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.absence.findFirst({
+          where: { id: absenceId, clinicId, status: 'PENDING' },
+        });
+        if (!current) {
+          throw new ConflictException('Absence already reviewed');
+        }
+        const updated = await tx.absence.update({
+          where: { id: absenceId },
+          data: {
+            status: 'APPROVED',
+            reviewedBy: userId,
+            reviewedAt: new Date(),
+          },
+        });
+        await tx.unavailability.create({
+          data: {
+            clinicId,
+            employeeId: absence.employeeId,
+            type: this.mapAbsenceTypeToUnavailability(absence.type as AbsenceType),
+            startDate: absence.startDate,
+            endDate: absence.endDate,
+            reason: 'Approved absence request',
+            daysOfWeek: [],
+          },
+        });
+        return updated;
+      });
+
+      // Fire-and-forget: notify employee of approval
+      if (absence.employee.email) {
+        this.mailService
+          .sendAbsenceReviewNotification(
+            absence.employee.email,
+            absence.employee.firstName,
+            'APPROVED',
+            absence.type as AbsenceType,
+            absence.startDate,
+            absence.endDate,
+          )
+          .catch((err) =>
+            this.logger.error('Failed to send absence approval notification', err),
+          );
+      }
+
+      return updatedAbsence;
+    }
+
+    // REJECT
+    const updatedAbsence = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.absence.findFirst({
+        where: { id: absenceId, clinicId, status: 'PENDING' },
+      });
+      if (!current) {
+        throw new ConflictException('Absence already reviewed');
+      }
+      return tx.absence.update({
+        where: { id: absenceId },
+        data: {
+          status: 'REJECTED',
+          reviewedBy: userId,
+          reviewedAt: new Date(),
+          rejectionReason: rejectionReason || null,
+        },
+      });
+    });
+
+    // Fire-and-forget: notify employee of rejection
+    if (absence.employee.email) {
+      this.mailService
+        .sendAbsenceReviewNotification(
+          absence.employee.email,
+          absence.employee.firstName,
+          'REJECTED',
+          absence.type as AbsenceType,
+          absence.startDate,
+          absence.endDate,
+          rejectionReason,
+        )
+        .catch((err) =>
+          this.logger.error('Failed to send absence rejection notification', err),
+        );
+    }
+
+    return updatedAbsence;
+  }
+
+  async listAbsences(clinicId: string, filters: ListAbsencesInput) {
+    const where: Record<string, unknown> = { clinicId };
+
+    if (filters.employeeId) {
+      where.employeeId = filters.employeeId;
+    }
+
+    if (filters.status) {
+      where.status = filters.status;
+    }
+
+    if (filters.month) {
+      const [year, month] = filters.month.split('-').map(Number);
+      const monthStart = new Date(Date.UTC(year, month - 1, 1));
+      const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      where.startDate = { lte: monthEnd };
+      where.endDate = { gte: monthStart };
+    }
+
+    return this.prisma.absence.findMany({
+      where,
+      include: {
+        employee: {
+          select: { firstName: true, lastName: true, jobType: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getAbsenceById(clinicId: string, absenceId: string) {
+    const absence = await this.prisma.absence.findFirst({
+      where: { id: absenceId, clinicId },
+      include: {
+        employee: {
+          select: { firstName: true, lastName: true, jobType: true, email: true },
+        },
+      },
+    });
+
+    if (!absence) {
+      throw new NotFoundException(`Absence ${absenceId} not found`);
+    }
+
+    return absence;
+  }
+
+  async adminCreateAbsence(
+    clinicId: string,
+    userId: string,
+    input: AdminCreateAbsenceInput,
+  ) {
+    const employee = await this.findById(clinicId, input.employeeId);
+
+    const overlap = await this.checkOverlap(clinicId, input.employeeId, input.startDate, input.endDate);
+    if (overlap.hasOverlap) {
+      throw new ConflictException('An existing absence or unavailability overlaps with this date range');
+    }
+
+    const absence = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.absence.create({
+        data: {
+          clinicId,
+          employeeId: input.employeeId,
+          type: input.type,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          reason: input.reason || null,
+          status: 'APPROVED',
+          reviewedBy: userId,
+          reviewedAt: new Date(),
+        },
+      });
+      await tx.unavailability.create({
+        data: {
+          clinicId,
+          employeeId: input.employeeId,
+          type: this.mapAbsenceTypeToUnavailability(input.type),
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          reason: 'Approved absence request',
+          daysOfWeek: [],
+        },
+      });
+      return created;
+    });
+
+    // Fire-and-forget: notify employee
+    if (employee.email) {
+      this.mailService
+        .sendAbsenceReviewNotification(
+          employee.email,
+          employee.firstName,
+          'APPROVED',
+          input.type,
+          new Date(input.startDate),
+          new Date(input.endDate),
+        )
+        .catch((err) =>
+          this.logger.error('Failed to send admin absence notification', err),
+        );
+    }
+
+    return absence;
+  }
+
+  async countPendingAbsences(clinicId: string) {
+    return this.prisma.absence.count({
+      where: { clinicId, status: 'PENDING' },
+    });
+  }
+
+  async checkOverlap(
+    clinicId: string,
+    employeeId: string,
+    startDate: string,
+    endDate: string,
+  ) {
+    await this.findById(clinicId, employeeId);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const [overlappingAbsences, overlappingUnavailabilities] =
+      await Promise.all([
+        this.prisma.absence.findMany({
+          where: {
+            clinicId,
+            employeeId,
+            status: 'APPROVED',
+            startDate: { lte: end },
+            endDate: { gte: start },
+          },
+          select: {
+            id: true,
+            type: true,
+            startDate: true,
+            endDate: true,
+          },
+        }),
+        this.prisma.unavailability.findMany({
+          where: {
+            clinicId,
+            employeeId,
+            startDate: { lte: end },
+            endDate: { gte: start },
+          },
+          select: {
+            id: true,
+            type: true,
+            startDate: true,
+            endDate: true,
+          },
+        }),
+      ]);
+
+    return {
+      hasOverlap:
+        overlappingAbsences.length > 0 || overlappingUnavailabilities.length > 0,
+      overlappingAbsences,
+      overlappingUnavailabilities,
+    };
+  }
+
+  private async notifyAdminsOfAbsenceRequest(
+    clinicId: string,
+    employeeName: string,
+    type: AbsenceType,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const admins = await this.prisma.user.findMany({
+      where: { clinicId, role: 'ADMIN' },
+      select: { email: true, name: true },
+    });
+
+    const dayCount =
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
+
+    await Promise.allSettled(
+      admins.map((admin) =>
+        this.mailService.sendAbsenceRequestNotification(
+          admin.email,
+          admin.name ?? undefined,
+          employeeName,
+          type,
+          startDate,
+          endDate,
+          dayCount,
+        ),
+      ),
+    );
   }
 
   private async findConstraintById(clinicId: string, id: string) {

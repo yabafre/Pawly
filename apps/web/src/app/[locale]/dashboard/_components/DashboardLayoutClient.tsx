@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GraduationCap, Home, LogOut, PawPrint } from "lucide-react";
+import { CalendarOff, GraduationCap, Home, LogOut, PawPrint } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { useTranslations } from "next-intl";
@@ -17,6 +17,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
     const navItems = [
         { href: "/dashboard", icon: Home, labelKey: "home" as const, exact: true },
         { href: "/dashboard/school-days", icon: GraduationCap, labelKey: "schoolDays" as const },
+        { href: "/dashboard/absences", icon: CalendarOff, labelKey: "absences" as const },
     ];
 
     const handleLogout = async () => {

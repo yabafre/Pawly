@@ -7,12 +7,19 @@ import { ActivationEmail } from './templates/ActivationEmail';
 import { SchoolDaysDeclarationEmail } from './templates/SchoolDaysDeclarationEmail';
 import { SchoolDaysReminderEmail } from './templates/SchoolDaysReminderEmail';
 import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
+import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
+import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
+import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import type { EnvConfig } from '@/config/index';
+import type { AbsenceType } from '@pawly/validators';
 
 @Injectable()
 export class MailService {
   private resend: Resend;
   private readonly logger = new Logger(MailService.name);
+  /** Resend allows 2 req/s — enforce 550ms min gap between sends */
+  private static readonly MIN_SEND_INTERVAL_MS = 550;
+  private throttleChain: Promise<void> = Promise.resolve();
 
   constructor(private configService: ConfigService<EnvConfig, true>) {
     this.resend = new Resend(
@@ -20,10 +27,18 @@ export class MailService {
     );
   }
 
+  private throttle(): Promise<void> {
+    this.throttleChain = this.throttleChain.then(
+      () => new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+    );
+    return this.throttleChain;
+  }
+
   async sendMagicLink(email: string, url: string) {
     try {
       const html = await render(<MagicLinkEmail url={url} />);
 
+      await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -47,6 +62,7 @@ export class MailService {
     try {
       const html = await render(<ActivationEmail url={url} adminName={adminName} />);
 
+      await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -70,6 +86,7 @@ export class MailService {
     try {
       const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -102,6 +119,7 @@ export class MailService {
         />,
       );
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: adminEmail,
@@ -117,6 +135,41 @@ export class MailService {
     }
   }
 
+  async sendSchedulePublicationEmail(
+    employeeEmail: string,
+    firstName: string,
+    month: string,
+    clinicName: string,
+  ) {
+    try {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard`;
+
+      const html = await render(
+        <SchedulePublicationEmail
+          firstName={firstName}
+          month={month}
+          clinicName={clinicName}
+          dashboardUrl={dashboardUrl}
+        />,
+      );
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: employeeEmail,
+        subject: `${clinicName} — Votre planning pour ${month} est publié`,
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send schedule publication email to ${employeeEmail}: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending schedule publication email', err);
+    }
+  }
+
   async sendSchoolDaysReminder(
     apprenticeEmail: string,
     name: string,
@@ -129,6 +182,7 @@ export class MailService {
         <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} />,
       );
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: apprenticeEmail,
@@ -141,6 +195,88 @@ export class MailService {
       }
     } catch (err) {
       this.logger.error('Unexpected error sending school days reminder', err);
+    }
+  }
+
+  async sendAbsenceRequestNotification(
+    adminEmail: string,
+    adminName: string | undefined,
+    employeeName: string,
+    absenceType: AbsenceType,
+    startDate: Date,
+    endDate: Date,
+    dayCount: number,
+  ) {
+    try {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      const html = await render(
+        <AbsenceRequestEmail
+          adminName={adminName}
+          employeeName={employeeName}
+          absenceType={absenceType}
+          startDate={formatDate(startDate)}
+          endDate={formatDate(endDate)}
+          dayCount={dayCount}
+        />,
+      );
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: adminEmail,
+        subject: `${employeeName} a soumis une demande d'absence`,
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send absence request notification: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending absence request notification', err);
+    }
+  }
+
+  async sendAbsenceReviewNotification(
+    employeeEmail: string,
+    firstName: string,
+    status: 'APPROVED' | 'REJECTED',
+    absenceType: AbsenceType,
+    startDate: Date,
+    endDate: Date,
+    rejectionReason?: string,
+  ) {
+    try {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      const html = await render(
+        <AbsenceReviewEmail
+          firstName={firstName}
+          status={status}
+          absenceType={absenceType}
+          startDate={formatDate(startDate)}
+          endDate={formatDate(endDate)}
+          rejectionReason={rejectionReason}
+        />,
+      );
+
+      const statusLabel = status === 'APPROVED' ? 'approuvée' : 'refusée';
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: employeeEmail,
+        subject: `Votre demande d'absence a été ${statusLabel}`,
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send absence review notification: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending absence review notification', err);
     }
   }
 }

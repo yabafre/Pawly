@@ -5,11 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CalendarOff, Plus, Trash2 } from "lucide-react";
-
-type ClosedDayItem = {
-  date: string;
-  reason: string;
-};
+import type { ClosedDayItem } from "@pawly/types";
 
 type ClosedDaysFieldArrayProps = {
   items: ClosedDayItem[];

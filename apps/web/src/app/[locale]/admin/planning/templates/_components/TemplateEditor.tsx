@@ -13,32 +13,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { TemplateSlotForm } from "./TemplateSlotForm";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
-
-type TemplateSlot = {
-  shiftTypeCode: string;
-  requiredStaff: number;
-  requiredJobTypes?: string[];
-};
-
-type TemplateDay = {
-  dayOfWeek: number;
-  slots: TemplateSlot[];
-};
-
-type TemplateData = {
-  days: TemplateDay[];
-};
-
-type TemplateRecord = {
-  id: string;
-  name: string;
-  data: TemplateData;
-};
+import type { TemplateSlot, TemplateDay, TemplateData, EditableTemplate } from "@pawly/types";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  template?: TemplateRecord | null;
+  template?: EditableTemplate | null;
   shiftTypes: ShiftTypeRecord[];
   workDays?: number[];
   onSave: (name: string, data: TemplateData) => void;

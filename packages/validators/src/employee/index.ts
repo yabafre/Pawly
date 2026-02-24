@@ -44,3 +44,25 @@ export type {
   DeclareSchoolDaysInput,
   ListSchoolDaysInput,
 } from "./school-days.schema";
+
+export {
+  ABSENCE_TYPES,
+  ABSENCE_STATUSES,
+  createAbsenceRequestSchema,
+  reviewAbsenceSchema,
+  listAbsencesSchema,
+  absenceIdSchema,
+  adminCreateAbsenceSchema,
+  checkAbsenceOverlapSchema,
+} from "./absence.schema";
+
+export type {
+  AbsenceType,
+  AbsenceStatus,
+  CreateAbsenceRequestInput,
+  ReviewAbsenceInput,
+  ListAbsencesInput,
+  AbsenceIdInput,
+  AdminCreateAbsenceInput,
+  CheckAbsenceOverlapInput,
+} from "./absence.schema";
