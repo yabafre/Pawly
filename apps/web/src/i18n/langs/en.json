@@ -217,10 +217,20 @@
         "title": "Planning Health",
         "conflicts": "{count, plural, =0 {No conflicts} one {# conflict} other {# conflicts}}",
         "warnings": "{count, plural, =0 {No warnings} one {# warning} other {# warnings}}",
+        "holes": "{count, plural, =0 {No holes} one {# hole} other {# holes}}",
         "ready": "{percent}% ready",
         "publish": "Publish",
         "publishBlocked": "Cannot publish — resolve conflicts first",
-        "healthy": "All clear — no violations detected"
+        "healthy": "All clear — no violations detected",
+        "emptyState": "No shifts generated yet — run generation first",
+        "published": "Published",
+        "publishedAt": "Published on {date}",
+        "detailTitle": "Health Details",
+        "categoryStaffing": "Staffing Minimum",
+        "categorySkill": "Skill Requirements",
+        "categoryEquity": "Rotation Equity",
+        "categoryContract": "Contract Compliance",
+        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}"
       }
     },
     "equityCounters": {

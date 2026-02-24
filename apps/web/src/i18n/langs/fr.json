@@ -217,10 +217,20 @@
         "title": "Santé du planning",
         "conflicts": "{count, plural, =0 {Aucun conflit} one {# conflit} other {# conflits}}",
         "warnings": "{count, plural, =0 {Aucun avertissement} one {# avertissement} other {# avertissements}}",
+        "holes": "{count, plural, =0 {Aucun trou} one {# trou} other {# trous}}",
         "ready": "{percent}% prêt",
         "publish": "Publier",
         "publishBlocked": "Publication impossible — résolvez les conflits d'abord",
-        "healthy": "Tout est bon — aucune violation détectée"
+        "healthy": "Tout est bon — aucune violation détectée",
+        "emptyState": "Aucun créneau généré — lancez la génération d'abord",
+        "published": "Publié",
+        "publishedAt": "Publié le {date}",
+        "detailTitle": "Détail de la santé",
+        "categoryStaffing": "Effectif minimum",
+        "categorySkill": "Compétences requises",
+        "categoryEquity": "Équité de rotation",
+        "categoryContract": "Conformité contrat",
+        "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}"
       }
     },
     "equityCounters": {
