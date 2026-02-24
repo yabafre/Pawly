@@ -11,6 +11,33 @@ vi.mock("next-intl", () => ({
     const t = (key: string) => key;
     return t;
   },
+  useLocale: () => "fr",
+}));
+
+// Mock motion/react
+vi.mock("motion/react", () => ({
+  motion: {
+    section: ({ children, ...props }: Record<string, unknown>) => <section {...props}>{children as React.ReactNode}</section>,
+    div: ({ children, animate, initial, exit, style, ...props }: Record<string, unknown>) => (
+      <div style={{ ...(style as object), ...(animate as object) }} {...props}>{children as React.ReactNode}</div>
+    ),
+  },
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Mock UI components used by PlanningHealthBar
+vi.mock("@/components/ui/badge", () => ({
+  Badge: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <span className={className}>{children}</span>
+  ),
+}));
+
+vi.mock("@/components/ui/popover", () => ({
+  Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PopoverHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PopoverTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 // Mock usePlanningRules hook
@@ -409,6 +436,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar
         hardViolationCount={0}
         softViolationCount={0}
+        holeCount={0}
         totalShifts={10}
       />,
     );
@@ -422,6 +450,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar
         hardViolationCount={3}
         softViolationCount={1}
+        holeCount={0}
         totalShifts={10}
       />,
     );
@@ -434,6 +463,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar
         hardViolationCount={0}
         softViolationCount={0}
+        holeCount={0}
         totalShifts={10}
         onPublish={vi.fn()}
       />,
@@ -447,6 +477,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar
         hardViolationCount={2}
         softViolationCount={0}
+        holeCount={0}
         totalShifts={10}
         onPublish={vi.fn()}
       />,
@@ -461,6 +492,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar
         hardViolationCount={0}
         softViolationCount={0}
+        holeCount={0}
         totalShifts={10}
       />,
     );

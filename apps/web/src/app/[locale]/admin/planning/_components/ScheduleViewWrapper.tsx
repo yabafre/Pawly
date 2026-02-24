@@ -144,7 +144,6 @@ export function ScheduleViewWrapper({ month }: Props) {
   const hardViolationCount = scheduleData.violations.hard.length;
   const softViolationCount = scheduleData.violations.soft.length;
   const totalShifts = scheduleData.shifts.length;
-  const isPublished = publicationStatus?.status === "PUBLISHED";
 
   return (
     <div className="space-y-4">
@@ -152,8 +151,12 @@ export function ScheduleViewWrapper({ month }: Props) {
       <PlanningHealthBar
         hardViolationCount={hardViolationCount}
         softViolationCount={softViolationCount}
+        holeCount={scheduleData.holes.length}
         totalShifts={totalShifts}
-        onPublish={isPublished ? undefined : () => setPublishDialogOpen(true)}
+        onPublish={() => setPublishDialogOpen(true)}
+        publicationStatus={publicationStatus ?? undefined}
+        violations={scheduleData.violations}
+        holes={scheduleData.holes}
       />
 
       {/* Header: title + week navigator */}
