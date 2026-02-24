@@ -29,6 +29,7 @@
 
 generated: '2026-02-02'
 updated: '2026-02-24'
+# 2026-02-24: Story 7-5 done. Code review passed (14 findings fixed), PR #32 to develop. Epic 7 complete (5/5 stories done). 1936 total tests (693 API + 654 Web + 589 Validators). Build green.
 # 2026-02-24: Story 7-5 implemented → review. 9/9 tasks done. Enhanced VarianceEvent Prisma model (enums, deltaMinutes, status, review fields, composite index), 4 Zod validators with .refine(), VarianceService (5 methods: list, review $transaction, stats groupBy, countPending, exportCsv), 5 tRPC procedures (adminOnly guards), server actions + 5 React Query hooks (30s poll, prefix invalidation, Blob CSV), card-based admin UI at /admin/planning/variance (stats panel with motion, status filter tabs, event list with approve/reject, reject dialog), nav entry, i18n FR/EN (~50 keys). 104 new tests. 1924 total (681 API + 654 Web + 589 Validators). Build green. Last story in Epic 7.
 # 2026-02-24: Story 7-5 created (ready-for-dev). Admin Variance View (Time & Discrepancies Module). Enhance existing VarianceEvent Prisma model (add VarianceEventStatus/Type enums, deltaMinutes, status, reviewedBy/At, exceptionNote), VarianceService in PlanningModule (list+review+stats+countPending+exportCsv), 5 tRPC procedures in variance router, card-based admin UI at /admin/planning/variance with status filter tabs, approve/reject workflow (mirrors absence pattern), server-side CSV export with client Blob download, 4 aggregated stat cards with motion stagger, i18n FR/EN (~50 keys). No new dependencies. ~90-110 new tests. Last story in Epic 7.
 # 2026-02-24: Story 7-4 code review done → done. 8 issues found (2 HIGH, 3 MEDIUM, 3 LOW), all fixed. H1: Added hover trigger to HealthBarDetailPopover (controlled open state + onMouseEnter/onMouseLeave + 200ms close delay). H2: Fixed isEmpty check to include holeCount (edge case: generation with 0 assigned shifts but holes). M1: toLocaleDateString with useLocale() for i18n-correct date formatting. M2: motion-safe:animate-pulse for prefers-reduced-motion compliance. M3: Math.floor segment widths preventing >100% sum. L1: Removed redundant AnimatePresence mode="sync". L2: Composite React keys (ruleId/shiftTypeCode). L3: pnpm-lock.yaml documented. Also fixed planning-rules.spec.tsx (added holeCount prop + missing mocks). 621 web tests pass. Build green.
@@ -210,12 +211,12 @@ development_status:
   # Key Points: Drag & Drop with dnd-kit, equity alerts, variance audit.
   # FRs: FR6, FR8
   # ===========================================================================
-  epic-7: in-progress
+  epic-7: done
   7-1-manual-schedule-adjustment-drag-drop: done
   7-2-equity-alerts-management-soft-rules: done
   7-3-absence-request-validation-workflow: done
   7-4-planning-health-bar: done
-  7-5-admin-variance-view: review
+  7-5-admin-variance-view: done
   epic-7-retrospective: optional
 
   # ===========================================================================

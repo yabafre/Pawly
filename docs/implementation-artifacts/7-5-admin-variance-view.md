@@ -1,6 +1,6 @@
 # Story 7.5: Admin Variance View (Time & Discrepancies Module)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -566,6 +566,7 @@ Claude Opus 4.6
 - 2026-02-24: Bonus improvements: (1) SchedulePublicationEmail.tsx React Email template replacing raw HTML, (2) Resend rate-limit throttle (550ms) in MailService for all 8 send calls, (3) Admin dashboard connected to real backend data via dashboard.router.ts tRPC + server action + React Query hook (60s polling) — 6 parallel Prisma queries for live stats (employees, pending requests, monthly hours, apprentice declarations). Updated dashboard i18n FR/EN keys.
 - 2026-02-24: Code review fixes (Task 10): Fixed 11 issues (3H + 8M). H1: isPending && !isFetching always false → isPending alone. H2: Added employee filter dropdown with useEmployees hook. H3: Dashboard tests (12 new). M1: Extracted DashboardService from router (NestJS pattern). M2: Removed double-toast onError. M3: Fixed CSV filename closure. M4: Renamed shadowed variable. M5: Safe type cast with exported VarianceEventItem. M6: Dashboard RSC pattern (DashboardPageClient extraction). M7: Atomic CAS updateMany replaces $transaction for race-safe review. M8: ADMIN guards on list/getStats. Updated all affected test files. 1936 total tests (693 API + 654 Web + 589 Validators).
 - 2026-02-24: Admin navigation restructuring (Task 11): Refactored flat 9-item pill nav to 5-group dropdown navigation. Groups: Dashboard | Team ▼ (Employees, Absences) | Planning ▼ (Schedule, Templates, Equity, Variance, Rules) | Billing | Settings. Moved Planning Rules from Settings tab to standalone route /admin/planning/rules. Removed duplicate "requests" nav key. SettingsTabs reduced to 2 tabs (Operational + Shift Types). Added i18n keys: team, planningView, absences. Build + tests green.
+- 2026-02-24: Story 7-5 → done. All 11 tasks completed, code review passed (14 findings fixed), PR #32 created to develop. 1936 total tests (693 API + 654 Web + 589 Validators). Build green. Epic 7 complete.
 
 ### File List
 
