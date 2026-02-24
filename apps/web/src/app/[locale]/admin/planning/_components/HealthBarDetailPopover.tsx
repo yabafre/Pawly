@@ -60,7 +60,7 @@ export function HealthBarDetailPopover({
 }: Props) {
   const t = useTranslations("admin.planningRules.healthBar");
   const [open, setOpen] = useState(false);
-  const closeTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const closeTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleEnter = useCallback(() => {
     clearTimeout(closeTimeout.current);

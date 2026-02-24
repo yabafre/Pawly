@@ -22,6 +22,9 @@ import { PlanningTemplateService } from '@/modules/planning/planning-template.se
 import { PlanningGenerationService } from '@/modules/planning/planning-generation.service';
 import { EquityCounterService } from '@/modules/planning/equity-counter.service';
 import { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
+import { VarianceService } from '@/modules/planning/variance.service';
+import { DashboardModule } from '@/modules/dashboard/dashboard.module';
+import { DashboardService } from '@/modules/dashboard/dashboard.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
@@ -46,6 +49,8 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly planningGenerationService: PlanningGenerationService,
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
+    private readonly varianceService: VarianceService,
+    private readonly dashboardService: DashboardService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {
@@ -59,6 +64,8 @@ export class TRPCMiddleware implements NestMiddleware {
       planningGenerationService: this.planningGenerationService,
       equityCounterService: this.equityCounterService,
       apprenticeDeclarationService: this.apprenticeDeclarationService,
+      varianceService: this.varianceService,
+      dashboardService: this.dashboardService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -89,6 +96,8 @@ export class TRPCService {
     private readonly planningGenerationService: PlanningGenerationService,
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
+    private readonly varianceService: VarianceService,
+    private readonly dashboardService: DashboardService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) { }
@@ -107,6 +116,8 @@ export class TRPCService {
       planningGenerationService: this.planningGenerationService,
       equityCounterService: this.equityCounterService,
       apprenticeDeclarationService: this.apprenticeDeclarationService,
+      varianceService: this.varianceService,
+      dashboardService: this.dashboardService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -132,6 +143,7 @@ export class TRPCService {
     ClinicModule,
     EmployeeModule,
     PlanningModule,
+    DashboardModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],

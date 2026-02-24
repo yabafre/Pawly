@@ -8,6 +8,7 @@ import { PlanningGenerationService } from './planning-generation.service';
 import { EquityCounterService } from './equity-counter.service';
 import { EquityCounterScheduler } from './equity-counter.scheduler';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
+import { VarianceService } from './variance.service';
 
 @Module({
   imports: [PrismaModule, ClinicModule, MailModule],
@@ -18,6 +19,7 @@ import { ApprenticeDeclarationService } from './apprentice-declaration.service';
     EquityCounterService,
     EquityCounterScheduler,
     ApprenticeDeclarationService,
+    VarianceService,
   ],
   exports: [
     PlanningService,
@@ -25,6 +27,7 @@ import { ApprenticeDeclarationService } from './apprentice-declaration.service';
     PlanningGenerationService,
     EquityCounterService,
     ApprenticeDeclarationService,
+    VarianceService,
   ],
 })
 export class PlanningModule {}

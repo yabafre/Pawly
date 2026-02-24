@@ -8,6 +8,8 @@ import type { PlanningTemplateService } from '@/modules/planning/planning-templa
 import type { EquityCounterService } from '@/modules/planning/equity-counter.service';
 import type { PlanningGenerationService } from '@/modules/planning/planning-generation.service';
 import type { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
+import type { VarianceService } from '@/modules/planning/variance.service';
+import type { DashboardService } from '@/modules/dashboard/dashboard.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { AuthenticatedUser } from '@pawly/types';
@@ -22,6 +24,8 @@ export interface TRPCServices {
   planningGenerationService: PlanningGenerationService;
   equityCounterService: EquityCounterService;
   apprenticeDeclarationService: ApprenticeDeclarationService;
+  varianceService: VarianceService;
+  dashboardService: DashboardService;
   jwtService: JwtService;
   prisma: PrismaService;
 }

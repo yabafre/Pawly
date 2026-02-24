@@ -169,3 +169,21 @@ export type {
   PublishPlanResult,
   PublicationStatusResult,
 } from "./equity-alert.schema";
+
+export {
+  VARIANCE_EVENT_STATUSES,
+  VARIANCE_EVENT_TYPES,
+  listVarianceEventsSchema,
+  reviewVarianceSchema,
+  getVarianceStatsSchema,
+  exportVarianceSchema,
+} from "./variance.schema";
+
+export type {
+  VarianceEventStatus,
+  VarianceEventType,
+  ListVarianceEventsInput,
+  ReviewVarianceInput,
+  GetVarianceStatsInput,
+  ExportVarianceInput,
+} from "./variance.schema";
