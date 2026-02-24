@@ -3,21 +3,7 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
-
-type TemplateSlot = {
-  shiftTypeCode: string;
-  requiredStaff: number;
-  requiredJobTypes?: string[];
-};
-
-type TemplateDay = {
-  dayOfWeek: number;
-  slots: TemplateSlot[];
-};
-
-type TemplateData = {
-  days: TemplateDay[];
-};
+import type { TemplateSlot, TemplateDay, TemplateData } from "@pawly/types";
 
 type Props = {
   data: TemplateData;

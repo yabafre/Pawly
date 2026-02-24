@@ -234,38 +234,38 @@ describe("VariancePageClient", () => {
 // ── VarianceStatusFilter ──────────────────────────────────────────────
 
 describe("VarianceStatusFilter", () => {
-  it("renders all 4 filter tabs", () => {
+  it("renders all 4 filter buttons in a group", () => {
     const onSelect = vi.fn();
     render(<VarianceStatusFilter selected={undefined} onSelect={onSelect} />);
 
-    expect(screen.getByRole("tablist")).toBeInTheDocument();
-    expect(screen.getAllByRole("tab")).toHaveLength(4);
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 
-  it("marks selected tab with aria-selected", () => {
+  it("marks selected button with aria-pressed", () => {
     const onSelect = vi.fn();
     render(<VarianceStatusFilter selected="PENDING" onSelect={onSelect} />);
 
-    const tabs = screen.getAllByRole("tab");
-    const pendingTab = tabs.find(t => t.textContent === "pending");
-    expect(pendingTab).toHaveAttribute("aria-selected", "true");
+    const buttons = screen.getAllByRole("button");
+    const pendingBtn = buttons.find(b => b.textContent === "pending");
+    expect(pendingBtn).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("calls onSelect when clicking a tab", () => {
+  it("calls onSelect when clicking a filter button", () => {
     const onSelect = vi.fn();
     render(<VarianceStatusFilter selected={undefined} onSelect={onSelect} />);
 
-    const tabs = screen.getAllByRole("tab");
-    fireEvent.click(tabs[1]); // PENDING tab
+    const buttons = screen.getAllByRole("button");
+    fireEvent.click(buttons[1]); // PENDING button
     expect(onSelect).toHaveBeenCalledWith("PENDING");
   });
 
-  it("calls onSelect with undefined for 'all' tab", () => {
+  it("calls onSelect with undefined for 'all' button", () => {
     const onSelect = vi.fn();
     render(<VarianceStatusFilter selected="PENDING" onSelect={onSelect} />);
 
-    const tabs = screen.getAllByRole("tab");
-    fireEvent.click(tabs[0]); // All tab
+    const buttons = screen.getAllByRole("button");
+    fireEvent.click(buttons[0]); // All button
     expect(onSelect).toHaveBeenCalledWith(undefined);
   });
 });

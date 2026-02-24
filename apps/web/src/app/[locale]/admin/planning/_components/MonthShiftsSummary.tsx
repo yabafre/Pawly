@@ -14,22 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useScheduleView } from "../_hooks/useScheduleView";
 import type { GenerationResult } from "@pawly/validators";
-
-type ShiftData = {
-  id: string;
-  date: Date | string;
-  startTime: string;
-  endTime: string;
-  shiftTypeCode: string;
-  source: string;
-  employee?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    color?: string | null;
-    jobType: string;
-  } | null;
-};
+import type { ShiftData } from "@pawly/types";
 
 type Props = {
   shifts: ShiftData[];

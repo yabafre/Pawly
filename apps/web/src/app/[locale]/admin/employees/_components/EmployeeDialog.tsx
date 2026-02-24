@@ -8,21 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmployeeForm } from "./EmployeeForm";
-
-type Employee = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  jobType: string;
-  contractType: string;
-  contractHours: number;
-  color: string;
-  isActive: boolean;
-  hireDate: string | null;
-  endDate: string | null;
-};
+import type { Employee } from "@pawly/types";
 
 type EmployeeDialogProps = {
   open: boolean;

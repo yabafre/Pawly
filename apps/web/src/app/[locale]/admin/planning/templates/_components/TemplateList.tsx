@@ -20,29 +20,7 @@ import {
 import { Calendar, ChevronRight, Copy, Edit2, Layout, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
-
-type TemplateSlot = {
-  shiftTypeCode: string;
-  requiredStaff: number;
-  requiredJobTypes?: string[];
-};
-
-type TemplateDay = {
-  dayOfWeek: number;
-  slots: TemplateSlot[];
-};
-
-type TemplateData = {
-  days: TemplateDay[];
-};
-
-type TemplateRecord = {
-  id: string;
-  name: string;
-  data: unknown;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-};
+import type { TemplateSlot, TemplateDay, TemplateData, TemplateRecord } from "@pawly/types";
 
 type Props = {
   templates: TemplateRecord[];

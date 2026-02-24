@@ -5,21 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CalendarClock, GraduationCap, Mail, Pencil, UserCheck, UserX } from "lucide-react";
-
-type Employee = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  jobType: string;
-  contractType: string;
-  contractHours: number;
-  color: string;
-  isActive: boolean;
-  hireDate: string | null;
-  endDate: string | null;
-};
+import type { Employee } from "@pawly/types";
 
 type EmployeeCardProps = {
   employee: Employee;

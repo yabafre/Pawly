@@ -23,15 +23,8 @@ import {
   skillRequirementConfigSchema,
   contractComplianceConfigSchema,
 } from '@pawly/validators';
+import type { EquityContext } from '@pawly/validators';
 import type { CounterWithEmployee } from './equity-counter.service';
-
-export type EquityContext = {
-  counterType: string;
-  currentCount: number;
-  maxPerPeriod: number;
-  clinicAverage: number;
-  trend: 'below_average' | 'average' | 'above_average';
-};
 
 type HardViolation = {
   ruleId: string;

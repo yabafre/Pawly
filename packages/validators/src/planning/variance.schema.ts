@@ -75,6 +75,7 @@ export const exportVarianceSchema = z.object({
       "Month must be in YYYY-MM format (01-12)",
     ),
   employeeId: z.string().uuid().optional(),
+  locale: z.enum(["fr", "en"]).default("fr"),
 });
 
 export type ExportVarianceInput = z.infer<typeof exportVarianceSchema>;

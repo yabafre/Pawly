@@ -717,7 +717,7 @@
         "empty": "No attendance variance for this period.",
         "planned": "Planned",
         "actual": "Actual",
-        "delta": "{minutes, plural, =1 {# min deviation} other {# min deviation}}",
+        "delta": "{minutes, plural, =0 {0 min} =1 {# min deviation} other {# min deviation}}",
         "notConfirmed": "Not confirmed",
         "reason": "Exception note",
         "employee": "Employee",
@@ -741,7 +741,7 @@
         "pendingCount": "Pending",
         "avgDelta": "Avg. deviation",
         "noShowCount": "No-shows",
-        "minutes": "{count} min"
+        "minutes": "{count, plural, =0 {0 min} =1 {1 min} other {# min}}"
       },
       "monthSelector": {
         "label": "Month"
@@ -1366,8 +1366,7 @@
   "settings": {
     "tabs": {
       "operational": "General",
-      "shiftTypes": "Shift Types",
-      "planningRules": "Planning Rules"
+      "shiftTypes": "Shift Types"
     },
     "shiftTypes": {
       "title": "Shift Types",

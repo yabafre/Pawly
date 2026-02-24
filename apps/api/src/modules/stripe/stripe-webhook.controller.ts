@@ -17,16 +17,11 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
 import { deriveEntitlementTier } from './stripe.utils';
-
-type SubscriptionStatus =
-  | 'trialing'
-  | 'active'
-  | 'past_due'
-  | 'canceled'
-  | 'unpaid';
-
-type CouponMetadataType = 'partner' | 'internal' | 'lifetime';
-type DiscountType = 'percent' | 'amount';
+import type {
+  SubscriptionStatus,
+  CouponMetadataType,
+  DiscountType,
+} from '@pawly/validators';
 
 type PromotionData = {
   promotionCodeId: string | null;

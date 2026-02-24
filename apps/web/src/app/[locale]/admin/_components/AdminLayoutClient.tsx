@@ -145,6 +145,11 @@ function GroupDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+        aria-expanded={open}
+        aria-haspopup="true"
         className={cn(
           "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
           active

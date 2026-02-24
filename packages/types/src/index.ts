@@ -7,3 +7,7 @@
 
 export * from "./auth";
 export * from "./common";
+export * from "./employee";
+export * from "./planning";
+export * from "./clinic";
+export * from "./dashboard";

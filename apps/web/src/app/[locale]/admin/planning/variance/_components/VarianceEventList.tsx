@@ -8,28 +8,9 @@ import { Clock, AlertCircle, LogOut, Check, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import type { VarianceEventItem } from "@pawly/types";
 
-export interface VarianceEventItem {
-  id: string;
-  type: string;
-  status: string;
-  plannedTime: string;
-  actualTime: string;
-  deltaMinutes: number;
-  exceptionNote?: string | null;
-  shift: {
-    shiftTypeCode: string;
-    startTime: string;
-    endTime: string;
-    date: string;
-    employee: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      jobType: string;
-    };
-  };
-}
+export type { VarianceEventItem } from "@pawly/types";
 
 const TYPE_ICONS: Record<string, LucideIcon> = {
   CLOCK_IN_DEVIATION: Clock,
@@ -50,6 +31,9 @@ const STATUS_STYLES: Record<string, string> = {
   APPROVED: "bg-emerald-100 text-emerald-700",
   REJECTED: "bg-rose-100 text-rose-700",
 };
+
+type VarianceTypeKey = "types.CLOCK_IN_DEVIATION" | "types.CLOCK_OUT_DEVIATION" | "types.NO_SHOW" | "types.EARLY_DEPARTURE";
+type VarianceStatusKey = "status.PENDING" | "status.APPROVED" | "status.REJECTED";
 
 interface VarianceEventListProps {
   events: VarianceEventItem[];
@@ -153,7 +137,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                       TYPE_STYLES[event.type] ?? "bg-neutral-100 text-neutral-600",
                     )}
                   >
-                    {t(`types.${event.type}` as any)}
+                    {t(`types.${event.type}` as VarianceTypeKey)}
                   </span>
                   <span
                     className={cn(
@@ -161,7 +145,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                       STATUS_STYLES[event.status] ?? "bg-neutral-100 text-neutral-600",
                     )}
                   >
-                    {t(`status.${event.status}` as any)}
+                    {t(`status.${event.status}` as VarianceStatusKey)}
                   </span>
                   {isPendingStatus && (
                     <>

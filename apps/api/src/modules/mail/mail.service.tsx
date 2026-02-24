@@ -19,7 +19,7 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   /** Resend allows 2 req/s — enforce 550ms min gap between sends */
   private static readonly MIN_SEND_INTERVAL_MS = 550;
-  private lastSendAt = 0;
+  private throttleChain: Promise<void> = Promise.resolve();
 
   constructor(private configService: ConfigService<EnvConfig, true>) {
     this.resend = new Resend(
@@ -27,13 +27,11 @@ export class MailService {
     );
   }
 
-  private async throttle(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastSendAt;
-    if (elapsed < MailService.MIN_SEND_INTERVAL_MS) {
-      await new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS - elapsed));
-    }
-    this.lastSendAt = Date.now();
+  private throttle(): Promise<void> {
+    this.throttleChain = this.throttleChain.then(
+      () => new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+    );
+    return this.throttleChain;
   }
 
   async sendMagicLink(email: string, url: string) {

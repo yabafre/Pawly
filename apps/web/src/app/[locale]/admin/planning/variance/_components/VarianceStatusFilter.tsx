@@ -19,15 +19,14 @@ export function VarianceStatusFilter({ selected, onSelect }: VarianceStatusFilte
   const t = useTranslations("admin.variance.tabs");
 
   return (
-    <div role="tablist" className="flex gap-2 overflow-x-auto pb-1">
+    <div role="group" aria-label={t("all")} className="flex gap-2 overflow-x-auto pb-1">
       {FILTERS.map((filter) => {
         const isActive = selected === filter.key;
         return (
           <button
             key={filter.labelKey}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() => onSelect(filter.key)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",

@@ -8,35 +8,7 @@ import { useClinicShiftTypes } from "@/app/[locale]/admin/settings/_hooks/useCli
 import { useClinicOperationalConfig } from "@/app/[locale]/admin/settings/_hooks/useClinicOperationalConfig";
 import { TemplateList } from "./TemplateList";
 import { TemplateEditor } from "./TemplateEditor";
-
-type TemplateSlot = {
-  shiftTypeCode: string;
-  requiredStaff: number;
-  requiredJobTypes?: string[];
-};
-
-type TemplateDay = {
-  dayOfWeek: number;
-  slots: TemplateSlot[];
-};
-
-type TemplateData = {
-  days: TemplateDay[];
-};
-
-type TemplateRecord = {
-  id: string;
-  name: string;
-  data: unknown;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-};
-
-type EditableTemplate = {
-  id: string;
-  name: string;
-  data: TemplateData;
-};
+import type { TemplateSlot, TemplateDay, TemplateData, TemplateRecord, EditableTemplate } from "@pawly/types";
 
 function parseTemplateData(data: unknown): TemplateData {
   if (data && typeof data === "object" && "days" in data && Array.isArray((data as TemplateData).days)) {

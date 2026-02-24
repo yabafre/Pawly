@@ -717,7 +717,7 @@
         "empty": "Aucun écart de présence pour cette période.",
         "planned": "Planifié",
         "actual": "Réel",
-        "delta": "{minutes, plural, =1 {# min d'écart} other {# min d'écart}}",
+        "delta": "{minutes, plural, =0 {0 min} =1 {# min d'écart} other {# min d'écart}}",
         "notConfirmed": "Non confirmé",
         "reason": "Note d'exception",
         "employee": "Employé",
@@ -741,7 +741,7 @@
         "pendingCount": "En attente",
         "avgDelta": "Écart moyen",
         "noShowCount": "Absences",
-        "minutes": "{count} min"
+        "minutes": "{count, plural, =0 {0 min} =1 {1 min} other {# min}}"
       },
       "monthSelector": {
         "label": "Mois"
@@ -1366,8 +1366,7 @@
   "settings": {
     "tabs": {
       "operational": "Général",
-      "shiftTypes": "Types de quarts",
-      "planningRules": "Règles de planning"
+      "shiftTypes": "Types de quarts"
     },
     "shiftTypes": {
       "title": "Types de quarts",

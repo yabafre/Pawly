@@ -14,7 +14,7 @@ import {
 } from "../_actions/variance-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 export const useAdminVarianceEvents = (filters?: {
   status?: string;
@@ -64,9 +64,6 @@ export const useReviewVariance = () => {
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["variance-events"] });
-    queryClient.invalidateQueries({
-      queryKey: QueryKeyFactory.pendingVarianceCount(),
-    });
   };
 
   const { mutate, isPending, error } = useServerActionMutation(
@@ -103,6 +100,7 @@ export const useReviewVariance = () => {
 
 export const useExportVarianceCsv = () => {
   const t = useTranslations("admin.variance.toast");
+  const locale = useLocale();
 
   const { mutate, isPending } = useServerActionMutation(
     exportVarianceCsvAction,
@@ -110,7 +108,7 @@ export const useExportVarianceCsv = () => {
 
   const exportCsv = (month: string, employeeId?: string) => {
     mutate(
-      { month, employeeId },
+      { month, employeeId, locale: locale as "fr" | "en" },
       {
         onSuccess: (csv) => {
           const blob = new Blob(["\uFEFF" + csv], {

@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import type { DashboardStats } from '@pawly/types';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getStats(clinicId: string) {
+  async getStats(clinicId: string): Promise<DashboardStats> {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     const monthStart = new Date(Date.UTC(year, month, 1));
     const monthEnd = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+    const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
     const [
       activeEmployees,
@@ -18,7 +20,9 @@ export class DashboardService {
       pendingAbsences,
       pendingVariances,
       monthShifts,
-      undeclaredApprenticeCount,
+      totalApprentices,
+      apprenticesWithSchool,
+      noSchoolDeclarations,
     ] = await Promise.all([
       this.prisma.employee.count({
         where: { clinicId, isActive: true },
@@ -39,29 +43,38 @@ export class DashboardService {
         select: { startTime: true, endTime: true, breakMinutes: true },
       }),
       this.prisma.employee.count({
+        where: { clinicId, isActive: true, contractType: 'APPRENTICESHIP' },
+      }),
+      this.prisma.employee.count({
         where: {
           clinicId,
           isActive: true,
-          jobType: 'APPRENTICE',
-          NOT: {
-            unavailabilities: {
-              some: {
-                type: 'SCHOOL',
-                startDate: { lte: monthEnd },
-                endDate: { gte: monthStart },
-              },
+          contractType: 'APPRENTICESHIP',
+          unavailabilities: {
+            some: {
+              type: 'SCHOOL',
+              startDate: { lte: monthEnd },
+              endDate: { gte: monthStart },
             },
           },
         },
       }),
+      this.prisma.apprenticeMonthDeclaration.count({
+        where: { clinicId, month: monthStr, status: 'NO_SCHOOL_THIS_MONTH' },
+      }),
     ]);
+
+    const undeclaredApprenticeCount = Math.max(
+      0,
+      totalApprentices - apprenticesWithSchool - noSchoolDeclarations,
+    );
 
     let totalPlannedMinutes = 0;
     for (const shift of monthShifts) {
       const [startH, startM] = shift.startTime.split(':').map(Number);
       const [endH, endM] = shift.endTime.split(':').map(Number);
       const grossMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-      totalPlannedMinutes += grossMinutes - shift.breakMinutes;
+      totalPlannedMinutes += grossMinutes;
     }
 
     const d = new Date(now);
@@ -84,7 +97,7 @@ export class DashboardService {
       totalShifts: monthShifts.length,
       weekNumber,
       undeclaredApprenticeCount,
-      monthLabel: `${year}-${String(month + 1).padStart(2, '0')}`,
+      monthLabel: monthStr,
     };
   }
 }

@@ -2,6 +2,36 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '@/prisma/prisma.service';
 import type { ListVarianceEventsInput, ExportVarianceInput } from '@pawly/validators';
 
+const CSV_I18N: Record<string, {
+  header: string;
+  types: Record<string, string>;
+  statuses: Record<string, string>;
+  noShow: string;
+}> = {
+  fr: {
+    header: 'Employé,Poste,Date,Type de shift,Type d\'écart,Heure planifiée,Heure réelle,Écart (min),Statut,Note',
+    types: {
+      CLOCK_IN_DEVIATION: 'Retard arrivée',
+      CLOCK_OUT_DEVIATION: 'Écart départ',
+      NO_SHOW: 'Absence non confirmée',
+      EARLY_DEPARTURE: 'Départ anticipé',
+    },
+    statuses: { PENDING: 'En attente', APPROVED: 'Approuvé', REJECTED: 'Rejeté' },
+    noShow: 'N/A',
+  },
+  en: {
+    header: 'Employee,Position,Date,Shift type,Deviation type,Planned time,Actual time,Deviation (min),Status,Note',
+    types: {
+      CLOCK_IN_DEVIATION: 'Late arrival',
+      CLOCK_OUT_DEVIATION: 'Departure deviation',
+      NO_SHOW: 'Unconfirmed absence',
+      EARLY_DEPARTURE: 'Early departure',
+    },
+    statuses: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' },
+    noShow: 'N/A',
+  },
+};
+
 @Injectable()
 export class VarianceService {
   constructor(private readonly prisma: PrismaService) {}
@@ -154,45 +184,32 @@ export class VarianceService {
       orderBy: { plannedTime: 'asc' },
     });
 
+    const locale = filters.locale ?? 'fr';
+    const i18n = CSV_I18N[locale] ?? CSV_I18N.fr;
     const escCsv = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const header =
-      'Employé,Poste,Date,Type de shift,Type d\'écart,Heure planifiée,Heure réelle,Écart (min),Statut,Note';
-
-    const typeLabels: Record<string, string> = {
-      CLOCK_IN_DEVIATION: 'Retard arrivée',
-      CLOCK_OUT_DEVIATION: 'Écart départ',
-      NO_SHOW: 'Absence non confirmée',
-      EARLY_DEPARTURE: 'Départ anticipé',
-    };
-
-    const statusLabels: Record<string, string> = {
-      PENDING: 'En attente',
-      APPROVED: 'Approuvé',
-      REJECTED: 'Rejeté',
-    };
 
     const rows = events.map((e) => {
       const emp = e.shift.employee;
       const name = `${emp.lastName} ${emp.firstName}`;
       const date = e.plannedTime.toISOString().split('T')[0];
       const planned = e.plannedTime.toISOString().slice(11, 16);
-      const actual = e.actualTime.toISOString().slice(11, 16);
+      const actual = e.type === 'NO_SHOW' ? i18n.noShow : e.actualTime.toISOString().slice(11, 16);
       return [
         name,
         emp.jobType,
         date,
         e.shift.shiftTypeCode,
-        typeLabels[e.type] || e.type,
+        i18n.types[e.type] || e.type,
         planned,
         actual,
         String(e.deltaMinutes),
-        statusLabels[e.status] || e.status,
+        i18n.statuses[e.status] || e.status,
         e.exceptionNote || '',
       ]
         .map(escCsv)
         .join(',');
     });
 
-    return [header, ...rows].join('\n');
+    return [i18n.header, ...rows].join('\n');
   }
 }
