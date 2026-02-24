@@ -610,6 +610,71 @@
         "removeDeclaration": "Supprimer la déclaration"
       },
       "empty": "Aucun apprenti dans cette clinique"
+    },
+    "absences": {
+      "title": "Demandes d'absence",
+      "subtitle": "Consultez et gérez les demandes d'absence des employés.",
+      "tabs": {
+        "all": "Toutes",
+        "pending": "En attente",
+        "approved": "Approuvées",
+        "rejected": "Refusées"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 en attente} other {# en attente}}",
+      "list": {
+        "empty": "Aucune demande d'absence.",
+        "emptyPending": "Aucune demande en attente.",
+        "dayCount": "{count, plural, =0 {Aucun jour} =1 {1 jour} other {# jours}}",
+        "from": "Du",
+        "to": "Au",
+        "reason": "Motif",
+        "noReason": "Aucun motif fourni",
+        "rejectionReason": "Motif du refus",
+        "employee": "Employé"
+      },
+      "actions": {
+        "approve": "Approuver",
+        "reject": "Refuser",
+        "approving": "Approbation...",
+        "rejecting": "Refus..."
+      },
+      "rejectDialog": {
+        "title": "Refuser la demande d'absence",
+        "description": "Veuillez fournir un motif pour le refus de cette demande.",
+        "reasonLabel": "Motif du refus",
+        "reasonPlaceholder": "Expliquez pourquoi cette demande est refusée...",
+        "confirm": "Confirmer le refus",
+        "cancel": "Annuler"
+      },
+      "adminCreate": {
+        "title": "Créer une absence",
+        "subtitle": "Créez une absence directement pour un employé (approbation automatique).",
+        "selectEmployee": "Sélectionner un employé",
+        "selectType": "Type d'absence",
+        "reasonPlaceholder": "Décrivez le motif de l'absence...",
+        "submit": "Créer l'absence",
+        "submitting": "Création..."
+      },
+      "types": {
+        "PAID_LEAVE": "Congé payé",
+        "SICK_LEAVE": "Arrêt maladie",
+        "TRAINING": "Formation",
+        "CHILD_SICK": "Enfant malade",
+        "OTHER": "Autre"
+      },
+      "status": {
+        "PENDING": "En attente",
+        "APPROVED": "Approuvée",
+        "REJECTED": "Refusée"
+      },
+      "toast": {
+        "approved": "Demande d'absence approuvée.",
+        "rejected": "Demande d'absence refusée.",
+        "created": "Absence créée avec succès.",
+        "errorApprove": "Erreur lors de l'approbation de la demande.",
+        "errorReject": "Erreur lors du refus de la demande.",
+        "errorCreate": "Erreur lors de la création de l'absence."
+      }
     }
   },
   "brand": {
@@ -682,7 +747,8 @@
     "nav": {
       "title": "Pawly Employé",
       "home": "Accueil",
-      "schoolDays": "Jours d'école"
+      "schoolDays": "Jours d'école",
+      "absences": "Absences"
     },
     "schoolDays": {
       "title": "Déclaration des jours d'école",
@@ -719,6 +785,49 @@
         "declared": "Déclaré",
         "notDeclared": "Non déclaré",
         "schoolDaysFor": "Jours d'école pour {month}"
+      }
+    },
+    "absences": {
+      "title": "Demandes d'absence",
+      "subtitle": "Soumettez et suivez vos demandes d'absence.",
+      "form": {
+        "title": "Demander une absence",
+        "selectType": "Sélectionnez le type d'absence",
+        "dateRange": "Période",
+        "startDate": "Date de début",
+        "endDate": "Date de fin",
+        "reason": "Motif (optionnel)",
+        "reasonPlaceholder": "Décrivez le motif de votre absence...",
+        "submit": "Soumettre la demande",
+        "submitting": "Envoi en cours..."
+      },
+      "types": {
+        "PAID_LEAVE": "Congé payé",
+        "SICK_LEAVE": "Arrêt maladie",
+        "TRAINING": "Formation",
+        "CHILD_SICK": "Enfant malade",
+        "OTHER": "Autre"
+      },
+      "status": {
+        "PENDING": "En attente",
+        "APPROVED": "Approuvée",
+        "REJECTED": "Refusée",
+        "label": "{status, select, PENDING {En attente} APPROVED {Approuvée} REJECTED {Refusée} other {Inconnu}}"
+      },
+      "dayCount": "{count, plural, =0 {Aucun jour} =1 {1 jour} other {# jours}}",
+      "list": {
+        "title": "Mes demandes",
+        "empty": "Aucune demande d'absence.",
+        "rejectionReason": "Motif du refus",
+        "from": "Du",
+        "to": "Au"
+      },
+      "overlap": {
+        "warning": "Chevauchement détecté avec une absence ou indisponibilité existante du {startDate} au {endDate}."
+      },
+      "toast": {
+        "success": "Demande d'absence soumise avec succès.",
+        "error": "Erreur lors de la soumission de la demande."
       }
     },
     "title": "Tableau de bord",

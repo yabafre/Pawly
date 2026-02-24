@@ -3,102 +3,20 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
-    ArrowRight,
     Briefcase,
-    Calendar,
+    CalendarOff,
     Check,
     CheckCircle2,
-    ChevronLeft,
-    GraduationCap,
     Palmtree,
     Plane,
-    Plus,
-    Thermometer,
-    Baby,
 } from "lucide-react";
+import { Link } from "@/i18n/navigation";
 import { useFormattedDate } from "@/lib/hooks/useFormattedDate";
 import { useFormattedNumber } from "@/lib/hooks/useFormattedNumber";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const AbsenceRequestView = ({
-    onSubmit,
-    onCancel,
-}: {
-    onSubmit: (data: { type: string; date: string }) => void;
-    onCancel: () => void;
-}) => {
-    const t = useTranslations("dashboard");
-    const { formatDate } = useFormattedDate();
-    const [selectedType, setSelectedType] = useState<string | null>(null);
-    // Demo date — would come from a date picker in a real implementation
-    const selectedDate = new Date(2024, 9, 15); // October 15, 2024
-
-    const REQUEST_TYPES = [
-        { id: "vacation", label: t("requestTypes.vacation"), icon: Plane, color: "bg-emerald-100 text-emerald-700" },
-        { id: "sick", label: t("requestTypes.sick"), icon: Thermometer, color: "bg-rose-100 text-rose-700" },
-        { id: "school", label: t("requestTypes.school"), icon: GraduationCap, color: "bg-neutral-100 text-neutral-700" },
-        { id: "child", label: t("requestTypes.child"), icon: Baby, color: "bg-blue-100 text-blue-700" },
-    ];
-
-    return (
-        <div className="space-y-4 sm:space-y-6 animate-in slide-in-from-right duration-500">
-            <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-8">
-                <button onClick={onCancel} className="p-1.5 sm:p-2 hover:bg-neutral-100 rounded-full">
-                    <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
-                <h2 className="text-xl sm:text-2xl font-bold">{t("newRequest")}</h2>
-            </div>
-
-            <div className="space-y-2">
-                <label className="text-xs sm:text-sm font-bold text-neutral-400 uppercase tracking-wider ml-2">
-                    {t("absenceType")}
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                    {REQUEST_TYPES.map((type) => (
-                        <div
-                            key={type.id}
-                            onClick={() => setSelectedType(type.id)}
-                            className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 cursor-pointer transition-all flex flex-col items-center gap-1.5 sm:gap-2 text-center ${selectedType === type.id ? "border-neutral-900 bg-neutral-50" : "border-transparent bg-white shadow-sm"}`}
-                        >
-                            <div className={`p-2 sm:p-3 rounded-full ${type.color}`}>
-                                <type.icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                            </div>
-                            <span className="font-bold text-xs sm:text-sm text-neutral-900">{type.label}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {selectedType && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4">
-                    <label className="text-xs sm:text-sm font-bold text-neutral-400 uppercase tracking-wider ml-2">
-                        {t("dates")}
-                    </label>
-                    <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm border border-neutral-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                            <Calendar className="h-5 w-5 text-neutral-400 shrink-0" />
-                            <span className="font-bold text-sm sm:text-base text-neutral-900 truncate">{formatDate(selectedDate, 'fullWithWeekday')}</span>
-                        </div>
-                        <span className="text-xs sm:text-sm text-neutral-400 shrink-0">{t("allDay")}</span>
-                    </div>
-
-                    <div className="mt-6 sm:mt-8">
-                        <button
-                            onClick={() => onSubmit({ type: selectedType, date: formatDate(selectedDate, 'short') })}
-                            className="w-full py-3 sm:py-4 bg-neutral-900 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg shadow-lg shadow-neutral-900/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
-                        >
-                            {t("sendRequest")}
-                            <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => void }) => {
+const EmployeeDashboard = () => {
     const t = useTranslations("dashboard");
     const { formatDate, formatTime } = useFormattedDate();
     const { formatHours } = useFormattedNumber();
@@ -147,19 +65,21 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
                     </div>
                 </Card>
 
-                <Card onClick={navigateToRequest} className="p-3 sm:p-4 flex flex-col justify-between h-32 sm:h-36 hover:bg-neutral-50 border-dashed border-2 border-neutral-200 shadow-none cursor-pointer rounded-2xl">
-                    <div className="flex justify-end">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-100 flex items-center justify-center">
-                            <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-600" />
+                <Link href="/dashboard/absences">
+                    <Card className="p-3 sm:p-4 flex flex-col justify-between h-32 sm:h-36 hover:bg-neutral-50 border-dashed border-2 border-neutral-200 shadow-none cursor-pointer rounded-2xl">
+                        <div className="flex justify-end">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-100 flex items-center justify-center">
+                                <CalendarOff className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-600" />
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <div className="font-bold text-base sm:text-lg text-neutral-900 leading-tight">
-                            {t("requestAbsence")}
+                        <div>
+                            <div className="font-bold text-base sm:text-lg text-neutral-900 leading-tight">
+                                {t("requestAbsence")}
+                            </div>
+                            <div className="text-[10px] sm:text-xs text-neutral-500 mt-1">{t("absenceTypes")}</div>
                         </div>
-                        <div className="text-[10px] sm:text-xs text-neutral-500 mt-1">{t("absenceTypes")}</div>
-                    </div>
-                </Card>
+                    </Card>
+                </Link>
             </div>
 
             {/* Today */}
@@ -217,15 +137,5 @@ const EmployeeDashboard = ({ navigateToRequest }: { navigateToRequest: () => voi
 };
 
 export const DashboardClient = () => {
-    const [employeeView, setEmployeeView] = useState<"dashboard" | "request">("dashboard");
-
-    const handleRequestSubmit = () => {
-        setEmployeeView("dashboard");
-    };
-
-    return employeeView === "dashboard" ? (
-        <EmployeeDashboard navigateToRequest={() => setEmployeeView("request")} />
-    ) : (
-        <AbsenceRequestView onSubmit={handleRequestSubmit} onCancel={() => setEmployeeView("dashboard")} />
-    );
+    return <EmployeeDashboard />;
 };
