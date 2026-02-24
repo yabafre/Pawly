@@ -9,6 +9,7 @@ import { SchoolDaysReminderEmail } from './templates/SchoolDaysReminderEmail';
 import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
 import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
+import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import type { EnvConfig } from '@/config/index';
 import type { AbsenceType } from '@pawly/validators';
 
@@ -16,6 +17,9 @@ import type { AbsenceType } from '@pawly/validators';
 export class MailService {
   private resend: Resend;
   private readonly logger = new Logger(MailService.name);
+  /** Resend allows 2 req/s — enforce 550ms min gap between sends */
+  private static readonly MIN_SEND_INTERVAL_MS = 550;
+  private throttleChain: Promise<void> = Promise.resolve();
 
   constructor(private configService: ConfigService<EnvConfig, true>) {
     this.resend = new Resend(
@@ -23,10 +27,18 @@ export class MailService {
     );
   }
 
+  private throttle(): Promise<void> {
+    this.throttleChain = this.throttleChain.then(
+      () => new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+    );
+    return this.throttleChain;
+  }
+
   async sendMagicLink(email: string, url: string) {
     try {
       const html = await render(<MagicLinkEmail url={url} />);
 
+      await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -50,6 +62,7 @@ export class MailService {
     try {
       const html = await render(<ActivationEmail url={url} adminName={adminName} />);
 
+      await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -73,6 +86,7 @@ export class MailService {
     try {
       const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
@@ -105,6 +119,7 @@ export class MailService {
         />,
       );
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: adminEmail,
@@ -130,11 +145,21 @@ export class MailService {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard`;
 
+      const html = await render(
+        <SchedulePublicationEmail
+          firstName={firstName}
+          month={month}
+          clinicName={clinicName}
+          dashboardUrl={dashboardUrl}
+        />,
+      );
+
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: employeeEmail,
         subject: `${clinicName} — Votre planning pour ${month} est publié`,
-        html: `<p>Bonjour ${firstName},</p><p>Le planning pour <strong>${month}</strong> a été publié par ${clinicName}.</p><p>Consultez vos créneaux sur <a href="${dashboardUrl}">votre espace Pawly</a>.</p><p>L'équipe Pawly</p>`,
+        html,
       });
 
       if (error) {
@@ -157,6 +182,7 @@ export class MailService {
         <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} />,
       );
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: apprenticeEmail,
@@ -196,6 +222,7 @@ export class MailService {
         />,
       );
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: adminEmail,
@@ -237,6 +264,7 @@ export class MailService {
 
       const statusLabel = status === 'APPROVED' ? 'approuvée' : 'refusée';
 
+      await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: employeeEmail,

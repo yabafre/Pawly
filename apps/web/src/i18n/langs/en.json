@@ -89,30 +89,36 @@
     "nav": {
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
-      "planning": "Planning",
-      "settings": "Settings",
-      "requests": "Requests",
+      "team": "Team",
       "employees": "Employees",
       "absences": "Absences",
-      "billing": "Billing",
-      "planningRules": "Planning Rules",
+      "planning": "Planning",
+      "planningView": "Schedule",
+      "templates": "Templates",
       "equityCounters": "Equity",
-      "templates": "Templates"
+      "variance": "Variance",
+      "planningRules": "Rules",
+      "billing": "Billing",
+      "settings": "Settings"
     },
     "dashboard": {
       "overview": "Overview",
-      "weeklyTracking": "Weekly tracking and request status",
-      "autoGenerate": "Auto-Generate",
-      "weekPlanning": "Week planning",
-      "targetReached": "Target {hours}h reached",
+      "subtitle": "Summary of your clinic activity",
+      "monthlyPlanning": "Monthly planning",
+      "hoursPlanned": "{hours}h planned",
+      "shiftsCount": "{count, plural, =0 {No shifts} one {# shift} other {# shifts}}",
       "pendingRequests": "Pending requests",
-      "validateQuickly": "To validate quickly",
+      "pendingDetail": "{absences, plural, =0 {} one {# absence} other {# absences}}{both, select, true { + } other {}}{variances, plural, =0 {} one {# variance} other {# variances}}",
+      "noPending": "No pending requests",
       "activeTeam": "Active team",
-      "vetAndAsv": "Vets & ASV",
+      "teamBreakdown": "{count, plural, one {# team member} other {# team members}}",
       "quickSummary": "Quick summary",
       "week": "Week {number}",
-      "noBlockingConflict": "No blocking conflict detected. {count, plural, =0 {No warnings} one {# soft warning} other {# soft warnings}} to monitor.",
-      "apprenticesSchoolDays": "Apprentices have entered their school days."
+      "apprenticesOk": "All apprentices have declared their school days.",
+      "apprenticesWarning": "{count, plural, one {# apprentice hasn't} other {# apprentices haven't}} declared school days.",
+      "goToPlanning": "View planning",
+      "goToAbsences": "Manage absences",
+      "goToVariance": "View variances"
     },
     "planningRules": {
       "title": "Planning Rules",
@@ -684,6 +690,74 @@
         "errorApprove": "Failed to approve absence request.",
         "errorReject": "Failed to reject absence request.",
         "errorCreate": "Failed to create absence."
+      }
+    },
+    "variance": {
+      "title": "Attendance Variance",
+      "subtitle": "Compare planned schedules with actual confirmed attendance.",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 pending} other {# pending}}",
+      "types": {
+        "CLOCK_IN_DEVIATION": "Late arrival",
+        "CLOCK_OUT_DEVIATION": "Departure deviation",
+        "NO_SHOW": "Unconfirmed absence",
+        "EARLY_DEPARTURE": "Early departure"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "list": {
+        "empty": "No attendance variance for this period.",
+        "planned": "Planned",
+        "actual": "Actual",
+        "delta": "{minutes, plural, =0 {0 min} =1 {# min deviation} other {# min deviation}}",
+        "notConfirmed": "Not confirmed",
+        "reason": "Exception note",
+        "employee": "Employee",
+        "allEmployees": "All employees"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "exportCsv": "Export CSV"
+      },
+      "rejectDialog": {
+        "title": "Reject variance",
+        "description": "Provide a note explaining why this variance is rejected.",
+        "exceptionNoteLabel": "Exception note",
+        "exceptionNotePlaceholder": "Explain why this variance is rejected...",
+        "confirm": "Confirm rejection",
+        "cancel": "Cancel"
+      },
+      "stats": {
+        "totalEvents": "Total variances",
+        "pendingCount": "Pending",
+        "avgDelta": "Avg. deviation",
+        "noShowCount": "No-shows",
+        "minutes": "{count, plural, =0 {0 min} =1 {1 min} other {# min}}"
+      },
+      "monthSelector": {
+        "label": "Month"
+      },
+      "toast": {
+        "approved": "Variance approved.",
+        "rejected": "Variance rejected.",
+        "exported": "CSV export downloaded.",
+        "errorApprove": "Failed to approve variance.",
+        "errorReject": "Failed to reject variance.",
+        "errorExport": "Failed to export data."
+      },
+      "errors": {
+        "loadFailed": "Unable to load attendance variance.",
+        "loadFailedDescription": "Please retry or contact support.",
+        "retry": "Retry"
       }
     }
   },
@@ -1292,8 +1366,7 @@
   "settings": {
     "tabs": {
       "operational": "General",
-      "shiftTypes": "Shift Types",
-      "planningRules": "Planning Rules"
+      "shiftTypes": "Shift Types"
     },
     "shiftTypes": {
       "title": "Shift Types",

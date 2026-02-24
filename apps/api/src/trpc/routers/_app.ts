@@ -12,6 +12,8 @@ import { stripeRouter } from './stripe.router';
 import { clinicRouter } from './clinic.router';
 import { employeeRouter } from './employee.router';
 import { planningRouter } from './planning.router';
+import { varianceRouter } from './variance.router';
+import { dashboardRouter } from './dashboard.router';
 
 /**
  * Main application router
@@ -25,6 +27,8 @@ export const appRouter = router({
   clinic: clinicRouter,
   employee: employeeRouter,
   planning: planningRouter,
+  variance: varianceRouter,
+  dashboard: dashboardRouter,
 });
 
 /**

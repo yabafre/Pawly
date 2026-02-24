@@ -89,30 +89,36 @@
     "nav": {
       "title": "Pawly Admin",
       "dashboard": "Dashboard",
-      "planning": "Planning",
-      "settings": "Paramètres",
-      "requests": "Demandes",
+      "team": "Équipe",
       "employees": "Employés",
       "absences": "Absences",
-      "billing": "Facturation",
-      "planningRules": "Règles de planning",
+      "planning": "Planning",
+      "planningView": "Vue planning",
+      "templates": "Modèles",
       "equityCounters": "Équité",
-      "templates": "Modèles"
+      "variance": "Écarts",
+      "planningRules": "Règles",
+      "billing": "Facturation",
+      "settings": "Paramètres"
     },
     "dashboard": {
       "overview": "Vue d'ensemble",
-      "weeklyTracking": "Suivi hebdomadaire et état des demandes",
-      "autoGenerate": "Auto-Générer",
-      "weekPlanning": "Planning de la semaine",
-      "targetReached": "Objectif {hours}h atteint",
+      "subtitle": "Résumé de l'activité de votre clinique",
+      "monthlyPlanning": "Planning du mois",
+      "hoursPlanned": "{hours}h planifiées",
+      "shiftsCount": "{count, plural, =0 {Aucun créneau} one {# créneau} other {# créneaux}}",
       "pendingRequests": "Demandes en attente",
-      "validateQuickly": "À valider rapidement",
+      "pendingDetail": "{absences, plural, =0 {} one {# absence} other {# absences}}{both, select, true { + } other {}}{variances, plural, =0 {} one {# écart} other {# écarts}}",
+      "noPending": "Aucune demande en attente",
       "activeTeam": "Équipe active",
-      "vetAndAsv": "Vétos & ASV",
+      "teamBreakdown": "{count, plural, one {# collaborateur} other {# collaborateurs}}",
       "quickSummary": "Synthèse rapide",
       "week": "Semaine {number}",
-      "noBlockingConflict": "Aucun conflit bloquant détecté. {count, plural, =0 {Aucun avertissement} one {# avertissement soft} other {# avertissements soft}} à surveiller.",
-      "apprenticesSchoolDays": "Les apprentis ont bien renseigné leurs jours d'école."
+      "apprenticesOk": "Tous les apprentis ont renseigné leurs jours d'école.",
+      "apprenticesWarning": "{count, plural, one {# apprenti n'a pas} other {# apprentis n'ont pas}} déclaré ses jours d'école.",
+      "goToPlanning": "Voir le planning",
+      "goToAbsences": "Gérer les absences",
+      "goToVariance": "Voir les écarts"
     },
     "planningRules": {
       "title": "Règles de planning",
@@ -684,6 +690,74 @@
         "errorApprove": "Erreur lors de l'approbation de la demande.",
         "errorReject": "Erreur lors du refus de la demande.",
         "errorCreate": "Erreur lors de la création de l'absence."
+      }
+    },
+    "variance": {
+      "title": "Écarts de présence",
+      "subtitle": "Comparez les horaires planifiés avec la présence réelle confirmée.",
+      "tabs": {
+        "all": "Tous",
+        "pending": "En attente",
+        "approved": "Approuvés",
+        "rejected": "Rejetés"
+      },
+      "pendingBadge": "{count, plural, =0 {} =1 {1 en attente} other {# en attente}}",
+      "types": {
+        "CLOCK_IN_DEVIATION": "Retard d'arrivée",
+        "CLOCK_OUT_DEVIATION": "Écart de départ",
+        "NO_SHOW": "Absence non confirmée",
+        "EARLY_DEPARTURE": "Départ anticipé"
+      },
+      "status": {
+        "PENDING": "En attente",
+        "APPROVED": "Approuvé",
+        "REJECTED": "Rejeté"
+      },
+      "list": {
+        "empty": "Aucun écart de présence pour cette période.",
+        "planned": "Planifié",
+        "actual": "Réel",
+        "delta": "{minutes, plural, =0 {0 min} =1 {# min d'écart} other {# min d'écart}}",
+        "notConfirmed": "Non confirmé",
+        "reason": "Note d'exception",
+        "employee": "Employé",
+        "allEmployees": "Tous les employés"
+      },
+      "actions": {
+        "approve": "Approuver",
+        "reject": "Rejeter",
+        "exportCsv": "Exporter CSV"
+      },
+      "rejectDialog": {
+        "title": "Rejeter l'écart",
+        "description": "Fournissez une note expliquant pourquoi cet écart est rejeté.",
+        "exceptionNoteLabel": "Note d'exception",
+        "exceptionNotePlaceholder": "Expliquez pourquoi cet écart est rejeté...",
+        "confirm": "Confirmer le rejet",
+        "cancel": "Annuler"
+      },
+      "stats": {
+        "totalEvents": "Écarts totaux",
+        "pendingCount": "En attente",
+        "avgDelta": "Écart moyen",
+        "noShowCount": "Absences",
+        "minutes": "{count, plural, =0 {0 min} =1 {1 min} other {# min}}"
+      },
+      "monthSelector": {
+        "label": "Mois"
+      },
+      "toast": {
+        "approved": "Écart approuvé.",
+        "rejected": "Écart rejeté.",
+        "exported": "Export CSV téléchargé.",
+        "errorApprove": "Erreur lors de l'approbation.",
+        "errorReject": "Erreur lors du rejet.",
+        "errorExport": "Erreur lors de l'export."
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger les écarts de présence.",
+        "loadFailedDescription": "Veuillez réessayer ou contacter le support.",
+        "retry": "Réessayer"
       }
     }
   },
@@ -1292,8 +1366,7 @@
   "settings": {
     "tabs": {
       "operational": "Général",
-      "shiftTypes": "Types de quarts",
-      "planningRules": "Règles de planning"
+      "shiftTypes": "Types de quarts"
     },
     "shiftTypes": {
       "title": "Types de quarts",

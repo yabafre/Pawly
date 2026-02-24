@@ -12,16 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
-
-interface AbsenceItem {
-  id: string;
-  type: string;
-  status: string;
-  startDate: string;
-  endDate: string;
-  reason?: string | null;
-  rejectionReason?: string | null;
-}
+import type { AbsenceItem } from "@pawly/types";
 
 const TYPE_ICONS: Record<string, LucideIcon> = {
   PAID_LEAVE: Plane,

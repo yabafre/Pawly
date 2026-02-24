@@ -27,13 +27,7 @@ import type { DateRange } from "react-day-picker";
 import { fr, enUS } from "date-fns/locale";
 import { ABSENCE_TYPES } from "@pawly/validators";
 import type { AbsenceType } from "@pawly/validators";
-
-interface Employee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  jobType: string;
-}
+import type { EmployeeSummary } from "@pawly/types";
 
 interface AdminAbsenceFormProps {
   open: boolean;
@@ -113,7 +107,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
                 <SelectValue placeholder={t("adminCreate.selectEmployee")} />
               </SelectTrigger>
               <SelectContent>
-                {(employees ?? ([] as Employee[])).map((emp: Employee) => (
+                {(employees ?? ([] as EmployeeSummary[])).map((emp: EmployeeSummary) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.firstName} {emp.lastName} ({emp.jobType})
                   </SelectItem>

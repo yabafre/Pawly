@@ -60,7 +60,7 @@ export function HealthBarDetailPopover({
 }: Props) {
   const t = useTranslations("admin.planningRules.healthBar");
   const [open, setOpen] = useState(false);
-  const closeTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const closeTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleEnter = useCallback(() => {
     clearTimeout(closeTimeout.current);
@@ -126,7 +126,9 @@ export function HealthBarDetailPopover({
               <ul className="mt-1 space-y-0.5">
                 {items.map((v, i) => (
                   <li key={`${v.ruleId}-${i}`} className="text-xs text-neutral-600 pl-4">
-                    {v.message}
+                    {"messageKey" in v && v.messageKey
+                      ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
+                      : v.message}
                   </li>
                 ))}
               </ul>

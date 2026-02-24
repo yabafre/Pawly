@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Search, Users } from "lucide-react";
 import { JOB_TYPES } from "@pawly/validators";
+import type { Employee } from "@pawly/types";
 import {
   useEmployees,
   useCreateEmployee,
@@ -32,21 +33,6 @@ import { EmployeeCard } from "./EmployeeCard";
 import { EmployeeDialog } from "./EmployeeDialog";
 import { EmployeeConstraintsPanel } from "./EmployeeConstraintsPanel";
 import { EmployeeListSkeleton } from "./EmployeeListSkeleton";
-
-type Employee = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  jobType: string;
-  contractType: string;
-  contractHours: number;
-  color: string;
-  isActive: boolean;
-  hireDate: string | null;
-  endDate: string | null;
-};
 
 export function EmployeeList() {
   const t = useTranslations("employees");
