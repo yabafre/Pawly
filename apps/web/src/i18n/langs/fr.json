@@ -6,6 +6,11 @@
     "sslConnection": "Connexion SSL",
     "multiTenant": "Multi-tenant",
     "backToLogin": "Retour à la connexion",
+    "offlinePage": {
+      "title": "Hors ligne",
+      "description": "Vous n'êtes pas connecté à Internet. Vérifiez votre connexion et réessayez.",
+      "retry": "Réessayer"
+    },
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
@@ -832,7 +837,8 @@
       "title": "Pawly Employé",
       "home": "Accueil",
       "schoolDays": "Jours d'école",
-      "absences": "Absences"
+      "absences": "Absences",
+      "schedule": "Mon planning"
     },
     "schoolDays": {
       "title": "Déclaration des jours d'école",
@@ -941,7 +947,53 @@
     },
     "hoursUnit": "{hours}h",
     "timeRange": "{start} - {end}",
-    "doctorSchedule": "{doctor} • {time}"
+    "doctorSchedule": "{doctor} • {time}",
+    "schedule": {
+      "title": "Mon planning",
+      "monthSelector": {
+        "label": "Mois",
+        "previous": "Mois précédent",
+        "next": "Mois suivant"
+      },
+      "weeklySummary": {
+        "title": "Cette semaine",
+        "hours": "{hours}h",
+        "shifts": "{count, plural, =0 {Aucun créneau} =1 {1 créneau} other {# créneaux}}",
+        "target": "Objectif: {target}h",
+        "progress": "{percent}%"
+      },
+      "publicationStatus": {
+        "published": "Publié",
+        "publishedAt": "Publié le {date}",
+        "draft": "Brouillon",
+        "draftNotice": "Ce planning peut encore changer."
+      },
+      "absenceTypes": {
+        "vacation": "Congés",
+        "sick": "Maladie",
+        "school": "École / Formation",
+        "other": "Autre"
+      },
+      "timeline": {
+        "today": "Aujourd'hui",
+        "noShifts": "Aucun créneau prévu ce mois-ci.",
+        "restDay": "Repos",
+        "break": "Pause: {minutes} min",
+        "scheduleList": "Planning du mois"
+      },
+      "shiftStatus": {
+        "confirmed": "Confirmé",
+        "notConfirmed": "Non confirmé"
+      },
+      "offline": {
+        "banner": "Mode hors ligne — Données en cache affichées",
+        "backOnline": "Connexion rétablie"
+      },
+      "errors": {
+        "loadFailed": "Impossible de charger le planning.",
+        "retry": "Réessayer"
+      }
+    }
   },
   "forms": {
     "validation": {

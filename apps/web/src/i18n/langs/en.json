@@ -6,6 +6,11 @@
     "sslConnection": "SSL Connection",
     "multiTenant": "Multi-tenant",
     "backToLogin": "Back to login",
+    "offlinePage": {
+      "title": "Offline",
+      "description": "You are not connected to the Internet. Check your connection and try again.",
+      "retry": "Retry"
+    },
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -832,7 +837,8 @@
       "title": "Pawly Employee",
       "home": "Home",
       "schoolDays": "School Days",
-      "absences": "Absences"
+      "absences": "Absences",
+      "schedule": "My Schedule"
     },
     "schoolDays": {
       "title": "School Days Declaration",
@@ -941,7 +947,53 @@
     },
     "hoursUnit": "{hours}h",
     "timeRange": "{start} - {end}",
-    "doctorSchedule": "{doctor} • {time}"
+    "doctorSchedule": "{doctor} • {time}",
+    "schedule": {
+      "title": "My Schedule",
+      "monthSelector": {
+        "label": "Month",
+        "previous": "Previous month",
+        "next": "Next month"
+      },
+      "weeklySummary": {
+        "title": "This week",
+        "hours": "{hours}h",
+        "shifts": "{count, plural, =0 {No shifts} =1 {1 shift} other {# shifts}}",
+        "target": "Target: {target}h",
+        "progress": "{percent}%"
+      },
+      "publicationStatus": {
+        "published": "Published",
+        "publishedAt": "Published on {date}",
+        "draft": "Draft",
+        "draftNotice": "This schedule may still change."
+      },
+      "absenceTypes": {
+        "vacation": "Vacation",
+        "sick": "Sick leave",
+        "school": "School / Training",
+        "other": "Other"
+      },
+      "timeline": {
+        "today": "Today",
+        "noShifts": "No shifts scheduled this month.",
+        "restDay": "Rest day",
+        "break": "Break: {minutes} min",
+        "scheduleList": "Monthly schedule"
+      },
+      "shiftStatus": {
+        "confirmed": "Confirmed",
+        "notConfirmed": "Not confirmed"
+      },
+      "offline": {
+        "banner": "Offline Mode — Showing cached data",
+        "backOnline": "Back online"
+      },
+      "errors": {
+        "loadFailed": "Failed to load schedule.",
+        "retry": "Retry"
+      }
+    }
   },
   "forms": {
     "validation": {

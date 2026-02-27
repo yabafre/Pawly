@@ -9,6 +9,7 @@ import { EquityCounterService } from './equity-counter.service';
 import { EquityCounterScheduler } from './equity-counter.scheduler';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { VarianceService } from './variance.service';
+import { EmployeeScheduleService } from './employee-schedule.service';
 
 @Module({
   imports: [PrismaModule, ClinicModule, MailModule],
@@ -20,6 +21,7 @@ import { VarianceService } from './variance.service';
     EquityCounterScheduler,
     ApprenticeDeclarationService,
     VarianceService,
+    EmployeeScheduleService,
   ],
   exports: [
     PlanningService,
@@ -28,6 +30,7 @@ import { VarianceService } from './variance.service';
     EquityCounterService,
     ApprenticeDeclarationService,
     VarianceService,
+    EmployeeScheduleService,
   ],
 })
 export class PlanningModule {}

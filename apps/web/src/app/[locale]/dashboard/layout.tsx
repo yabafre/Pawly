@@ -3,8 +3,12 @@ import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { trpc } from "@/lib/trpc/client";
 import { DashboardLayoutClient } from "./_components/DashboardLayoutClient";
+import { DashboardQueryProvider } from "./_components/DashboardQueryProvider";
 import { EmployeeProvider } from "./_components/EmployeeContext";
 import { ACTIVE_SUBSCRIPTION_STATUSES } from "@pawly/validators";
+
+// All dashboard pages require auth + subscription — never prerender
+export const dynamic = "force-dynamic";
 
 type Props = {
     children: React.ReactNode;
@@ -58,7 +62,9 @@ export default async function DashboardLayout({ children, params }: Props) {
 
     return (
         <EmployeeProvider employeeId={me.employeeId} jobType={me.jobType}>
-            <DashboardLayoutClient>{children}</DashboardLayoutClient>
+            <DashboardQueryProvider>
+                <DashboardLayoutClient>{children}</DashboardLayoutClient>
+            </DashboardQueryProvider>
         </EmployeeProvider>
     );
 }

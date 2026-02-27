@@ -171,6 +171,20 @@ export type {
 } from "./equity-alert.schema";
 
 export {
+  getEmployeeScheduleSchema,
+  employeeShiftSchema,
+  employeeUnavailabilitySchema,
+  employeeWeeklySummarySchema,
+  employeeShiftTypeInfoSchema,
+  employeeScheduleDataSchema,
+} from "./employee-schedule.schema";
+
+export type {
+  GetEmployeeScheduleInput,
+  EmployeeScheduleDataInput,
+} from "./employee-schedule.schema";
+
+export {
   VARIANCE_EVENT_STATUSES,
   VARIANCE_EVENT_TYPES,
   listVarianceEventsSchema,
