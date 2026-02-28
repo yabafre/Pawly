@@ -28,7 +28,8 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-27'
+updated: '2026-02-28'
+# 2026-02-28: Story 8-2 created (ready-for-dev). Declarative Time Tracking (VarianceEvent). PresenceConfirmationService in PlanningModule (confirmPresence with $transaction + VarianceEvent creation, deltaMinutes computation, 15min threshold), detectNoShows daily cron midnight, subscribedProcedure employee-facing tRPC (confirmMyShift mutation, employeeId from DB lookup), ConfirmationSlider binary toggle component (role="switch", 48px touch target, haptic feedback), optimistic UI with offline mutation queueing (React Query persistence), WeeklySummaryCard confirmed ratio, no-show auto-detection for unconfirmed shifts, reuses existing VarianceEvent model + Shift.isConfirmed + PlanningPeriodStatus from Stories 7.5/8.1. No new Prisma models. ~78 new tests planned. i18n FR/EN (~25 keys).
 # 2026-02-27: Story 8-1 post-implementation enhancements. Mobile bottom tab bar (fixed, safe-area-inset, Material 3 style). Real Pawly logo PWA icons (rounded). 56 iOS splash screens (Sharp generator, all iPhone/iPad sizes). RunningPetSplash animated component (random dog/cat). DashboardClient session splash guard. Offline page i18n fix (was hardcoded FR → useTranslations). Service worker locale-aware fallback (FR/EN/default). Known limitation documented: Magic Link + PWA separate cookie context on iOS → OTP recommended for future story. Build green.
 # 2026-02-25: Story 8-1 implemented → review. 10/10 tasks done. PWA foundation (@serwist/next service worker, manifest, locale-aware offline fallback), React Query offline persistence (PersistQueryClientProvider, localStorage persister, offlineFirst networkMode, 24h gcTime), EmployeeScheduleService (native JS date utils, Promise.all parallel fetch, unavailability expansion, weekly summary), 2 tRPC procedures (subscribedProcedure, employeeId from DB lookup), 6 Zod validators, 5 @pawly/types interfaces, server actions + hooks (staleTime 5min/1h, gcTime 24h/7d), mobile-first schedule page (MonthSelector, WeeklySummaryCard, PublicationBadge, ScheduleTimeline, ShiftDayCard, AbsenceDayCard, EmptyState), DashboardClient rewired from demo to real data, OfflineBanner + OnlineRestoreToast, i18n FR/EN (~40 keys). 124 new tests. 2061 total (656 Validators + 726 API + 679 Web). Build green. First story in Epic 8.
 # 2026-02-24: Story 7-5 done. Code review passed (14 findings fixed), PR #32 to develop. Epic 7 complete (5/5 stories done). 1936 total tests (693 API + 654 Web + 589 Validators). Build green.
@@ -229,6 +230,6 @@ development_status:
   # ===========================================================================
   epic-8: in-progress
   8-1-personal-schedule-consultation-graceful-offline: done
-  8-2-declarative-time-tracking-variance-event: backlog
+  8-2-declarative-time-tracking-variance-event: done
   8-3-pwa-installation-email-notifications: backlog
   epic-8-retrospective: optional

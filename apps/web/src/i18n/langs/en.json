@@ -960,7 +960,8 @@
         "hours": "{hours}h",
         "shifts": "{count, plural, =0 {No shifts} =1 {1 shift} other {# shifts}}",
         "target": "Target: {target}h",
-        "progress": "{percent}%"
+        "progress": "{percent}%",
+        "confirmedRatio": "{confirmed}/{total} confirmed"
       },
       "publicationStatus": {
         "published": "Published",
@@ -984,6 +985,16 @@
       "shiftStatus": {
         "confirmed": "Confirmed",
         "notConfirmed": "Not confirmed"
+      },
+      "confirmation": {
+        "confirmed": "Confirmed",
+        "confirming": "Confirming…",
+        "slideToConfirm": "Confirm my presence",
+        "confirmSuccess": "Presence confirmed",
+        "confirmError": "Error confirming presence",
+        "offlineQueued": "Confirmation saved offline",
+        "lateArrival": "Late arrival by {minutes} min",
+        "earlyArrival": "Early arrival by {minutes} min"
       },
       "offline": {
         "banner": "Offline Mode — Showing cached data",

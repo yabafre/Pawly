@@ -1,25 +1,42 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { getISOWeek } from "date-fns";
-import type { EmployeeWeeklySummary } from "@pawly/types";
+import { getISOWeek, getISOWeekYear, parseISO } from "date-fns";
+import type { EmployeeWeeklySummary, EmployeeShift } from "@pawly/types";
 
 interface WeeklySummaryCardProps {
   weeklySummary: EmployeeWeeklySummary[];
   contractHours: number;
+  shifts?: EmployeeShift[];
 }
 
 export function WeeklySummaryCard({
   weeklySummary,
   contractHours,
+  shifts = [],
 }: WeeklySummaryCardProps) {
   const t = useTranslations("dashboard.schedule.weeklySummary");
-  const currentWeek = getISOWeek(new Date());
+  const today = useMemo(() => new Date(), []);
+  const currentWeek = getISOWeek(today);
+  const currentWeekYear = getISOWeekYear(today);
   const thisWeek = weeklySummary.find((w) => w.weekNumber === currentWeek);
 
   const totalHours = thisWeek ? Math.round(thisWeek.totalMinutes / 60 * 10) / 10 : 0;
   const percent = contractHours > 0 ? Math.min(Math.round((totalHours / contractHours) * 100), 100) : 0;
   const shiftCount = thisWeek?.shiftCount ?? 0;
+
+  // Compute confirmed/total ratio for current week shifts (year-aware, H4 fix)
+  const weekShifts = useMemo(
+    () =>
+      shifts.filter((s) => {
+        const d = parseISO(s.date);
+        return getISOWeek(d) === currentWeek && getISOWeekYear(d) === currentWeekYear;
+      }),
+    [shifts, currentWeek, currentWeekYear],
+  );
+  const confirmedCount = weekShifts.filter((s) => s.isConfirmed).length;
+  const weekTotal = weekShifts.length;
 
   return (
     <div className="rounded-xl bg-neutral-900 p-4 text-white shadow-lg">
@@ -36,9 +53,16 @@ export function WeeklySummaryCard({
         <span className="text-2xl font-bold">
           {t("hours", { hours: totalHours })}
         </span>
-        <span className="text-sm text-neutral-400">
-          {t("shifts", { count: shiftCount })}
-        </span>
+        <div className="text-right">
+          <span className="block text-sm text-neutral-400">
+            {t("shifts", { count: shiftCount })}
+          </span>
+          {weekTotal > 0 && (
+            <span className="block text-xs text-emerald-400">
+              {t("confirmedRatio", { confirmed: confirmedCount, total: weekTotal })}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="h-2 overflow-hidden rounded-full bg-neutral-700">

@@ -14,6 +14,7 @@ vi.mock("date-fns", () => ({
   isToday: vi.fn(() => false),
   isPast: vi.fn(() => false),
   getISOWeek: vi.fn(() => 10),
+  getISOWeekYear: vi.fn(() => 2026),
 }));
 
 vi.mock("date-fns/locale", () => ({
@@ -34,6 +35,9 @@ vi.mock("lucide-react", () => ({
   Thermometer: (props: any) => <span data-testid="icon-thermometer" {...props} />,
   GraduationCap: (props: any) => <span data-testid="icon-graduation" {...props} />,
   CalendarOff: (props: any) => <span data-testid="icon-calendar-off" {...props} />,
+  Check: (props: any) => <span data-testid="icon-check" {...props} />,
+  Loader2: (props: any) => <span data-testid="icon-loader" {...props} />,
+  ArrowRight: (props: any) => <span data-testid="icon-arrow-right" {...props} />,
 }));
 
 // Mock UI components
@@ -58,10 +62,18 @@ vi.mock("@/lib/utils", () => ({
 // Mock custom hooks
 const mockUseMySchedule = vi.fn();
 const mockUseMyShiftTypes = vi.fn();
+const mockConfirmShift = vi.fn();
 
 vi.mock("../_hooks/useMySchedule", () => ({
   useMySchedule: (...args: any[]) => mockUseMySchedule(...args),
   useMyShiftTypes: (...args: any[]) => mockUseMyShiftTypes(...args),
+}));
+
+vi.mock("../_hooks/useConfirmShift", () => ({
+  useConfirmShift: () => ({
+    confirmShift: mockConfirmShift,
+    isPending: false,
+  }),
 }));
 
 // ── Test Data ────────────────────────────────────────────────────────────
@@ -312,32 +324,81 @@ describe("ShiftDayCard", () => {
     expect(screen.getByText("CHIR")).toBeDefined();
   });
 
-  it("shows confirmed badge for confirmed shifts when past", () => {
+  it("shows ConfirmationSlider for past shifts when PUBLISHED", () => {
     vi.mocked(dateFns.isPast).mockReturnValue(true);
 
     render(
       <ShiftDayCard
         shift={{ ...baseShift, isConfirmed: true }}
         shiftType={shiftType}
+        publicationStatus="PUBLISHED"
       />,
     );
 
-    expect(screen.getByText("shiftStatus.confirmed")).toBeDefined();
-    expect(screen.getByTestId("icon-check-circle")).toBeDefined();
+    // ConfirmationSlider renders confirmed state with role=status
+    expect(screen.getByRole("status")).toBeDefined();
+    expect(screen.getByText("confirmed")).toBeDefined();
   });
 
-  it("shows not confirmed badge for past unconfirmed shifts", () => {
+  it("shows ConfirmationSlider with action button for unconfirmed past shifts", () => {
     vi.mocked(dateFns.isPast).mockReturnValue(true);
 
     render(
       <ShiftDayCard
         shift={{ ...baseShift, isConfirmed: false }}
         shiftType={shiftType}
+        publicationStatus="PUBLISHED"
       />,
     );
 
-    expect(screen.getByText("shiftStatus.notConfirmed")).toBeDefined();
-    expect(screen.getByTestId("icon-alert-circle")).toBeDefined();
+    // ConfirmationSlider renders idle state with role=switch
+    expect(screen.getByRole("switch")).toBeDefined();
+    expect(screen.getByText("slideToConfirm")).toBeDefined();
+  });
+
+  it("does not show ConfirmationSlider when publicationStatus is DRAFT", () => {
+    vi.mocked(dateFns.isPast).mockReturnValue(true);
+
+    render(
+      <ShiftDayCard
+        shift={{ ...baseShift, isConfirmed: false }}
+        shiftType={shiftType}
+        publicationStatus="DRAFT"
+      />,
+    );
+
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not show ConfirmationSlider for future shifts", () => {
+    vi.mocked(dateFns.isPast).mockReturnValue(false);
+    vi.mocked(dateFns.isToday).mockReturnValue(false);
+
+    render(
+      <ShiftDayCard
+        shift={{ ...baseShift, isConfirmed: false }}
+        shiftType={shiftType}
+        publicationStatus="PUBLISHED"
+      />,
+    );
+
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("calls confirmShift when slider is clicked", () => {
+    vi.mocked(dateFns.isPast).mockReturnValue(true);
+
+    render(
+      <ShiftDayCard
+        shift={{ ...baseShift, id: "shift-42", isConfirmed: false }}
+        shiftType={shiftType}
+        publicationStatus="PUBLISHED"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("switch"));
+    expect(mockConfirmShift).toHaveBeenCalledWith({ shiftId: "shift-42" });
   });
 
   it("shows break minutes when breakMinutes > 0", () => {

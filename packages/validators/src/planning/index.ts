@@ -201,3 +201,14 @@ export type {
   GetVarianceStatsInput,
   ExportVarianceInput,
 } from "./variance.schema";
+
+export {
+  DEVIATION_THRESHOLD_MINUTES,
+  confirmShiftSchema,
+  noShowDetectionSchema,
+} from "./presence-confirmation.schema";
+
+export type {
+  ConfirmShiftInput,
+  NoShowDetectionInput,
+} from "./presence-confirmation.schema";
