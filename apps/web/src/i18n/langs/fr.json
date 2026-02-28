@@ -960,7 +960,8 @@
         "hours": "{hours}h",
         "shifts": "{count, plural, =0 {Aucun créneau} =1 {1 créneau} other {# créneaux}}",
         "target": "Objectif: {target}h",
-        "progress": "{percent}%"
+        "progress": "{percent}%",
+        "confirmedRatio": "{confirmed}/{total} confirmés"
       },
       "publicationStatus": {
         "published": "Publié",
@@ -984,6 +985,16 @@
       "shiftStatus": {
         "confirmed": "Confirmé",
         "notConfirmed": "Non confirmé"
+      },
+      "confirmation": {
+        "confirmed": "Confirmé",
+        "confirming": "Confirmation en cours…",
+        "slideToConfirm": "Confirmer ma présence",
+        "confirmSuccess": "Présence confirmée",
+        "confirmError": "Erreur lors de la confirmation",
+        "offlineQueued": "Confirmation enregistrée hors ligne",
+        "lateArrival": "Arrivée en retard de {minutes} min",
+        "earlyArrival": "Arrivée en avance de {minutes} min"
       },
       "offline": {
         "banner": "Mode hors ligne — Données en cache affichées",

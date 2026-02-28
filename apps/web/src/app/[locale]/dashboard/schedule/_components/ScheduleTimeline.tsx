@@ -13,6 +13,7 @@ interface ScheduleTimelineProps {
   unavailabilities: EmployeeUnavailability[];
   shiftTypeMap: Map<string, EmployeeShiftTypeInfo>;
   month: string;
+  publicationStatus?: string;
 }
 
 interface DayEntry {
@@ -26,6 +27,7 @@ export function ScheduleTimeline({
   unavailabilities,
   shiftTypeMap,
   month,
+  publicationStatus,
 }: ScheduleTimelineProps) {
   const t = useTranslations("dashboard.schedule.timeline");
   const locale = useLocale();
@@ -88,6 +90,8 @@ export function ScheduleTimeline({
                   key={shift.id}
                   shift={shift}
                   shiftType={shiftTypeMap.get(shift.shiftTypeCode)}
+                  publicationStatus={publicationStatus}
+                  month={month}
                 />
               ))}
             </div>

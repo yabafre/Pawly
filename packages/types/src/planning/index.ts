@@ -1,4 +1,5 @@
 export type { VarianceEventItem } from "./variance.types";
+export type { ConfirmShiftResult } from "./presence-confirmation.types";
 export type {
   EmployeeScheduleData,
   EmployeeShift,

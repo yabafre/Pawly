@@ -1,19 +1,25 @@
 "use client";
 
+import React from "react";
 import { useTranslations } from "next-intl";
-import { Briefcase, CheckCircle, AlertCircle } from "lucide-react";
+import { Briefcase } from "lucide-react";
 import type { EmployeeShift, EmployeeShiftTypeInfo } from "@pawly/types";
 import { isToday, isPast, parseISO } from "date-fns";
+import { ConfirmationSlider } from "./ConfirmationSlider";
+import { useConfirmShift } from "../_hooks/useConfirmShift";
 
 interface ShiftDayCardProps {
   shift: EmployeeShift;
   shiftType?: EmployeeShiftTypeInfo;
+  publicationStatus?: string;
+  month?: string;
 }
 
-export function ShiftDayCard({ shift, shiftType }: ShiftDayCardProps) {
+export const ShiftDayCard = React.memo(function ShiftDayCard({ shift, shiftType, publicationStatus, month }: ShiftDayCardProps) {
   const t = useTranslations("dashboard.schedule");
+  const { confirmShift, isPending } = useConfirmShift(month);
   const dateObj = parseISO(shift.date);
-  const showConfirmation = isPast(dateObj) || isToday(dateObj);
+  const isActionable = (isPast(dateObj) || isToday(dateObj)) && publicationStatus === "PUBLISHED";
 
   const bgColor = shiftType?.color
     ? { backgroundColor: `${shiftType.color}15` }
@@ -49,29 +55,17 @@ export function ShiftDayCard({ shift, shiftType }: ShiftDayCardProps) {
             </div>
           </div>
         </div>
-
-        {showConfirmation && (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-              shift.isConfirmed
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-orange-100 text-orange-700"
-            }`}
-          >
-            {shift.isConfirmed ? (
-              <>
-                <CheckCircle className="h-3 w-3" />
-                {t("shiftStatus.confirmed")}
-              </>
-            ) : (
-              <>
-                <AlertCircle className="h-3 w-3" />
-                {t("shiftStatus.notConfirmed")}
-              </>
-            )}
-          </span>
-        )}
       </div>
+
+      {isActionable && (
+        <div className="mt-2">
+          <ConfirmationSlider
+            isConfirmed={shift.isConfirmed}
+            isPending={isPending}
+            onConfirm={() => confirmShift({ shiftId: shift.id })}
+          />
+        </div>
+      )}
 
       {shift.breakMinutes > 0 && (
         <div className="mt-1 text-xs text-neutral-400">
@@ -80,4 +74,4 @@ export function ShiftDayCard({ shift, shiftType }: ShiftDayCardProps) {
       )}
     </div>
   );
-}
+});

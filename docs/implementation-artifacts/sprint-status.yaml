@@ -230,6 +230,6 @@ development_status:
   # ===========================================================================
   epic-8: in-progress
   8-1-personal-schedule-consultation-graceful-offline: done
-  8-2-declarative-time-tracking-variance-event: ready-for-dev
+  8-2-declarative-time-tracking-variance-event: done
   8-3-pwa-installation-email-notifications: backlog
   epic-8-retrospective: optional

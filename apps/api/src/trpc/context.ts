@@ -10,6 +10,7 @@ import type { PlanningGenerationService } from '@/modules/planning/planning-gene
 import type { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
 import type { VarianceService } from '@/modules/planning/variance.service';
 import type { EmployeeScheduleService } from '@/modules/planning/employee-schedule.service';
+import type { PresenceConfirmationService } from '@/modules/planning/presence-confirmation.service';
 import type { DashboardService } from '@/modules/dashboard/dashboard.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
@@ -27,6 +28,7 @@ export interface TRPCServices {
   apprenticeDeclarationService: ApprenticeDeclarationService;
   varianceService: VarianceService;
   employeeScheduleService: EmployeeScheduleService;
+  presenceConfirmationService: PresenceConfirmationService;
   dashboardService: DashboardService;
   jwtService: JwtService;
   prisma: PrismaService;

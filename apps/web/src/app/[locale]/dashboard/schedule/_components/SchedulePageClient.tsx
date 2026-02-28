@@ -85,6 +85,7 @@ export function SchedulePageClient() {
         <WeeklySummaryCard
           weeklySummary={scheduleData.weeklySummary}
           contractHours={scheduleData.employee.contractHours}
+          shifts={scheduleData.shifts}
         />
       )}
 
@@ -94,6 +95,7 @@ export function SchedulePageClient() {
           unavailabilities={scheduleData.unavailabilities}
           shiftTypeMap={shiftTypeMap}
           month={selectedMonth}
+          publicationStatus={scheduleData.publicationStatus.status}
         />
       ) : (
         <EmptyState />
