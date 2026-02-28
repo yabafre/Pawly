@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useDashboardStats } from "../_hooks/useDashboardStats";
+import { useState, useEffect } from "react";
+import AdminLoading from "../../loading";
 
 const StatCard = ({
   title,
@@ -69,31 +71,34 @@ const SkeletonCard = () => (
 export function DashboardPageClient() {
   const t = useTranslations("admin.dashboard");
   const { stats, isPending } = useDashboardStats();
+  const [isMounted, setIsMounted] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
-  if (isPending) {
-    return (
-      <div className="space-y-6 animate-in fade-in">
-        <div>
-          <div className="h-7 w-48 bg-neutral-100 rounded animate-pulse mb-2" />
-          <div className="h-4 w-64 bg-neutral-100 rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-        <div className="h-36 bg-white rounded-3xl border border-neutral-100 animate-pulse" />
-      </div>
-    );
+  useEffect(() => {
+    setIsMounted(true);
+    const hasShownSplash = sessionStorage.getItem("adminSplashShown");
+    if (hasShownSplash) {
+      setShowSplash(false);
+    } else {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        sessionStorage.setItem("adminSplashShown", "true");
+      }, 2500); // 2.5 seconds minimum display time
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  if (!isMounted || isPending || showSplash) {
+    return <AdminLoading />;
   }
 
   const pendingHelper = stats
     ? stats.pendingRequests > 0
       ? t("pendingDetail", {
-          absences: stats.pendingAbsences,
-          variances: stats.pendingVariances,
-          both: stats.pendingAbsences > 0 && stats.pendingVariances > 0 ? "true" : "false",
-        })
+        absences: stats.pendingAbsences,
+        variances: stats.pendingVariances,
+        both: stats.pendingAbsences > 0 && stats.pendingVariances > 0 ? "true" : "false",
+      })
       : t("noPending")
     : t("noPending");
 

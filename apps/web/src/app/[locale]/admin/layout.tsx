@@ -6,6 +6,9 @@ import { AdminLayoutClient } from "./_components/AdminLayoutClient";
 import { SubscriptionProvider } from "@/lib/contexts/subscription-context";
 import { ACTIVE_SUBSCRIPTION_STATUSES } from "@pawly/validators";
 
+// All admin pages require auth + subscription — never prerender
+export const dynamic = "force-dynamic";
+
 type Props = {
     children: React.ReactNode;
     params: Promise<{ locale: string }>;

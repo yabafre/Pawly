@@ -1,0 +1,38 @@
+{
+  "name": "Pawly",
+  "short_name": "Pawly",
+  "description": "Gestion intelligente des plannings vétérinaires",
+  "lang": "fr",
+  "start_url": "/fr/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#009588",
+  "background_color": "#FDFDFD",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

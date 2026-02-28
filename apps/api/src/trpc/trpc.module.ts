@@ -23,6 +23,7 @@ import { PlanningGenerationService } from '@/modules/planning/planning-generatio
 import { EquityCounterService } from '@/modules/planning/equity-counter.service';
 import { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
 import { VarianceService } from '@/modules/planning/variance.service';
+import { EmployeeScheduleService } from '@/modules/planning/employee-schedule.service';
 import { DashboardModule } from '@/modules/dashboard/dashboard.module';
 import { DashboardService } from '@/modules/dashboard/dashboard.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -50,6 +51,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
     private readonly varianceService: VarianceService,
+    private readonly employeeScheduleService: EmployeeScheduleService,
     private readonly dashboardService: DashboardService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
@@ -65,6 +67,7 @@ export class TRPCMiddleware implements NestMiddleware {
       equityCounterService: this.equityCounterService,
       apprenticeDeclarationService: this.apprenticeDeclarationService,
       varianceService: this.varianceService,
+      employeeScheduleService: this.employeeScheduleService,
       dashboardService: this.dashboardService,
       jwtService: this.jwtService,
       prisma: this.prisma,
@@ -97,6 +100,7 @@ export class TRPCService {
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
     private readonly varianceService: VarianceService,
+    private readonly employeeScheduleService: EmployeeScheduleService,
     private readonly dashboardService: DashboardService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
@@ -117,6 +121,7 @@ export class TRPCService {
       equityCounterService: this.equityCounterService,
       apprenticeDeclarationService: this.apprenticeDeclarationService,
       varianceService: this.varianceService,
+      employeeScheduleService: this.employeeScheduleService,
       dashboardService: this.dashboardService,
       jwtService: this.jwtService,
       prisma: this.prisma,

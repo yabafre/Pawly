@@ -28,7 +28,9 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-02-24'
+updated: '2026-02-27'
+# 2026-02-27: Story 8-1 post-implementation enhancements. Mobile bottom tab bar (fixed, safe-area-inset, Material 3 style). Real Pawly logo PWA icons (rounded). 56 iOS splash screens (Sharp generator, all iPhone/iPad sizes). RunningPetSplash animated component (random dog/cat). DashboardClient session splash guard. Offline page i18n fix (was hardcoded FR → useTranslations). Service worker locale-aware fallback (FR/EN/default). Known limitation documented: Magic Link + PWA separate cookie context on iOS → OTP recommended for future story. Build green.
+# 2026-02-25: Story 8-1 implemented → review. 10/10 tasks done. PWA foundation (@serwist/next service worker, manifest, locale-aware offline fallback), React Query offline persistence (PersistQueryClientProvider, localStorage persister, offlineFirst networkMode, 24h gcTime), EmployeeScheduleService (native JS date utils, Promise.all parallel fetch, unavailability expansion, weekly summary), 2 tRPC procedures (subscribedProcedure, employeeId from DB lookup), 6 Zod validators, 5 @pawly/types interfaces, server actions + hooks (staleTime 5min/1h, gcTime 24h/7d), mobile-first schedule page (MonthSelector, WeeklySummaryCard, PublicationBadge, ScheduleTimeline, ShiftDayCard, AbsenceDayCard, EmptyState), DashboardClient rewired from demo to real data, OfflineBanner + OnlineRestoreToast, i18n FR/EN (~40 keys). 124 new tests. 2061 total (656 Validators + 726 API + 679 Web). Build green. First story in Epic 8.
 # 2026-02-24: Story 7-5 done. Code review passed (14 findings fixed), PR #32 to develop. Epic 7 complete (5/5 stories done). 1936 total tests (693 API + 654 Web + 589 Validators). Build green.
 # 2026-02-24: Story 7-5 implemented → review. 9/9 tasks done. Enhanced VarianceEvent Prisma model (enums, deltaMinutes, status, review fields, composite index), 4 Zod validators with .refine(), VarianceService (5 methods: list, review $transaction, stats groupBy, countPending, exportCsv), 5 tRPC procedures (adminOnly guards), server actions + 5 React Query hooks (30s poll, prefix invalidation, Blob CSV), card-based admin UI at /admin/planning/variance (stats panel with motion, status filter tabs, event list with approve/reject, reject dialog), nav entry, i18n FR/EN (~50 keys). 104 new tests. 1924 total (681 API + 654 Web + 589 Validators). Build green. Last story in Epic 7.
 # 2026-02-24: Story 7-5 created (ready-for-dev). Admin Variance View (Time & Discrepancies Module). Enhance existing VarianceEvent Prisma model (add VarianceEventStatus/Type enums, deltaMinutes, status, reviewedBy/At, exceptionNote), VarianceService in PlanningModule (list+review+stats+countPending+exportCsv), 5 tRPC procedures in variance router, card-based admin UI at /admin/planning/variance with status filter tabs, approve/reject workflow (mirrors absence pattern), server-side CSV export with client Blob download, 4 aggregated stat cards with motion stagger, i18n FR/EN (~50 keys). No new dependencies. ~90-110 new tests. Last story in Epic 7.
@@ -225,8 +227,8 @@ development_status:
   # Key Points: PWA cache, declarative time tracking, email on publication.
   # FRs: FR9, FR10
   # ===========================================================================
-  epic-8: backlog
-  8-1-personal-schedule-consultation-graceful-offline: backlog
+  epic-8: in-progress
+  8-1-personal-schedule-consultation-graceful-offline: review
   8-2-declarative-time-tracking-variance-event: backlog
   8-3-pwa-installation-email-notifications: backlog
   epic-8-retrospective: optional
