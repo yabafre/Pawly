@@ -228,7 +228,7 @@ development_status:
   # FRs: FR9, FR10
   # ===========================================================================
   epic-8: in-progress
-  8-1-personal-schedule-consultation-graceful-offline: review
+  8-1-personal-schedule-consultation-graceful-offline: done
   8-2-declarative-time-tracking-variance-event: backlog
   8-3-pwa-installation-email-notifications: backlog
   epic-8-retrospective: optional
