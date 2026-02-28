@@ -270,6 +270,163 @@ describe('useAuth', () => {
     });
   });
 
+  describe('requestOtp', () => {
+    it('should return method on successful OTP request', async () => {
+      mockMutateAsync.mockResolvedValue([{ method: 'otp', message: 'sent' }, null]);
+
+      const { result } = renderHook(() => useAuth());
+
+      let method: string | null = null;
+      await act(async () => {
+        method = await result.current.requestOtp('employee@clinic.fr');
+      });
+
+      expect(method).toBe('otp');
+    });
+
+    it('should return magic_link method when in fallback mode', async () => {
+      mockMutateAsync.mockResolvedValue([{ method: 'magic_link', message: 'sent' }, null]);
+
+      const { result } = renderHook(() => useAuth());
+
+      let method: string | null = null;
+      await act(async () => {
+        method = await result.current.requestOtp('employee@clinic.fr');
+      });
+
+      expect(method).toBe('magic_link');
+    });
+
+    it('should show error toast on OTP request failure', async () => {
+      mockMutateAsync.mockResolvedValue([null, { message: 'Send failed' }]);
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.requestOtp('employee@clinic.fr');
+      });
+
+      expect(toast.error).toHaveBeenCalledWith('Send failed');
+    });
+
+    it('should show network error toast on TypeError', async () => {
+      mockMutateAsync.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.requestOtp('employee@clinic.fr');
+      });
+
+      expect(toast.error).toHaveBeenCalledWith('serverError');
+    });
+
+    it('should return null on error', async () => {
+      mockMutateAsync.mockResolvedValue([null, { message: 'Error' }]);
+
+      const { result } = renderHook(() => useAuth());
+
+      let method: string | null = 'not-null';
+      await act(async () => {
+        method = await result.current.requestOtp('employee@clinic.fr');
+      });
+
+      expect(method).toBeNull();
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('should redirect EMPLOYEE to /dashboard on success', async () => {
+      const mockData = {
+        access_token: 'token',
+        refresh_token: 'refresh',
+        user: { id: 'u1', role: 'EMPLOYEE', email: 'e@c.fr', clinicId: 'c1' },
+      };
+      mockMutateAsync.mockResolvedValue([mockData, null]);
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.verifyOtp('e@c.fr', '428715');
+      });
+
+      expect(toast.success).toHaveBeenCalledWith('loginSuccess');
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+
+    it('should redirect ADMIN to /admin/planning on success', async () => {
+      const mockData = {
+        access_token: 'token',
+        refresh_token: 'refresh',
+        user: { id: 'u1', role: 'ADMIN', email: 'a@c.fr', clinicId: 'c1' },
+      };
+      mockMutateAsync.mockResolvedValue([mockData, null]);
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.verifyOtp('a@c.fr', '428715');
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/admin/planning');
+    });
+
+    it('should show error toast on invalid code', async () => {
+      mockMutateAsync.mockResolvedValue([null, { message: 'Invalid code' }]);
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.verifyOtp('e@c.fr', '000000');
+      });
+
+      expect(toast.error).toHaveBeenCalledWith('Invalid code');
+    });
+
+    it('should return false on error', async () => {
+      mockMutateAsync.mockResolvedValue([null, { message: 'Error' }]);
+
+      const { result } = renderHook(() => useAuth());
+
+      let success = true;
+      await act(async () => {
+        success = await result.current.verifyOtp('e@c.fr', '000000');
+      });
+
+      expect(success).toBe(false);
+    });
+
+    it('should return true on success', async () => {
+      const mockData = {
+        access_token: 'token',
+        refresh_token: 'refresh',
+        user: { id: 'u1', role: 'EMPLOYEE', email: 'e@c.fr', clinicId: 'c1' },
+      };
+      mockMutateAsync.mockResolvedValue([mockData, null]);
+
+      const { result } = renderHook(() => useAuth());
+
+      let success = false;
+      await act(async () => {
+        success = await result.current.verifyOtp('e@c.fr', '428715');
+      });
+
+      expect(success).toBe(true);
+    });
+
+    it('should show network error toast on TypeError', async () => {
+      mockMutateAsync.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const { result } = renderHook(() => useAuth());
+
+      await act(async () => {
+        await result.current.verifyOtp('e@c.fr', '428715');
+      });
+
+      expect(toast.error).toHaveBeenCalledWith('serverError');
+    });
+  });
+
   describe('resetMagicLink', () => {
     it('should call reset on magic link mutation', () => {
       const { result } = renderHook(() => useAuth());

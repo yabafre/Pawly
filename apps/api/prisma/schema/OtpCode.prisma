@@ -1,0 +1,19 @@
+model OtpCode {
+  id        String   @id @default(uuid())
+  code      String                        // HMAC-SHA256 hash of 6-digit code (with server secret)
+  expiresAt DateTime @map("expires_at")   // 5 minutes TTL
+  used      Boolean  @default(false)
+  attempts  Int      @default(0)          // Failed verification attempts (max 5)
+
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clinicId  String   @map("clinic_id")
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([clinicId])
+  @@index([userId])
+  @@index([expiresAt])
+}

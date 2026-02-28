@@ -4,3 +4,4 @@ export { activateAccountSchema, activateAccountBaseSchema, activateAccountInputS
 export { userSchema, authUserSchema } from "./user.schema";
 export { authResponseSchema, magicLinkResponseSchema } from "./response.schema";
 export type { AuthResponse, MagicLinkResponse } from "./response.schema";
+export { requestOtpSchema, verifyOtpSchema, otpRequestResponseSchema } from "./otp.schema";

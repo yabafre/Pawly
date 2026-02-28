@@ -8,6 +8,9 @@ import {
     loginSchema,
     magicLinkResponseSchema,
     requestMagicLinkSchema,
+    requestOtpSchema,
+    verifyOtpSchema,
+    otpRequestResponseSchema,
 } from "@pawly/validators";
 
 const AUTH_COOKIE_NAME = "auth-token";
@@ -76,4 +79,24 @@ export const requestMagicLinkAction = createServerAction()
     .handler(async ({ input }) => {
         const result = await trpc.auth.requestMagicLink.mutate(input);
         return magicLinkResponseSchema.parse(result);
+    });
+
+export const requestOtpAction = createServerAction()
+    .input(requestOtpSchema)
+    .output(otpRequestResponseSchema)
+    .experimental_shapeError(({ err }) => shapeError(err))
+    .handler(async ({ input }) => {
+        const result = await trpc.auth.requestOtp.mutate(input);
+        return otpRequestResponseSchema.parse(result);
+    });
+
+export const verifyOtpAction = createServerAction()
+    .input(verifyOtpSchema)
+    .output(authResponseSchema)
+    .experimental_shapeError(({ err }) => shapeError(err))
+    .handler(async ({ input }) => {
+        const result = await trpc.auth.verifyOtp.mutate(input);
+        const parsed = authResponseSchema.parse(result);
+        await setAuthCookie(parsed.access_token);
+        return parsed;
     });

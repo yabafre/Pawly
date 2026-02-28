@@ -41,17 +41,34 @@
       "submitting": "Signing in...",
       "forgotPassword": "Forgot?",
       "magicLinkTab": "Magic Link",
+      "emailTab": "Email",
       "passwordTab": "Password"
     },
     "magicLink": {
       "emailLabel": "Professional email",
       "emailPlaceholder": "name@clinic.com",
-      "submitButton": "Get my link",
+      "submitButton": "Get my code",
       "submitting": "Sending...",
-      "helper": "Recommended for employees. No password, more secure.",
+      "helper": "Recommended for employees. Quick and secure.",
       "checkEmail": "Check your emails",
       "linkSent": "A login link has been sent to",
-      "resendLink": "Resend link"
+      "resendLink": "Resend link",
+      "fallbackMessage": "Check your email for a login link",
+      "fallbackHelper": "A secure link has been sent to your email address"
+    },
+    "otp": {
+      "enterCode": "Enter the code received by email",
+      "sentTo": "Code sent to",
+      "placeholder": "0",
+      "submitButton": "Verify",
+      "verifying": "Verifying...",
+      "resendCode": "Resend code",
+      "resending": "Sending...",
+      "back": "Back",
+      "invalidCode": "Invalid code",
+      "expiredCode": "Code expired, request a new code",
+      "tooManyAttempts": "Too many attempts. Check your email for a login link.",
+      "codeExpiry": "Code expires in 5 minutes"
     },
     "callback": {
       "invalidLink": "Invalid link",
@@ -68,7 +85,9 @@
       "magicLinkSent": "Login link sent!",
       "magicLinkError": "Unable to send the link",
       "serverError": "Server connection issue",
-      "unexpectedError": "An unexpected error occurred"
+      "unexpectedError": "An unexpected error occurred",
+      "otpError": "Unable to send the code",
+      "otpVerifyError": "Invalid or expired code"
     },
     "activate": {
       "title": "Set your password",

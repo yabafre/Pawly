@@ -5,6 +5,8 @@ const {
   mockCookieSet,
   mockLoginMutate,
   mockRequestMagicLinkMutate,
+  mockRequestOtpMutate,
+  mockVerifyOtpMutate,
   capturedHandlers,
   capturedShapeErrors,
 } = vi.hoisted(() => {
@@ -15,6 +17,8 @@ const {
     mockCookieSet: vi.fn(),
     mockLoginMutate: vi.fn(),
     mockRequestMagicLinkMutate: vi.fn(),
+    mockRequestOtpMutate: vi.fn(),
+    mockVerifyOtpMutate: vi.fn(),
     capturedHandlers,
     capturedShapeErrors,
   };
@@ -34,6 +38,8 @@ vi.mock('@/lib/trpc/client', () => ({
     auth: {
       login: { mutate: mockLoginMutate },
       requestMagicLink: { mutate: mockRequestMagicLinkMutate },
+      requestOtp: { mutate: mockRequestOtpMutate },
+      verifyOtp: { mutate: mockVerifyOtpMutate },
     },
   },
 }));
@@ -42,7 +48,7 @@ vi.mock('@/lib/trpc/client', () => ({
 vi.mock('zsa', async () => {
   const actual = await vi.importActual('zsa');
   let actionIndex = 0;
-  const actionNames = ['login', 'requestMagicLink'];
+  const actionNames = ['login', 'requestMagicLink', 'requestOtp', 'verifyOtp'];
 
   return {
     ...actual,
@@ -78,7 +84,7 @@ vi.mock('zsa', async () => {
 });
 
 // Import after mocks are set up
-import { loginAction, requestMagicLinkAction } from './auth-actions';
+import { loginAction, requestMagicLinkAction, requestOtpAction, verifyOtpAction } from './auth-actions';
 
 describe('auth-actions', () => {
   beforeEach(() => {
@@ -279,6 +285,97 @@ describe('auth-actions', () => {
       await requestMagicLinkAction(validInput);
 
       expect(mockCookieSet).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestOtpAction', () => {
+    const validInput = { email: 'employee@clinic.fr' };
+
+    it('should call trpc.auth.requestOtp.mutate and return response', async () => {
+      mockRequestOtpMutate.mockResolvedValue({ method: 'otp', message: 'If account exists, code sent' });
+
+      const [result, error] = await requestOtpAction(validInput);
+
+      expect(mockRequestOtpMutate).toHaveBeenCalledWith(validInput);
+      expect(error).toBeNull();
+      expect(result).toEqual({ method: 'otp', message: 'If account exists, code sent' });
+    });
+
+    it('should not set any cookie on OTP request', async () => {
+      mockRequestOtpMutate.mockResolvedValue({ method: 'otp', message: 'sent' });
+
+      await requestOtpAction(validInput);
+
+      expect(mockCookieSet).not.toHaveBeenCalled();
+    });
+
+    it('should return shaped error on failure', async () => {
+      mockRequestOtpMutate.mockRejectedValue(new Error('Send failed'));
+
+      const [data, error] = await requestOtpAction(validInput);
+
+      expect(data).toBeNull();
+      expect(error).toEqual(expect.objectContaining({ message: 'Send failed' }));
+    });
+
+    it('should handle magic_link method response', async () => {
+      mockRequestOtpMutate.mockResolvedValue({ method: 'magic_link', message: 'Link sent' });
+
+      const [result, error] = await requestOtpAction(validInput);
+
+      expect(error).toBeNull();
+      expect(result).toEqual({ method: 'magic_link', message: 'Link sent' });
+    });
+  });
+
+  describe('verifyOtpAction', () => {
+    const validInput = { email: 'employee@clinic.fr', code: '428715' };
+    const validResponse = {
+      access_token: 'jwt-token-abc',
+      refresh_token: 'refresh-token-xyz',
+      user: {
+        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        email: 'employee@clinic.fr',
+        role: 'EMPLOYEE' as const,
+        clinicId: '00000000-0000-4000-8000-000000000001',
+      },
+    };
+
+    it('should call trpc.auth.verifyOtp.mutate and set auth cookie on success', async () => {
+      mockVerifyOtpMutate.mockResolvedValue(validResponse);
+
+      const [result, error] = await verifyOtpAction(validInput);
+
+      expect(mockVerifyOtpMutate).toHaveBeenCalledWith(validInput);
+      expect(error).toBeNull();
+      expect(result).toEqual(validResponse);
+      expect(mockCookieSet).toHaveBeenCalledWith(
+        'auth-token',
+        'jwt-token-abc',
+        expect.objectContaining({
+          httpOnly: true,
+          sameSite: 'strict',
+          maxAge: 86400,
+          path: '/',
+        }),
+      );
+    });
+
+    it('should not set cookie when verification fails', async () => {
+      mockVerifyOtpMutate.mockRejectedValue(new Error('Invalid code'));
+
+      await verifyOtpAction(validInput);
+
+      expect(mockCookieSet).not.toHaveBeenCalled();
+    });
+
+    it('should return shaped error on failure', async () => {
+      mockVerifyOtpMutate.mockRejectedValue(new Error('Too many attempts'));
+
+      const [data, error] = await verifyOtpAction(validInput);
+
+      expect(data).toBeNull();
+      expect(error).toEqual(expect.objectContaining({ message: 'Too many attempts' }));
     });
   });
 

@@ -22,6 +22,7 @@ model Clinic {
   equityCounters      EquityCounter[]
   apprenticeDeclarations ApprenticeMonthDeclaration[]
   planningPeriodStatuses PlanningPeriodStatus[]
+  otpCodes            OtpCode[]
 
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

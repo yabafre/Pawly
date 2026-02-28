@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryKeyFactory, useServerActionMutation } from "@/lib/hooks/server-action-hooks";
-import { loginAction, requestMagicLinkAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
+import { loginAction, requestMagicLinkAction, requestOtpAction, verifyOtpAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
 import { z } from "@pawly/zod";
@@ -25,6 +25,14 @@ export const useAuth = () => {
         onSettled: invalidateAuthQueries,
     });
     const magicLinkMutation = useServerActionMutation(requestMagicLinkAction, {
+        returnError: true,
+        onSettled: invalidateAuthQueries,
+    });
+    const otpRequestMutation = useServerActionMutation(requestOtpAction, {
+        returnError: true,
+        onSettled: invalidateAuthQueries,
+    });
+    const otpVerifyMutation = useServerActionMutation(verifyOtpAction, {
         returnError: true,
         onSettled: invalidateAuthQueries,
     });
@@ -77,12 +85,69 @@ export const useAuth = () => {
         }
     };
 
+    const requestOtp = async (email: string) => {
+        try {
+            const [data, err] = await otpRequestMutation.mutateAsync({ email });
+
+            if (err) {
+                toast.error(err.message || t("otpError"));
+                return null;
+            }
+
+            if (data) {
+                return data.method;
+            }
+            return null;
+        } catch (error) {
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error(t("serverError"));
+            } else {
+                toast.error(t("otpError"));
+            }
+            return null;
+        }
+    };
+
+    const verifyOtp = async (email: string, code: string) => {
+        try {
+            const [data, err] = await otpVerifyMutation.mutateAsync({ email, code });
+
+            if (err) {
+                toast.error(err.message || t("otpVerifyError"));
+                return false;
+            }
+
+            if (data) {
+                toast.success(t("loginSuccess"));
+
+                if (data.user.role === "ADMIN") {
+                    router.push("/admin/planning");
+                } else {
+                    router.push("/dashboard");
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            if (error instanceof TypeError && error.message.includes("fetch")) {
+                toast.error(t("serverError"));
+            } else {
+                toast.error(t("otpVerifyError"));
+            }
+            return false;
+        }
+    };
+
     return {
         login,
         requestMagicLink,
+        requestOtp,
+        verifyOtp,
         resetMagicLink: () => magicLinkMutation.reset(),
         isLoginPending: loginMutation.isPending,
         isMagicPending: magicLinkMutation.isPending,
         isMagicSuccess: magicLinkMutation.isSuccess,
+        isOtpRequestPending: otpRequestMutation.isPending,
+        isOtpVerifyPending: otpVerifyMutation.isPending,
     };
 };

@@ -10,6 +10,7 @@ import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
 import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
+import { OtpCodeEmail } from './templates/OtpCodeEmail';
 import type { EnvConfig } from '@/config/index';
 import type { AbsenceType } from '@pawly/validators';
 
@@ -195,6 +196,31 @@ export class MailService {
       }
     } catch (err) {
       this.logger.error('Unexpected error sending school days reminder', err);
+    }
+  }
+
+  async sendOtpCode(email: string, code: string) {
+    try {
+      const html = await render(<OtpCodeEmail code={code} />);
+
+      await this.throttle();
+      const { data, error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: 'Votre code Pawly',
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send OTP code email: ${error.message}`);
+        throw new InternalServerErrorException('Failed to send authentication email');
+      }
+
+      return data;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      this.logger.error('Unexpected error sending OTP code email', err);
+      throw new InternalServerErrorException('Failed to send authentication email');
     }
   }
 

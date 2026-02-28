@@ -44,7 +44,7 @@ export const LoginPageClient = () => {
                         <div className="px-6">
                             <TabsList className="grid w-full grid-cols-2 bg-neutral-100 p-1 h-12 rounded-full">
                                 <TabsTrigger value="magic" className="rounded-full data-[state=active]:bg-neutral-900 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                    <Mail className="w-4 h-4 mr-2" /> {t("magicLinkTab")}
+                                    <Mail className="w-4 h-4 mr-2" /> {t("emailTab")}
                                 </TabsTrigger>
                                 <TabsTrigger value="password" className="rounded-full data-[state=active]:bg-neutral-900 data-[state=active]:text-white data-[state=active]:shadow-md">
                                     <Lock className="w-4 h-4 mr-2" /> {t("passwordTab")}

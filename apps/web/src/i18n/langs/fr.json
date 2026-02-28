@@ -41,17 +41,34 @@
       "submitting": "Connexion...",
       "forgotPassword": "Oublié ?",
       "magicLinkTab": "Magic Link",
+      "emailTab": "Email",
       "passwordTab": "Mot de passe"
     },
     "magicLink": {
       "emailLabel": "Email professionnel",
       "emailPlaceholder": "nom@clinique.fr",
-      "submitButton": "Recevoir mon lien",
+      "submitButton": "Recevoir mon code",
       "submitting": "Envoi en cours...",
-      "helper": "Recommandé pour les employés. Sans mot de passe, plus sécurisé.",
+      "helper": "Recommandé pour les employés. Rapide et sécurisé.",
       "checkEmail": "Vérifiez vos emails",
       "linkSent": "Un lien de connexion a été envoyé à",
-      "resendLink": "Renvoyer le lien"
+      "resendLink": "Renvoyer le lien",
+      "fallbackMessage": "Vérifiez vos emails pour un lien de connexion",
+      "fallbackHelper": "Un lien sécurisé a été envoyé à votre adresse email"
+    },
+    "otp": {
+      "enterCode": "Entrez le code reçu par email",
+      "sentTo": "Code envoyé à",
+      "placeholder": "0",
+      "submitButton": "Vérifier",
+      "verifying": "Vérification...",
+      "resendCode": "Renvoyer le code",
+      "resending": "Envoi...",
+      "back": "Retour",
+      "invalidCode": "Code invalide",
+      "expiredCode": "Code expiré, demandez un nouveau code",
+      "tooManyAttempts": "Trop de tentatives. Vérifiez vos emails pour un lien de connexion.",
+      "codeExpiry": "Le code expire dans 5 minutes"
     },
     "callback": {
       "invalidLink": "Lien invalide",
@@ -68,7 +85,9 @@
       "magicLinkSent": "Lien de connexion envoyé !",
       "magicLinkError": "Impossible d'envoyer le lien",
       "serverError": "Problème de connexion au serveur",
-      "unexpectedError": "Une erreur inattendue est survenue"
+      "unexpectedError": "Une erreur inattendue est survenue",
+      "otpError": "Impossible d'envoyer le code",
+      "otpVerifyError": "Code invalide ou expiré"
     },
     "activate": {
       "title": "Créez votre mot de passe",
