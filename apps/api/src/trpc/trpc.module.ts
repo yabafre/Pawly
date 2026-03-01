@@ -27,6 +27,8 @@ import { EmployeeScheduleService } from '@/modules/planning/employee-schedule.se
 import { PresenceConfirmationService } from '@/modules/planning/presence-confirmation.service';
 import { DashboardModule } from '@/modules/dashboard/dashboard.module';
 import { DashboardService } from '@/modules/dashboard/dashboard.service';
+import { NotificationModule } from '@/modules/notification/notification.module';
+import { PushNotificationService } from '@/modules/notification/push-notification.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { appRouter } from './routers/_app';
@@ -55,6 +57,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly employeeScheduleService: EmployeeScheduleService,
     private readonly presenceConfirmationService: PresenceConfirmationService,
     private readonly dashboardService: DashboardService,
+    private readonly pushNotificationService: PushNotificationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {
@@ -72,6 +75,7 @@ export class TRPCMiddleware implements NestMiddleware {
       employeeScheduleService: this.employeeScheduleService,
       presenceConfirmationService: this.presenceConfirmationService,
       dashboardService: this.dashboardService,
+      pushNotificationService: this.pushNotificationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -106,6 +110,7 @@ export class TRPCService {
     private readonly employeeScheduleService: EmployeeScheduleService,
     private readonly presenceConfirmationService: PresenceConfirmationService,
     private readonly dashboardService: DashboardService,
+    private readonly pushNotificationService: PushNotificationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) { }
@@ -128,6 +133,7 @@ export class TRPCService {
       employeeScheduleService: this.employeeScheduleService,
       presenceConfirmationService: this.presenceConfirmationService,
       dashboardService: this.dashboardService,
+      pushNotificationService: this.pushNotificationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
     };
@@ -154,6 +160,7 @@ export class TRPCService {
     EmployeeModule,
     PlanningModule,
     DashboardModule,
+    NotificationModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],

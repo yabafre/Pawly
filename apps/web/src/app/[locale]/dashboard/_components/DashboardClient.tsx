@@ -20,6 +20,7 @@ import { useLocale } from "next-intl";
 import { useState, useEffect } from "react";
 import { useMySchedule, useMyShiftTypes } from "../schedule/_hooks/useMySchedule";
 import DashboardLoading from "../loading";
+import { PwaInstallPrompt } from "./PwaInstallPrompt";
 import type { EmployeeScheduleData, EmployeeShift, EmployeeUnavailability, EmployeeShiftTypeInfo } from "@pawly/types";
 
 const UNAVAILABILITY_ICONS: Record<string, typeof Plane> = {
@@ -276,5 +277,10 @@ const EmployeeDashboard = () => {
 };
 
 export const DashboardClient = () => {
-    return <EmployeeDashboard />;
+    return (
+        <>
+            <PwaInstallPrompt />
+            <EmployeeDashboard />
+        </>
+    );
 };

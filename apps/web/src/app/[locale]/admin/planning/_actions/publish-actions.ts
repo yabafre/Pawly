@@ -15,3 +15,9 @@ export const getPublicationStatusAction = createServerAction()
   .handler(async ({ input }) => {
     return trpc.planning.getPublicationStatus.query(input);
   });
+
+export const getPublishPreviewAction = createServerAction()
+  .input(publishPlanInputSchema)
+  .handler(async ({ input }) => {
+    return trpc.planning.getPublishPreview.query(input);
+  });

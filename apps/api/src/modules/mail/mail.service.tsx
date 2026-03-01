@@ -29,10 +29,13 @@ export class MailService {
   }
 
   private throttle(): Promise<void> {
-    this.throttleChain = this.throttleChain.then(
-      () => new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+    const next = this.throttleChain.then(
+      () => new Promise<void>((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
     );
-    return this.throttleChain;
+    this.throttleChain = next.then(() => {
+      this.throttleChain = Promise.resolve();
+    });
+    return next;
   }
 
   async sendMagicLink(email: string, url: string) {
@@ -141,10 +144,11 @@ export class MailService {
     firstName: string,
     month: string,
     clinicName: string,
+    shiftCount?: number,
   ) {
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
-      const dashboardUrl = `${webAppUrl}/dashboard`;
+      const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
 
       const html = await render(
         <SchedulePublicationEmail
@@ -152,6 +156,7 @@ export class MailService {
           month={month}
           clinicName={clinicName}
           dashboardUrl={dashboardUrl}
+          shiftCount={shiftCount}
         />,
       );
 
@@ -169,6 +174,66 @@ export class MailService {
     } catch (err) {
       this.logger.error('Unexpected error sending schedule publication email', err);
     }
+  }
+
+  async sendBatchSchedulePublicationEmails(
+    emails: Array<{
+      to: string;
+      firstName: string;
+      shiftCount: number;
+    }>,
+    month: string,
+    clinicName: string,
+  ): Promise<number> {
+    if (emails.length === 0) return 0;
+
+    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+    const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+    const from = this.configService.get('MAIL_FROM', { infer: true });
+    let notifiedCount = 0;
+
+    // Pre-render HTML per employee (each has unique firstName and shiftCount)
+    const emailPayloads: Array<{ from: string; to: string; subject: string; html: string }> = [];
+    for (const emp of emails) {
+      try {
+        const html = await render(
+          <SchedulePublicationEmail
+            firstName={emp.firstName}
+            month={month}
+            clinicName={clinicName}
+            dashboardUrl={dashboardUrl}
+            shiftCount={emp.shiftCount}
+          />,
+        );
+        emailPayloads.push({
+          from,
+          to: emp.to,
+          subject: `${clinicName} — Votre planning pour ${month} est publié`,
+          html,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to render email for ${emp.to}: ${err}`);
+      }
+    }
+
+    // Chunk into batches of 100 (Resend batch limit)
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
+      const chunk = emailPayloads.slice(i, i + BATCH_SIZE);
+      try {
+        await this.throttle();
+        const { data, error } = await this.resend.batch.send(chunk);
+        if (error) {
+          this.logger.error(`Batch email send error: ${error.message}`);
+        } else {
+          notifiedCount += data?.data?.length ?? chunk.length;
+        }
+      } catch (err) {
+        this.logger.error(`Batch email send failed for chunk ${i / BATCH_SIZE + 1}: ${err}`);
+      }
+    }
+
+    return notifiedCount;
   }
 
   async sendSchoolDaysReminder(

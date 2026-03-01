@@ -23,6 +23,7 @@ import type {
   ListAbsencesInput,
   AdminCreateAbsenceInput,
   AbsenceType,
+  UpdateNotificationPreferencesInput,
 } from '@pawly/validators';
 import type { UnavailabilityType } from '@pawly/validators';
 
@@ -617,6 +618,28 @@ export class EmployeeService {
     return apprentices
       .filter((a) => a.unavailabilities.length === 0)
       .map(({ unavailabilities: _, ...rest }) => rest);
+  }
+
+  // ==================== Notification Preferences ====================
+
+  async getNotificationPreferences(clinicId: string, employeeId: string) {
+    const employee = await this.findById(clinicId, employeeId);
+    return { notifyOnPublish: employee.notifyOnPublish };
+  }
+
+  async updateNotificationPreferences(
+    clinicId: string,
+    employeeId: string,
+    preferences: UpdateNotificationPreferencesInput,
+  ) {
+    await this.findById(clinicId, employeeId);
+
+    const updated = await this.prisma.employee.update({
+      where: { id: employeeId },
+      data: { notifyOnPublish: preferences.notifyOnPublish },
+    });
+
+    return { notifyOnPublish: updated.notifyOnPublish };
   }
 
   // ==================== Absence Request Methods ====================

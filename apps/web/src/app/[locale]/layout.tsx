@@ -5,6 +5,7 @@ import { routing } from "@/i18n/routing";
 import { Inter, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/components/providers/react-query-provider";
+import { SerwistRegistration } from "@/components/providers/serwist-registration";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const inter = Inter({
@@ -91,6 +92,7 @@ export default async function LocaleLayout({ children, params }: Props) {
             </NuqsAdapter>
             <Toaster position="top-center" richColors />
           </ReactQueryProvider>
+          <SerwistRegistration />
         </NextIntlClientProvider>
       </body>
     </html>

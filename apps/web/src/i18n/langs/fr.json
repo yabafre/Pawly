@@ -584,14 +584,18 @@
       }
     },
     "publication": {
-      "publishSuccess": "Planning publié — les employés ont été notifiés",
+      "publishSuccess": "Planning publié — {count, plural, =0 {aucun employé notifié} one {# employé notifié} other {# employés notifiés}}",
       "publishError": "Échec de la publication du planning",
       "confirmTitle": "Publier le planning",
       "confirmDescription": "Cela enverra une notification par email à tous les employés concernés. Cette action est irréversible.",
       "confirmDescriptionWithWarnings": "Il reste encore {count, plural, one {# avertissement} other {# avertissements}}. Cela enverra une notification par email à tous les employés concernés. Cette action est irréversible.",
       "cancel": "Annuler",
       "confirmPublish": "Publier",
-      "publishing": "Publication…"
+      "publishing": "Publication…",
+      "employeesNotified": "{count, plural, =0 {Aucun email envoyé} one {# email envoyé} other {# emails envoyés}}",
+      "employeesDisabled": "{count, plural, one {# employé sans notification} other {# employés sans notification}}",
+      "shifts": "créneaux",
+      "shift": "créneau"
     },
     "equity": {
       "badgeLabel": "Indicateur d'équité",
@@ -857,7 +861,46 @@
       "home": "Accueil",
       "schoolDays": "Jours d'école",
       "absences": "Absences",
-      "schedule": "Mon planning"
+      "schedule": "Mon planning",
+      "settings": "Paramètres"
+    },
+    "pwaInstall": {
+      "ariaLabel": "Installer l'application Pawly",
+      "title": "Installer Pawly",
+      "description": "Ajoutez Pawly à votre écran d'accueil pour un accès rapide, même hors connexion.",
+      "installButton": "Installer",
+      "dismissButton": "Fermer",
+      "iosTitle": "Pour installer sur iOS :",
+      "iosStep1": "Appuyez sur le bouton de partage",
+      "iosStep2": "Sélectionnez « Sur l'écran d'accueil »",
+      "notSupported": "L'installation n'est pas disponible sur ce navigateur."
+    },
+    "settings": {
+      "title": "Paramètres",
+      "appSection": "Application",
+      "pwaStatus": "Statut de l'application",
+      "installed": "Installée",
+      "notInstalled": "Non installée",
+      "notificationsSection": "Notifications",
+      "notifyOnPublish": "Planning publié",
+      "notifyOnPublishDescription": "Recevoir un email lorsque le planning est publié.",
+      "pushNotifications": "Notifications push",
+      "pushDescription": "Recevoir une notification instantanée sur cet appareil.",
+      "pushEnable": "Activer",
+      "pushDisable": "Désactiver",
+      "pushDenied": "Les notifications sont bloquées. Activez-les dans les paramètres de votre navigateur.",
+      "pushEnabled": "Notifications push activées",
+      "pushDisabled": "Notifications push désactivées",
+      "pushEnableError": "Impossible d'activer les notifications push",
+      "pushDisableError": "Impossible de désactiver les notifications push",
+      "pushUnsupported": "Push non supporté sur ce navigateur",
+      "pushBlocked": "Notifications bloquées par le navigateur",
+      "pushPermissionNotGranted": "Permission non accordée",
+      "pushVapidMissing": "Configuration push manquante (VAPID)",
+      "pushSwUnavailable": "Service Worker non disponible",
+      "pushSubscriptionInvalid": "Souscription push invalide",
+      "pushError": "Échec push : {message}",
+      "pushUnsubscribeError": "Échec de la désactivation push"
     },
     "schoolDays": {
       "title": "Déclaration des jours d'école",

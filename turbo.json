@@ -20,6 +20,17 @@
                 "!.next/cache/**"
             ]
         },
+        "start": {
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                ".env.development.local",
+                ".env.local",
+                ".env.development",
+                ".env"
+            ],
+            "cache": false,
+            "persistent": true
+        },
         "dev": {
             "inputs": [
                 "$TURBO_DEFAULT$",
@@ -40,9 +51,7 @@
             "dependsOn": [
                 "^build"
             ],
-            "outputs": [
-                "coverage/**"
-            ]
+            "cache": false
         },
         "test:cov": {
             "dependsOn": [

@@ -1,4 +1,4 @@
-import { defaultCache } from "@serwist/next/worker";
+import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
 
@@ -45,3 +45,48 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ─── Web Push Notification Handlers ──────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json() as {
+      title?: string;
+      body?: string;
+      url?: string;
+    };
+
+    const title = payload.title ?? "Pawly";
+    const options: NotificationOptions = {
+      body: payload.body ?? "",
+      icon: "/icons/icon-192x192.png",
+      badge: "/icons/icon-72x72.png",
+      data: { url: payload.url ?? "/dashboard/schedule" },
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch {
+    // Malformed payload — ignore
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const url = (event.notification.data as { url?: string })?.url ?? "/dashboard/schedule";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Focus existing tab already at target URL
+      for (const client of clientList) {
+        if (client.url.includes(url) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open new tab
+      return self.clients.openWindow(url);
+    }),
+  );
+});

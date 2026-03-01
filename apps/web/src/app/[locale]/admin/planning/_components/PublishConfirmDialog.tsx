@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { Mail, BellOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +12,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+type PreviewEmployee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  shiftCount: number;
+  notifyOnPublish: boolean;
+};
 
 type Props = {
   open: boolean;
@@ -18,6 +28,12 @@ type Props = {
   onConfirm: () => void;
   softViolationCount: number;
   isPublishing: boolean;
+  preview?: {
+    employees: PreviewEmployee[];
+    emailCount: number;
+    disabledCount: number;
+    totalWithShifts: number;
+  };
 };
 
 export function PublishConfirmDialog({
@@ -26,12 +42,13 @@ export function PublishConfirmDialog({
   onConfirm,
   softViolationCount,
   isPublishing,
+  preview,
 }: Props) {
   const t = useTranslations("admin.publication");
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => { if (!v && !isPublishing) onClose(); }}>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>{t("confirmTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
@@ -40,6 +57,48 @@ export function PublishConfirmDialog({
               : t("confirmDescription")}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {preview && preview.totalWithShifts > 0 && (
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-neutral-700">
+              <Mail className="h-4 w-4 text-[#009588]" />
+              <span>{t("employeesNotified", { count: preview.emailCount })}</span>
+            </div>
+
+            {preview.disabledCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-neutral-500">
+                <BellOff className="h-4 w-4 text-neutral-400" />
+                <span>{t("employeesDisabled", { count: preview.disabledCount })}</span>
+              </div>
+            )}
+
+            <ScrollArea className="max-h-40 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+              <ul className="space-y-1.5">
+                {preview.employees.map((emp) => (
+                  <li
+                    key={emp.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="text-neutral-700">
+                      {emp.firstName} {emp.lastName}
+                      <span className="text-neutral-400 ml-1">
+                        ({emp.shiftCount} {emp.shiftCount > 1 ? t("shifts") : t("shift")})
+                      </span>
+                    </span>
+                    <span className="shrink-0 ml-2">
+                      {emp.notifyOnPublish ? (
+                        <Mail className="h-3.5 w-3.5 text-[#009588]" />
+                      ) : (
+                        <BellOff className="h-3.5 w-3.5 text-neutral-300" />
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          </div>
+        )}
+
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPublishing} onClick={onClose}>
             {t("cancel")}
