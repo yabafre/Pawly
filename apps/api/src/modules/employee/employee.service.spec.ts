@@ -26,6 +26,7 @@ describe('EmployeeService', () => {
     isActive: true,
     clinicId,
     userId: null,
+    notifyOnPublish: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -1881,6 +1882,107 @@ describe('EmployeeService', () => {
       expect(result.hasOverlap).toBe(true);
       expect(result.overlappingAbsences).toHaveLength(1);
       expect(result.overlappingUnavailabilities).toHaveLength(1);
+    });
+  });
+
+  // ==================== Notification Preferences ====================
+
+  describe('getNotificationPreferences', () => {
+    it('should return notification preferences for an employee', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        notifyOnPublish: true,
+      });
+
+      const result = await service.getNotificationPreferences(clinicId, 'emp-1');
+      expect(result).toEqual({ notifyOnPublish: true });
+    });
+
+    it('should return false when notifications are disabled', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        notifyOnPublish: false,
+      });
+
+      const result = await service.getNotificationPreferences(clinicId, 'emp-1');
+      expect(result).toEqual({ notifyOnPublish: false });
+    });
+
+    it('should throw NotFoundException for invalid employeeId', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getNotificationPreferences(clinicId, 'nonexistent'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should enforce clinicId isolation', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getNotificationPreferences(otherClinicId, 'emp-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('updateNotificationPreferences', () => {
+    it('should update notifyOnPublish to false', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
+      mockPrismaService.employee.update.mockResolvedValue({
+        ...mockEmployee,
+        notifyOnPublish: false,
+      });
+
+      const result = await service.updateNotificationPreferences(
+        clinicId,
+        'emp-1',
+        { notifyOnPublish: false },
+      );
+
+      expect(result).toEqual({ notifyOnPublish: false });
+      expect(mockPrismaService.employee.update).toHaveBeenCalledWith({
+        where: { id: 'emp-1' },
+        data: { notifyOnPublish: false },
+      });
+    });
+
+    it('should update notifyOnPublish to true', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        notifyOnPublish: false,
+      });
+      mockPrismaService.employee.update.mockResolvedValue({
+        ...mockEmployee,
+        notifyOnPublish: true,
+      });
+
+      const result = await service.updateNotificationPreferences(
+        clinicId,
+        'emp-1',
+        { notifyOnPublish: true },
+      );
+
+      expect(result).toEqual({ notifyOnPublish: true });
+    });
+
+    it('should throw NotFoundException for invalid employeeId', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateNotificationPreferences(clinicId, 'nonexistent', {
+          notifyOnPublish: false,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should enforce clinicId isolation', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateNotificationPreferences(otherClinicId, 'emp-1', {
+          notifyOnPublish: false,
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

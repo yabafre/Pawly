@@ -18,6 +18,17 @@ describe('employeeScheduleRouter', () => {
     getEmployeeShiftTypes: jest.fn(),
   };
 
+  const mockEmployeeService = {
+    getNotificationPreferences: jest.fn(),
+    updateNotificationPreferences: jest.fn(),
+  };
+
+  const mockPushNotificationService = {
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn(),
+    getSubscription: jest.fn(),
+  };
+
   const mockPrisma = {
     subscription: {
       findUnique: jest.fn(),
@@ -47,6 +58,8 @@ describe('employeeScheduleRouter', () => {
       user: staffUser,
       prisma: mockPrisma as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
+      employeeService: mockEmployeeService as any,
+      pushNotificationService: mockPushNotificationService as any,
     } as any);
   };
 
@@ -55,6 +68,8 @@ describe('employeeScheduleRouter', () => {
       user: null,
       prisma: mockPrisma as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
+      employeeService: mockEmployeeService as any,
+      pushNotificationService: mockPushNotificationService as any,
     } as any);
   };
 
@@ -64,6 +79,8 @@ describe('employeeScheduleRouter', () => {
       user: staffUser,
       prisma: mockPrisma as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
+      employeeService: mockEmployeeService as any,
+      pushNotificationService: mockPushNotificationService as any,
     } as any);
   };
 
@@ -73,12 +90,20 @@ describe('employeeScheduleRouter', () => {
 
   // --- Router shape --------------------------------------------------------
 
-  it('should export 2 procedures (getMySchedule, getMyShiftTypes)', () => {
+  it('should export 7 procedures', () => {
     const procedures = Object.keys(employeeScheduleRouter._def.procedures);
     expect(procedures).toEqual(
-      expect.arrayContaining(['getMySchedule', 'getMyShiftTypes']),
+      expect.arrayContaining([
+        'getMySchedule',
+        'getMyShiftTypes',
+        'getMyNotificationPreferences',
+        'updateMyNotificationPreferences',
+        'subscribePush',
+        'unsubscribePush',
+        'getMyPushSubscription',
+      ]),
     );
-    expect(procedures).toHaveLength(2);
+    expect(procedures).toHaveLength(7);
   });
 
   // --- getMySchedule -------------------------------------------------------
@@ -228,6 +253,149 @@ describe('employeeScheduleRouter', () => {
       await caller.getMyShiftTypes();
 
       expect(mockEmployeeScheduleService.getEmployeeShiftTypes).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // --- getMyNotificationPreferences -----------------------------------------
+
+  describe('getMyNotificationPreferences', () => {
+    it('should reject unauthenticated users', async () => {
+      const caller = createUnauthenticatedCaller();
+      await expect(caller.getMyNotificationPreferences()).rejects.toThrow(TRPCError);
+    });
+
+    it('should throw FORBIDDEN when user has no linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: null });
+      const caller = createSubscribedCaller();
+      await expect(caller.getMyNotificationPreferences()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('should return notification preferences for linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockEmployeeService.getNotificationPreferences.mockResolvedValue({ notifyOnPublish: true });
+      const caller = createSubscribedCaller();
+      const result = await caller.getMyNotificationPreferences();
+      expect(result).toEqual({ notifyOnPublish: true });
+      expect(mockEmployeeService.getNotificationPreferences).toHaveBeenCalledWith('clinic-123', 'emp-1');
+    });
+  });
+
+  // --- updateMyNotificationPreferences --------------------------------------
+
+  describe('updateMyNotificationPreferences', () => {
+    it('should reject unauthenticated users', async () => {
+      const caller = createUnauthenticatedCaller();
+      await expect(caller.updateMyNotificationPreferences({ notifyOnPublish: false })).rejects.toThrow(TRPCError);
+    });
+
+    it('should throw FORBIDDEN when user has no linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const caller = createSubscribedCaller();
+      await expect(caller.updateMyNotificationPreferences({ notifyOnPublish: false })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('should update notification preferences for linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockEmployeeService.updateNotificationPreferences.mockResolvedValue({ notifyOnPublish: false });
+      const caller = createSubscribedCaller();
+      const result = await caller.updateMyNotificationPreferences({ notifyOnPublish: false });
+      expect(result).toEqual({ notifyOnPublish: false });
+      expect(mockEmployeeService.updateNotificationPreferences).toHaveBeenCalledWith(
+        'clinic-123', 'emp-1', { notifyOnPublish: false },
+      );
+    });
+  });
+
+  // --- subscribePush --------------------------------------------------------
+
+  describe('subscribePush', () => {
+    const pushInput = {
+      endpoint: 'https://push.example.com/sub1',
+      keys: { p256dh: 'key-p256dh', auth: 'key-auth' },
+    };
+
+    it('should reject unauthenticated users', async () => {
+      const caller = createUnauthenticatedCaller();
+      await expect(caller.subscribePush(pushInput)).rejects.toThrow(TRPCError);
+    });
+
+    it('should throw FORBIDDEN when user has no linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const caller = createSubscribedCaller();
+      await expect(caller.subscribePush(pushInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('should subscribe push for linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockPushNotificationService.subscribe.mockResolvedValue({ id: 'sub-1' });
+      const caller = createSubscribedCaller();
+      const result = await caller.subscribePush(pushInput);
+      expect(result).toEqual({ success: true });
+      expect(mockPushNotificationService.subscribe).toHaveBeenCalledWith(
+        'emp-1', 'clinic-123', pushInput,
+      );
+    });
+  });
+
+  // --- unsubscribePush ------------------------------------------------------
+
+  describe('unsubscribePush', () => {
+    it('should reject unauthenticated users', async () => {
+      const caller = createUnauthenticatedCaller();
+      await expect(caller.unsubscribePush({ endpoint: 'https://push.example.com/sub1' })).rejects.toThrow(TRPCError);
+    });
+
+    it('should throw FORBIDDEN when user has no linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      const caller = createSubscribedCaller();
+      await expect(caller.unsubscribePush({ endpoint: 'https://push.example.com/sub1' })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('should unsubscribe push for linked employee', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockPushNotificationService.unsubscribe.mockResolvedValue({ count: 1 });
+      const caller = createSubscribedCaller();
+      const result = await caller.unsubscribePush({ endpoint: 'https://push.example.com/sub1' });
+      expect(result).toEqual({ success: true });
+      expect(mockPushNotificationService.unsubscribe).toHaveBeenCalledWith(
+        'https://push.example.com/sub1', 'emp-1',
+      );
+    });
+  });
+
+  // --- getMyPushSubscription ------------------------------------------------
+
+  describe('getMyPushSubscription', () => {
+    it('should reject unauthenticated users', async () => {
+      const caller = createUnauthenticatedCaller();
+      await expect(caller.getMyPushSubscription()).rejects.toThrow(TRPCError);
+    });
+
+    it('should return subscribed: true when subscription exists', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockPushNotificationService.getSubscription.mockResolvedValue({
+        endpoint: 'https://push.example.com/sub1',
+        createdAt: new Date(),
+      });
+      const caller = createSubscribedCaller();
+      const result = await caller.getMyPushSubscription();
+      expect(result.subscribed).toBe(true);
+    });
+
+    it('should return subscribed: false when no subscription', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ employee: { id: 'emp-1' } });
+      mockPushNotificationService.getSubscription.mockResolvedValue(null);
+      const caller = createSubscribedCaller();
+      const result = await caller.getMyPushSubscription();
+      expect(result).toEqual({ subscribed: false });
     });
   });
 });

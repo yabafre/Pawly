@@ -12,6 +12,7 @@ interface SchedulePublicationEmailProps {
   month: string;
   clinicName: string;
   dashboardUrl?: string;
+  shiftCount?: number;
 }
 
 export const SchedulePublicationEmail = ({
@@ -19,6 +20,7 @@ export const SchedulePublicationEmail = ({
   month,
   clinicName,
   dashboardUrl = '#',
+  shiftCount,
 }: SchedulePublicationEmailProps) => (
   <EmailLayout previewText={`Votre planning pour ${month} est publié`} tag="PLANNING">
     <Heading style={h1}>Planning publié</Heading>
@@ -30,7 +32,13 @@ export const SchedulePublicationEmail = ({
       Bonjour {firstName},
       <br /><br />
       Le planning pour <strong>{month}</strong> a été publié par{' '}
-      <strong>{clinicName}</strong>. Vous pouvez dès maintenant consulter vos
+      <strong>{clinicName}</strong>.
+      {shiftCount !== undefined && shiftCount > 0 && (
+        <>
+          {' '}Vous avez <strong>{shiftCount} créneau{shiftCount > 1 ? 'x' : ''}</strong> prévu{shiftCount > 1 ? 's' : ''} ce mois-ci.
+        </>
+      )}
+      {' '}Vous pouvez dès maintenant consulter vos
       créneaux sur votre espace Pawly.
     </Text>
 
@@ -39,6 +47,10 @@ export const SchedulePublicationEmail = ({
         Consulter mon planning
       </Button>
     </Section>
+
+    <Text style={tipText}>
+      Astuce : Installez Pawly sur votre écran d&apos;accueil pour un accès instantané !
+    </Text>
 
     <Text style={disclaimer}>
       Ce message est envoyé automatiquement lors de la publication du planning.
@@ -87,6 +99,14 @@ const button = {
   width: '100%',
   textAlign: 'center' as const,
   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+};
+
+const tipText = {
+  color: '#009588',
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  marginTop: '16px',
+  fontStyle: 'italic' as const,
 };
 
 const disclaimer = {

@@ -8,6 +8,7 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { MailService } from '@/modules/mail/mail.service';
+import { PushNotificationService } from '@/modules/notification/push-notification.service';
 import type { TemplateData, HoleInfo, HardViolation, SoftViolation } from '@pawly/validators';
 
 type SlotRequirement = {
@@ -179,6 +180,11 @@ describe('PlanningGenerationService', () => {
 
   const mockMailService = {
     sendSchedulePublicationEmail: jest.fn(),
+    sendBatchSchedulePublicationEmails: jest.fn().mockResolvedValue(0),
+  };
+
+  const mockPushNotificationService = {
+    sendBatchPushNotifications: jest.fn().mockResolvedValue(0),
   };
 
   beforeEach(async () => {
@@ -188,6 +194,7 @@ describe('PlanningGenerationService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ClinicService, useValue: mockClinicService },
         { provide: MailService, useValue: mockMailService },
+        { provide: PushNotificationService, useValue: mockPushNotificationService },
         { provide: PlanningService, useValue: mockPlanningService },
         {
           provide: PlanningTemplateService,
@@ -3630,54 +3637,50 @@ describe('PlanningGenerationService', () => {
       expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
     });
 
-    it('should send email to active employees with shifts in the month', async () => {
-      // After transaction: employee.findMany returns employees with shifts and emails
+    it('should send batch email to active employees with shifts in the month', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
-        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr' },
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
+        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: true, _count: { shifts: 3 } },
       ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(2);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledTimes(2);
-      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledWith(
-        'alice@clinic.fr',
-        'Alice',
-        month,
-        'Clinique Vétérinaire du Parc',
-      );
-      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledWith(
-        'bob@clinic.fr',
-        'Bob',
+      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
+        [
+          { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 },
+          { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3 },
+        ],
         month,
         'Clinique Vétérinaire du Parc',
       );
       expect(result.notifiedCount).toBe(2);
     });
 
-    it('should not send email to employees without email', async () => {
-      // The actual code queries employees with `email: { not: null }` filter,
-      // so employees without email won't be returned.
-      // However, to test the code's defensive check (emp.email!), we
-      // simulate the expected DB result: only employees with email.
+    it('should not send email to employees with notifyOnPublish disabled', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
+        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: false, _count: { shifts: 3 } },
       ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendSchedulePublicationEmail).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
+        [{ to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 }],
+        month,
+        'Clinique Vétérinaire du Parc',
+      );
       expect(result.notifiedCount).toBe(1);
     });
 
     it('should not send email to inactive employees', async () => {
-      // The actual code queries employees with `isActive: true` filter,
-      // so inactive employees won't be in the result set.
       mockPrismaService.employee.findMany.mockResolvedValue([]);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendSchedulePublicationEmail).not.toHaveBeenCalled();
+      expect(mockMailService.sendBatchSchedulePublicationEmails).not.toHaveBeenCalled();
       expect(result.notifiedCount).toBe(0);
     });
 
@@ -3730,13 +3733,13 @@ describe('PlanningGenerationService', () => {
 
     it('should include publishedAt and notifiedCount in result', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr' },
+        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 4 } },
       ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
       expect(result.publishedAt).toBeDefined();
-      // publishedAt should be a valid ISO date string
       expect(new Date(result.publishedAt).toISOString()).toBe(result.publishedAt);
       expect(result.notifiedCount).toBe(1);
     });

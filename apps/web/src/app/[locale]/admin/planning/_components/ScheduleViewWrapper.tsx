@@ -31,7 +31,7 @@ export function ScheduleViewWrapper({ month }: Props) {
   const { moveShift, createManualShift } = useShiftMutations(month);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
-  const { publicationStatus, publishPlan, isPublishing } = usePublish(month, {
+  const { publicationStatus, publishPlan, isPublishing, publishPreview } = usePublish(month, {
     onPublishSuccess: () => setPublishDialogOpen(false),
   });
 
@@ -205,6 +205,7 @@ export function ScheduleViewWrapper({ month }: Props) {
         onConfirm={handlePublishConfirm}
         softViolationCount={softViolationCount}
         isPublishing={isPublishing}
+        preview={publishPreview}
       />
     </div>
   );

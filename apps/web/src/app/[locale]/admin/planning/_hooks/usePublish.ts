@@ -8,10 +8,24 @@ import {
 import {
   publishPlanAction,
   getPublicationStatusAction,
+  getPublishPreviewAction,
 } from "../_actions/publish-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+
+type PublishPreview = {
+  employees: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    shiftCount: number;
+    notifyOnPublish: boolean;
+  }>;
+  emailCount: number;
+  disabledCount: number;
+  totalWithShifts: number;
+};
 
 type UsePublishOptions = {
   onPublishSuccess?: () => void;
@@ -28,15 +42,29 @@ export const usePublish = (month?: string, options?: UsePublishOptions) => {
       enabled: !!month && month.length > 0,
     });
 
+  const { data: rawPreview, isPending: isLoadingPreview } =
+    useServerActionQuery(getPublishPreviewAction, {
+      input: { month: month ?? "" },
+      queryKey: QueryKeyFactory.publishPreview(month),
+      enabled: !!month && month.length > 0,
+    });
+
+  const publishPreview = rawPreview as PublishPreview | undefined;
+
   const { mutate: publishPlan, isPending: isPublishing } =
     useServerActionMutation(publishPlanAction, {
-      onSuccess: () => {
-        toast.success(t("publishSuccess"));
+      onSuccess: (result) => {
+        const data = result as { notifiedCount?: number } | undefined;
+        const notifiedCount = data?.notifiedCount ?? 0;
+        toast.success(t("publishSuccess", { count: notifiedCount }));
         queryClient.invalidateQueries({
           queryKey: QueryKeyFactory.publicationStatus(month),
         });
         queryClient.invalidateQueries({
           queryKey: QueryKeyFactory.planningScheduleView(month),
+        });
+        queryClient.invalidateQueries({
+          queryKey: QueryKeyFactory.publishPreview(),
         });
         options?.onPublishSuccess?.();
       },
@@ -50,6 +78,8 @@ export const usePublish = (month?: string, options?: UsePublishOptions) => {
       | { status: "DRAFT" | "PUBLISHED"; publishedAt: string | null; publishedBy: string | null }
       | undefined,
     isLoadingStatus,
+    publishPreview,
+    isLoadingPreview,
     publishPlan,
     isPublishing,
   };

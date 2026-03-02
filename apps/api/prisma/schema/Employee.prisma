@@ -25,7 +25,8 @@ model Employee {
   contractHours Int          @default(35) @map("contract_hours")
   hireDate      DateTime?    @map("hire_date")
   endDate       DateTime?    @map("end_date")
-  isActive      Boolean      @default(true) @map("is_active")
+  isActive        Boolean      @default(true) @map("is_active")
+  notifyOnPublish Boolean      @default(true) @map("notify_on_publish")
 
   clinicId  String   @map("clinic_id")
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -38,6 +39,7 @@ model Employee {
   unavailabilities Unavailability[]
   equityCounters   EquityCounter[]
   apprenticeDeclarations ApprenticeMonthDeclaration[]
+  pushSubscriptions      PushSubscription[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

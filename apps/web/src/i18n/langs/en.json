@@ -584,14 +584,18 @@
       }
     },
     "publication": {
-      "publishSuccess": "Schedule published — employees have been notified",
+      "publishSuccess": "Schedule published — {count, plural, =0 {no employees notified} one {# employee notified} other {# employees notified}}",
       "publishError": "Failed to publish schedule",
       "confirmTitle": "Publish Schedule",
       "confirmDescription": "This will notify all employees of their schedule by email. This action cannot be undone.",
       "confirmDescriptionWithWarnings": "There are still {count, plural, one {# soft warning} other {# soft warnings}} remaining. This will notify all employees of their schedule by email. This action cannot be undone.",
       "cancel": "Cancel",
       "confirmPublish": "Publish",
-      "publishing": "Publishing…"
+      "publishing": "Publishing…",
+      "employeesNotified": "{count, plural, =0 {No emails sent} one {# email sent} other {# emails sent}}",
+      "employeesDisabled": "{count, plural, one {# employee with notifications off} other {# employees with notifications off}}",
+      "shifts": "shifts",
+      "shift": "shift"
     },
     "equity": {
       "badgeLabel": "Equity indicator",
@@ -857,7 +861,46 @@
       "home": "Home",
       "schoolDays": "School Days",
       "absences": "Absences",
-      "schedule": "My Schedule"
+      "schedule": "My Schedule",
+      "settings": "Settings"
+    },
+    "pwaInstall": {
+      "ariaLabel": "Install Pawly app",
+      "title": "Install Pawly",
+      "description": "Add Pawly to your home screen for quick access, even offline.",
+      "installButton": "Install",
+      "dismissButton": "Close",
+      "iosTitle": "To install on iOS:",
+      "iosStep1": "Tap the share button",
+      "iosStep2": "Select 'Add to Home Screen'",
+      "notSupported": "Installation is not available on this browser."
+    },
+    "settings": {
+      "title": "Settings",
+      "appSection": "Application",
+      "pwaStatus": "App status",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "notificationsSection": "Notifications",
+      "notifyOnPublish": "Schedule published",
+      "notifyOnPublishDescription": "Receive an email when the schedule is published.",
+      "pushNotifications": "Push notifications",
+      "pushDescription": "Receive instant notifications on this device.",
+      "pushEnable": "Enable",
+      "pushDisable": "Disable",
+      "pushDenied": "Notifications are blocked. Enable them in your browser settings.",
+      "pushEnabled": "Push notifications enabled",
+      "pushDisabled": "Push notifications disabled",
+      "pushEnableError": "Unable to enable push notifications",
+      "pushDisableError": "Unable to disable push notifications",
+      "pushUnsupported": "Push not supported on this browser",
+      "pushBlocked": "Notifications blocked by browser",
+      "pushPermissionNotGranted": "Permission not granted",
+      "pushVapidMissing": "Push configuration missing (VAPID)",
+      "pushSwUnavailable": "Service Worker unavailable",
+      "pushSubscriptionInvalid": "Push subscription invalid",
+      "pushError": "Push error: {message}",
+      "pushUnsubscribeError": "Failed to disable push"
     },
     "schoolDays": {
       "title": "School Days Declaration",

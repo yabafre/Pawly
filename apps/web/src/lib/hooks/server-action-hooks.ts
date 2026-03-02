@@ -40,6 +40,9 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   clinic: () => ["clinic"],
   billing: () => ["billing"],
   checkout: () => ["checkout"],
+  publishPreview: (month?: string) => ["publish-preview", month ?? "all"],
+  myNotificationPreferences: () => ["my-notification-preferences"],
+  myPushSubscription: () => ["my-push-subscription"],
 });
 
 export const {

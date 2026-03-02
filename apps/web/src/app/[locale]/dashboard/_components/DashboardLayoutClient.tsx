@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CalendarDays, CalendarOff, GraduationCap, Home, LogOut, PawPrint } from "lucide-react";
+import { CalendarDays, CalendarOff, GraduationCap, Home, LogOut, PawPrint, Settings } from "lucide-react";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OnlineRestoreToast } from "@/components/OnlineRestoreToast";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -22,6 +22,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
         { href: "/dashboard/schedule", icon: CalendarDays, labelKey: "schedule" as const },
         { href: "/dashboard/school-days", icon: GraduationCap, labelKey: "schoolDays" as const },
         { href: "/dashboard/absences", icon: CalendarOff, labelKey: "absences" as const },
+        { href: "/dashboard/settings", icon: Settings, labelKey: "settings" as const },
     ];
 
     const queryClient = useQueryClient();
@@ -101,7 +102,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
                 className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl border-t border-neutral-200 sm:hidden"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
             >
-                <div className="grid grid-cols-4 h-16">
+                <div className="grid grid-cols-5 h-16">
                     {navItems.map((item) => {
                         const isActive = item.exact
                             ? pathname === item.href

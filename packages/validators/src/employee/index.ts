@@ -66,3 +66,13 @@ export type {
   AdminCreateAbsenceInput,
   CheckAbsenceOverlapInput,
 } from "./absence.schema";
+
+export {
+  updateNotificationPreferencesSchema,
+  notificationPreferencesResponseSchema,
+} from "./notification-preferences.schema";
+
+export type {
+  UpdateNotificationPreferencesInput,
+  NotificationPreferencesResponse,
+} from "./notification-preferences.schema";

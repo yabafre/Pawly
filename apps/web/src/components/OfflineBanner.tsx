@@ -6,9 +6,7 @@ import { useEffect, useState } from "react";
 
 export function OfflineBanner() {
   const t = useTranslations("dashboard.schedule.offline");
-  const [isOffline, setIsOffline] = useState(
-    () => typeof navigator !== "undefined" ? !navigator.onLine : false,
-  );
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
     setIsOffline(!navigator.onLine);

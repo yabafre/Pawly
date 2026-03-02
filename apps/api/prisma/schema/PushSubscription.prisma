@@ -1,0 +1,19 @@
+model PushSubscription {
+  id       String @id @default(cuid())
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String   @map("employee_id")
+
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicId String @map("clinic_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([employeeId])
+  @@index([clinicId])
+  @@map("push_subscription")
+}

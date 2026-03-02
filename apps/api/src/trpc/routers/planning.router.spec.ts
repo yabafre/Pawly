@@ -49,6 +49,7 @@ describe('planningRouter', () => {
     preValidateMove: jest.fn(),
     publishPlan: jest.fn(),
     getPublicationStatus: jest.fn(),
+    getPublishPreview: jest.fn(),
   };
 
   const mockApprenticeDeclarationService = {
@@ -117,9 +118,9 @@ describe('planningRouter', () => {
 
   // ─── Router shape ───────────────────────────────────────────────────
 
-  it('should export all 30 procedures', () => {
+  it('should export all 31 procedures', () => {
     const procedures = Object.keys(planningRouter._def.procedures);
-    expect(procedures).toHaveLength(30);
+    expect(procedures).toHaveLength(31);
     expect(procedures).toEqual(
       expect.arrayContaining([
         'listRules',
@@ -148,6 +149,7 @@ describe('planningRouter', () => {
         'preValidateMove',
         'publishPlan',
         'getPublicationStatus',
+        'getPublishPreview',
         'listApprenticeDeclarations',
         'upsertNoSchool',
         'deleteApprenticeDeclaration',
@@ -1239,6 +1241,53 @@ describe('planningRouter', () => {
       await expect(
         caller.getPublicationStatus({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+  });
+
+  // ─── getPublishPreview ──────────────────────────────────────────
+
+  describe('getPublishPreview', () => {
+    const mockPreview = {
+      employees: [
+        { id: 'emp-1', firstName: 'Marie', lastName: 'Dupont', shiftCount: 5, notifyOnPublish: true, hasPushSubscription: true },
+        { id: 'emp-2', firstName: 'Jean', lastName: 'Martin', shiftCount: 3, notifyOnPublish: false, hasPushSubscription: false },
+      ],
+      emailCount: 1,
+      pushCount: 1,
+      disabledCount: 1,
+      totalWithShifts: 2,
+    };
+
+    it('should be accessible to ADMIN role', async () => {
+      mockPlanningGenerationService.getPublishPreview.mockResolvedValue(mockPreview);
+
+      const caller = createAdminCaller();
+      const result = await caller.getPublishPreview({ month: '2026-03' });
+
+      expect(result).toEqual(mockPreview);
+      expect(mockPlanningGenerationService.getPublishPreview).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+      );
+    });
+
+    it('should reject EMPLOYEE role with FORBIDDEN', async () => {
+      const caller = createEmployeeCaller();
+
+      await expect(
+        caller.getPublishPreview({ month: '2026-03' }),
+      ).rejects.toThrow(TRPCError);
+      await expect(
+        caller.getPublishPreview({ month: '2026-03' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    it('should reject invalid month format', async () => {
+      const caller = createAdminCaller();
+
+      await expect(
+        caller.getPublishPreview({ month: 'bad' }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     });
   });
 });
