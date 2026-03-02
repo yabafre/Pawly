@@ -28,7 +28,8 @@
 #   - done: Retrospective has been completed
 
 generated: '2026-02-02'
-updated: '2026-03-01'
+updated: '2026-03-02'
+# 2026-03-02: Quick-spec SigNoz + Trigger.dev integration created (ready-for-dev). SigNoz self-hosted OpenTelemetry (tracing + metrics + Prisma query tracing) for NestJS API + Next.js Web. Trigger.dev self-hosted background jobs replacing all @nestjs/schedule crons (school reminder, no-show detection, equity recalc nightly + monthly) + async batch email/push publish + fire-and-forget emails. 28 tasks, 15 ACs, 5 phases (A: deps+env, B: SigNoz OTel, C: Trigger.dev tasks, D: NestJS wiring, E: pipeline). Graceful degradation (no env vars = current behavior). Spec: docs/implementation-artifacts/tech-spec-signoz-triggerdev-integration.md.
 # 2026-03-01: Story 8-3 code review done. 17 issues found (2 CRITICAL, 9 HIGH, 6 MEDIUM), all fixed. C1: cross-clinic push subscription poisoning (upsert update). C2: 12 hardcoded French toasts→i18n. H1: validateShiftsAgainstRules before $transaction. H2: +15 employee-schedule router tests. H3: quick-exit totalWithShifts real count. H4: +3 getPublishPreview tests. H5: throttle chain memory leak. H6: iPadOS 13+ detection. H7: notificationclick client URL filter. H8: timer race fix. H9: mutateAsync for error handling. M1-M6: schema dedup, test coverage, turbo cache:false, mock defaults, pwa-utils shared, role fix. Hydration mismatch fix (OfflineBanner useState). 2272 total tests (710 Validators + 813 API + 749 Web). Build green.
 # 2026-03-01: Story 8-3 implemented → done. 16/16 tasks done. PWA Install Prompt (beforeinstallprompt Chrome/Android + iOS step-by-step instructions + 7-day localStorage dismiss + standalone detection), batch email publication via resend.batch.send() (max 100 per batch, chunking, notifyOnPublish filtering), Employee.notifyOnPublish preference field with admin + employee self-service toggle, PushSubscription Prisma model + PushNotificationService (web-push VAPID, 410 Gone stale cleanup, fire-and-forget in publishPlan), 5 new tRPC procedures in employee-schedule router (notification prefs + push CRUD) + getPublishPreview in planning router, enhanced PublishConfirmDialog with notification preview (email + push counts + employee list), employee settings page (/dashboard/settings) with email toggle + push enable/disable + PWA status badge, SW push+notificationclick handlers, serwist migration from @serwist/next to @serwist/turbopack (Turbopack compatible, route handler pattern), SerwistRegistration component, i18n FR/EN (~50 keys). 2250 total tests (706 Validators + 795 API + 749 Web). Build green. Push notifications tested end-to-end on iOS PWA. Epic 8 complete (3/3 stories + OTP prereq done).
 # 2026-03-01: Story 8-3 created (ready-for-dev). PWA Installation & Email Notifications. PwaInstallPrompt component (beforeinstallprompt Chrome/Android + iOS instructions + 7-day dismiss + standalone detection), batch email publication via resend.batch.send() replacing sequential loop (max 100 per batch, chunking), Employee.notifyOnPublish preference field (admin + employee self-service toggle), enhanced PublishConfirmDialog with notification preview (employee list + count), employee settings page (/dashboard/settings) with notification toggle + PWA status badge, enhanced SchedulePublicationEmail template (shift count + deep link + install tip), employee-schedule router notification preference procedures, planning router getPublishPreview procedure, i18n FR/EN (~30 keys). Push Notifications documented as Phase 2. ~75 new tests planned. Last story in Epic 8.
@@ -238,3 +239,14 @@ development_status:
   otp-email-auth-pwa-quick-spec: done  # Quick-spec: OTP replaces Magic Link for PWA iOS (cookie isolation fix). Prerequisite for 8-3.
   8-3-pwa-installation-email-notifications: done
   epic-8-retrospective: optional
+
+  # ===========================================================================
+  # EPIC 9: PRODUCTION READINESS — OBSERVABILITY & JOB DURABILITY
+  # Objective: Production monitoring, distributed tracing, durable background jobs.
+  # Key Points: SigNoz self-hosted (OTel tracing + metrics + Prisma), Trigger.dev
+  #             self-hosted (async jobs, cron migration, retries, dashboard).
+  # NFRs: Observability, Reliability, Monitoring
+  # ===========================================================================
+  epic-9: in-progress
+  signoz-triggerdev-integration-quick-spec: ready-for-dev  # Quick-spec: SigNoz OTel + Trigger.dev background jobs. 28 tasks, 15 ACs.
+  epic-9-retrospective: optional
