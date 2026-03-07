@@ -3,6 +3,9 @@
     "ui": "tui",
     "envMode": "loose",
     "tasks": {
+        "db:generate": {
+            "cache": false
+        },
         "build": {
             "inputs": [
                 "$TURBO_DEFAULT$",
@@ -12,7 +15,8 @@
                 ".env"
             ],
             "dependsOn": [
-                "^build"
+                "^build",
+                "db:generate"
             ],
             "outputs": [
                 "dist/**",
