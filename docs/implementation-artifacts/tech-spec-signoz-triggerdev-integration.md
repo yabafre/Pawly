@@ -2,7 +2,7 @@
 title: 'SigNoz Observability & Trigger.dev Background Jobs Integration'
 slug: 'signoz-triggerdev-integration'
 created: '2026-03-02'
-status: 'ready-for-dev'
+status: 'done'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['NestJS 11.0.1', 'Next.js 16.1.6', 'Prisma 7.2.0', '@nestjs/schedule 6.1.1', 'Resend 6.9.1', 'web-push 3.6.7', 'signoz-self-hosted', 'trigger.dev-self-hosted', '@opentelemetry/sdk-node', '@opentelemetry/auto-instrumentations-node', '@vercel/otel', '@trigger.dev/sdk']
 files_to_modify:

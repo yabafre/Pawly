@@ -28,10 +28,31 @@ function createTrpcRateLimiter(limit: number, windowMs: number) {
   };
 }
 
+async function initializeTracing() {
+  if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    return;
+  }
+
+  const logger = new Logger('Tracing');
+
+  try {
+    const { setupTracing } = await import('./tracing.js');
+    setupTracing();
+    logger.log('OpenTelemetry initialized');
+  } catch (error) {
+    logger.error(
+      'OpenTelemetry initialization failed; continuing without tracing',
+      error instanceof Error ? error.stack : String(error)
+    );
+  }
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   try {
+    await initializeTracing();
+
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {
       rawBody: true,
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],

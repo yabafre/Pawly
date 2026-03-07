@@ -1,3 +1,9 @@
+jest.mock('@/trigger/client', () => ({
+  batchEmailPublishTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+  batchPushPublishTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+  sendEmailTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
@@ -9,6 +15,7 @@ import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
+import { batchEmailPublishTask, batchPushPublishTask } from '@/trigger/client';
 import type { TemplateData, HoleInfo, HardViolation, SoftViolation } from '@pawly/validators';
 
 type SlotRequirement = {
@@ -3545,12 +3552,22 @@ describe('PlanningGenerationService', () => {
   describe('publishPlan', () => {
     const userId = 'user-admin-1';
     const month = '2026-03';
+    const savedTriggerKey = process.env.TRIGGER_SECRET_KEY;
+
+    afterAll(() => {
+      if (savedTriggerKey !== undefined) {
+        process.env.TRIGGER_SECRET_KEY = savedTriggerKey;
+      }
+    });
 
     const mockTxPlanningPeriodStatus = {
       upsert: jest.fn(),
     };
 
     beforeEach(() => {
+      // Ensure direct-send path is tested (Trigger.dev tests have their own beforeEach)
+      delete process.env.TRIGGER_SECRET_KEY;
+
       // publishPlan first calls planningPeriodStatus.findUnique for quick-exit check
       mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null); // not yet published
 
@@ -3591,9 +3608,9 @@ describe('PlanningGenerationService', () => {
       const result = await service.publishPlan(clinicId, month, userId);
 
       expect(result).toHaveProperty('publishedAt');
-      expect(result).toHaveProperty('notifiedCount');
+      expect(result).toHaveProperty('totalWithShifts');
       expect(typeof result.publishedAt).toBe('string');
-      expect(typeof result.notifiedCount).toBe('number');
+      expect(typeof result.totalWithShifts).toBe('number');
 
       expect(mockTxPlanningPeriodStatus.upsert).toHaveBeenCalledWith({
         where: { clinicId_month: { clinicId, month } },
@@ -3655,7 +3672,7 @@ describe('PlanningGenerationService', () => {
         month,
         'Clinique Vétérinaire du Parc',
       );
-      expect(result.notifiedCount).toBe(2);
+      expect(result.totalWithShifts).toBe(2);
     });
 
     it('should not send email to employees with notifyOnPublish disabled', async () => {
@@ -3672,7 +3689,7 @@ describe('PlanningGenerationService', () => {
         month,
         'Clinique Vétérinaire du Parc',
       );
-      expect(result.notifiedCount).toBe(1);
+      expect(result.totalWithShifts).toBe(2);
     });
 
     it('should not send email to inactive employees', async () => {
@@ -3681,7 +3698,7 @@ describe('PlanningGenerationService', () => {
       const result = await service.publishPlan(clinicId, month, userId);
 
       expect(mockMailService.sendBatchSchedulePublicationEmails).not.toHaveBeenCalled();
-      expect(result.notifiedCount).toBe(0);
+      expect(result.totalWithShifts).toBe(0);
     });
 
     it('should be idempotent — re-publishing updates timestamp', async () => {
@@ -3728,10 +3745,10 @@ describe('PlanningGenerationService', () => {
 
       expect(mockTxPlanningPeriodStatus.upsert).toHaveBeenCalledTimes(1);
       expect(result).toHaveProperty('publishedAt');
-      expect(result).toHaveProperty('notifiedCount');
+      expect(result).toHaveProperty('totalWithShifts');
     });
 
-    it('should include publishedAt and notifiedCount in result', async () => {
+    it('should include publishedAt and totalWithShifts in result', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
         { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 4 } },
       ]);
@@ -3741,7 +3758,93 @@ describe('PlanningGenerationService', () => {
 
       expect(result.publishedAt).toBeDefined();
       expect(new Date(result.publishedAt).toISOString()).toBe(result.publishedAt);
-      expect(result.notifiedCount).toBe(1);
+      expect(result.totalWithShifts).toBe(1);
+    });
+
+    describe('Trigger.dev code path', () => {
+      const originalTriggerKey = process.env.TRIGGER_SECRET_KEY;
+
+      beforeEach(() => {
+        process.env.TRIGGER_SECRET_KEY = 'tr_dev_test_key';
+        jest.clearAllMocks();
+
+        mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
+        mockPrismaService.shift.count.mockResolvedValue(0);
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+          hardViolations: [],
+          softViolations: [],
+        });
+        mockTxPlanningPeriodStatus.upsert.mockResolvedValue({
+          id: 'pps-1',
+          clinicId,
+          month,
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+          publishedBy: userId,
+        });
+        mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+          return fn(tx);
+        });
+        mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+          name: 'Clinique Test',
+        });
+      });
+
+      afterEach(() => {
+        if (originalTriggerKey !== undefined) {
+          process.env.TRIGGER_SECRET_KEY = originalTriggerKey;
+        } else {
+          delete process.env.TRIGGER_SECRET_KEY;
+        }
+      });
+
+      it('should trigger batch-email-publish task instead of direct send when TRIGGER_SECRET_KEY is set', async () => {
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
+          { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: true, _count: { shifts: 3 } },
+        ]);
+
+        await service.publishPlan(clinicId, month, userId);
+
+        expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
+        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
+          emails: [
+            { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 },
+            { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3 },
+          ],
+          month,
+          clinicName: 'Clinique Test',
+        });
+        expect(mockMailService.sendBatchSchedulePublicationEmails).not.toHaveBeenCalled();
+      });
+
+      it('should trigger batch-push-publish task when TRIGGER_SECRET_KEY is set', async () => {
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
+        ]);
+
+        await service.publishPlan(clinicId, month, userId);
+
+        expect(batchPushPublishTask.trigger).toHaveBeenCalledTimes(1);
+        expect(batchPushPublishTask.trigger).toHaveBeenCalledWith({
+          employeeIds: ['emp-1'],
+          title: 'Clinique Test — Planning publié',
+          body: `Votre planning de ${month} est disponible.`,
+          url: '/dashboard/schedule',
+        });
+        expect(mockPushNotificationService.sendBatchPushNotifications).not.toHaveBeenCalled();
+      });
+
+      it('should not trigger tasks when no eligible employees', async () => {
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: false, _count: { shifts: 5 } },
+        ]);
+
+        await service.publishPlan(clinicId, month, userId);
+
+        expect(batchEmailPublishTask.trigger).not.toHaveBeenCalled();
+      });
     });
   });
 

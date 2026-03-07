@@ -11,6 +11,7 @@ import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import { OtpCodeEmail } from './templates/OtpCodeEmail';
+import { sendEmailTask } from '@/trigger/client';
 import type { EnvConfig } from '@/config/index';
 import type { AbsenceType } from '@pawly/validators';
 
@@ -26,6 +27,18 @@ export class MailService {
     this.resend = new Resend(
       this.configService.get('RESEND_API_KEY', { infer: true }),
     );
+  }
+
+  private get useTrigger(): boolean {
+    return !!process.env.TRIGGER_SECRET_KEY;
+  }
+
+  async triggerSendEmail(type: string, to: string, data: Record<string, unknown>): Promise<void> {
+    try {
+      await sendEmailTask.trigger({ type: type as any, to, data });
+    } catch (err) {
+      this.logger.error(`Failed to trigger send-email task (${type})`, err);
+    }
   }
 
   private throttle(): Promise<void> {
@@ -87,6 +100,9 @@ export class MailService {
   }
 
   async sendEmployeeInvitationEmail(email: string, url: string, firstName: string) {
+    if (this.useTrigger) {
+      return this.triggerSendEmail('invitation', email, { url, firstName });
+    }
     try {
       const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
 
@@ -113,6 +129,9 @@ export class MailService {
     month: string,
     dateCount: number,
   ) {
+    if (this.useTrigger) {
+      return this.triggerSendEmail('school-notification', adminEmail, { adminName, apprenticeName, month, dateCount });
+    }
     try {
       const html = await render(
         <SchoolDaysDeclarationEmail
@@ -146,6 +165,11 @@ export class MailService {
     clinicName: string,
     shiftCount?: number,
   ) {
+    if (this.useTrigger) {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+      return this.triggerSendEmail('schedule-publication', employeeEmail, { firstName, month, clinicName, dashboardUrl, shiftCount });
+    }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
@@ -241,6 +265,11 @@ export class MailService {
     name: string,
     month: string,
   ) {
+    if (this.useTrigger) {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
+      return this.triggerSendEmail('school-reminder', apprenticeEmail, { name, month, dashboardUrl });
+    }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
@@ -298,6 +327,13 @@ export class MailService {
     endDate: Date,
     dayCount: number,
   ) {
+    if (this.useTrigger) {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return this.triggerSendEmail('absence-request', adminEmail, {
+        adminName, employeeName, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), dayCount,
+      });
+    }
     try {
       const formatDate = (d: Date) =>
         d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -338,6 +374,13 @@ export class MailService {
     endDate: Date,
     rejectionReason?: string,
   ) {
+    if (this.useTrigger) {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return this.triggerSendEmail('absence-review', employeeEmail, {
+        firstName, status, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), rejectionReason,
+      });
+    }
     try {
       const formatDate = (d: Date) =>
         d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });

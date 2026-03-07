@@ -203,23 +203,23 @@ describe("publishPlanResultSchema", () => {
   it("accepts valid publish result", () => {
     const result = publishPlanResultSchema.safeParse({
       publishedAt: "2026-03-15T10:00:00.000Z",
-      notifiedCount: 8,
+      totalWithShifts: 8,
     });
     expect(result.success).toBe(true);
   });
 
-  it("accepts zero notified count", () => {
+  it("accepts zero totalWithShifts", () => {
     const result = publishPlanResultSchema.safeParse({
       publishedAt: "2026-03-15T10:00:00.000Z",
-      notifiedCount: 0,
+      totalWithShifts: 0,
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects negative notified count", () => {
+  it("rejects negative totalWithShifts", () => {
     const result = publishPlanResultSchema.safeParse({
       publishedAt: "2026-03-15T10:00:00.000Z",
-      notifiedCount: -1,
+      totalWithShifts: -1,
     });
     expect(result.success).toBe(false);
   });

@@ -16,6 +16,14 @@ export class EquityCounterScheduler {
    */
   @Cron('0 0 2 * * *', { timeZone: 'Europe/Paris' })
   async handleNightlyRecalculation(): Promise<void> {
+    if (process.env.TRIGGER_SECRET_KEY) {
+      this.logger.log('Cron handled by Trigger.dev — skipping');
+      return;
+    }
+    if (process.env.CRON_ENABLED === 'false') {
+      this.logger.log('Cron disabled on this instance, skipping');
+      return;
+    }
     try {
       const now = new Date();
       const year = now.getFullYear();
@@ -41,6 +49,14 @@ export class EquityCounterScheduler {
    */
   @Cron('0 0 3 1 * *', { timeZone: 'Europe/Paris' })
   async handleMonthlyFinalization(): Promise<void> {
+    if (process.env.TRIGGER_SECRET_KEY) {
+      this.logger.log('Cron handled by Trigger.dev — skipping');
+      return;
+    }
+    if (process.env.CRON_ENABLED === 'false') {
+      this.logger.log('Cron disabled on this instance, skipping');
+      return;
+    }
     try {
       const now = new Date();
       // Calculate previous month (handles year boundary)

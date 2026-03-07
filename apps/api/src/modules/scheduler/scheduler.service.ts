@@ -19,6 +19,10 @@ export class SchedulerService {
     timeZone: 'Europe/Paris',
   })
   async handleSchoolDaysReminder() {
+    if (process.env.TRIGGER_SECRET_KEY) {
+      this.logger.log('Cron handled by Trigger.dev — skipping');
+      return;
+    }
     if (process.env.CRON_ENABLED === 'false') {
       this.logger.log('Cron disabled on this instance, skipping');
       return;

@@ -5,6 +5,10 @@ import { PrismaService } from '@/prisma/prisma.service';
 
 describe('PresenceConfirmationScheduler', () => {
   let scheduler: PresenceConfirmationScheduler;
+  const savedTriggerKey = process.env.TRIGGER_SECRET_KEY;
+
+  beforeAll(() => { delete process.env.TRIGGER_SECRET_KEY; });
+  afterAll(() => { if (savedTriggerKey !== undefined) process.env.TRIGGER_SECRET_KEY = savedTriggerKey; });
 
   const mockPrismaService = {
     planningPeriodStatus: {
