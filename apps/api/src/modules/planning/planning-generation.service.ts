@@ -11,6 +11,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
+import { batchEmailPublishTask, batchPushPublishTask } from '@/trigger/client';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
@@ -1787,7 +1788,7 @@ export class PlanningGenerationService {
     clinicId: string,
     month: string,
     userId: string,
-  ): Promise<{ publishedAt: string; notifiedCount: number; totalWithShifts: number }> {
+  ): Promise<{ publishedAt: string; totalWithShifts: number }> {
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
     }
@@ -1818,7 +1819,6 @@ export class PlanningGenerationService {
         });
         return {
           publishedAt: existingStatus.publishedAt!.toISOString(),
-          notifiedCount: 0,
           totalWithShifts,
         };
       }
@@ -1886,8 +1886,9 @@ export class PlanningGenerationService {
     // Filter to only those with notifyOnPublish: true
     const eligibleEmployees = allEmployeesWithShifts.filter((e) => e.notifyOnPublish);
 
-    // Batch send emails
-    let notifiedCount = 0;
+    // Send notifications (Trigger.dev if configured, direct otherwise)
+    const useTrigger = !!process.env.TRIGGER_SECRET_KEY;
+
     if (eligibleEmployees.length > 0) {
       const emailPayloads = eligibleEmployees.map((emp) => ({
         to: emp.email!,
@@ -1895,30 +1896,44 @@ export class PlanningGenerationService {
         shiftCount: emp._count.shifts,
       }));
 
-      notifiedCount = await this.mailService.sendBatchSchedulePublicationEmails(
-        emailPayloads,
-        month,
-        clinic.name,
-      );
+      if (useTrigger) {
+        // Async via Trigger.dev — fire-and-forget
+        batchEmailPublishTask
+          .trigger({ emails: emailPayloads, month, clinicName: clinic.name })
+          .catch((err: Error) => this.logger.error(`Trigger batch-email-publish failed: ${err.message}`));
+      } else {
+        // Direct send (fallback)
+        await this.mailService.sendBatchSchedulePublicationEmails(emailPayloads, month, clinic.name);
+      }
     }
 
-    // Send push notifications (fire-and-forget, don't block response)
+    // Push notifications
     const pushEligibleIds = eligibleEmployees.map((e) => e.id);
-    this.pushNotificationService
-      .sendBatchPushNotifications(pushEligibleIds, {
-        title: `${clinic.name} — Planning publié`,
-        body: `Votre planning de ${month} est disponible.`,
-        url: '/dashboard/schedule',
-      })
-      .catch((err: Error) => this.logger.error(`Push batch failed: ${err.message}`));
+    if (useTrigger) {
+      batchPushPublishTask
+        .trigger({
+          employeeIds: pushEligibleIds,
+          title: `${clinic.name} — Planning publié`,
+          body: `Votre planning de ${month} est disponible.`,
+          url: '/dashboard/schedule',
+        })
+        .catch((err: Error) => this.logger.error(`Trigger batch-push-publish failed: ${err.message}`));
+    } else {
+      this.pushNotificationService
+        .sendBatchPushNotifications(pushEligibleIds, {
+          title: `${clinic.name} — Planning publié`,
+          body: `Votre planning de ${month} est disponible.`,
+          url: '/dashboard/schedule',
+        })
+        .catch((err: Error) => this.logger.error(`Push batch failed: ${err.message}`));
+    }
 
     this.logger.log(
-      `Published plan for clinic ${clinicId}, month ${month}. Notified ${notifiedCount}/${totalWithShifts} employees (${totalWithShifts} total with shifts, ${notifiedCount} with notifications enabled).`,
+      `Published plan for clinic ${clinicId}, month ${month}. ${totalWithShifts} employees with shifts, ${eligibleEmployees.length} eligible for notifications${useTrigger ? ' (via Trigger.dev)' : ''}.`,
     );
 
     return {
       publishedAt: now.toISOString(),
-      notifiedCount,
       totalWithShifts,
     };
   }

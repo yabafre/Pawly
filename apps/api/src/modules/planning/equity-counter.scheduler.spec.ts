@@ -4,6 +4,10 @@ import { EquityCounterService } from './equity-counter.service';
 
 describe('EquityCounterScheduler', () => {
   let scheduler: EquityCounterScheduler;
+  const savedTriggerKey = process.env.TRIGGER_SECRET_KEY;
+
+  beforeAll(() => { delete process.env.TRIGGER_SECRET_KEY; });
+  afterAll(() => { if (savedTriggerKey !== undefined) process.env.TRIGGER_SECRET_KEY = savedTriggerKey; });
 
   const mockEquityCounterService = {
     recalculateAllClinics: jest.fn(),

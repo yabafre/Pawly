@@ -18,6 +18,10 @@
                 "dist/**",
                 ".next/**",
                 "!.next/cache/**"
+            ],
+            "env": [
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "OTEL_SERVICE_NAME"
             ]
         },
         "start": {
@@ -40,7 +44,11 @@
                 ".env"
             ],
             "cache": false,
-            "persistent": true
+            "persistent": true,
+            "env": [
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "OTEL_SERVICE_NAME"
+            ]
         },
         "lint": {
             "dependsOn": [
@@ -64,6 +72,19 @@
         "typecheck": {
             "dependsOn": [
                 "^typecheck"
+            ]
+        },
+        "trigger:dev": {
+            "cache": false,
+            "persistent": true,
+            "env": [
+                "TRIGGER_SECRET_KEY",
+                "TRIGGER_API_URL",
+                "DATABASE_URL",
+                "RESEND_API_KEY",
+                "VAPID_PUBLIC_KEY",
+                "VAPID_PRIVATE_KEY",
+                "VAPID_SUBJECT"
             ]
         }
     }

@@ -54,9 +54,9 @@ export const usePublish = (month?: string, options?: UsePublishOptions) => {
   const { mutate: publishPlan, isPending: isPublishing } =
     useServerActionMutation(publishPlanAction, {
       onSuccess: (result) => {
-        const data = result as { notifiedCount?: number } | undefined;
-        const notifiedCount = data?.notifiedCount ?? 0;
-        toast.success(t("publishSuccess", { count: notifiedCount }));
+        const data = result as { totalWithShifts?: number } | undefined;
+        const totalWithShifts = data?.totalWithShifts ?? 0;
+        toast.success(t("publishSuccess", { count: totalWithShifts }));
         queryClient.invalidateQueries({
           queryKey: QueryKeyFactory.publicationStatus(month),
         });

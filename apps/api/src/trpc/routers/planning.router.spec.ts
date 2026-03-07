@@ -1166,14 +1166,14 @@ describe('planningRouter', () => {
     it('should be accessible to ADMIN role', async () => {
       mockPlanningGenerationService.publishPlan.mockResolvedValue({
         publishedAt: new Date().toISOString(),
-        notifiedCount: 3,
+        totalWithShifts: 3,
       });
 
       const caller = createAdminCaller();
       const result = await caller.publishPlan({ month: '2026-03' });
 
       expect(result).toHaveProperty('publishedAt');
-      expect(result).toHaveProperty('notifiedCount');
+      expect(result).toHaveProperty('totalWithShifts');
       expect(mockPlanningGenerationService.publishPlan).toHaveBeenCalledWith(
         'clinic-123',
         '2026-03',

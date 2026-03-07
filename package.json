@@ -15,7 +15,8 @@
     "db:migrate:deploy": "dotenv -- pnpm --filter @pawly/api db:migrate:deploy",
     "db:studio": "dotenv -- pnpm --filter @pawly/api db:studio",
     "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed",
-    "test": "dotenv -- turbo run test"
+    "test": "dotenv -- turbo run test",
+    "trigger:dev": "dotenv -- pnpm --filter @pawly/api trigger:dev"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
@@ -24,15 +25,14 @@
     "turbo": "^2.8.1"
   },
   "pnpm": {
-    "overrides": {
-      "zod": "4.3.6"
-    }
+    "overrides": {}
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "recharts": "^3.7.0"
+    "recharts": "^3.7.0",
+    "zod": "^4.3.6"
   }
 }
