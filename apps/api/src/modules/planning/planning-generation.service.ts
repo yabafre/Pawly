@@ -10,6 +10,8 @@ import {
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { MailService } from '@/modules/mail/mail.service';
+import { PushNotificationService } from '@/modules/notification/push-notification.service';
+import { batchEmailPublishTask, batchPushPublishTask } from '@/trigger/client';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
@@ -94,6 +96,7 @@ export class PlanningGenerationService {
     private readonly prisma: PrismaService,
     private readonly clinicService: ClinicService,
     private readonly mailService: MailService,
+    private readonly pushNotificationService: PushNotificationService,
     private readonly planningService: PlanningService,
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
@@ -1785,7 +1788,7 @@ export class PlanningGenerationService {
     clinicId: string,
     month: string,
     userId: string,
-  ): Promise<{ publishedAt: string; notifiedCount: number }> {
+  ): Promise<{ publishedAt: string; totalWithShifts: number }> {
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
     }
@@ -1807,27 +1810,34 @@ export class PlanningGenerationService {
         },
       });
       if (shiftsModifiedAfterPublish === 0) {
+        const totalWithShifts = await this.prisma.employee.count({
+          where: {
+            clinicId,
+            isActive: true,
+            shifts: { some: { date: { gte: startDate, lte: endDate } } },
+          },
+        });
         return {
           publishedAt: existingStatus.publishedAt!.toISOString(),
-          notifiedCount: 0,
+          totalWithShifts,
         };
       }
     }
 
-    // Atomic: validate hard violations + upsert status inside transaction
-    const now = await this.prisma.$transaction(async (tx) => {
-      // Lighter hard-violation check: validate shifts against rules directly
-      const { hardViolations } = await this.planningService.validateShiftsAgainstRules(
-        clinicId,
-        { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+    // Pre-check: validate hard violations before publishing (best-effort, non-transactional)
+    const { hardViolations } = await this.planningService.validateShiftsAgainstRules(
+      clinicId,
+      { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+    );
+
+    if (hardViolations.length > 0) {
+      throw new ConflictException(
+        `Cannot publish: ${hardViolations.length} hard violation(s) remain. Resolve them before publishing.`,
       );
+    }
 
-      if (hardViolations.length > 0) {
-        throw new ConflictException(
-          `Cannot publish: ${hardViolations.length} hard violation(s) remain. Resolve them before publishing.`,
-        );
-      }
-
+    // Upsert publication status atomically
+    const now = await this.prisma.$transaction(async (tx) => {
       const publishedAt = new Date();
       await tx.planningPeriodStatus.upsert({
         where: { clinicId_month: { clinicId, month } },
@@ -1848,8 +1858,8 @@ export class PlanningGenerationService {
       return publishedAt;
     });
 
-    // Email sending stays outside the transaction (fire-and-forget after commit)
-    const [employees, clinic] = await Promise.all([
+    // Fetch all employees with shifts in the month (for total count)
+    const [allEmployeesWithShifts, clinic] = await Promise.all([
       this.prisma.employee.findMany({
         where: {
           clinicId,
@@ -1857,7 +1867,13 @@ export class PlanningGenerationService {
           email: { not: null },
           shifts: { some: { date: { gte: startDate, lte: endDate } } },
         },
-        select: { id: true, firstName: true, email: true },
+        select: {
+          id: true,
+          firstName: true,
+          email: true,
+          notifyOnPublish: true,
+          _count: { select: { shifts: { where: { date: { gte: startDate, lte: endDate } } } } },
+        },
       }),
       this.prisma.clinic.findUniqueOrThrow({
         where: { id: clinicId },
@@ -1865,28 +1881,60 @@ export class PlanningGenerationService {
       }),
     ]);
 
-    let notifiedCount = 0;
-    for (const emp of employees) {
-      try {
-        await this.mailService.sendSchedulePublicationEmail(
-          emp.email!,
-          emp.firstName,
-          month,
-          clinic.name,
-        );
-        notifiedCount++;
-      } catch (err) {
-        this.logger.warn(`Failed to notify ${emp.email} for ${month}: ${err}`);
+    const totalWithShifts = allEmployeesWithShifts.length;
+
+    // Filter to only those with notifyOnPublish: true
+    const eligibleEmployees = allEmployeesWithShifts.filter((e) => e.notifyOnPublish);
+
+    // Send notifications (Trigger.dev if configured, direct otherwise)
+    const useTrigger = !!process.env.TRIGGER_SECRET_KEY;
+
+    if (eligibleEmployees.length > 0) {
+      const emailPayloads = eligibleEmployees.map((emp) => ({
+        to: emp.email!,
+        firstName: emp.firstName,
+        shiftCount: emp._count.shifts,
+      }));
+
+      if (useTrigger) {
+        // Async via Trigger.dev — fire-and-forget
+        batchEmailPublishTask
+          .trigger({ emails: emailPayloads, month, clinicName: clinic.name })
+          .catch((err: Error) => this.logger.error(`Trigger batch-email-publish failed: ${err.message}`));
+      } else {
+        // Direct send (fallback)
+        await this.mailService.sendBatchSchedulePublicationEmails(emailPayloads, month, clinic.name);
       }
     }
 
+    // Push notifications
+    const pushEligibleIds = eligibleEmployees.map((e) => e.id);
+    if (useTrigger) {
+      batchPushPublishTask
+        .trigger({
+          employeeIds: pushEligibleIds,
+          title: `${clinic.name} — Planning publié`,
+          body: `Votre planning de ${month} est disponible.`,
+          url: '/dashboard/schedule',
+        })
+        .catch((err: Error) => this.logger.error(`Trigger batch-push-publish failed: ${err.message}`));
+    } else {
+      this.pushNotificationService
+        .sendBatchPushNotifications(pushEligibleIds, {
+          title: `${clinic.name} — Planning publié`,
+          body: `Votre planning de ${month} est disponible.`,
+          url: '/dashboard/schedule',
+        })
+        .catch((err: Error) => this.logger.error(`Push batch failed: ${err.message}`));
+    }
+
     this.logger.log(
-      `Published plan for clinic ${clinicId}, month ${month}. Notified ${notifiedCount}/${employees.length} employees.`,
+      `Published plan for clinic ${clinicId}, month ${month}. ${totalWithShifts} employees with shifts, ${eligibleEmployees.length} eligible for notifications${useTrigger ? ' (via Trigger.dev)' : ''}.`,
     );
 
     return {
       publishedAt: now.toISOString(),
-      notifiedCount,
+      totalWithShifts,
     };
   }
 
@@ -1910,6 +1958,59 @@ export class PlanningGenerationService {
       status: record.status as 'DRAFT' | 'PUBLISHED',
       publishedAt: record.publishedAt?.toISOString() ?? null,
       publishedBy: record.publishedBy,
+    };
+  }
+
+  async getPublishPreview(
+    clinicId: string,
+    month: string,
+  ): Promise<{
+    employees: Array<{ id: string; firstName: string; lastName: string; shiftCount: number; notifyOnPublish: boolean }>;
+    emailCount: number;
+    disabledCount: number;
+    totalWithShifts: number;
+  }> {
+    if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
+      throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(Date.UTC(year, monthNum - 1, 1));
+    const endDate = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+
+    const employeesWithShifts = await this.prisma.employee.findMany({
+      where: {
+        clinicId,
+        isActive: true,
+        email: { not: null },
+        shifts: { some: { date: { gte: startDate, lte: endDate } } },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        notifyOnPublish: true,
+        _count: { select: { shifts: { where: { date: { gte: startDate, lte: endDate } } } } },
+      },
+      orderBy: { lastName: 'asc' },
+    });
+
+    const employees = employeesWithShifts.map((e) => ({
+      id: e.id,
+      firstName: e.firstName,
+      lastName: e.lastName,
+      shiftCount: e._count.shifts,
+      notifyOnPublish: e.notifyOnPublish,
+    }));
+
+    const emailCount = employees.filter((e) => e.notifyOnPublish).length;
+    const disabledCount = employees.filter((e) => !e.notifyOnPublish).length;
+
+    return {
+      employees,
+      emailCount,
+      disabledCount,
+      totalWithShifts: employees.length,
     };
   }
 

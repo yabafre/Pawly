@@ -13,11 +13,15 @@ describe('AuthController', () => {
     user: { id: 'user-1', email: 'test@example.com', role: 'ADMIN', clinicId: 'clinic-1' },
   };
 
+  const mockOtpResponse = { method: 'otp' as const, message: 'If account exists, code sent' };
+
   const mockAuthService = {
     login: jest.fn().mockResolvedValue(mockAuthResponse),
     requestMagicLink: jest.fn().mockResolvedValue({ message: 'If an account exists, a magic link has been sent' }),
     validateMagicLink: jest.fn().mockResolvedValue(mockAuthResponse),
     refreshToken: jest.fn().mockResolvedValue(mockAuthResponse),
+    requestOtp: jest.fn().mockResolvedValue(mockOtpResponse),
+    verifyOtp: jest.fn().mockResolvedValue(mockAuthResponse),
   };
 
   beforeEach(async () => {
@@ -109,6 +113,40 @@ describe('AuthController', () => {
       );
 
       await expect(controller.refresh({ refresh_token: 'expired' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('requestOtp', () => {
+    it('should call authService.requestOtp and return response', async () => {
+      const result = await controller.requestOtp({ email: 'user@example.com' });
+
+      expect(service.requestOtp).toHaveBeenCalledWith('user@example.com');
+      expect(result).toEqual(mockOtpResponse);
+    });
+
+    it('should propagate errors from service', async () => {
+      mockAuthService.requestOtp.mockRejectedValueOnce(new Error('Send failed'));
+
+      await expect(controller.requestOtp({ email: 'user@example.com' })).rejects.toThrow('Send failed');
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('should call authService.verifyOtp and return tokens', async () => {
+      const result = await controller.verifyOtp({ email: 'user@example.com', code: '428715' });
+
+      expect(service.verifyOtp).toHaveBeenCalledWith('user@example.com', '428715');
+      expect(result).toEqual(mockAuthResponse);
+    });
+
+    it('should propagate UnauthorizedException for invalid code', async () => {
+      mockAuthService.verifyOtp.mockRejectedValueOnce(
+        new UnauthorizedException('Invalid code'),
+      );
+
+      await expect(controller.verifyOtp({ email: 'user@example.com', code: '000000' })).rejects.toThrow(
         UnauthorizedException,
       );
     });

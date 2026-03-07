@@ -34,10 +34,15 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   varianceEvents: (filter?: string) => ["variance-events", filter ?? "all"],
   pendingVarianceCount: () => ["variance-events", "pending-count"],
   varianceStats: (month?: string) => ["variance-events", "stats", month ?? "all"],
+  mySchedule: (month?: string) => ["my-schedule", month ?? "current"],
+  myShiftTypes: () => ["my-shift-types"],
   dashboardStats: () => ["dashboard", "stats"],
   clinic: () => ["clinic"],
   billing: () => ["billing"],
   checkout: () => ["checkout"],
+  publishPreview: (month?: string) => ["publish-preview", month ?? "all"],
+  myNotificationPreferences: () => ["my-notification-preferences"],
+  myPushSubscription: () => ["my-push-subscription"],
 });
 
 export const {

@@ -4,6 +4,10 @@ import {
   requestMagicLinkSchema,
   validateMagicLinkSchema,
   activateAccountInputSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
+  otpRequestResponseSchema,
+  authResponseSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -42,6 +46,18 @@ export const authRouter = router({
     .input(activateAccountInputSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.authService.activateAccount(input.token, input.password);
+    }),
+  requestOtp: publicProcedure
+    .input(requestOtpSchema)
+    .output(otpRequestResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.requestOtp(input.email);
+    }),
+  verifyOtp: publicProcedure
+    .input(verifyOtpSchema)
+    .output(authResponseSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.verifyOtp(input.email, input.code);
     }),
 });
 

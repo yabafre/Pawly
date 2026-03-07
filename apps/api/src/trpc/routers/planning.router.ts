@@ -293,6 +293,16 @@ export const planningRouter = router({
       );
     }),
 
+  getPublishPreview: subscribedProcedure
+    .input(publishPlanInputSchema)
+    .query(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
+      return ctx.planningGenerationService.getPublishPreview(
+        ctx.user.clinicId,
+        input.month,
+      );
+    }),
+
   // Apprentice declaration procedures
   listApprenticeDeclarations: subscribedProcedure
     .input(listApprenticeDeclarationsSchema)

@@ -33,7 +33,7 @@ export type PlanningPeriodStatus = z.infer<typeof planningPeriodStatusSchema>;
 
 export const publishPlanResultSchema = z.object({
   publishedAt: z.string().datetime(),
-  notifiedCount: z.number().int().min(0),
+  totalWithShifts: z.number().int().min(0),
 });
 export type PublishPlanResult = z.infer<typeof publishPlanResultSchema>;
 

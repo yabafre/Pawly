@@ -9,7 +9,10 @@ import type { EquityCounterService } from '@/modules/planning/equity-counter.ser
 import type { PlanningGenerationService } from '@/modules/planning/planning-generation.service';
 import type { ApprenticeDeclarationService } from '@/modules/planning/apprentice-declaration.service';
 import type { VarianceService } from '@/modules/planning/variance.service';
+import type { EmployeeScheduleService } from '@/modules/planning/employee-schedule.service';
+import type { PresenceConfirmationService } from '@/modules/planning/presence-confirmation.service';
 import type { DashboardService } from '@/modules/dashboard/dashboard.service';
+import type { PushNotificationService } from '@/modules/notification/push-notification.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { AuthenticatedUser } from '@pawly/types';
@@ -25,7 +28,10 @@ export interface TRPCServices {
   equityCounterService: EquityCounterService;
   apprenticeDeclarationService: ApprenticeDeclarationService;
   varianceService: VarianceService;
+  employeeScheduleService: EmployeeScheduleService;
+  presenceConfirmationService: PresenceConfirmationService;
   dashboardService: DashboardService;
+  pushNotificationService: PushNotificationService;
   jwtService: JwtService;
   prisma: PrismaService;
 }

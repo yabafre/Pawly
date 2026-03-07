@@ -1,11 +1,10 @@
 /**
  * @pawly/zod
  *
- * Shared Zod instance for the Pawly monorepo.
- * All packages MUST import from here to ensure a single Zod instance.
+ * Shared Zod re-export for the Pawly monorepo.
+ * This package does NOT own zod — it re-exports the single root instance.
  *
  * Usage:
  *   import { z } from '@pawly/zod'
  */
-export { z } from 'zod'
-export type { ZodType, infer as ZodInfer } from 'zod'
+export * from 'zod'

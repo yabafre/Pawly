@@ -31,6 +31,12 @@ describe('AuthService', () => {
       updateMany: jest.fn(),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    otpCode: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     $transaction: jest.fn(),
   };
 
@@ -42,12 +48,14 @@ describe('AuthService', () => {
   const mockMailService = {
     sendMagicLink: jest.fn().mockResolvedValue(undefined),
     sendActivationEmail: jest.fn().mockResolvedValue(undefined),
+    sendOtpCode: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
       const config: Record<string, string> = {
         WEB_APP_URL: 'http://localhost:3000',
+        JWT_SECRET: 'test-secret-minimum-32-characters-long!!',
       };
       return config[key];
     }),
@@ -637,6 +645,364 @@ describe('AuthService', () => {
         message: 'If an account exists, an activation email has been sent',
       });
       expect(mockMailService.sendActivationEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestOtp', () => {
+    const email = 'employee@clinic.fr';
+    const clinicId = '00000000-0000-4000-8000-000000000001';
+    const mockUser = {
+      id: 'user-1',
+      email,
+      clinicId,
+      otpFallbackUntil: null,
+    };
+
+    it('should create OTP code with HMAC hash and send email when user exists', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.otpCode.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.otpCode.create.mockResolvedValue({});
+
+      const result = await service.requestOtp(email);
+
+      expect(result).toEqual({ method: 'otp', message: 'If account exists, code sent' });
+      expect(mockPrismaService.otpCode.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', used: false },
+        data: { used: true },
+      });
+      expect(mockPrismaService.otpCode.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          code: expect.any(String),
+          userId: 'user-1',
+          clinicId,
+        }),
+      });
+      expect(mockMailService.sendOtpCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
+    });
+
+    it('should return same response when user does not exist (prevent enumeration)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.requestOtp('nonexistent@example.com');
+
+      expect(result).toEqual({ method: 'otp', message: 'If account exists, code sent' });
+      expect(mockMailService.sendOtpCode).not.toHaveBeenCalled();
+    });
+
+    it('should enforce minimum response time for non-existent user', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const start = Date.now();
+      await service.requestOtp('nonexistent@example.com');
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(250);
+    });
+
+    it('should fallback to magic link when otpFallbackUntil is in the future', async () => {
+      const fallbackUser = {
+        ...mockUser,
+        otpFallbackUntil: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(fallbackUser);
+      mockPrismaService.magicLink.create.mockResolvedValue({});
+
+      const result = await service.requestOtp(email);
+
+      expect(result).toEqual({ method: 'magic_link', message: 'If account exists, link sent' });
+      expect(mockMailService.sendMagicLink).toHaveBeenCalled();
+      expect(mockMailService.sendOtpCode).not.toHaveBeenCalled();
+    });
+
+    it('should NOT fallback when otpFallbackUntil is in the past', async () => {
+      const expiredFallbackUser = {
+        ...mockUser,
+        otpFallbackUntil: new Date(Date.now() - 1000),
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(expiredFallbackUser);
+      mockPrismaService.otpCode.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.otpCode.create.mockResolvedValue({});
+
+      const result = await service.requestOtp(email);
+
+      expect(result).toEqual({ method: 'otp', message: 'If account exists, code sent' });
+      expect(mockMailService.sendOtpCode).toHaveBeenCalled();
+    });
+
+    it('should invalidate existing unused OTPs before creating new one', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.otpCode.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.otpCode.create.mockResolvedValue({});
+
+      await service.requestOtp(email);
+
+      const updateCall = mockPrismaService.otpCode.updateMany.mock.calls[0];
+      expect(updateCall[0]).toEqual({
+        where: { userId: 'user-1', used: false },
+        data: { used: true },
+      });
+    });
+
+    it('should store HMAC-SHA256 hash, not raw code', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.otpCode.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.otpCode.create.mockResolvedValue({});
+
+      await service.requestOtp(email);
+
+      const createCall = mockPrismaService.otpCode.create.mock.calls[0][0];
+      const storedCode = createCall.data.code;
+      // HMAC-SHA256 produces a 64-char hex string
+      expect(storedCode).toMatch(/^[a-f0-9]{64}$/);
+
+      // Raw code sent to mail should be 6 digits
+      const rawCode = mockMailService.sendOtpCode.mock.calls[0][1];
+      expect(rawCode).toMatch(/^\d{6}$/);
+
+      // Stored hash should differ from raw code
+      expect(storedCode).not.toBe(rawCode);
+    });
+
+    it('should set OTP TTL to 5 minutes', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.otpCode.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.otpCode.create.mockResolvedValue({});
+
+      const before = Date.now();
+      await service.requestOtp(email);
+      const after = Date.now();
+
+      const createCall = mockPrismaService.otpCode.create.mock.calls[0][0];
+      const expiresAt = createCall.data.expiresAt as Date;
+      expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 4 * 60 * 1000);
+      expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 6 * 60 * 1000);
+    });
+  });
+
+  describe('verifyOtp', () => {
+    const email = 'employee@clinic.fr';
+
+    function mockOtpTransaction(
+      user: any,
+      otpCode: any,
+      otpUpdateCount = 1,
+      userUpdateFn?: jest.Mock,
+    ) {
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) => {
+        const tx = {
+          user: {
+            findUnique: jest.fn().mockResolvedValue(user),
+            update: userUpdateFn ?? jest.fn().mockResolvedValue(user),
+          },
+          otpCode: {
+            findFirst: jest.fn().mockResolvedValue(otpCode),
+            updateMany: jest.fn().mockResolvedValue({ count: otpUpdateCount }),
+          },
+        };
+        return cb(tx);
+      });
+    }
+
+    it('should return tokens when code is valid', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const rawCode = '428715';
+      const hashedCode = crypto.createHmac('sha256', secret).update(rawCode).digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: hashedCode,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 0,
+      };
+
+      mockOtpTransaction(user, otpCode);
+
+      const result = await service.verifyOtp(email, rawCode);
+
+      expect(result).toHaveProperty('access_token');
+      expect(result).toHaveProperty('refresh_token');
+      expect(result).toHaveProperty('user');
+    });
+
+    it('should throw when user not found', async () => {
+      mockOtpTransaction(null, null);
+
+      await expect(service.verifyOtp(email, '123456')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw when no valid OTP exists', async () => {
+      const user = { id: 'user-1', email };
+      mockOtpTransaction(user, null);
+
+      await expect(service.verifyOtp(email, '123456')).rejects.toThrow(
+        'Invalid or expired code',
+      );
+    });
+
+    it('should throw and increment attempts when code is wrong', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const correctHash = crypto.createHmac('sha256', secret).update('428715').digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: correctHash,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 0,
+      };
+
+      mockOtpTransaction(user, otpCode);
+
+      await expect(service.verifyOtp(email, '999999')).rejects.toThrow('Invalid code');
+    });
+
+    it('should set otpFallbackUntil when max attempts reached', async () => {
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: 'some-hash',
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 5,
+      };
+
+      const userUpdateFn = jest.fn().mockResolvedValue(user);
+      mockOtpTransaction(user, otpCode, 1, userUpdateFn);
+
+      await expect(service.verifyOtp(email, '123456')).rejects.toThrow(
+        'Too many attempts. Check email for login link.',
+      );
+    });
+
+    it('should set fallback when wrong code reaches max attempts', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const correctHash = crypto.createHmac('sha256', secret).update('428715').digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: correctHash,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 4, // will become 5 after increment
+      };
+
+      mockOtpTransaction(user, otpCode);
+
+      await expect(service.verifyOtp(email, '999999')).rejects.toThrow(
+        'Too many attempts. Check email for login link.',
+      );
+    });
+
+    it('should throw when optimistic lock fails (race condition)', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const rawCode = '428715';
+      const hashedCode = crypto.createHmac('sha256', secret).update(rawCode).digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: hashedCode,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 0,
+      };
+
+      // updateMany returns 0 = optimistic lock failure
+      mockOtpTransaction(user, otpCode, 0);
+
+      await expect(service.verifyOtp(email, rawCode)).rejects.toThrow('Invalid code');
+    });
+
+    it('should enforce minimum 300ms response time for null user path', async () => {
+      mockOtpTransaction(null, null);
+
+      const start = Date.now();
+      try {
+        await service.verifyOtp(email, '123456');
+      } catch {
+        // expected
+      }
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(250);
+    });
+
+    it('should enforce minimum 300ms response time for wrong code path (timing attack prevention)', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const correctHash = crypto.createHmac('sha256', secret).update('428715').digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: correctHash,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 0,
+      };
+
+      mockOtpTransaction(user, otpCode);
+
+      const start = Date.now();
+      try {
+        await service.verifyOtp(email, '999999');
+      } catch {
+        // expected
+      }
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(250);
+    });
+
+    it('should enforce minimum 300ms response time for max attempts path (timing attack prevention)', async () => {
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: 'some-hash',
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 5,
+      };
+
+      const userUpdateFn = jest.fn().mockResolvedValue(user);
+      mockOtpTransaction(user, otpCode, 1, userUpdateFn);
+
+      const start = Date.now();
+      try {
+        await service.verifyOtp(email, '123456');
+      } catch {
+        // expected
+      }
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(250);
+    });
+
+    it('should trigger cleanup of expired OTP codes in background', async () => {
+      const secret = 'test-secret-minimum-32-characters-long!!';
+      const rawCode = '428715';
+      const hashedCode = crypto.createHmac('sha256', secret).update(rawCode).digest('hex');
+
+      const user = { id: 'user-1', email, role: 'EMPLOYEE', clinicId: 'clinic-1' };
+      const otpCode = {
+        id: 'otp-1',
+        code: hashedCode,
+        expiresAt: new Date(Date.now() + 300000),
+        used: false,
+        attempts: 0,
+      };
+
+      mockOtpTransaction(user, otpCode);
+
+      await service.verifyOtp(email, rawCode);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mockPrismaService.otpCode.deleteMany).toHaveBeenCalled();
     });
   });
 

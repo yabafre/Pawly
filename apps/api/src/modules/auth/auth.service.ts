@@ -13,9 +13,13 @@ const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
 const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
-const MAGIC_LINK_MIN_RESPONSE_MS = 300;
+const MIN_RESPONSE_MS = 300;
 const ACTIVATION_TOKEN_TTL_HOURS = 24;
 const WELCOME_MAGIC_LINK_TTL_HOURS = 24;
+const OTP_TTL_MINUTES = 5;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_FALLBACK_HOURS = 48;
+const OTP_CLEANUP_HOURS = 24;
 
 @Injectable()
 export class AuthService {
@@ -30,6 +34,11 @@ export class AuthService {
 
     private hashToken(token: string): string {
         return crypto.createHash('sha256').update(token).digest('hex');
+    }
+
+    private hashOtp(code: string): string {
+        const secret = this.configService.get('JWT_SECRET', { infer: true });
+        return crypto.createHmac('sha256', secret).update(code).digest('hex');
     }
 
     private sanitizeUser(user: User | Omit<User, 'password'>): Omit<User, 'password'> {
@@ -143,8 +152,8 @@ export class AuthService {
         return this.generateToken(user);
     }
 
-    private async delayToMinimumResponse(startTime: number): Promise<void> {
-        const remaining = MAGIC_LINK_MIN_RESPONSE_MS - (Date.now() - startTime);
+    private async delayToMinimumResponse(startTime: number, minMs = MIN_RESPONSE_MS): Promise<void> {
+        const remaining = minMs - (Date.now() - startTime);
         if (remaining > 0) {
             await new Promise(resolve => setTimeout(resolve, remaining));
         }
@@ -161,6 +170,152 @@ export class AuthService {
                 ],
             },
         });
+    }
+
+    async requestOtp(email: string) {
+        const startTime = Date.now();
+        const user = await this.prisma.user.findUnique({ where: { email } });
+
+        if (!user) {
+            await this.delayToMinimumResponse(startTime);
+            return { method: 'otp' as const, message: 'If account exists, code sent' };
+        }
+
+        // Check if user is in Magic Link fallback mode
+        if (user.otpFallbackUntil && user.otpFallbackUntil > new Date()) {
+            await this.requestMagicLink(email);
+            await this.delayToMinimumResponse(startTime);
+            return { method: 'magic_link' as const, message: 'If account exists, link sent' };
+        }
+
+        // Invalidate any existing unused OTP for this user
+        await this.prisma.otpCode.updateMany({
+            where: { userId: user.id, used: false },
+            data: { used: true },
+        });
+
+        // Generate 6-digit code
+        const rawCode = crypto.randomInt(100000, 1000000).toString();
+        const hashedCode = this.hashOtp(rawCode);
+
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + OTP_TTL_MINUTES);
+
+        await this.prisma.otpCode.create({
+            data: {
+                code: hashedCode,
+                expiresAt,
+                userId: user.id,
+                clinicId: user.clinicId,
+            },
+        });
+
+        await this.mailService.sendOtpCode(email, rawCode);
+
+        await this.delayToMinimumResponse(startTime);
+        return { method: 'otp' as const, message: 'If account exists, code sent' };
+    }
+
+    async verifyOtp(email: string, code: string) {
+        const startTime = Date.now();
+        const hashedCode = this.hashOtp(code);
+
+        let user: User | null = null;
+        try {
+            user = await this.prisma.$transaction(async (tx) => {
+                const foundUser = await tx.user.findUnique({ where: { email } });
+                if (!foundUser) {
+                    return null;
+                }
+
+                const otpCode = await tx.otpCode.findFirst({
+                    where: {
+                        userId: foundUser.id,
+                        used: false,
+                        expiresAt: { gt: new Date() },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                });
+
+                if (!otpCode) {
+                    return null;
+                }
+
+                // Check max attempts
+                if (otpCode.attempts >= OTP_MAX_ATTEMPTS) {
+                    await tx.user.update({
+                        where: { id: foundUser.id },
+                        data: {
+                            otpFallbackUntil: new Date(Date.now() + OTP_FALLBACK_HOURS * 60 * 60 * 1000),
+                        },
+                    });
+                    await tx.otpCode.updateMany({
+                        where: { id: otpCode.id, used: false },
+                        data: { used: true },
+                    });
+                    throw new UnauthorizedException('Too many attempts. Check email for login link.');
+                }
+
+                // Verify code
+                if (hashedCode !== otpCode.code) {
+                    // Optimistic lock increment
+                    const updated = await tx.otpCode.updateMany({
+                        where: { id: otpCode.id, attempts: otpCode.attempts },
+                        data: { attempts: { increment: 1 } },
+                    });
+
+                    if (updated.count === 0) {
+                        throw new UnauthorizedException('Invalid code');
+                    }
+
+                    // Check if this increment reaches max
+                    if (otpCode.attempts + 1 >= OTP_MAX_ATTEMPTS) {
+                        await tx.user.update({
+                            where: { id: foundUser.id },
+                            data: {
+                                otpFallbackUntil: new Date(Date.now() + OTP_FALLBACK_HOURS * 60 * 60 * 1000),
+                            },
+                        });
+                        await tx.otpCode.updateMany({
+                            where: { id: otpCode.id, used: false },
+                            data: { used: true },
+                        });
+                        throw new UnauthorizedException('Too many attempts. Check email for login link.');
+                    }
+
+                    throw new UnauthorizedException('Invalid code');
+                }
+
+                // Code matches — optimistic lock mark as used
+                const usedUpdate = await tx.otpCode.updateMany({
+                    where: { id: otpCode.id, used: false },
+                    data: { used: true },
+                });
+
+                if (usedUpdate.count === 0) {
+                    throw new UnauthorizedException('Invalid code');
+                }
+
+                return foundUser;
+            });
+        } catch (error) {
+            // Enforce minimum response time on ALL error paths to prevent timing attacks
+            await this.delayToMinimumResponse(startTime);
+            throw error;
+        }
+
+        if (!user) {
+            await this.delayToMinimumResponse(startTime);
+            throw new UnauthorizedException('Invalid or expired code');
+        }
+
+        // Cleanup in background
+        this.cleanupExpiredOtpCodes().catch((err) =>
+            this.logger.warn('Failed to cleanup expired OTP codes', err),
+        );
+
+        await this.delayToMinimumResponse(startTime);
+        return this.generateToken(user);
     }
 
     async createWelcomeMagicLink(email: string): Promise<string | null> {
@@ -264,6 +419,19 @@ export class AuthService {
         );
 
         return this.generateToken(user);
+    }
+
+    private async cleanupExpiredOtpCodes() {
+        const cutoff = new Date();
+        cutoff.setHours(cutoff.getHours() - OTP_CLEANUP_HOURS);
+        await this.prisma.otpCode.deleteMany({
+            where: {
+                OR: [
+                    { expiresAt: { lt: cutoff } },
+                    { used: true, createdAt: { lt: cutoff } },
+                ],
+            },
+        });
     }
 
     private async cleanupExpiredActivationTokens() {

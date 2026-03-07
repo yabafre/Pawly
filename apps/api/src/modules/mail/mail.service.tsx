@@ -10,6 +10,8 @@ import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
 import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
+import { OtpCodeEmail } from './templates/OtpCodeEmail';
+import { sendEmailTask } from '@/trigger/client';
 import type { EnvConfig } from '@/config/index';
 import type { AbsenceType } from '@pawly/validators';
 
@@ -27,11 +29,26 @@ export class MailService {
     );
   }
 
+  private get useTrigger(): boolean {
+    return !!process.env.TRIGGER_SECRET_KEY;
+  }
+
+  async triggerSendEmail(type: string, to: string, data: Record<string, unknown>): Promise<void> {
+    try {
+      await sendEmailTask.trigger({ type: type as any, to, data });
+    } catch (err) {
+      this.logger.error(`Failed to trigger send-email task (${type})`, err);
+    }
+  }
+
   private throttle(): Promise<void> {
-    this.throttleChain = this.throttleChain.then(
-      () => new Promise((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+    const next = this.throttleChain.then(
+      () => new Promise<void>((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
     );
-    return this.throttleChain;
+    this.throttleChain = next.then(() => {
+      this.throttleChain = Promise.resolve();
+    });
+    return next;
   }
 
   async sendMagicLink(email: string, url: string) {
@@ -83,6 +100,9 @@ export class MailService {
   }
 
   async sendEmployeeInvitationEmail(email: string, url: string, firstName: string) {
+    if (this.useTrigger) {
+      return this.triggerSendEmail('invitation', email, { url, firstName });
+    }
     try {
       const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
 
@@ -109,6 +129,9 @@ export class MailService {
     month: string,
     dateCount: number,
   ) {
+    if (this.useTrigger) {
+      return this.triggerSendEmail('school-notification', adminEmail, { adminName, apprenticeName, month, dateCount });
+    }
     try {
       const html = await render(
         <SchoolDaysDeclarationEmail
@@ -140,10 +163,16 @@ export class MailService {
     firstName: string,
     month: string,
     clinicName: string,
+    shiftCount?: number,
   ) {
+    if (this.useTrigger) {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+      return this.triggerSendEmail('schedule-publication', employeeEmail, { firstName, month, clinicName, dashboardUrl, shiftCount });
+    }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
-      const dashboardUrl = `${webAppUrl}/dashboard`;
+      const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
 
       const html = await render(
         <SchedulePublicationEmail
@@ -151,6 +180,7 @@ export class MailService {
           month={month}
           clinicName={clinicName}
           dashboardUrl={dashboardUrl}
+          shiftCount={shiftCount}
         />,
       );
 
@@ -170,11 +200,76 @@ export class MailService {
     }
   }
 
+  async sendBatchSchedulePublicationEmails(
+    emails: Array<{
+      to: string;
+      firstName: string;
+      shiftCount: number;
+    }>,
+    month: string,
+    clinicName: string,
+  ): Promise<number> {
+    if (emails.length === 0) return 0;
+
+    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+    const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+    const from = this.configService.get('MAIL_FROM', { infer: true });
+    let notifiedCount = 0;
+
+    // Pre-render HTML per employee (each has unique firstName and shiftCount)
+    const emailPayloads: Array<{ from: string; to: string; subject: string; html: string }> = [];
+    for (const emp of emails) {
+      try {
+        const html = await render(
+          <SchedulePublicationEmail
+            firstName={emp.firstName}
+            month={month}
+            clinicName={clinicName}
+            dashboardUrl={dashboardUrl}
+            shiftCount={emp.shiftCount}
+          />,
+        );
+        emailPayloads.push({
+          from,
+          to: emp.to,
+          subject: `${clinicName} — Votre planning pour ${month} est publié`,
+          html,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to render email for ${emp.to}: ${err}`);
+      }
+    }
+
+    // Chunk into batches of 100 (Resend batch limit)
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
+      const chunk = emailPayloads.slice(i, i + BATCH_SIZE);
+      try {
+        await this.throttle();
+        const { data, error } = await this.resend.batch.send(chunk);
+        if (error) {
+          this.logger.error(`Batch email send error: ${error.message}`);
+        } else {
+          notifiedCount += data?.data?.length ?? chunk.length;
+        }
+      } catch (err) {
+        this.logger.error(`Batch email send failed for chunk ${i / BATCH_SIZE + 1}: ${err}`);
+      }
+    }
+
+    return notifiedCount;
+  }
+
   async sendSchoolDaysReminder(
     apprenticeEmail: string,
     name: string,
     month: string,
   ) {
+    if (this.useTrigger) {
+      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
+      return this.triggerSendEmail('school-reminder', apprenticeEmail, { name, month, dashboardUrl });
+    }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
@@ -198,6 +293,31 @@ export class MailService {
     }
   }
 
+  async sendOtpCode(email: string, code: string) {
+    try {
+      const html = await render(<OtpCodeEmail code={code} />);
+
+      await this.throttle();
+      const { data, error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: 'Votre code Pawly',
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send OTP code email: ${error.message}`);
+        throw new InternalServerErrorException('Failed to send authentication email');
+      }
+
+      return data;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      this.logger.error('Unexpected error sending OTP code email', err);
+      throw new InternalServerErrorException('Failed to send authentication email');
+    }
+  }
+
   async sendAbsenceRequestNotification(
     adminEmail: string,
     adminName: string | undefined,
@@ -207,6 +327,13 @@ export class MailService {
     endDate: Date,
     dayCount: number,
   ) {
+    if (this.useTrigger) {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return this.triggerSendEmail('absence-request', adminEmail, {
+        adminName, employeeName, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), dayCount,
+      });
+    }
     try {
       const formatDate = (d: Date) =>
         d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -247,6 +374,13 @@ export class MailService {
     endDate: Date,
     rejectionReason?: string,
   ) {
+    if (this.useTrigger) {
+      const formatDate = (d: Date) =>
+        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return this.triggerSendEmail('absence-review', employeeEmail, {
+        firstName, status, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), rejectionReason,
+      });
+    }
     try {
       const formatDate = (d: Date) =>
         d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });

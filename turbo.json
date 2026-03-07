@@ -18,9 +18,13 @@
                 "dist/**",
                 ".next/**",
                 "!.next/cache/**"
+            ],
+            "env": [
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "OTEL_SERVICE_NAME"
             ]
         },
-        "dev": {
+        "start": {
             "inputs": [
                 "$TURBO_DEFAULT$",
                 ".env.development.local",
@@ -31,6 +35,21 @@
             "cache": false,
             "persistent": true
         },
+        "dev": {
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                ".env.development.local",
+                ".env.local",
+                ".env.development",
+                ".env"
+            ],
+            "cache": false,
+            "persistent": true,
+            "env": [
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "OTEL_SERVICE_NAME"
+            ]
+        },
         "lint": {
             "dependsOn": [
                 "^lint"
@@ -40,9 +59,7 @@
             "dependsOn": [
                 "^build"
             ],
-            "outputs": [
-                "coverage/**"
-            ]
+            "cache": false
         },
         "test:cov": {
             "dependsOn": [
@@ -55,6 +72,19 @@
         "typecheck": {
             "dependsOn": [
                 "^typecheck"
+            ]
+        },
+        "trigger:dev": {
+            "cache": false,
+            "persistent": true,
+            "env": [
+                "TRIGGER_SECRET_KEY",
+                "TRIGGER_API_URL",
+                "DATABASE_URL",
+                "RESEND_API_KEY",
+                "VAPID_PUBLIC_KEY",
+                "VAPID_PRIVATE_KEY",
+                "VAPID_SUBJECT"
             ]
         }
     }

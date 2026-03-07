@@ -13,9 +13,12 @@ model User {
   clinicId  String   @map("clinic_id")
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
+  otpFallbackUntil DateTime? @map("otp_fallback_until")
+
   employee  Employee?
   magicLinks       MagicLink[]
   activationTokens ActivationToken[]
+  otpCodes         OtpCode[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

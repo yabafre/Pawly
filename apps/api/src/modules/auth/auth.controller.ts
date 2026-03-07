@@ -6,6 +6,8 @@ import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ValidateMagicLinkDto } from './dto/validate-magic-link.dto';
 import { ActivateAccountDto } from './dto/activate-account.dto';
+import { RequestOtpDto } from './dto/request-otp.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthResponseDto, MagicLinkResponseDto, UserProfileDto } from './dto/auth-response.dto';
 import { JwtAuthGuard } from '@/common/guards';
@@ -76,6 +78,27 @@ export class AuthController {
     @ApiResponse({ status: 429, description: 'Too many requests' })
     async activateAccount(@Body() dto: ActivateAccountDto) {
         return this.authService.activateAccount(dto.token, dto.password);
+    }
+
+    @Public()
+    @Throttle({ default: { limit: 3, ttl: 60000 } })
+    @Post('otp/request')
+    @ApiOperation({ summary: 'Request OTP code by email' })
+    @ApiResponse({ status: 200, description: 'OTP sent (or Magic Link fallback)' })
+    @ApiResponse({ status: 429, description: 'Too many requests' })
+    async requestOtp(@Body() dto: RequestOtpDto) {
+        return this.authService.requestOtp(dto.email);
+    }
+
+    @Public()
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @Post('otp/verify')
+    @ApiOperation({ summary: 'Verify OTP code' })
+    @ApiResponse({ status: 200, description: 'Authentication tokens returned', type: AuthResponseDto })
+    @ApiResponse({ status: 401, description: 'Invalid or expired code' })
+    @ApiResponse({ status: 429, description: 'Too many requests' })
+    async verifyOtp(@Body() dto: VerifyOtpDto) {
+        return this.authService.verifyOtp(dto.email, dto.code);
     }
 
     @UseGuards(JwtAuthGuard)

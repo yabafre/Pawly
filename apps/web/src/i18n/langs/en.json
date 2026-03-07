@@ -6,6 +6,11 @@
     "sslConnection": "SSL Connection",
     "multiTenant": "Multi-tenant",
     "backToLogin": "Back to login",
+    "offlinePage": {
+      "title": "Offline",
+      "description": "You are not connected to the Internet. Check your connection and try again.",
+      "retry": "Retry"
+    },
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -36,17 +41,34 @@
       "submitting": "Signing in...",
       "forgotPassword": "Forgot?",
       "magicLinkTab": "Magic Link",
+      "emailTab": "Email",
       "passwordTab": "Password"
     },
     "magicLink": {
       "emailLabel": "Professional email",
       "emailPlaceholder": "name@clinic.com",
-      "submitButton": "Get my link",
+      "submitButton": "Get my code",
       "submitting": "Sending...",
-      "helper": "Recommended for employees. No password, more secure.",
+      "helper": "Recommended for employees. Quick and secure.",
       "checkEmail": "Check your emails",
       "linkSent": "A login link has been sent to",
-      "resendLink": "Resend link"
+      "resendLink": "Resend link",
+      "fallbackMessage": "Check your email for a login link",
+      "fallbackHelper": "A secure link has been sent to your email address"
+    },
+    "otp": {
+      "enterCode": "Enter the code received by email",
+      "sentTo": "Code sent to",
+      "placeholder": "0",
+      "submitButton": "Verify",
+      "verifying": "Verifying...",
+      "resendCode": "Resend code",
+      "resending": "Sending...",
+      "back": "Back",
+      "invalidCode": "Invalid code",
+      "expiredCode": "Code expired, request a new code",
+      "tooManyAttempts": "Too many attempts. Check your email for a login link.",
+      "codeExpiry": "Code expires in 5 minutes"
     },
     "callback": {
       "invalidLink": "Invalid link",
@@ -63,7 +85,9 @@
       "magicLinkSent": "Login link sent!",
       "magicLinkError": "Unable to send the link",
       "serverError": "Server connection issue",
-      "unexpectedError": "An unexpected error occurred"
+      "unexpectedError": "An unexpected error occurred",
+      "otpError": "Unable to send the code",
+      "otpVerifyError": "Invalid or expired code"
     },
     "activate": {
       "title": "Set your password",
@@ -560,14 +584,18 @@
       }
     },
     "publication": {
-      "publishSuccess": "Schedule published — employees have been notified",
+      "publishSuccess": "Schedule published — {count, plural, =0 {no employees notified} one {# employee notified} other {# employees notified}}",
       "publishError": "Failed to publish schedule",
       "confirmTitle": "Publish Schedule",
       "confirmDescription": "This will notify all employees of their schedule by email. This action cannot be undone.",
       "confirmDescriptionWithWarnings": "There are still {count, plural, one {# soft warning} other {# soft warnings}} remaining. This will notify all employees of their schedule by email. This action cannot be undone.",
       "cancel": "Cancel",
       "confirmPublish": "Publish",
-      "publishing": "Publishing…"
+      "publishing": "Publishing…",
+      "employeesNotified": "{count, plural, =0 {No emails sent} one {# email sent} other {# emails sent}}",
+      "employeesDisabled": "{count, plural, one {# employee with notifications off} other {# employees with notifications off}}",
+      "shifts": "shifts",
+      "shift": "shift"
     },
     "equity": {
       "badgeLabel": "Equity indicator",
@@ -832,7 +860,47 @@
       "title": "Pawly Employee",
       "home": "Home",
       "schoolDays": "School Days",
-      "absences": "Absences"
+      "absences": "Absences",
+      "schedule": "My Schedule",
+      "settings": "Settings"
+    },
+    "pwaInstall": {
+      "ariaLabel": "Install Pawly app",
+      "title": "Install Pawly",
+      "description": "Add Pawly to your home screen for quick access, even offline.",
+      "installButton": "Install",
+      "dismissButton": "Close",
+      "iosTitle": "To install on iOS:",
+      "iosStep1": "Tap the share button",
+      "iosStep2": "Select 'Add to Home Screen'",
+      "notSupported": "Installation is not available on this browser."
+    },
+    "settings": {
+      "title": "Settings",
+      "appSection": "Application",
+      "pwaStatus": "App status",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "notificationsSection": "Notifications",
+      "notifyOnPublish": "Schedule published",
+      "notifyOnPublishDescription": "Receive an email when the schedule is published.",
+      "pushNotifications": "Push notifications",
+      "pushDescription": "Receive instant notifications on this device.",
+      "pushEnable": "Enable",
+      "pushDisable": "Disable",
+      "pushDenied": "Notifications are blocked. Enable them in your browser settings.",
+      "pushEnabled": "Push notifications enabled",
+      "pushDisabled": "Push notifications disabled",
+      "pushEnableError": "Unable to enable push notifications",
+      "pushDisableError": "Unable to disable push notifications",
+      "pushUnsupported": "Push not supported on this browser",
+      "pushBlocked": "Notifications blocked by browser",
+      "pushPermissionNotGranted": "Permission not granted",
+      "pushVapidMissing": "Push configuration missing (VAPID)",
+      "pushSwUnavailable": "Service Worker unavailable",
+      "pushSubscriptionInvalid": "Push subscription invalid",
+      "pushError": "Push error: {message}",
+      "pushUnsubscribeError": "Failed to disable push"
     },
     "schoolDays": {
       "title": "School Days Declaration",
@@ -941,7 +1009,64 @@
     },
     "hoursUnit": "{hours}h",
     "timeRange": "{start} - {end}",
-    "doctorSchedule": "{doctor} • {time}"
+    "doctorSchedule": "{doctor} • {time}",
+    "schedule": {
+      "title": "My Schedule",
+      "monthSelector": {
+        "label": "Month",
+        "previous": "Previous month",
+        "next": "Next month"
+      },
+      "weeklySummary": {
+        "title": "This week",
+        "hours": "{hours}h",
+        "shifts": "{count, plural, =0 {No shifts} =1 {1 shift} other {# shifts}}",
+        "target": "Target: {target}h",
+        "progress": "{percent}%",
+        "confirmedRatio": "{confirmed}/{total} confirmed"
+      },
+      "publicationStatus": {
+        "published": "Published",
+        "publishedAt": "Published on {date}",
+        "draft": "Draft",
+        "draftNotice": "This schedule may still change."
+      },
+      "absenceTypes": {
+        "vacation": "Vacation",
+        "sick": "Sick leave",
+        "school": "School / Training",
+        "other": "Other"
+      },
+      "timeline": {
+        "today": "Today",
+        "noShifts": "No shifts scheduled this month.",
+        "restDay": "Rest day",
+        "break": "Break: {minutes} min",
+        "scheduleList": "Monthly schedule"
+      },
+      "shiftStatus": {
+        "confirmed": "Confirmed",
+        "notConfirmed": "Not confirmed"
+      },
+      "confirmation": {
+        "confirmed": "Confirmed",
+        "confirming": "Confirming…",
+        "slideToConfirm": "Confirm my presence",
+        "confirmSuccess": "Presence confirmed",
+        "confirmError": "Error confirming presence",
+        "offlineQueued": "Confirmation saved offline",
+        "lateArrival": "Late arrival by {minutes} min",
+        "earlyArrival": "Early arrival by {minutes} min"
+      },
+      "offline": {
+        "banner": "Offline Mode — Showing cached data",
+        "backOnline": "Back online"
+      },
+      "errors": {
+        "loadFailed": "Failed to load schedule.",
+        "retry": "Retry"
+      }
+    }
   },
   "forms": {
     "validation": {
