@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useForm } from "@tanstack/react-form";
 import {
@@ -85,13 +84,13 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
 
   const form = useForm({
     defaultValues: {
-      name: "",
-      description: "",
-      ruleType: "HARD" as PlanningRuleType,
-      category: "STAFFING_MINIMUM" as PlanningRuleCategory,
-      isActive: true,
-      priority: 0,
-      config: DEFAULT_CONFIGS.STAFFING_MINIMUM as Record<string, unknown>,
+      name: editingRule?.name ?? "",
+      description: editingRule?.description ?? "",
+      ruleType: (editingRule?.ruleType ?? "HARD") as PlanningRuleType,
+      category: (editingRule?.category ?? "STAFFING_MINIMUM") as PlanningRuleCategory,
+      isActive: editingRule?.isActive ?? true,
+      priority: editingRule?.priority ?? 0,
+      config: (editingRule?.config ?? DEFAULT_CONFIGS.STAFFING_MINIMUM) as Record<string, unknown>,
     },
     onSubmit: async ({ value }) => {
       const payload = {
@@ -116,34 +115,14 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
     },
   });
 
-  useEffect(() => {
-    if (open && editingRule) {
-      form.reset();
-      form.setFieldValue("name", editingRule.name);
-      form.setFieldValue("description", editingRule.description ?? "");
-      form.setFieldValue("ruleType", editingRule.ruleType);
-      form.setFieldValue("category", editingRule.category);
-      form.setFieldValue("isActive", editingRule.isActive);
-      form.setFieldValue("priority", editingRule.priority);
-      form.setFieldValue(
-        "config",
-        editingRule.config as Record<string, unknown>,
-      );
-    } else if (open && !editingRule) {
-      form.reset();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- form instance is stable
-  }, [open, editingRule]);
-
   const isBusy = isCreating || isUpdating;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="overflow-hidden p-0 gap-0 sm:max-w-xl">
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          key={editingRule?.id ?? "new"}
+          action={() => {
             form.handleSubmit();
           }}
           className="flex min-h-0 flex-1 flex-col"
@@ -309,7 +288,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                             form.setFieldValue(
                               "config",
                               DEFAULT_CONFIGS[
-                                cat as PlanningRuleCategory
+                              cat as PlanningRuleCategory
                               ] as Record<string, unknown>,
                             );
                           }}

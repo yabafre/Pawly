@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Bell, BellRing, Smartphone } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,10 @@ import {
 } from "../_hooks/useNotificationPreferences";
 import { usePushNotifications } from "../_hooks/usePushNotifications";
 
+const subscribe = () => () => { };
+const getSnapshot = () => isStandalone();
+const getServerSnapshot = () => false;
+
 export function SettingsPageClient() {
     const t = useTranslations("dashboard.settings");
     const { data: preferences, isPending } = useNotificationPreferences();
@@ -25,11 +29,7 @@ export function SettingsPageClient() {
         subscribe: subscribePush,
         unsubscribe: unsubscribePush,
     } = usePushNotifications();
-    const [pwaInstalled, setPwaInstalled] = useState(false);
-
-    useEffect(() => {
-        setPwaInstalled(isStandalone());
-    }, []);
+    const pwaInstalled = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
     const notifyOnPublish = preferences?.notifyOnPublish ?? true;
 

@@ -136,10 +136,15 @@ function GroupDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close dropdown on navigation
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const prevPathnameRef = useRef(pathname);
+
+  // Close dropdown on navigation (derived state, no useEffect)
+  if (prevPathnameRef.current !== pathname) {
+    prevPathnameRef.current = pathname;
+    if (open) {
+      setOpen(false);
+    }
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -203,13 +208,19 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const t = useTranslations("admin.nav");
   const tCommon = useTranslations("common");
 
-  useEffect(() => {
-    if (!pathname.startsWith("/admin/settings")) return;
-    queryClient.invalidateQueries({
-      queryKey: QueryKeyFactory.clinicOperationalConfig(),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient is stable in RQ v5
-  }, [pathname]);
+  const prevSettingsPathRef = useRef(pathname);
+
+  // Invalidate clinic config only when entering /admin/settings from another section
+  if (prevSettingsPathRef.current !== pathname) {
+    const wasInSettings = prevSettingsPathRef.current.startsWith("/admin/settings");
+    const isInSettings = pathname.startsWith("/admin/settings");
+    prevSettingsPathRef.current = pathname;
+    if (isInSettings && !wasInSettings) {
+      queryClient.invalidateQueries({
+        queryKey: QueryKeyFactory.clinicOperationalConfig(),
+      });
+    }
+  }
 
   const handleLogout = async () => {
     await logoutAction();

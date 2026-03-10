@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import {
   updateClinicOperationalConfigSchema,
@@ -121,11 +121,15 @@ function ClinicOperationalConfigForm({
 }) {
   const t = useTranslations("settings.operationalConfig");
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
+  const prevConfigRef = useRef(config);
 
-  // Defensive: clear stale submit errors when config prop changes (Story 5-2 pattern)
-  useEffect(() => {
-    setSubmitErrors({});
-  }, [config]);
+  // Clear stale submit errors when config prop changes (derived state, no useEffect)
+  if (prevConfigRef.current !== config) {
+    prevConfigRef.current = config;
+    if (Object.keys(submitErrors).length > 0) {
+      setSubmitErrors({});
+    }
+  }
 
   const mapErrorMessage = (message: string) => {
     const dictionary: Record<string, string> = {
@@ -169,9 +173,7 @@ function ClinicOperationalConfigForm({
 
   return (
     <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      action={() => {
         form.handleSubmit();
       }}
       className="space-y-6"

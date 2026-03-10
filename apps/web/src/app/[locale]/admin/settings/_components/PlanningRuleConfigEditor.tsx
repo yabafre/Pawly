@@ -17,6 +17,8 @@ import {
 } from "@pawly/validators";
 import type { ShiftTypeRecord } from "../_hooks/useClinicShiftTypes";
 
+const EMPTY_SHIFT_TYPES: ShiftTypeRecord[] = [];
+
 type Props = {
   category: PlanningRuleCategory;
   config: Record<string, unknown>;
@@ -43,7 +45,7 @@ export function PlanningRuleConfigEditor({
   category,
   config,
   onChange,
-  shiftTypes = [],
+  shiftTypes = EMPTY_SHIFT_TYPES,
 }: Props) {
   const t = useTranslations("admin.planningRules.form");
 
@@ -109,9 +111,9 @@ export function PlanningRuleConfigEditor({
                     "jobTypes",
                     e.target.value
                       ? e.target.value
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean)
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean)
                       : undefined,
                   )
                 }
@@ -217,9 +219,9 @@ export function PlanningRuleConfigEditor({
                   "requiredJobTypes",
                   e.target.value
                     ? e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean)
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
                     : undefined,
                 )
               }

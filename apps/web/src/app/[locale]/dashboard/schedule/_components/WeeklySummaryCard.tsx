@@ -11,10 +11,12 @@ interface WeeklySummaryCardProps {
   shifts?: EmployeeShift[];
 }
 
+const EMPTY_SHIFTS: EmployeeShift[] = [];
+
 export function WeeklySummaryCard({
   weeklySummary,
   contractHours,
-  shifts = [],
+  shifts = EMPTY_SHIFTS,
 }: WeeklySummaryCardProps) {
   const t = useTranslations("dashboard.schedule.weeklySummary");
   const today = useMemo(() => new Date(), []);

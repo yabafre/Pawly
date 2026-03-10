@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -177,10 +177,14 @@ export function StaffGrid({
   // Day offset for 3-day lite view navigation
   const [dayOffset, setDayOffset] = useState(0);
 
-  // Reset dayOffset when days change (week navigation)
-  useEffect(() => {
-    setDayOffset(0);
-  }, [days]);
+  // Reset dayOffset when days change (week navigation) — derived state, no useEffect
+  const prevDaysRef = useRef(days);
+  if (prevDaysRef.current !== days) {
+    prevDaysRef.current = days;
+    if (dayOffset !== 0) {
+      setDayOffset(0);
+    }
+  }
 
   // Compute visible days based on viewport
   const maxOffset = Math.max(0, days.length - LITE_VIEW_DAYS);

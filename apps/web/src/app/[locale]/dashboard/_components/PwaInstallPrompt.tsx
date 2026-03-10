@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { useTranslations } from "next-intl";
 import { Download, X, Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,16 +32,20 @@ function isDismissed(): boolean {
 
 export function PwaInstallPrompt() {
     const t = useTranslations("dashboard.pwaInstall");
-    const [showPrompt, setShowPrompt] = useState(false);
-    const [platform, setPlatform] = useState<"chrome" | "ios" | "other" | null>(null);
+    const [promptState, dispatch] = useReducer(
+        (state: { show: boolean; platform: "chrome" | "ios" | "other" | null }, action: Partial<{ show: boolean; platform: "chrome" | "ios" | "other" | null }>) => ({ ...state, ...action }),
+        { show: false, platform: null }
+    );
+
+    const showPrompt = promptState.show;
+    const platform = promptState.platform;
     const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
 
     useEffect(() => {
         if (isStandalone() || isDismissed()) return;
 
         if (isIos()) {
-            setPlatform("ios");
-            setShowPrompt(true);
+            dispatch({ show: true, platform: "ios" });
             return;
         }
 
@@ -51,8 +55,7 @@ export function PwaInstallPrompt() {
             e.preventDefault();
             if (timeoutRef.id) clearTimeout(timeoutRef.id);
             deferredPromptRef.current = e;
-            setPlatform("chrome");
-            setShowPrompt(true);
+            dispatch({ show: true, platform: "chrome" });
         };
 
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -60,14 +63,13 @@ export function PwaInstallPrompt() {
         // If no event after 1s, show generic message
         timeoutRef.id = setTimeout(() => {
             if (!deferredPromptRef.current && !isIos()) {
-                setPlatform("other");
-                setShowPrompt(true);
+                dispatch({ show: true, platform: "other" });
             }
         }, 1000);
         const timeout = timeoutRef.id;
 
         const handleAppInstalled = () => {
-            setShowPrompt(false);
+            dispatch({ show: false });
             deferredPromptRef.current = null;
         };
 
@@ -85,14 +87,14 @@ export function PwaInstallPrompt() {
         await deferredPromptRef.current.prompt();
         const { outcome } = await deferredPromptRef.current.userChoice;
         if (outcome === "accepted") {
-            setShowPrompt(false);
+            dispatch({ show: false });
         }
         deferredPromptRef.current = null;
     }, []);
 
     const handleDismiss = useCallback(() => {
         localStorage.setItem(DISMISS_KEY, Date.now().toString());
-        setShowPrompt(false);
+        dispatch({ show: false });
     }, []);
 
     useEffect(() => {

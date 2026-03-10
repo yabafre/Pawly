@@ -17,7 +17,7 @@ import type { EmployeeScheduleData, EmployeeShiftTypeInfo } from "@pawly/types";
 export function SchedulePageClient() {
   const t = useTranslations("dashboard.schedule");
   const [selectedMonth, setSelectedMonth] = useState(
-    format(new Date(), "yyyy-MM"),
+    () => format(new Date(), "yyyy-MM"),
   );
 
   const { data: rawScheduleData, isPending, isError, refetch } = useMySchedule(selectedMonth);

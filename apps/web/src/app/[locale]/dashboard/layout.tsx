@@ -29,9 +29,14 @@ export default async function DashboardLayout({ children, params }: Props) {
 
     // Role guard: server-side check via tRPC — only EMPLOYEE role allowed
     let me: { role: string; employeeId: string | null; jobType: string | null } | null = null;
+    let authFailed = false;
     try {
         me = await trpc.auth.getMe.query();
     } catch {
+        authFailed = true;
+    }
+
+    if (authFailed) {
         redirect(`/${locale}/login`);
     }
 

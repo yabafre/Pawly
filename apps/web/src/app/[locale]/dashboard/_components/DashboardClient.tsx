@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, isToday, isFuture, parseISO, getISOWeek } from "date-fns";
 import { fr, enUS } from "date-fns/locale";
 import { useLocale } from "next-intl";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import { useMySchedule, useMyShiftTypes } from "../schedule/_hooks/useMySchedule";
 import DashboardLoading from "../loading";
 import { PwaInstallPrompt } from "./PwaInstallPrompt";
@@ -42,24 +42,26 @@ const EmployeeDashboard = () => {
     const locale = useLocale();
     const dateFnsLocale = locale === "fr" ? fr : enUS;
     const { formatHours } = useFormattedNumber();
-    const [isMounted, setIsMounted] = useState(false);
-    const [showSplash, setShowSplash] = useState(true);
+    const [pageState, dispatch] = useReducer(
+        (state: { isMounted: boolean; showSplash: boolean }, action: Partial<{ isMounted: boolean; showSplash: boolean }>) => ({ ...state, ...action }),
+        { isMounted: false, showSplash: true }
+    );
 
     useEffect(() => {
-        setIsMounted(true);
         const hasShownSplash = sessionStorage.getItem("employeeSplashShown");
         if (hasShownSplash) {
-            setShowSplash(false);
+            dispatch({ isMounted: true, showSplash: false });
         } else {
+            dispatch({ isMounted: true });
             const timer = setTimeout(() => {
-                setShowSplash(false);
+                dispatch({ isMounted: true, showSplash: false });
                 sessionStorage.setItem("employeeSplashShown", "true");
             }, 2500); // 2.5 seconds minimum display time for the animation
             return () => clearTimeout(timer);
         }
     }, []);
 
-    const currentMonth = format(new Date(), "yyyy-MM");
+    const currentMonth = useMemo(() => format(new Date(), "yyyy-MM"), []);
 
     const { data: rawScheduleData, isPending } = useMySchedule(currentMonth);
     const { data: rawShiftTypes } = useMyShiftTypes();
@@ -71,7 +73,7 @@ const EmployeeDashboard = () => {
         allShiftTypes.map((st) => [st.code, st]),
     );
 
-    if (!isMounted || isPending || showSplash) {
+    if (!pageState.isMounted || isPending || pageState.showSplash) {
         return <DashboardLoading />;
     }
 

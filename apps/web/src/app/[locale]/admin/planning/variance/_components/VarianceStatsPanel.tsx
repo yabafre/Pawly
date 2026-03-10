@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { motion } from "motion/react";
+import { LazyMotion, m, domAnimation } from "motion/react";
 import { BarChart3, Clock, AlertTriangle, UserX } from "lucide-react";
 
 interface VarianceStats {
@@ -85,35 +85,37 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
   }
 
   return (
-    <motion.div
-      className="grid grid-cols-1 gap-4 md:grid-cols-4"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      {cards.map((card) => (
-        <motion.div
-          key={card.label}
-          variants={cardVariants}
-          className="bg-white rounded-3xl border border-neutral-200 p-4 shadow-sm"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.color}`}
-            >
-              <card.icon size={18} />
+    <LazyMotion features={domAnimation}>
+      <m.div
+        className="grid grid-cols-1 gap-4 md:grid-cols-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {cards.map((card) => (
+          <m.div
+            key={card.label}
+            variants={cardVariants}
+            className="bg-white rounded-3xl border border-neutral-200 p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.color}`}
+              >
+                <card.icon size={18} />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-neutral-900">
+                  {card.value}
+                </p>
+                <p className="text-xs text-neutral-500 font-medium">
+                  {card.label}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-extrabold text-neutral-900">
-                {card.value}
-              </p>
-              <p className="text-xs text-neutral-500 font-medium">
-                {card.label}
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </motion.div>
+          </m.div>
+        ))}
+      </m.div>
+    </LazyMotion>
   );
 }

@@ -1,10 +1,19 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Scale } from "lucide-react";
 import { EquityCountersClient } from "./_components/EquityCountersClient";
+import type { Metadata } from "next";
 
 type Props = {
   params: Promise<{ locale: string }>;
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "admin.equityCounters" });
+  return {
+    title: t("title"),
+  };
+}
 
 export default async function EquityPage({ params }: Props) {
   const { locale } = await params;

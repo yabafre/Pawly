@@ -1,30 +1,21 @@
-"use client";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { OfflineClient } from "./_components/OfflineClient";
 
-import { WifiOff } from "lucide-react";
-import { useTranslations } from "next-intl";
+type Props = {
+  params: Promise<{ locale: string }>;
+};
 
-export default function OfflinePage() {
-  const t = useTranslations("common.offlinePage");
+export async function generateMetadata({ params }: Props) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "common.offlinePage" });
+  return {
+    title: t("title") + " | Pawly",
+    description: t("description"),
+  };
+}
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FDFDFD] p-6">
-      <div className="text-center">
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50">
-          <WifiOff className="h-10 w-10 text-amber-600" />
-        </div>
-        <h1 className="mb-2 text-2xl font-semibold text-neutral-900">
-          {t("title")}
-        </h1>
-        <p className="mb-6 text-neutral-500">
-          {t("description")}
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-lg bg-[#009588] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#00796B]"
-        >
-          {t("retry")}
-        </button>
-      </div>
-    </div>
-  );
+export default async function OfflinePage({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  return <OfflineClient />;
 }

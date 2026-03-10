@@ -20,14 +20,18 @@ import { useEquityCounters, useQuarterlySummary, useEquityThresholds } from "../
 import { EquityPeriodSelector } from "./EquityPeriodSelector";
 import { EquityCountersTable } from "./EquityCountersTable";
 import { EquitySummaryCards } from "./EquitySummaryCards";
-import { EquityDistributionChart } from "./EquityDistributionChart";
+import dynamic from "next/dynamic";
+
+const EquityDistributionChart = dynamic(
+  () => import("./EquityDistributionChart").then((mod) => ({ default: mod.EquityDistributionChart })),
+  { ssr: false },
+);
 
 export function EquityCountersClient() {
-  const now = new Date();
   const [view, setView] = useState<"monthly" | "quarterly">("monthly");
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [quarter, setQuarter] = useState(Math.ceil((now.getMonth() + 1) / 3));
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  const [quarter, setQuarter] = useState(() => Math.ceil((new Date().getMonth() + 1) / 3));
 
   const t = useTranslations("admin.equityCounters");
 

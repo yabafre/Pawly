@@ -4,6 +4,10 @@ import { CallbackClient } from "./_components/CallbackClient";
 // Callback uses searchParams + client hooks — never prerender
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+    title: "Connexion en cours | Pawly",
+};
+
 type Props = {
     params: Promise<{ locale: string }>;
     searchParams?: Promise<{

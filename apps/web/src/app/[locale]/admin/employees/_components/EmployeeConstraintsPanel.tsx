@@ -78,10 +78,6 @@ export function EmployeeConstraintsPanel({
     }
   }, [open, resetLocalFormState]);
 
-  useEffect(() => {
-    resetLocalFormState();
-  }, [employee?.id, resetLocalFormState]);
-
   const {
     constraints,
     isPending,
@@ -133,7 +129,7 @@ export function EmployeeConstraintsPanel({
   if (!employee) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+    <Dialog key={employee?.id ?? "none"} open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[760px] rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-neutral-900">
@@ -169,13 +165,13 @@ export function EmployeeConstraintsPanel({
                 defaultValues={
                   editingConstraint
                     ? {
-                        id: editingConstraint.id,
-                        type: editingConstraint.type,
-                        startDate: new Date(editingConstraint.startDate).toISOString(),
-                        endDate: new Date(editingConstraint.endDate).toISOString(),
-                        reason: editingConstraint.reason ?? "",
-                        daysOfWeek: editingConstraint.daysOfWeek,
-                      }
+                      id: editingConstraint.id,
+                      type: editingConstraint.type,
+                      startDate: new Date(editingConstraint.startDate).toISOString(),
+                      endDate: new Date(editingConstraint.endDate).toISOString(),
+                      reason: editingConstraint.reason ?? "",
+                      daysOfWeek: editingConstraint.daysOfWeek,
+                    }
                     : undefined
                 }
                 isPending={isCreating || isUpdating}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useForm } from "@tanstack/react-form";
 import {
@@ -47,12 +46,12 @@ export function ShiftTypeFormSheet({
 
   const form = useForm({
     defaultValues: {
-      name: "",
-      code: "",
-      startTime: "08:30",
-      endTime: "18:30",
-      breakMinutes: 0,
-      color: COLOR_PALETTE[0].value,
+      name: editingShiftType?.name ?? "",
+      code: editingShiftType?.code ?? "",
+      startTime: editingShiftType?.startTime ?? "08:30",
+      endTime: editingShiftType?.endTime ?? "18:30",
+      breakMinutes: editingShiftType?.breakMinutes ?? 0,
+      color: editingShiftType?.color ?? COLOR_PALETTE[0].value,
     },
     onSubmit: async ({ value }) => {
       if (editingShiftType) {
@@ -66,30 +65,14 @@ export function ShiftTypeFormSheet({
     },
   });
 
-  useEffect(() => {
-    if (open && editingShiftType) {
-      form.reset();
-      form.setFieldValue("name", editingShiftType.name);
-      form.setFieldValue("code", editingShiftType.code);
-      form.setFieldValue("startTime", editingShiftType.startTime);
-      form.setFieldValue("endTime", editingShiftType.endTime);
-      form.setFieldValue("breakMinutes", editingShiftType.breakMinutes ?? 0);
-      form.setFieldValue("color", editingShiftType.color);
-    } else if (open && !editingShiftType) {
-      form.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- form instance is stable
-  }, [open, editingShiftType]);
-
   const isBusy = isCreating || isUpdating;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="overflow-hidden p-0 gap-0 sm:max-w-lg">
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          key={editingShiftType?.id ?? "new"}
+          action={() => {
             form.handleSubmit();
           }}
           className="flex min-h-0 flex-1 flex-col"
@@ -235,11 +218,10 @@ export function ShiftTypeFormSheet({
                         key={color.value}
                         type="button"
                         onClick={() => field.handleChange(color.value)}
-                        className={`w-9 h-9 rounded-xl transition-all ${
-                          field.state.value === color.value
-                            ? "ring-2 ring-offset-2 ring-neutral-900 scale-110"
-                            : "hover:scale-105"
-                        }`}
+                        className={`w-9 h-9 rounded-xl transition-all ${field.state.value === color.value
+                          ? "ring-2 ring-offset-2 ring-neutral-900 scale-110"
+                          : "hover:scale-105"
+                          }`}
                         style={{ backgroundColor: color.value }}
                         title={color.label}
                       />

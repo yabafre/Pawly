@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useDashboardStats } from "../_hooks/useDashboardStats";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
 import AdminLoading from "../../loading";
 
 const StatCard = ({
@@ -71,24 +71,26 @@ const SkeletonCard = () => (
 export function DashboardPageClient() {
   const t = useTranslations("admin.dashboard");
   const { stats, isPending } = useDashboardStats();
-  const [isMounted, setIsMounted] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
+  const [pageState, dispatch] = useReducer(
+    (state: { isMounted: boolean; showSplash: boolean }, action: Partial<{ isMounted: boolean; showSplash: boolean }>) => ({ ...state, ...action }),
+    { isMounted: false, showSplash: true }
+  );
 
   useEffect(() => {
-    setIsMounted(true);
     const hasShownSplash = sessionStorage.getItem("adminSplashShown");
     if (hasShownSplash) {
-      setShowSplash(false);
+      dispatch({ isMounted: true, showSplash: false });
     } else {
+      dispatch({ isMounted: true });
       const timer = setTimeout(() => {
-        setShowSplash(false);
+        dispatch({ isMounted: true, showSplash: false });
         sessionStorage.setItem("adminSplashShown", "true");
       }, 2500); // 2.5 seconds minimum display time
       return () => clearTimeout(timer);
     }
   }, []);
 
-  if (!isMounted || isPending || showSplash) {
+  if (!pageState.isMounted || isPending || pageState.showSplash) {
     return <AdminLoading />;
   }
 

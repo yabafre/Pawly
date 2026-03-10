@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Calendar, Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 import {
@@ -63,21 +63,24 @@ function DayEditor({
 
   return (
     <div
-      className={`transition-all duration-300 border border-neutral-100 overflow-hidden ${
-        isOpen
-          ? "bg-neutral-50 rounded-2xl shadow-sm my-4"
-          : "bg-white rounded-xl my-2 hover:border-neutral-200"
-      }`}
+      className={`transition-all duration-300 border border-neutral-100 overflow-hidden ${isOpen
+        ? "bg-neutral-50 rounded-2xl shadow-sm my-4"
+        : "bg-white rounded-xl my-2 hover:border-neutral-200"
+        }`}
     >
       <div
         onClick={onToggle}
-        className="flex items-center justify-between p-4 cursor-pointer"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Space") onToggle();
+        }}
+        role="button"
+        tabIndex={0}
+        className="flex items-center justify-between p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-200"
       >
         <div className="flex items-center gap-4">
           <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-              isOpen ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-400"
-            }`}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isOpen ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-400"
+              }`}
           >
             <Calendar size={14} />
           </div>
@@ -137,15 +140,18 @@ function DayEditor({
                 </div>
               )}
 
-              {slots.map((slot, idx) => (
-                <TemplateSlotForm
-                  key={`${dayLabel}-${idx}`}
-                  slot={slot}
-                  shiftTypes={shiftTypes}
-                  onUpdate={(updatedSlot) => onUpdateSlot(idx, updatedSlot)}
-                  onRemove={() => onRemoveSlot(idx)}
-                />
-              ))}
+              {slots.map((slot, idx) => {
+                const stableKey = `slot-${dayLabel}-${idx}`;
+                return (
+                  <TemplateSlotForm
+                    key={stableKey}
+                    slot={slot}
+                    shiftTypes={shiftTypes}
+                    onUpdate={(updatedSlot) => onUpdateSlot(idx, updatedSlot)}
+                    onRemove={() => onRemoveSlot(idx)}
+                  />
+                );
+              })}
 
               <button
                 type="button"
@@ -182,15 +188,18 @@ export function TemplateEditor({
   });
   const [expandedDay, setExpandedDay] = useState<(typeof DAY_KEYS)[number] | null>("monday");
 
-  const resetForm = useCallback(() => {
-    setName(template?.name ?? "");
-    setDays(template?.data?.days ? [...template.data.days] : []);
-    setExpandedDay("monday");
-  }, [template]);
+  const prevOpenRef = useRef(open);
+  const prevTemplateRef = useRef(template);
 
-  useEffect(() => {
-    if (open) resetForm();
-  }, [open, resetForm]);
+  if (open !== prevOpenRef.current || template !== prevTemplateRef.current) {
+    prevOpenRef.current = open;
+    prevTemplateRef.current = template;
+    if (open) {
+      setName(template?.name ?? "");
+      setDays(template?.data?.days ? [...template.data.days] : []);
+      setExpandedDay("monday");
+    }
+  }
 
   const handleOpenChange = (isOpen: boolean) => {
     onOpenChange(isOpen);

@@ -27,7 +27,7 @@ import { StepShiftTypes } from "./steps/StepShiftTypes";
 
 export type OnboardingForm = any;
 
-export interface OnboardingFormValues {
+interface OnboardingFormValues {
   clinicName: string;
   workDays: WorkDay[];
   defaultStartTime: string;
@@ -98,31 +98,31 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
       shiftTypes:
         initialData.shiftTypes.length > 0
           ? initialData.shiftTypes.map((st) => ({
-              name: st.name,
-              code: st.code,
-              startTime: st.startTime,
-              endTime: st.endTime,
-              breakMinutes: st.breakMinutes ?? 0,
-              color: st.color,
-            }))
+            name: st.name,
+            code: st.code,
+            startTime: st.startTime,
+            endTime: st.endTime,
+            breakMinutes: st.breakMinutes ?? 0,
+            color: st.color,
+          }))
           : [
-              {
-                name: "Surgery",
-                code: "CHIR",
-                startTime: "08:30",
-                endTime: "18:30",
-                breakMinutes: 0,
-                color: "#4F46E5",
-              },
-              {
-                name: "Reception",
-                code: "ACC",
-                startTime: "09:00",
-                endTime: "19:30",
-                breakMinutes: 0,
-                color: "#F97316",
-              },
-            ],
+            {
+              name: "Surgery",
+              code: "CHIR",
+              startTime: "08:30",
+              endTime: "18:30",
+              breakMinutes: 0,
+              color: "#4F46E5",
+            },
+            {
+              name: "Reception",
+              code: "ACC",
+              startTime: "09:00",
+              endTime: "19:30",
+              breakMinutes: 0,
+              color: "#F97316",
+            },
+          ],
     },
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
@@ -227,8 +227,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
         {/* Step Card */}
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
+          action={() => {
             if (isLastStep) {
               handleComplete();
             } else {

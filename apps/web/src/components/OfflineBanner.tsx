@@ -2,26 +2,24 @@
 
 import { WifiOff } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const getSnapshot = () => !navigator.onLine;
+const getServerSnapshot = () => false;
+
+const subscribe = (callback: () => void) => {
+  if (typeof window === "undefined") return () => { };
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+};
 
 export function OfflineBanner() {
   const t = useTranslations("dashboard.schedule.offline");
-  const [isOffline, setIsOffline] = useState(false);
-
-  useEffect(() => {
-    setIsOffline(!navigator.onLine);
-
-    const handleOffline = () => setIsOffline(true);
-    const handleOnline = () => setIsOffline(false);
-
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("online", handleOnline);
-
-    return () => {
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online", handleOnline);
-    };
-  }, []);
+  const isOffline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!isOffline) return null;
 

@@ -4,6 +4,10 @@ import { ActivateClient } from "./_components/ActivateClient";
 // Activation uses searchParams + client hooks — never prerender
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+    title: "Activation du compte | Pawly",
+};
+
 type Props = {
     params: Promise<{ locale: string }>;
     searchParams?: Promise<{
