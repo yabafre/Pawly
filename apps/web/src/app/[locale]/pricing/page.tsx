@@ -9,6 +9,8 @@ type Props = {
   params: Promise<{ locale: string }>;
 };
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://pawly.com";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pricing.meta" });
@@ -19,11 +21,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: t("title"),
       description: t("description"),
       type: "website",
+      url: locale === "fr" ? `${baseUrl}/pricing` : `${baseUrl}/en/pricing`,
+      siteName: "Pawly",
+      locale: locale === "fr" ? "fr_FR" : "en_US",
+      images: [
+        {
+          url: `${baseUrl}/og-image-${locale}.png`,
+          width: 1200,
+          height: 630,
+          alt: t("title"),
+        },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: t("title"),
       description: t("description"),
+      images: [`${baseUrl}/og-image-${locale}.png`],
+    },
+    alternates: {
+      canonical: locale === "fr" ? `${baseUrl}/pricing` : `${baseUrl}/en/pricing`,
+      languages: {
+        fr: `${baseUrl}/pricing`,
+        en: `${baseUrl}/en/pricing`,
+      },
     },
   };
 }
@@ -33,8 +54,32 @@ export default async function PricingPage({ params }: Props) {
   setRequestLocale(locale);
   const t = await getTranslations("pricing.page");
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Pawly",
+        item: baseUrl,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: t("heading"),
+        item: locale === "fr" ? `${baseUrl}/pricing` : `${baseUrl}/en/pricing`,
+      },
+    ],
+  };
+
   return (
     <>
+      {/* Safe: jsonLd is a static object built from constants, no user input */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <LandingHeader />
       <main id="main-content" className="min-h-screen bg-[#FDFDFD] pt-24 pb-24 px-4">
         <div className="max-w-7xl mx-auto">

@@ -1872,6 +1872,7 @@ export class PlanningGenerationService {
           firstName: true,
           email: true,
           notifyOnPublish: true,
+          user: { select: { locale: true } },
           _count: { select: { shifts: { where: { date: { gte: startDate, lte: endDate } } } } },
         },
       }),
@@ -1894,6 +1895,7 @@ export class PlanningGenerationService {
         to: emp.email!,
         firstName: emp.firstName,
         shiftCount: emp._count.shifts,
+        locale: (emp.user?.locale as 'fr' | 'en') ?? 'fr',
       }));
 
       if (useTrigger) {

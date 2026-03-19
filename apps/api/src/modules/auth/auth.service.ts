@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import type { EnvConfig } from '@/config/index';
 import type { User } from '@prisma/client';
+import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -109,7 +110,8 @@ export class AuthService {
 
         const baseUrl = this.configService.get('WEB_APP_URL', { infer: true });
         const callbackUrl = `${baseUrl}/auth/callback?token=${rawToken}`;
-        await this.mailService.sendMagicLink(user.email, callbackUrl);
+        const locale = (user.locale as MailLocale) ?? 'fr';
+        await this.mailService.sendMagicLink(user.email, callbackUrl, locale);
 
         return { message: 'If an account exists, a magic link has been sent' };
     }
@@ -210,7 +212,8 @@ export class AuthService {
             },
         });
 
-        await this.mailService.sendOtpCode(email, rawCode);
+        const locale = (user.locale as MailLocale) ?? 'fr';
+        await this.mailService.sendOtpCode(email, rawCode, locale);
 
         await this.delayToMinimumResponse(startTime);
         return { method: 'otp' as const, message: 'If account exists, code sent' };

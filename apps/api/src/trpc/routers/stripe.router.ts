@@ -104,6 +104,19 @@ export const stripeRouter = router({
         });
       }
 
+      // Validate returnUrl against allowed origins to prevent open redirect
+      const webAppUrl = process.env.WEB_APP_URL ?? '';
+      if (webAppUrl) {
+        const allowedOrigins = webAppUrl.split(',').map((o) => o.trim());
+        const returnOrigin = new URL(input.returnUrl).origin;
+        if (!allowedOrigins.includes(returnOrigin)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'returnUrl must match an allowed application origin',
+          });
+        }
+      }
+
       return ctx.stripeService.createBillingPortalSession(
         subscription.stripeCustomerId,
         input.returnUrl,

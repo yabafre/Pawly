@@ -249,6 +249,6 @@ development_status:
   #             self-hosted (async jobs, cron migration, retries, dashboard).
   # NFRs: Observability, Reliability, Monitoring
   # ===========================================================================
-  epic-9: in-progress
+  epic-9: done
   signoz-triggerdev-integration-quick-spec: done  # Quick-spec: SigNoz OTel + Trigger.dev background jobs. 28 tasks, 15 ACs. Code review: 13 issues fixed.
   epic-9-retrospective: optional

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmployeeService } from '@/modules/employee/employee.service';
 import { MailService } from '@/modules/mail/mail.service';
+import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 @Injectable()
 export class SchedulerService {
@@ -56,10 +57,12 @@ export class SchedulerService {
       if (!apprentice.email) continue;
 
       try {
+        const locale = ((apprentice as any).user?.locale as MailLocale) ?? 'fr';
         await this.mailService.sendSchoolDaysReminder(
           apprentice.email,
           `${apprentice.firstName} ${apprentice.lastName}`,
           nextMonth,
+          locale,
         );
         this.logger.log(
           `Sent school days reminder to ${apprentice.email} for ${nextMonth}`,

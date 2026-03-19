@@ -12,6 +12,19 @@ import type { EnvConfig } from '@/config/index';
 // Simple in-memory rate limiter for tRPC endpoints
 function createTrpcRateLimiter(limit: number, windowMs: number) {
   const hits = new Map<string, { count: number; resetAt: number }>();
+
+  // Periodic cleanup of expired entries to prevent memory leaks
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of hits) {
+      if (record.resetAt < now) {
+        hits.delete(key);
+      }
+    }
+  }, windowMs * 2);
+  // Allow process to exit without waiting for cleanup
+  if (cleanupInterval.unref) cleanupInterval.unref();
+
   return (req: { ip?: string }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
     const key = req.ip ?? 'unknown';
     const now = Date.now();
@@ -70,7 +83,7 @@ async function bootstrap() {
         transform: true,
         transformOptions: { enableImplicitConversion: true },
         whitelist: true,
-        forbidNonWhitelisted: false,
+        forbidNonWhitelisted: true,
       })
     );
 

@@ -75,7 +75,8 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const url = (event.notification.data as { url?: string })?.url ?? "/dashboard/schedule";
+  const rawUrl = (event.notification.data as { url?: string })?.url ?? "/dashboard/schedule";
+  const url = rawUrl.startsWith("/") ? rawUrl : "/dashboard/schedule";
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {

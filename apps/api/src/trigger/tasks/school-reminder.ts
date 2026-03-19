@@ -60,6 +60,7 @@ export const schoolReminderTask = schedules.task({
         firstName: true,
         lastName: true,
         email: true,
+        user: { select: { locale: true } },
         unavailabilities: {
           where: {
             type: 'SCHOOL',
@@ -85,6 +86,7 @@ export const schoolReminderTask = schedules.task({
           name: `${apprentice.firstName} ${apprentice.lastName}`,
           month: nextMonth,
           dashboardUrl,
+          locale: (apprentice as any).user?.locale ?? 'fr',
         },
       });
     }

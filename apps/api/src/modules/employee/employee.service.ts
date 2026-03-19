@@ -26,6 +26,7 @@ import type {
   UpdateNotificationPreferencesInput,
 } from '@pawly/validators';
 import type { UnavailabilityType } from '@pawly/validators';
+import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 type UnavailabilityRecord = {
   id: string;
@@ -191,10 +192,16 @@ export class EmployeeService {
 
       this.authService
         .createWelcomeMagicLink(email)
-        .then((url) => {
+        .then(async (url) => {
           if (url) {
+            // Look up locale of the newly created user
+            const empUser = await this.prisma.user.findUnique({
+              where: { email },
+              select: { locale: true },
+            });
+            const locale = (empUser?.locale as MailLocale) ?? 'fr';
             return this.mailService
-              .sendEmployeeInvitationEmail(email, url, data.firstName)
+              .sendEmployeeInvitationEmail(email, url, data.firstName, locale)
               .then(() => this.logger.log(`Sent invitation email to ${email}`));
           }
         })
@@ -467,16 +474,18 @@ export class EmployeeService {
   ) {
     const admins = await this.prisma.user.findMany({
       where: { clinicId, role: 'ADMIN' },
-      select: { email: true, name: true },
+      select: { email: true, name: true, locale: true },
     });
 
     for (const admin of admins) {
+      const locale = (admin.locale as MailLocale) ?? 'fr';
       await this.mailService.sendSchoolDaysNotification(
         admin.email,
         admin.name ?? undefined,
         apprenticeName,
         month,
         dateCount,
+        locale,
       );
     }
   }
@@ -526,10 +535,19 @@ export class EmployeeService {
     );
 
     if (magicLinkUrl) {
+      // Look up locale of the employee's user
+      const empUser = employee.email
+        ? await this.prisma.user.findUnique({
+            where: { email: employee.email },
+            select: { locale: true },
+          })
+        : null;
+      const locale = (empUser?.locale as MailLocale) ?? 'fr';
       await this.mailService.sendEmployeeInvitationEmail(
         employee.email,
         magicLinkUrl,
         employee.firstName,
+        locale,
       );
     }
 
@@ -604,6 +622,7 @@ export class EmployeeService {
         lastName: true,
         email: true,
         clinicId: true,
+        user: { select: { locale: true } },
         unavailabilities: {
           where: {
             type: 'SCHOOL',
@@ -662,21 +681,23 @@ export class EmployeeService {
   ) {
     const employee = await this.findById(clinicId, employeeId);
 
-    const overlap = await this.checkOverlap(clinicId, employeeId, input.startDate, input.endDate);
-    if (overlap.hasOverlap) {
-      throw new ConflictException('An existing absence or unavailability overlaps with this date range');
-    }
+    const absence = await this.prisma.$transaction(async (tx) => {
+      const overlap = await this.checkOverlapTx(tx, clinicId, employeeId, input.startDate, input.endDate);
+      if (overlap.hasOverlap) {
+        throw new ConflictException('An existing absence or unavailability overlaps with this date range');
+      }
 
-    const absence = await this.prisma.absence.create({
-      data: {
-        clinicId,
-        employeeId,
-        type: input.type,
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-        reason: input.reason || null,
-        status: 'PENDING',
-      },
+      return tx.absence.create({
+        data: {
+          clinicId,
+          employeeId,
+          type: input.type,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          reason: input.reason || null,
+          status: 'PENDING',
+        },
+      });
     });
 
     // Fire-and-forget: notify clinic admin(s)
@@ -702,7 +723,7 @@ export class EmployeeService {
   ) {
     const absence = await this.prisma.absence.findFirst({
       where: { id: absenceId, clinicId },
-      include: { employee: { select: { firstName: true, lastName: true, email: true } } },
+      include: { employee: { select: { firstName: true, lastName: true, email: true, userId: true } } },
     });
 
     if (!absence) {
@@ -745,6 +766,7 @@ export class EmployeeService {
 
       // Fire-and-forget: notify employee of approval
       if (absence.employee.email) {
+        const empLocale = await this.resolveUserLocale(absence.employee.userId);
         this.mailService
           .sendAbsenceReviewNotification(
             absence.employee.email,
@@ -753,6 +775,8 @@ export class EmployeeService {
             absence.type as AbsenceType,
             absence.startDate,
             absence.endDate,
+            undefined,
+            empLocale,
           )
           .catch((err) =>
             this.logger.error('Failed to send absence approval notification', err),
@@ -783,6 +807,7 @@ export class EmployeeService {
 
     // Fire-and-forget: notify employee of rejection
     if (absence.employee.email) {
+      const empLocale = await this.resolveUserLocale(absence.employee.userId);
       this.mailService
         .sendAbsenceReviewNotification(
           absence.employee.email,
@@ -792,6 +817,7 @@ export class EmployeeService {
           absence.startDate,
           absence.endDate,
           rejectionReason,
+          empLocale,
         )
         .catch((err) =>
           this.logger.error('Failed to send absence rejection notification', err),
@@ -890,6 +916,7 @@ export class EmployeeService {
 
     // Fire-and-forget: notify employee
     if (employee.email) {
+      const empLocale = await this.resolveUserLocale(employee.userId);
       this.mailService
         .sendAbsenceReviewNotification(
           employee.email,
@@ -898,6 +925,8 @@ export class EmployeeService {
           input.type,
           new Date(input.startDate),
           new Date(input.endDate),
+          undefined,
+          empLocale,
         )
         .catch((err) =>
           this.logger.error('Failed to send admin absence notification', err),
@@ -919,13 +948,22 @@ export class EmployeeService {
     startDate: string,
     endDate: string,
   ) {
-    await this.findById(clinicId, employeeId);
+    return this.checkOverlapTx(this.prisma, clinicId, employeeId, startDate, endDate);
+  }
+
+  private async checkOverlapTx(
+    tx: { absence: { findMany: (...args: any[]) => any }; unavailability: { findMany: (...args: any[]) => any } },
+    clinicId: string,
+    employeeId: string,
+    startDate: string,
+    endDate: string,
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     const [overlappingAbsences, overlappingUnavailabilities] =
       await Promise.all([
-        this.prisma.absence.findMany({
+        tx.absence.findMany({
           where: {
             clinicId,
             employeeId,
@@ -940,7 +978,7 @@ export class EmployeeService {
             endDate: true,
           },
         }),
-        this.prisma.unavailability.findMany({
+        tx.unavailability.findMany({
           where: {
             clinicId,
             employeeId,
@@ -973,7 +1011,7 @@ export class EmployeeService {
   ) {
     const admins = await this.prisma.user.findMany({
       where: { clinicId, role: 'ADMIN' },
-      select: { email: true, name: true },
+      select: { email: true, name: true, locale: true },
     });
 
     const dayCount =
@@ -982,8 +1020,9 @@ export class EmployeeService {
       ) + 1;
 
     await Promise.allSettled(
-      admins.map((admin) =>
-        this.mailService.sendAbsenceRequestNotification(
+      admins.map((admin) => {
+        const locale = (admin.locale as MailLocale) ?? 'fr';
+        return this.mailService.sendAbsenceRequestNotification(
           admin.email,
           admin.name ?? undefined,
           employeeName,
@@ -991,9 +1030,19 @@ export class EmployeeService {
           startDate,
           endDate,
           dayCount,
-        ),
-      ),
+          locale,
+        );
+      }),
     );
+  }
+
+  private async resolveUserLocale(userId: string | null): Promise<MailLocale> {
+    if (!userId) return 'fr';
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { locale: true },
+    });
+    return (user?.locale as MailLocale) ?? 'fr';
   }
 
   private async findConstraintById(clinicId: string, id: string) {

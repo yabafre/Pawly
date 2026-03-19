@@ -6,42 +6,54 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface SchoolDaysReminderEmailProps {
   name: string;
   month: string;
   dashboardUrl?: string;
+  locale?: MailLocale;
 }
 
 export const SchoolDaysReminderEmail = ({
   name,
   month,
   dashboardUrl = '#',
-}: SchoolDaysReminderEmailProps) => (
-  <EmailLayout previewText="Rappel: déclarez vos jours d'école" tag="RAPPEL">
-    <Heading style={h1}>Rappel de déclaration</Heading>
-    <Text style={subjectText}>
-      Objet: Déclarez vos jours d'école pour {month}
-    </Text>
+  locale = 'fr',
+}: SchoolDaysReminderEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? "Rappel: déclarez vos jours d'école" : 'Reminder: declare your school days'}
+      tag={t.tags.reminder}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.schoolReminder.heading}</Heading>
+      <Text style={subjectText}>
+        {t.schoolReminder.subject(month)}
+      </Text>
 
-    <Text style={text}>
-      Bonjour {name},
-      <br /><br />
-      Vous n'avez pas encore déclaré vos jours d'école pour le mois de{' '}
-      <strong>{month}</strong>. Veuillez effectuer votre déclaration avant la fin du mois.
-    </Text>
+      <Text style={text}>
+        {t.common.helloName(name)},
+        <br /><br />
+        {locale === 'fr'
+          ? <>Vous n&apos;avez pas encore déclaré vos jours d&apos;école pour le mois de{' '}<strong>{month}</strong>. Veuillez effectuer votre déclaration avant la fin du mois.</>
+          : <>You have not yet declared your school days for <strong>{month}</strong>. Please submit your declaration before the end of the month.</>
+        }
+      </Text>
 
-    <Section style={buttonContainer}>
-      <Button href={dashboardUrl} style={button}>
-        Déclarer mes jours d'école
-      </Button>
-    </Section>
+      <Section style={buttonContainer}>
+        <Button href={dashboardUrl} style={button}>
+          {t.schoolReminder.button}
+        </Button>
+      </Section>
 
-    <Text style={disclaimer}>
-      Ce rappel est envoyé automatiquement le 25 de chaque mois.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.schoolReminder.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

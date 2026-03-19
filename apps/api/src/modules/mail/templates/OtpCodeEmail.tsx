@@ -5,31 +5,40 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface OtpCodeEmailProps {
   code: string;
+  locale?: MailLocale;
 }
 
-export const OtpCodeEmail = ({ code }: OtpCodeEmailProps) => (
-  <EmailLayout previewText="Votre code de connexion Pawly" tag="SÉCURITÉ">
-    <Heading style={h1}>Votre code de connexion</Heading>
-    <Text style={subjectText}>Objet: Code de vérification Pawly</Text>
+export const OtpCodeEmail = ({ code, locale = 'fr' }: OtpCodeEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? 'Votre code de connexion Pawly' : 'Your Pawly login code'}
+      tag={t.tags.security}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.otp.heading}</Heading>
+      <Text style={subjectText}>{t.otp.subject}</Text>
 
-    <Text style={text}>
-      Bonjour,
-      <br /><br />
-      Entrez ce code dans l&apos;application pour vous connecter :
-    </Text>
+      <Text style={text}>
+        {t.common.hello},
+        <br /><br />
+        {t.otp.body}
+      </Text>
 
-    <Section style={codeContainer}>
-      <Text style={codeText}>{code.split('').join(' ')}</Text>
-    </Section>
+      <Section style={codeContainer}>
+        <Text style={codeText}>{code.split('').join(' ')}</Text>
+      </Section>
 
-    <Text style={disclaimer}>
-      Ce code est valide pendant 5 minutes. Si vous n&apos;avez pas demandé ce code, ignorez cet email.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.otp.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

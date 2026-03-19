@@ -8,6 +8,8 @@ export function SerwistRegistration() {
       navigator.serviceWorker.register("/serwist/sw.js", {
         scope: "/",
         type: "classic",
+      }).catch((err) => {
+        console.error("[SW] Registration failed:", err);
       });
     }
   }, []);

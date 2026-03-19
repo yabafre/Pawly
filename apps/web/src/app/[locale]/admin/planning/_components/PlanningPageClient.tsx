@@ -6,8 +6,7 @@ import { ApprenticeDeclarationPanel } from "./ApprenticeDeclarationPanel";
 import { ScheduleViewWrapper } from "./ScheduleViewWrapper";
 
 function getDefaultMonth() {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  return new Date().toISOString().slice(0, 7);
 }
 
 export function PlanningPageClient() {

@@ -2,12 +2,13 @@ import { task, logger } from '@trigger.dev/sdk';
 import { createElement } from 'react';
 import { render } from '@react-email/render';
 import { SchedulePublicationEmail } from '../../modules/mail/templates/SchedulePublicationEmail';
+import { getMailTranslations, type MailLocale } from '../../modules/mail/mail-i18n';
 import { getResend, mailFrom } from '../lib/resend';
 
 const BATCH_SIZE = 100;
 
 interface BatchEmailPayload {
-  emails: Array<{ to: string; firstName: string; shiftCount: number }>;
+  emails: Array<{ to: string; firstName: string; shiftCount: number; locale?: MailLocale }>;
   month: string;
   clinicName: string;
 }
@@ -35,6 +36,8 @@ export const batchEmailPublishTask = task({
     const emailPayloads: Array<{ from: string; to: string; subject: string; html: string }> = [];
     for (const emp of emails) {
       try {
+        const empLocale: MailLocale = emp.locale ?? 'fr';
+        const t = getMailTranslations(empLocale);
         const html = await render(
           createElement(SchedulePublicationEmail, {
             firstName: emp.firstName,
@@ -42,12 +45,13 @@ export const batchEmailPublishTask = task({
             clinicName,
             dashboardUrl,
             shiftCount: emp.shiftCount,
+            locale: empLocale,
           }),
         );
         emailPayloads.push({
           from: mailFrom,
           to: emp.to,
-          subject: `${clinicName} — Votre planning pour ${month} est publié`,
+          subject: t.subjects.schedulePublication(clinicName, month),
           html,
         });
       } catch (err) {
