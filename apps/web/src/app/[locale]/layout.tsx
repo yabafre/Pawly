@@ -7,16 +7,18 @@ import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/components/providers/react-query-provider";
 import { SerwistRegistration } from "@/components/providers/serwist-registration";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import Script from "next/script";
+
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 type Props = {
@@ -42,13 +44,6 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        {process.env.NODE_ENV === "development" && (
-          <Script
-            src="https://unpkg.com/react-grab/dist/index.global.js"
-            crossOrigin="anonymous"
-            strategy="beforeInteractive"
-          />
-        )}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#009588" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

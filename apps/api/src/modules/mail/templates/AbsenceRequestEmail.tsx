@@ -5,6 +5,7 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface AbsenceRequestEmailProps {
   adminName?: string;
@@ -13,15 +14,8 @@ interface AbsenceRequestEmailProps {
   startDate: string;
   endDate: string;
   dayCount: number;
+  locale?: MailLocale;
 }
-
-const TYPE_LABELS: Record<string, string> = {
-  PAID_LEAVE: 'Congé payé',
-  SICK_LEAVE: 'Arrêt maladie',
-  TRAINING: 'Formation',
-  CHILD_SICK: 'Enfant malade',
-  OTHER: 'Autre',
-};
 
 export const AbsenceRequestEmail = ({
   adminName,
@@ -30,37 +24,49 @@ export const AbsenceRequestEmail = ({
   startDate,
   endDate,
   dayCount,
-}: AbsenceRequestEmailProps) => (
-  <EmailLayout previewText={`${employeeName} a soumis une demande d'absence`} tag="NOTIFICATION">
-    <Heading style={h1}>Nouvelle demande d&apos;absence</Heading>
-    <Text style={subjectText}>
-      Objet: Demande à valider
-    </Text>
-
-    <Text style={text}>
-      Bonjour{adminName ? ` ${adminName}` : ''},
-      <br /><br />
-      <strong>{employeeName}</strong> a soumis une demande d&apos;absence.
-    </Text>
-
-    <Section style={infoBox}>
-      <Text style={infoText}>
-        {TYPE_LABELS[absenceType] ?? absenceType}
+  locale = 'fr',
+}: AbsenceRequestEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? `${employeeName} a soumis une demande d'absence` : `${employeeName} submitted an absence request`}
+      tag={t.tags.notification}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.absenceRequest.heading}</Heading>
+      <Text style={subjectText}>
+        {t.absenceRequest.subject}
       </Text>
-      <Text style={dateText}>
-        Du {startDate} au {endDate} · {dayCount} jour{dayCount > 1 ? 's' : ''}
+
+      <Text style={text}>
+        {t.common.hello}{adminName ? ` ${adminName}` : ''},
+        <br /><br />
+        <strong>{employeeName}</strong>{' '}
+        {locale === 'fr'
+          ? <>a soumis une demande d&apos;absence.</>
+          : <>submitted an absence request.</>
+        }
       </Text>
-    </Section>
 
-    <Text style={text}>
-      Connectez-vous à votre tableau de bord Pawly pour approuver ou refuser cette demande.
-    </Text>
+      <Section style={infoBox}>
+        <Text style={infoText}>
+          {t.absenceTypes[absenceType] ?? absenceType}
+        </Text>
+        <Text style={dateText}>
+          {t.absenceRequest.dateRange(startDate, endDate, dayCount)}
+        </Text>
+      </Section>
 
-    <Text style={disclaimer}>
-      Cette notification est automatique. Consultez votre tableau de bord Pawly pour plus de détails.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={text}>
+        {t.absenceRequest.action}
+      </Text>
+
+      <Text style={disclaimer}>
+        {t.absenceRequest.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

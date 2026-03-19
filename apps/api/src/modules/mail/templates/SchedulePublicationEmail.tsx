@@ -6,6 +6,7 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface SchedulePublicationEmailProps {
   firstName: string;
@@ -13,6 +14,7 @@ interface SchedulePublicationEmailProps {
   clinicName: string;
   dashboardUrl?: string;
   shiftCount?: number;
+  locale?: MailLocale;
 }
 
 export const SchedulePublicationEmail = ({
@@ -21,42 +23,65 @@ export const SchedulePublicationEmail = ({
   clinicName,
   dashboardUrl = '#',
   shiftCount,
-}: SchedulePublicationEmailProps) => (
-  <EmailLayout previewText={`Votre planning pour ${month} est publié`} tag="PLANNING">
-    <Heading style={h1}>Planning publié</Heading>
-    <Text style={subjectText}>
-      Objet: Votre planning pour {month} est disponible
-    </Text>
+  locale = 'fr',
+}: SchedulePublicationEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? `Votre planning pour ${month} est publié` : `Your schedule for ${month} is published`}
+      tag={t.tags.planning}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.schedulePublication.heading}</Heading>
+      <Text style={subjectText}>
+        {t.schedulePublication.subject(month)}
+      </Text>
 
-    <Text style={text}>
-      Bonjour {firstName},
-      <br /><br />
-      Le planning pour <strong>{month}</strong> a été publié par{' '}
-      <strong>{clinicName}</strong>.
-      {shiftCount !== undefined && shiftCount > 0 && (
-        <>
-          {' '}Vous avez <strong>{shiftCount} créneau{shiftCount > 1 ? 'x' : ''}</strong> prévu{shiftCount > 1 ? 's' : ''} ce mois-ci.
-        </>
-      )}
-      {' '}Vous pouvez dès maintenant consulter vos
-      créneaux sur votre espace Pawly.
-    </Text>
+      <Text style={text}>
+        {t.common.helloName(firstName)},
+        <br /><br />
+        {locale === 'fr' ? (
+          <>
+            Le planning pour <strong>{month}</strong> a été publié par{' '}
+            <strong>{clinicName}</strong>.
+            {shiftCount !== undefined && shiftCount > 0 && (
+              <>
+                {' '}Vous avez <strong>{shiftCount} créneau{shiftCount > 1 ? 'x' : ''}</strong> prévu{shiftCount > 1 ? 's' : ''} ce mois-ci.
+              </>
+            )}
+            {' '}Vous pouvez dès maintenant consulter vos
+            créneaux sur votre espace Pawly.
+          </>
+        ) : (
+          <>
+            The schedule for <strong>{month}</strong> has been published by{' '}
+            <strong>{clinicName}</strong>.
+            {shiftCount !== undefined && shiftCount > 0 && (
+              <>
+                {' '}You have <strong>{shiftCount} shift{shiftCount > 1 ? 's' : ''}</strong> scheduled this month.
+              </>
+            )}
+            {' '}You can now view your shifts on your Pawly space.
+          </>
+        )}
+      </Text>
 
-    <Section style={buttonContainer}>
-      <Button href={dashboardUrl} style={button}>
-        Consulter mon planning
-      </Button>
-    </Section>
+      <Section style={buttonContainer}>
+        <Button href={dashboardUrl} style={button}>
+          {t.schedulePublication.button}
+        </Button>
+      </Section>
 
-    <Text style={tipText}>
-      Astuce : Installez Pawly sur votre écran d&apos;accueil pour un accès instantané !
-    </Text>
+      <Text style={tipText}>
+        {t.schedulePublication.tip}
+      </Text>
 
-    <Text style={disclaimer}>
-      Ce message est envoyé automatiquement lors de la publication du planning.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.schedulePublication.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

@@ -5,12 +5,14 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface SchoolDaysDeclarationEmailProps {
   adminName?: string;
   apprenticeName: string;
   month: string;
   dateCount: number;
+  locale?: MailLocale;
 }
 
 export const SchoolDaysDeclarationEmail = ({
@@ -18,31 +20,42 @@ export const SchoolDaysDeclarationEmail = ({
   apprenticeName,
   month,
   dateCount,
-}: SchoolDaysDeclarationEmailProps) => (
-  <EmailLayout previewText={`${apprenticeName} a déclaré ses jours d'école`} tag="NOTIFICATION">
-    <Heading style={h1}>Déclaration de jours d'école</Heading>
-    <Text style={subjectText}>
-      Objet: Nouvelle déclaration pour {month}
-    </Text>
-
-    <Text style={text}>
-      Bonjour{adminName ? ` ${adminName}` : ''},
-      <br /><br />
-      <strong>{apprenticeName}</strong> a déclaré ses jours d'école pour le mois de{' '}
-      <strong>{month}</strong>.
-    </Text>
-
-    <Section style={infoBox}>
-      <Text style={infoText}>
-        {dateCount} jour{dateCount > 1 ? 's' : ''} d'école déclaré{dateCount > 1 ? 's' : ''}
+  locale = 'fr',
+}: SchoolDaysDeclarationEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? `${apprenticeName} a déclaré ses jours d'école` : `${apprenticeName} declared school days`}
+      tag={t.tags.notification}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.schoolDeclaration.heading}</Heading>
+      <Text style={subjectText}>
+        {t.schoolDeclaration.subject(month)}
       </Text>
-    </Section>
 
-    <Text style={disclaimer}>
-      Cette notification est automatique. Consultez votre tableau de bord Pawly pour plus de détails.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={text}>
+        {t.common.hello}{adminName ? ` ${adminName}` : ''},
+        <br /><br />
+        <strong>{apprenticeName}</strong>{' '}
+        {locale === 'fr'
+          ? <>a déclaré ses jours d&apos;école pour le mois de{' '}<strong>{month}</strong>.</>
+          : <>declared school days for <strong>{month}</strong>.</>
+        }
+      </Text>
+
+      <Section style={infoBox}>
+        <Text style={infoText}>
+          {t.schoolDeclaration.dayCount(dateCount)}
+        </Text>
+      </Section>
+
+      <Text style={disclaimer}>
+        {t.schoolDeclaration.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

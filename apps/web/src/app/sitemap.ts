@@ -24,5 +24,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
         },
       },
     },
+    {
+      url: `${baseUrl}/login`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.3,
+      alternates: {
+        languages: {
+          fr: `${baseUrl}/login`,
+          en: `${baseUrl}/en/login`,
+        },
+      },
+    },
   ];
 }

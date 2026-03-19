@@ -7,6 +7,7 @@ import { SchoolDaysReminderEmail } from '../../modules/mail/templates/SchoolDays
 import { SchedulePublicationEmail } from '../../modules/mail/templates/SchedulePublicationEmail';
 import { AbsenceRequestEmail } from '../../modules/mail/templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from '../../modules/mail/templates/AbsenceReviewEmail';
+import { getMailTranslations, type MailLocale } from '../../modules/mail/mail-i18n';
 import { getResend, mailFrom } from '../lib/resend';
 
 type EmailType =
@@ -26,13 +27,17 @@ interface SendEmailPayload {
 const MIN_SEND_INTERVAL_MS = 550;
 
 async function renderEmail(type: EmailType, data: Record<string, unknown>): Promise<{ html: string; subject: string }> {
+  const locale = (data.locale as MailLocale) ?? 'fr';
+  const t = getMailTranslations(locale);
+
   switch (type) {
     case 'invitation': {
       const html = await render(createElement(EmployeeInvitationEmail, {
         url: data.url as string,
         firstName: data.firstName as string,
+        locale,
       }));
-      return { html, subject: `${data.firstName}, bienvenue dans l'équipe Pawly !` };
+      return { html, subject: t.subjects.invitation(data.firstName as string) };
     }
     case 'school-notification': {
       const html = await render(createElement(SchoolDaysDeclarationEmail, {
@@ -40,8 +45,9 @@ async function renderEmail(type: EmailType, data: Record<string, unknown>): Prom
         apprenticeName: data.apprenticeName as string,
         month: data.month as string,
         dateCount: data.dateCount as number,
+        locale,
       }));
-      return { html, subject: `${data.apprenticeName} a déclaré ses jours d'école pour ${data.month}` };
+      return { html, subject: t.subjects.schoolDaysDeclaration(data.apprenticeName as string, data.month as string) };
     }
     case 'schedule-publication': {
       const html = await render(createElement(SchedulePublicationEmail, {
@@ -50,16 +56,18 @@ async function renderEmail(type: EmailType, data: Record<string, unknown>): Prom
         clinicName: data.clinicName as string,
         dashboardUrl: data.dashboardUrl as string,
         shiftCount: data.shiftCount as number | undefined,
+        locale,
       }));
-      return { html, subject: `${data.clinicName} — Votre planning pour ${data.month} est publié` };
+      return { html, subject: t.subjects.schedulePublication(data.clinicName as string, data.month as string) };
     }
     case 'school-reminder': {
       const html = await render(createElement(SchoolDaysReminderEmail, {
         name: data.name as string,
         month: data.month as string,
         dashboardUrl: data.dashboardUrl as string,
+        locale,
       }));
-      return { html, subject: `Rappel: déclarez vos jours d'école pour ${data.month}` };
+      return { html, subject: t.subjects.schoolDaysReminder(data.month as string) };
     }
     case 'absence-request': {
       const html = await render(createElement(AbsenceRequestEmail, {
@@ -69,11 +77,11 @@ async function renderEmail(type: EmailType, data: Record<string, unknown>): Prom
         startDate: data.startDate as string,
         endDate: data.endDate as string,
         dayCount: data.dayCount as number,
+        locale,
       }));
-      return { html, subject: `${data.employeeName} a soumis une demande d'absence` };
+      return { html, subject: t.subjects.absenceRequest(data.employeeName as string) };
     }
     case 'absence-review': {
-      const statusLabel = data.status === 'APPROVED' ? 'approuvée' : 'refusée';
       const html = await render(createElement(AbsenceReviewEmail, {
         firstName: data.firstName as string,
         status: data.status as 'APPROVED' | 'REJECTED',
@@ -81,8 +89,9 @@ async function renderEmail(type: EmailType, data: Record<string, unknown>): Prom
         startDate: data.startDate as string,
         endDate: data.endDate as string,
         rejectionReason: data.rejectionReason as string | undefined,
+        locale,
       }));
-      return { html, subject: `Votre demande d'absence a été ${statusLabel}` };
+      return { html, subject: t.subjects.absenceReview(data.status as 'APPROVED' | 'REJECTED') };
     }
   }
 }

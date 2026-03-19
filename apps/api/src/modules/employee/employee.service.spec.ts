@@ -258,6 +258,7 @@ describe('EmployeeService', () => {
         'marie@clinic.fr',
         'http://localhost:3000/auth/callback?token=abc123',
         'Marie',
+        'fr',
       );
     });
 
@@ -420,6 +421,7 @@ describe('EmployeeService', () => {
         'jean@clinic.fr',
         'http://localhost:3000/auth/callback?token=abc123',
         'Jean',
+        'fr',
       );
     });
 
@@ -486,6 +488,7 @@ describe('EmployeeService', () => {
         'legacy@clinic.fr',
         'http://localhost:3000/auth/callback?token=abc123',
         'Legacy',
+        'fr',
       );
     });
 
@@ -916,7 +919,7 @@ describe('EmployeeService', () => {
 
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
         where: { clinicId, role: 'ADMIN' },
-        select: { email: true, name: true },
+        select: { email: true, name: true, locale: true },
       });
       expect(mockMailService.sendSchoolDaysNotification).toHaveBeenCalledWith(
         'admin@clinic.fr',
@@ -924,6 +927,7 @@ describe('EmployeeService', () => {
         'Léa Bernard',
         '2026-04',
         3,
+        'fr',
       );
     });
 
@@ -1136,6 +1140,11 @@ describe('EmployeeService', () => {
       reason: 'Vacances familiales',
     };
 
+    beforeEach(() => {
+      // $transaction callback receives the prisma mock as tx client
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) => fn(mockPrismaService));
+    });
+
     it('creates an absence with PENDING status', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployee);
       mockPrismaService.absence.findMany.mockResolvedValue([]);
@@ -1213,7 +1222,7 @@ describe('EmployeeService', () => {
 
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
         where: { clinicId, role: 'ADMIN' },
-        select: { email: true, name: true },
+        select: { email: true, name: true, locale: true },
       });
       expect(mockMailService.sendAbsenceRequestNotification).toHaveBeenCalledWith(
         'admin@clinic.fr',
@@ -1223,6 +1232,7 @@ describe('EmployeeService', () => {
         expect.any(Date),
         expect.any(Date),
         expect.any(Number),
+        'fr',
       );
     });
   });
@@ -1331,6 +1341,8 @@ describe('EmployeeService', () => {
         'PAID_LEAVE',
         mockAbsence.startDate,
         mockAbsence.endDate,
+        undefined,
+        'fr',
       );
     });
 
@@ -1449,6 +1461,7 @@ describe('EmployeeService', () => {
         mockAbsence.startDate,
         mockAbsence.endDate,
         'Trop de congés simultanés',
+        'fr',
       );
     });
   });
@@ -1673,6 +1686,8 @@ describe('EmployeeService', () => {
         'PAID_LEAVE',
         expect.any(Date),
         expect.any(Date),
+        undefined,
+        'fr',
       );
     });
 

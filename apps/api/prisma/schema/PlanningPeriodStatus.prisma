@@ -1,7 +1,7 @@
 model PlanningPeriodStatus {
   id          String                   @id @default(cuid())
   clinicId    String                   @map("clinic_id")
-  clinic      Clinic                   @relation(fields: [clinicId], references: [id])
+  clinic      Clinic                   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   month       String                   // "YYYY-MM"
   status      PlanningPeriodStatusType @default(DRAFT)
   publishedAt DateTime?                @map("published_at")

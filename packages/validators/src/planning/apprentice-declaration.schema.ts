@@ -1,8 +1,16 @@
 import { z } from "@pawly/zod";
 
-export const APPRENTICE_MONTH_STATUSES = [
+/** DB-storable statuses (match Prisma ApprenticeMonthStatus enum) */
+export const APPRENTICE_MONTH_DB_STATUSES = [
   "SCHOOL_DAYS_PROVIDED",
   "NO_SCHOOL_THIS_MONTH",
+] as const;
+export type ApprenticeMonthDbStatus =
+  (typeof APPRENTICE_MONTH_DB_STATUSES)[number];
+
+/** All statuses including derived UI-only "MISSING" (not stored in DB) */
+export const APPRENTICE_MONTH_STATUSES = [
+  ...APPRENTICE_MONTH_DB_STATUSES,
   "MISSING",
 ] as const;
 export type ApprenticeMonthStatusType =

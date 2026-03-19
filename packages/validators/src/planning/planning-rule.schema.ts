@@ -59,7 +59,7 @@ export const contractComplianceConfigSchema = z
     minRestHoursBetweenShifts: z.number().min(1).max(24).optional(),
   })
   .refine(
-    (data) => data.maxWeeklyHours || data.maxMonthlyHours || data.minRestHoursBetweenShifts,
+    (data) => data.maxWeeklyHours !== undefined || data.maxMonthlyHours !== undefined || data.minRestHoursBetweenShifts !== undefined,
     "At least one constraint (hour limit or rest hours) must be defined"
   );
 export type ContractComplianceConfig = z.infer<
@@ -162,5 +162,13 @@ export type ListPlanningRulesInput = z.infer<typeof listPlanningRulesSchema>;
 export const validateShiftsSchema = z.object({
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
-});
+}).refine(
+  (data) => {
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays <= 62;
+  },
+  "Date range must be between 0 and 62 days",
+);
 export type ValidateShiftsInput = z.infer<typeof validateShiftsSchema>;

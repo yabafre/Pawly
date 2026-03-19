@@ -39,8 +39,6 @@ export const CallbackClient = ({ token }: CallbackClientProps) => {
                 return;
             }
 
-            localStorage.setItem("token", data.access_token);
-            localStorage.setItem("user", JSON.stringify(data.user));
             setStatus("success");
 
             if (data.user.role === "ADMIN") {

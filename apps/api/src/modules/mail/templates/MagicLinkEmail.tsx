@@ -6,33 +6,38 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface MagicLinkEmailProps {
   url: string;
+  locale?: MailLocale;
 }
 
-export const MagicLinkEmail = ({ url }: MagicLinkEmailProps) => (
-  <EmailLayout previewText="Connexion à Pawly" tag="SÉCURITÉ">
-    <Heading style={h1}>Connexion sécurisée.</Heading>
-    <Text style={subjectText}>Objet: Votre lien magique de connexion</Text>
+export const MagicLinkEmail = ({ url, locale = 'fr' }: MagicLinkEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout previewText={locale === 'fr' ? 'Connexion à Pawly' : 'Log in to Pawly'} tag={t.tags.security} locale={locale}>
+      <Heading style={h1}>{t.magicLink.heading}</Heading>
+      <Text style={subjectText}>{t.magicLink.subject}</Text>
 
-    <Text style={text}>
-      Bonjour,
-      <br /><br />
-      Vous avez demandé à vous connecter à votre espace Pawly. Cliquez sur le bouton ci-dessous pour accéder à votre compte en toute sécurité.
-    </Text>
+      <Text style={text}>
+        {t.common.hello},
+        <br /><br />
+        {t.magicLink.body}
+      </Text>
 
-    <Section style={buttonContainer}>
-      <Button href={url} style={button}>
-        Se connecter maintenant
-      </Button>
-    </Section>
+      <Section style={buttonContainer}>
+        <Button href={url} style={button}>
+          {t.magicLink.button}
+        </Button>
+      </Section>
 
-    <Text style={disclaimer}>
-      Ce lien est valide pendant 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.magicLink.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717', // Ink Black

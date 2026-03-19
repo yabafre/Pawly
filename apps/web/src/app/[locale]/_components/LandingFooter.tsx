@@ -47,14 +47,17 @@ export async function LandingFooter() {
           <h3 className="font-bold text-white mb-4">{t("company")}</h3>
           <ul className="space-y-2">
             <li>
-              <span className="text-sm text-neutral-400 cursor-default">
+              <span className="text-sm text-neutral-500 cursor-default" aria-label={t("about")}>
                 {t("about")}
               </span>
             </li>
             <li>
-              <span className="text-sm text-neutral-400 cursor-default">
+              <a
+                href="mailto:contact@pawly.app"
+                className="text-sm text-neutral-400 hover:text-primary transition-colors"
+              >
                 {t("contact")}
-              </span>
+              </a>
             </li>
           </ul>
         </div>
@@ -64,12 +67,12 @@ export async function LandingFooter() {
           <h3 className="font-bold text-white mb-4">{t("legal")}</h3>
           <ul className="space-y-2">
             <li>
-              <span className="text-sm text-neutral-400 cursor-default">
+              <span className="text-sm text-neutral-500 cursor-default" aria-label={t("privacy")}>
                 {t("privacy")}
               </span>
             </li>
             <li>
-              <span className="text-sm text-neutral-400 cursor-default">
+              <span className="text-sm text-neutral-500 cursor-default" aria-label={t("terms")}>
                 {t("terms")}
               </span>
             </li>

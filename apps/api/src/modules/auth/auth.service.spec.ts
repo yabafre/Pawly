@@ -294,6 +294,7 @@ describe('AuthService', () => {
       expect(mailService.sendMagicLink).toHaveBeenCalledWith(
         'test@example.com',
         expect.stringMatching(/token=[a-f0-9]{64}/),
+        'fr',
       );
       expect(result).toEqual({ message: 'If an account exists, a magic link has been sent' });
     });
@@ -677,7 +678,7 @@ describe('AuthService', () => {
           clinicId,
         }),
       });
-      expect(mockMailService.sendOtpCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
+      expect(mockMailService.sendOtpCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/), 'fr');
     });
 
     it('should return same response when user does not exist (prevent enumeration)', async () => {

@@ -6,38 +6,48 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface EmployeeInvitationEmailProps {
   url: string;
   firstName: string;
+  locale?: MailLocale;
 }
 
-export const EmployeeInvitationEmail = ({ url, firstName }: EmployeeInvitationEmailProps) => (
-  <EmailLayout previewText="Vous avez rejoint une clinique sur Pawly !" tag="INVITATION">
-    <Heading style={h1}>Bienvenue dans l'équipe !</Heading>
-    <Text style={subjectText}>Objet: Invitation à rejoindre Pawly</Text>
+export const EmployeeInvitationEmail = ({ url, firstName, locale = 'fr' }: EmployeeInvitationEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr' ? 'Vous avez rejoint une clinique sur Pawly !' : 'You joined a clinic on Pawly!'}
+      tag={t.tags.invitation}
+      locale={locale}
+    >
+      <Heading style={h1}>{t.invitation.heading}</Heading>
+      <Text style={subjectText}>{t.invitation.subject}</Text>
 
-    <Text style={text}>
-      Bonjour {firstName},
-      <br /><br />
-      Votre responsable vous a ajouté(e) à l'équipe sur Pawly.
-      Cliquez sur le bouton ci-dessous pour accéder à votre espace personnel.
-      Ce lien est valable 24 heures.
-    </Text>
+      <Text style={text}>
+        {t.common.helloName(firstName)},
+        <br /><br />
+        {t.invitation.body(firstName)}
+      </Text>
 
-    <Section style={buttonContainer}>
-      <Button href={url} style={button}>
-        Accéder à mon espace
-      </Button>
-    </Section>
+      <Section style={buttonContainer}>
+        <Button href={url} style={button}>
+          {t.invitation.button}
+        </Button>
+      </Section>
 
-    <Text style={disclaimer}>
-      Lors de vos prochaines connexions, demandez un lien magique depuis la page de connexion.
-      <br />
-      Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.invitation.disclaimer.split('\n').map((line, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <br />}
+            {line}
+          </React.Fragment>
+        ))}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

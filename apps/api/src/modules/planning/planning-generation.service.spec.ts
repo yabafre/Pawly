@@ -3666,8 +3666,8 @@ describe('PlanningGenerationService', () => {
       expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledTimes(1);
       expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
         [
-          { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 },
-          { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3 },
+          { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' },
+          { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3, locale: 'fr' },
         ],
         month,
         'Clinique Vétérinaire du Parc',
@@ -3685,7 +3685,7 @@ describe('PlanningGenerationService', () => {
       const result = await service.publishPlan(clinicId, month, userId);
 
       expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
-        [{ to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 }],
+        [{ to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' }],
         month,
         'Clinique Vétérinaire du Parc',
       );
@@ -3810,8 +3810,8 @@ describe('PlanningGenerationService', () => {
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
           emails: [
-            { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5 },
-            { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3 },
+            { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' },
+            { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3, locale: 'fr' },
           ],
           month,
           clinicName: 'Clinique Test',
