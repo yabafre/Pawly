@@ -13,14 +13,17 @@ import {
     Img,
 } from '@react-email/components';
 import * as React from 'react';
+import { getMailTranslations, type MailLocale } from '../../mail-i18n';
 
 interface EmailLayoutProps {
     children: React.ReactNode;
     previewText: string;
     tag?: string; // e.g. "COMPTE", "NOTIFICATION"
+    locale?: MailLocale;
 }
 
-export const EmailLayout = ({ children, previewText, tag = 'COMPTE' }: EmailLayoutProps) => {
+export const EmailLayout = ({ children, previewText, tag = 'COMPTE', locale = 'fr' }: EmailLayoutProps) => {
+    const t = getMailTranslations(locale);
     return (
         <Html>
             <Head>
@@ -95,10 +98,10 @@ export const EmailLayout = ({ children, previewText, tag = 'COMPTE' }: EmailLayo
                                 </Column>
                             </Row>
                             <Text style={footerText}>
-                                Pawly SAS • Paris, France
+                                {t.layout.company}
                             </Text>
                             <Link href="#" style={unsubscribeLink}>
-                                Se désinscrire
+                                {t.layout.unsubscribe}
                             </Link>
                         </Section>
                     </Section>

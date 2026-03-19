@@ -3,7 +3,17 @@ import { couponMetadataTypeEnum, discountTypeEnum } from "./promotion.schema";
 
 /** Schema for creating a Stripe Billing Portal session */
 export const createBillingPortalSessionSchema = z.object({
-  returnUrl: z.string().url(),
+  returnUrl: z.string().url().refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === "https:" || parsed.protocol === "http:";
+      } catch {
+        return false;
+      }
+    },
+    "returnUrl must be an HTTP(S) URL",
+  ),
   locale: z.enum(["fr", "en"]).optional(),
 });
 

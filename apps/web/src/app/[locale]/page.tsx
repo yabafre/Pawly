@@ -34,13 +34,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "Pawly",
       locale: locale === "fr" ? "fr_FR" : "en_US",
       type: "website",
-      images: [],
+      images: [
+        {
+          url: `${baseUrl}/og-image-${locale}.png`,
+          width: 1200,
+          height: 630,
+          alt: t("meta.title"),
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: t("meta.title"),
       description: t("meta.description"),
-      images: [],
+      images: [`${baseUrl}/og-image-${locale}.png`],
     },
     alternates: {
       canonical: locale === "fr" ? baseUrl : `${baseUrl}/en`,
@@ -56,27 +63,57 @@ export default async function LandingPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "Pawly",
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-    offers: {
-      "@type": "AggregateOffer",
-      priceCurrency: PRICING.CURRENCY,
-      lowPrice: PRICING.LOW,
-      highPrice: PRICING.HIGH,
+  const t2 = await getTranslations({ locale, namespace: "landing.meta" });
+
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Pawly",
+      url: baseUrl,
+      description: t2("description"),
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      image: `${baseUrl}/og-image-${locale}.png`,
+      author: {
+        "@type": "Organization",
+        name: "Pawly",
+        url: baseUrl,
+      },
+      offers: {
+        "@type": "AggregateOffer",
+        priceCurrency: PRICING.CURRENCY,
+        lowPrice: PRICING.LOW,
+        highPrice: PRICING.HIGH,
+        offerCount: "3",
+        url: `${baseUrl}/pricing`,
+      },
     },
-  };
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Pawly",
+      url: baseUrl,
+      logo: `${baseUrl}/icons/icon-512x512.png`,
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        url: baseUrl,
+        availableLanguage: ["French", "English"],
+      },
+    },
+  ];
 
   return (
     <>
       {/* Safe: jsonLd is a static object built from constants, no user input */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {jsonLd.map((item, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(item) }}
+        />
+      ))}
       <LandingHeader />
       <main id="main-content">
         <HeroSection />

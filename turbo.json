@@ -25,7 +25,8 @@
             ],
             "env": [
                 "OTEL_EXPORTER_OTLP_ENDPOINT",
-                "OTEL_SERVICE_NAME"
+                "OTEL_SERVICE_NAME",
+                "OTEL_SERVICE_NAME_FRONT"
             ]
         },
         "start": {
@@ -51,7 +52,8 @@
             "persistent": true,
             "env": [
                 "OTEL_EXPORTER_OTLP_ENDPOINT",
-                "OTEL_SERVICE_NAME"
+                "OTEL_SERVICE_NAME",
+                "OTEL_SERVICE_NAME_FRONT"
             ]
         },
         "lint": {

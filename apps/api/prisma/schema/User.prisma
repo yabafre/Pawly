@@ -13,6 +13,7 @@ model User {
   clinicId  String   @map("clinic_id")
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
+  locale  String   @default("fr") // "fr" | "en"
   otpFallbackUntil DateTime? @map("otp_fallback_until")
 
   employee  Employee?

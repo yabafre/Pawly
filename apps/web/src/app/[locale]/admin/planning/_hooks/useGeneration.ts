@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import {
   QueryKeyFactory,
   useServerActionMutation,
@@ -19,8 +20,7 @@ export const useGeneration = (month?: string) => {
   const t = useTranslations("admin.planningGeneration.toast");
   const shiftsQueryKey = QueryKeyFactory.planningShifts(month);
 
-  const invalidateAll = () => {
-    // Invalidate all months, not just the specific one
+  const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({
       queryKey: ["planning", "shifts"],
     });
@@ -33,7 +33,7 @@ export const useGeneration = (month?: string) => {
     queryClient.invalidateQueries({
       queryKey: QueryKeyFactory.planningGeneration(),
     });
-  };
+  }, [queryClient]);
 
   const {
     data: shifts,

@@ -5,6 +5,7 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface AbsenceReviewEmailProps {
   firstName: string;
@@ -13,15 +14,8 @@ interface AbsenceReviewEmailProps {
   startDate: string;
   endDate: string;
   rejectionReason?: string;
+  locale?: MailLocale;
 }
-
-const TYPE_LABELS: Record<string, string> = {
-  PAID_LEAVE: 'Congé payé',
-  SICK_LEAVE: 'Arrêt maladie',
-  TRAINING: 'Formation',
-  CHILD_SICK: 'Enfant malade',
-  OTHER: 'Autre',
-};
 
 export const AbsenceReviewEmail = ({
   firstName,
@@ -30,45 +24,64 @@ export const AbsenceReviewEmail = ({
   startDate,
   endDate,
   rejectionReason,
-}: AbsenceReviewEmailProps) => (
-  <EmailLayout
-    previewText={`Votre demande d'absence a été ${status === 'APPROVED' ? 'approuvée' : 'refusée'}`}
-    tag="NOTIFICATION"
-  >
-    <Heading style={h1}>
-      Demande d&apos;absence {status === 'APPROVED' ? 'approuvée' : 'refusée'}
-    </Heading>
+  locale = 'fr',
+}: AbsenceReviewEmailProps) => {
+  const t = getMailTranslations(locale);
+  return (
+    <EmailLayout
+      previewText={locale === 'fr'
+        ? `Votre demande d'absence a été ${status === 'APPROVED' ? 'approuvée' : 'refusée'}`
+        : `Your absence request has been ${status === 'APPROVED' ? 'approved' : 'rejected'}`
+      }
+      tag={t.tags.notification}
+      locale={locale}
+    >
+      <Heading style={h1}>
+        {t.absenceReview.heading(status)}
+      </Heading>
 
-    <Text style={text}>
-      Bonjour {firstName},
-      <br /><br />
-      Votre demande d&apos;absence a été{' '}
-      <strong style={status === 'APPROVED' ? approvedStyle : rejectedStyle}>
-        {status === 'APPROVED' ? 'approuvée' : 'refusée'}
-      </strong>.
-    </Text>
-
-    <Section style={infoBox}>
-      <Text style={infoText}>
-        {TYPE_LABELS[absenceType] ?? absenceType}
+      <Text style={text}>
+        {t.common.helloName(firstName)},
+        <br /><br />
+        {locale === 'fr' ? (
+          <>
+            Votre demande d&apos;absence a été{' '}
+            <strong style={status === 'APPROVED' ? approvedStyle : rejectedStyle}>
+              {t.absenceReview.statusLabel(status)}
+            </strong>.
+          </>
+        ) : (
+          <>
+            Your absence request has been{' '}
+            <strong style={status === 'APPROVED' ? approvedStyle : rejectedStyle}>
+              {t.absenceReview.statusLabel(status)}
+            </strong>.
+          </>
+        )}
       </Text>
-      <Text style={dateText}>
-        Du {startDate} au {endDate}
-      </Text>
-    </Section>
 
-    {status === 'REJECTED' && rejectionReason && (
-      <Section style={reasonBox}>
-        <Text style={reasonLabel}>Motif du refus :</Text>
-        <Text style={reasonText}>{rejectionReason}</Text>
+      <Section style={infoBox}>
+        <Text style={infoText}>
+          {t.absenceTypes[absenceType] ?? absenceType}
+        </Text>
+        <Text style={dateText}>
+          {t.absenceReview.dateRange(startDate, endDate)}
+        </Text>
       </Section>
-    )}
 
-    <Text style={disclaimer}>
-      Cette notification est automatique. Consultez votre tableau de bord Pawly pour plus de détails.
-    </Text>
-  </EmailLayout>
-);
+      {status === 'REJECTED' && rejectionReason && (
+        <Section style={reasonBox}>
+          <Text style={reasonLabel}>{t.absenceReview.reasonLabel}</Text>
+          <Text style={reasonText}>{rejectionReason}</Text>
+        </Section>
+      )}
+
+      <Text style={disclaimer}>
+        {t.absenceReview.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717',

@@ -12,6 +12,7 @@ import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import { OtpCodeEmail } from './templates/OtpCodeEmail';
 import { sendEmailTask } from '@/trigger/client';
+import { getMailTranslations, formatDateForLocale, type MailLocale } from './mail-i18n';
 import type { EnvConfig } from '@/config/index';
 import type { AbsenceType } from '@pawly/validators';
 
@@ -51,15 +52,16 @@ export class MailService {
     return next;
   }
 
-  async sendMagicLink(email: string, url: string) {
+  async sendMagicLink(email: string, url: string, locale: MailLocale = 'fr') {
+    const t = getMailTranslations(locale);
     try {
-      const html = await render(<MagicLinkEmail url={url} />);
+      const html = await render(<MagicLinkEmail url={url} locale={locale} />);
 
       await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
-        subject: 'Your Magic Link for Pawly',
+        subject: t.subjects.magicLink,
         html,
       });
 
@@ -75,15 +77,16 @@ export class MailService {
     }
   }
 
-  async sendActivationEmail(email: string, url: string, adminName?: string) {
+  async sendActivationEmail(email: string, url: string, adminName?: string, locale: MailLocale = 'fr') {
+    const t = getMailTranslations(locale);
     try {
-      const html = await render(<ActivationEmail url={url} adminName={adminName} />);
+      const html = await render(<ActivationEmail url={url} adminName={adminName} locale={locale} />);
 
       await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
-        subject: 'Complete your Pawly account setup',
+        subject: t.subjects.activation,
         html,
       });
 
@@ -99,18 +102,19 @@ export class MailService {
     }
   }
 
-  async sendEmployeeInvitationEmail(email: string, url: string, firstName: string) {
+  async sendEmployeeInvitationEmail(email: string, url: string, firstName: string, locale: MailLocale = 'fr') {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('invitation', email, { url, firstName });
+      return this.triggerSendEmail('invitation', email, { url, firstName, locale });
     }
     try {
-      const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} />);
+      const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} locale={locale} />);
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
-        subject: `${firstName}, bienvenue dans l'équipe Pawly !`,
+        subject: t.subjects.invitation(firstName),
         html,
       });
 
@@ -128,9 +132,11 @@ export class MailService {
     apprenticeName: string,
     month: string,
     dateCount: number,
+    locale: MailLocale = 'fr',
   ) {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('school-notification', adminEmail, { adminName, apprenticeName, month, dateCount });
+      return this.triggerSendEmail('school-notification', adminEmail, { adminName, apprenticeName, month, dateCount, locale });
     }
     try {
       const html = await render(
@@ -139,6 +145,7 @@ export class MailService {
           apprenticeName={apprenticeName}
           month={month}
           dateCount={dateCount}
+          locale={locale}
         />,
       );
 
@@ -146,7 +153,7 @@ export class MailService {
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: adminEmail,
-        subject: `${apprenticeName} a déclaré ses jours d'école pour ${month}`,
+        subject: t.subjects.schoolDaysDeclaration(apprenticeName, month),
         html,
       });
 
@@ -164,11 +171,13 @@ export class MailService {
     month: string,
     clinicName: string,
     shiftCount?: number,
+    locale: MailLocale = 'fr',
   ) {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
-      return this.triggerSendEmail('schedule-publication', employeeEmail, { firstName, month, clinicName, dashboardUrl, shiftCount });
+      return this.triggerSendEmail('schedule-publication', employeeEmail, { firstName, month, clinicName, dashboardUrl, shiftCount, locale });
     }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
@@ -181,6 +190,7 @@ export class MailService {
           clinicName={clinicName}
           dashboardUrl={dashboardUrl}
           shiftCount={shiftCount}
+          locale={locale}
         />,
       );
 
@@ -188,7 +198,7 @@ export class MailService {
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: employeeEmail,
-        subject: `${clinicName} — Votre planning pour ${month} est publié`,
+        subject: t.subjects.schedulePublication(clinicName, month),
         html,
       });
 
@@ -205,6 +215,7 @@ export class MailService {
       to: string;
       firstName: string;
       shiftCount: number;
+      locale?: MailLocale;
     }>,
     month: string,
     clinicName: string,
@@ -220,6 +231,8 @@ export class MailService {
     const emailPayloads: Array<{ from: string; to: string; subject: string; html: string }> = [];
     for (const emp of emails) {
       try {
+        const empLocale: MailLocale = emp.locale ?? 'fr';
+        const t = getMailTranslations(empLocale);
         const html = await render(
           <SchedulePublicationEmail
             firstName={emp.firstName}
@@ -227,12 +240,13 @@ export class MailService {
             clinicName={clinicName}
             dashboardUrl={dashboardUrl}
             shiftCount={emp.shiftCount}
+            locale={empLocale}
           />,
         );
         emailPayloads.push({
           from,
           to: emp.to,
-          subject: `${clinicName} — Votre planning pour ${month} est publié`,
+          subject: t.subjects.schedulePublication(clinicName, month),
           html,
         });
       } catch (err) {
@@ -264,24 +278,26 @@ export class MailService {
     apprenticeEmail: string,
     name: string,
     month: string,
+    locale: MailLocale = 'fr',
   ) {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
-      return this.triggerSendEmail('school-reminder', apprenticeEmail, { name, month, dashboardUrl });
+      return this.triggerSendEmail('school-reminder', apprenticeEmail, { name, month, dashboardUrl, locale });
     }
     try {
       const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
       const html = await render(
-        <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} />,
+        <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} locale={locale} />,
       );
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: apprenticeEmail,
-        subject: `Rappel: déclarez vos jours d'école pour ${month}`,
+        subject: t.subjects.schoolDaysReminder(month),
         html,
       });
 
@@ -293,15 +309,16 @@ export class MailService {
     }
   }
 
-  async sendOtpCode(email: string, code: string) {
+  async sendOtpCode(email: string, code: string, locale: MailLocale = 'fr') {
+    const t = getMailTranslations(locale);
     try {
-      const html = await render(<OtpCodeEmail code={code} />);
+      const html = await render(<OtpCodeEmail code={code} locale={locale} />);
 
       await this.throttle();
       const { data, error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
-        subject: 'Votre code Pawly',
+        subject: t.subjects.otpCode,
         html,
       });
 
@@ -326,26 +343,27 @@ export class MailService {
     startDate: Date,
     endDate: Date,
     dayCount: number,
+    locale: MailLocale = 'fr',
   ) {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      const formatDate = (d: Date) =>
-        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       return this.triggerSendEmail('absence-request', adminEmail, {
-        adminName, employeeName, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), dayCount,
+        adminName, employeeName, absenceType,
+        startDate: formatDateForLocale(startDate, locale),
+        endDate: formatDateForLocale(endDate, locale),
+        dayCount, locale,
       });
     }
     try {
-      const formatDate = (d: Date) =>
-        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
       const html = await render(
         <AbsenceRequestEmail
           adminName={adminName}
           employeeName={employeeName}
           absenceType={absenceType}
-          startDate={formatDate(startDate)}
-          endDate={formatDate(endDate)}
+          startDate={formatDateForLocale(startDate, locale)}
+          endDate={formatDateForLocale(endDate, locale)}
           dayCount={dayCount}
+          locale={locale}
         />,
       );
 
@@ -353,7 +371,7 @@ export class MailService {
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: adminEmail,
-        subject: `${employeeName} a soumis une demande d'absence`,
+        subject: t.subjects.absenceRequest(employeeName),
         html,
       });
 
@@ -373,36 +391,35 @@ export class MailService {
     startDate: Date,
     endDate: Date,
     rejectionReason?: string,
+    locale: MailLocale = 'fr',
   ) {
+    const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      const formatDate = (d: Date) =>
-        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       return this.triggerSendEmail('absence-review', employeeEmail, {
-        firstName, status, absenceType, startDate: formatDate(startDate), endDate: formatDate(endDate), rejectionReason,
+        firstName, status, absenceType,
+        startDate: formatDateForLocale(startDate, locale),
+        endDate: formatDateForLocale(endDate, locale),
+        rejectionReason, locale,
       });
     }
     try {
-      const formatDate = (d: Date) =>
-        d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
       const html = await render(
         <AbsenceReviewEmail
           firstName={firstName}
           status={status}
           absenceType={absenceType}
-          startDate={formatDate(startDate)}
-          endDate={formatDate(endDate)}
+          startDate={formatDateForLocale(startDate, locale)}
+          endDate={formatDateForLocale(endDate, locale)}
           rejectionReason={rejectionReason}
+          locale={locale}
         />,
       );
-
-      const statusLabel = status === 'APPROVED' ? 'approuvée' : 'refusée';
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: employeeEmail,
-        subject: `Votre demande d'absence a été ${statusLabel}`,
+        subject: t.subjects.absenceReview(status),
         html,
       });
 

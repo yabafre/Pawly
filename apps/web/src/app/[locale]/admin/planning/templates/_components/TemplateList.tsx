@@ -123,15 +123,15 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
 
       <div className="bg-neutral-50 rounded-2xl p-3.5 border border-neutral-100">
         <div className="flex justify-between items-end h-8 gap-1">
-          {preview.map((status, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center gap-2 group/day">
+          {preview.map((status, dayIndex) => (
+            <div key={dayIndex} className="flex-1 flex flex-col items-center gap-2 group/day">
               <div
                 className={`w-full rounded-md transition-all duration-500 ${
                   status ? "h-6 bg-[#009588] group-hover:bg-[#00796B]" : "h-1 bg-neutral-200"
                 }`}
               />
               <span className="text-[8px] font-bold text-neutral-300 uppercase">
-                {["L", "M", "M", "J", "V", "S", "D"][index]}
+                {["L", "M", "M", "J", "V", "S", "D"][dayIndex]}
               </span>
             </div>
           ))}

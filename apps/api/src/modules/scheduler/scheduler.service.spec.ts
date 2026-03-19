@@ -68,6 +68,7 @@ describe('SchedulerService', () => {
         'lea@clinic.fr',
         'Léa Bernard',
         expect.stringMatching(/^\d{4}-\d{2}$/),
+        'fr',
       );
     });
 

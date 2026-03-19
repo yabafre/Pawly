@@ -32,7 +32,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "recharts": "^3.7.0",
     "zod": "^4.3.6"
   }
 }

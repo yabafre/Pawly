@@ -6,36 +6,42 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { getMailTranslations, type MailLocale } from '../mail-i18n';
 
 interface ActivationEmailProps {
   url: string;
   adminName?: string;
+  locale?: MailLocale;
 }
 
-export const ActivationEmail = ({ url, adminName }: ActivationEmailProps) => (
-  <EmailLayout previewText="Bienvenue chez Pawly !" tag="COMPTE">
-    <Heading style={h1}>Votre clinique est prête.</Heading>
-    <Text style={subjectText}>Objet: Bienvenue chez Pawly !</Text>
+export const ActivationEmail = ({ url, adminName, locale = 'fr' }: ActivationEmailProps) => {
+  const t = getMailTranslations(locale);
+  const greeting = adminName
+    ? t.common.helloName(adminName)
+    : locale === 'fr' ? 'Bonjour Docteur' : 'Hello Doctor';
+  return (
+    <EmailLayout previewText={locale === 'fr' ? 'Bienvenue chez Pawly !' : 'Welcome to Pawly!'} tag={t.tags.account} locale={locale}>
+      <Heading style={h1}>{t.activation.heading}</Heading>
+      <Text style={subjectText}>{t.activation.subject}</Text>
 
-    <Text style={text}>
-      Bonjour {adminName ? adminName : 'Docteur'},
-      <br /><br />
-      Bienvenue dans la famille Pawly ! Votre espace de travail est configuré et prêt à accueillir vos collaborateurs.
-      <br /><br />
-      Vous pouvez dès maintenant définir votre mot de passe et activer votre compte.
-    </Text>
+      <Text style={text}>
+        {greeting},
+        <br /><br />
+        {t.activation.body(adminName)}
+      </Text>
 
-    <Section style={buttonContainer}>
-      <Button href={url} style={button}>
-        Activer mon compte
-      </Button>
-    </Section>
+      <Section style={buttonContainer}>
+        <Button href={url} style={button}>
+          {t.activation.button}
+        </Button>
+      </Section>
 
-    <Text style={disclaimer}>
-      Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
-    </Text>
-  </EmailLayout>
-);
+      <Text style={disclaimer}>
+        {t.activation.disclaimer}
+      </Text>
+    </EmailLayout>
+  );
+};
 
 const h1 = {
   color: '#171717', // Ink Black
