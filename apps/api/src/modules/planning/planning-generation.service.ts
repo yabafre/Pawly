@@ -28,6 +28,7 @@ import type {
   ScheduleHole,
   MoveValidationResult,
 } from '@pawly/validators';
+import { planningGenerationDuration } from '@/common/metrics';
 import type { CounterWithEmployee } from './equity-counter.service';
 
 type SlotRequirement = {
@@ -108,6 +109,7 @@ export class PlanningGenerationService {
     month: string,
     templateId: string,
   ): Promise<GenerationResult> {
+    const generationStart = Date.now();
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(`Invalid month format: ${month}. Expected YYYY-MM`);
     }
@@ -278,6 +280,11 @@ export class PlanningGenerationService {
       this.logger.error('Transaction failed during shift generation', error);
       throw new InternalServerErrorException('Failed to persist generated shifts');
     }
+
+    planningGenerationDuration.record(Date.now() - generationStart, {
+      clinic_id: clinicId,
+      shift_count: String(createdShifts.length),
+    });
 
     return this.buildResult(
       createdShifts,

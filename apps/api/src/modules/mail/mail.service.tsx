@@ -14,6 +14,7 @@ import { OtpCodeEmail } from './templates/OtpCodeEmail';
 import { sendEmailTask } from '@/trigger/client';
 import { getMailTranslations, formatDateForLocale, type MailLocale } from './mail-i18n';
 import type { EnvConfig } from '@/config/index';
+import { emailSendCounter, emailBatchSize } from '@/common/metrics';
 import type { AbsenceType } from '@pawly/validators';
 
 @Injectable()
@@ -66,12 +67,15 @@ export class MailService {
       });
 
       if (error) {
+        emailSendCounter.add(1, { type: 'magic_link', outcome: 'failure' });
         this.logger.error(`Failed to send magic link email: ${error.message}`);
         throw new InternalServerErrorException('Failed to send authentication email');
       }
 
+      emailSendCounter.add(1, { type: 'magic_link', outcome: 'success' });
       return data;
     } catch (err) {
+      emailSendCounter.add(1, { type: 'magic_link', outcome: 'failure' });
       this.logger.error('Unexpected error sending magic link email', err);
       throw new InternalServerErrorException('Failed to send authentication email');
     }
@@ -271,6 +275,13 @@ export class MailService {
       }
     }
 
+    emailBatchSize.record(emailPayloads.length, { clinic: clinicName });
+    emailSendCounter.add(notifiedCount, { type: 'schedule_publication', outcome: 'success' });
+    const failedCount = emailPayloads.length - notifiedCount;
+    if (failedCount > 0) {
+      emailSendCounter.add(failedCount, { type: 'schedule_publication', outcome: 'failure' });
+    }
+
     return notifiedCount;
   }
 
@@ -323,13 +334,16 @@ export class MailService {
       });
 
       if (error) {
+        emailSendCounter.add(1, { type: 'otp', outcome: 'failure' });
         this.logger.error(`Failed to send OTP code email: ${error.message}`);
         throw new InternalServerErrorException('Failed to send authentication email');
       }
 
+      emailSendCounter.add(1, { type: 'otp', outcome: 'success' });
       return data;
     } catch (err) {
       if (err instanceof InternalServerErrorException) throw err;
+      emailSendCounter.add(1, { type: 'otp', outcome: 'failure' });
       this.logger.error('Unexpected error sending OTP code email', err);
       throw new InternalServerErrorException('Failed to send authentication email');
     }

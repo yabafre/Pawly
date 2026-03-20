@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import type { EnvConfig } from '@/config/index';
 import type { User } from '@prisma/client';
+import { authRequestCounter } from '@/common/metrics';
 import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 const BCRYPT_ROUNDS = 12;
@@ -113,6 +114,7 @@ export class AuthService {
         const locale = (user.locale as MailLocale) ?? 'fr';
         await this.mailService.sendMagicLink(user.email, callbackUrl, locale);
 
+        authRequestCounter.add(1, { method: 'magic_link', outcome: 'sent' });
         return { message: 'If an account exists, a magic link has been sent' };
     }
 
@@ -143,6 +145,8 @@ export class AuthService {
 
             return magicLink.user;
         });
+
+        authRequestCounter.add(1, { method: 'magic_link', outcome: 'validated' });
 
         // Cleanup expired magic links in background (non-blocking)
         // TODO: Replace with scheduled cron job (e.g., @nestjs/schedule) for reliable cleanup.
@@ -215,6 +219,7 @@ export class AuthService {
         const locale = (user.locale as MailLocale) ?? 'fr';
         await this.mailService.sendOtpCode(email, rawCode, locale);
 
+        authRequestCounter.add(1, { method: 'otp', outcome: 'sent' });
         await this.delayToMinimumResponse(startTime);
         return { method: 'otp' as const, message: 'If account exists, code sent' };
     }
@@ -308,6 +313,7 @@ export class AuthService {
         }
 
         if (!user) {
+            authRequestCounter.add(1, { method: 'otp', outcome: 'invalid' });
             await this.delayToMinimumResponse(startTime);
             throw new UnauthorizedException('Invalid or expired code');
         }
@@ -317,6 +323,7 @@ export class AuthService {
             this.logger.warn('Failed to cleanup expired OTP codes', err),
         );
 
+        authRequestCounter.add(1, { method: 'otp', outcome: 'validated' });
         await this.delayToMinimumResponse(startTime);
         return this.generateToken(user);
     }

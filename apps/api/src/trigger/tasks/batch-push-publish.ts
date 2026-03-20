@@ -1,4 +1,5 @@
 import { task, logger } from '@trigger.dev/sdk';
+import { pushSendCounter } from '../../common/metrics';
 import { getPrisma } from '../lib/prisma';
 import { webPush, vapidConfigured } from '../lib/web-push';
 
@@ -69,6 +70,12 @@ export const batchPushPublishTask = task({
       if (result.status === 'fulfilled' && result.value) {
         successCount++;
       }
+    }
+
+    pushSendCounter.add(successCount, { outcome: 'success' });
+    const failedCount = subscriptions.length - successCount;
+    if (failedCount > 0) {
+      pushSendCounter.add(failedCount, { outcome: 'failure' });
     }
 
     logger.info(`Batch push complete`, { successCount, total: subscriptions.length });
