@@ -6,13 +6,12 @@ import { Check } from "lucide-react";
 import { PreCheckoutForm } from "./PreCheckoutForm";
 import { Link } from "@/i18n/navigation";
 
-const validPlans = ["starter", "professional", "enterprise"] as const;
+const validPlans = ["starter", "professional"] as const;
 type PlanKey = (typeof validPlans)[number];
 
 const priceIds: Record<PlanKey, string | undefined> = {
   starter: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
   professional: process.env.NEXT_PUBLIC_STRIPE_PRICE_PROFESSIONAL,
-  enterprise: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE,
 };
 
 function isPlanKey(value: string | null): value is PlanKey {
@@ -28,11 +27,12 @@ export function PricingCheckout() {
   const plan: PlanKey = isPlanKey(planParam) ? planParam : "professional";
   const priceId = priceIds[plan];
   const features: string[] = t.raw(`${plan}.features`) as string[];
+  const isFree = t(`${plan}.price`) === "0";
 
   if (!priceId) {
     return (
       <div className="max-w-lg mx-auto text-center py-20">
-        <p className="text-red-600 font-medium">
+        <p className="text-destructive font-medium">
           {tPage("missingPriceIdError")}
         </p>
       </div>
@@ -40,49 +40,51 @@ export function PricingCheckout() {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
-      {/* Plan summary card */}
-      <div className="bg-white border border-neutral-200 rounded-3xl p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] mb-8">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-foreground">
-            {t(`${plan}.name`)}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t(`${plan}.description`)}
-          </p>
-        </div>
+    <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      {/* Left: Plan summary */}
+      <div className="border rounded-2xl p-8 bg-card">
+        <h2 className="text-2xl font-bold mb-1">
+          {t(`${plan}.name`)}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          {t(`${plan}.description`)}
+        </p>
 
-        <div className="text-center my-6">
-          <div className="flex items-baseline justify-center gap-1">
-            <span className="text-4xl font-bold text-foreground">
-              {t(`${plan}.price`)}
-              {t("currency")}
+        <div className="flex items-baseline gap-1 mb-6">
+          {isFree ? (
+            <span className="text-4xl font-bold">
+              {t(`${plan}.free`)}
             </span>
-            <span className="text-muted-foreground">{t("perMonth")}</span>
-          </div>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">{t("currency")}</span>
+              <span className="text-4xl font-bold">
+                {t(`${plan}.price`)}
+              </span>
+              <span className="text-muted-foreground">{t("perMonth")}</span>
+            </>
+          )}
         </div>
 
         <ul className="space-y-3 mb-6">
           {features.map((feature, i) => (
-            <li key={i} className="flex items-center gap-3">
+            <li key={i} className="flex items-center gap-2.5">
               <Check className="h-4 w-4 text-primary shrink-0" />
               <span className="text-sm text-muted-foreground">{feature}</span>
             </li>
           ))}
         </ul>
 
-        <div className="text-center">
-          <Link
-            href="/#pricing"
-            className="text-sm text-[#009588] hover:text-[#00796B] transition-colors"
-          >
-            {tPage("changePlan")}
-          </Link>
-        </div>
+        <Link
+          href="/#pricing"
+          className="text-sm text-primary hover:text-primary/80 transition-colors"
+        >
+          {tPage("changePlan")}
+        </Link>
       </div>
 
-      {/* Pre-checkout form */}
-      <div className="bg-white border border-neutral-200 rounded-3xl p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      {/* Right: Form */}
+      <div className="border rounded-2xl p-8 bg-card">
         <PreCheckoutForm priceId={priceId} />
       </div>
     </div>

@@ -81,13 +81,13 @@ export default async function PricingPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LandingHeader />
-      <main id="main-content" className="min-h-screen bg-[#FDFDFD] pt-24 pb-24 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto mb-8">
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground mb-4 leading-tight">
+      <main id="main-content" className="min-h-screen bg-background pt-24 pb-24 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <h1 className="text-3xl lg:text-4xl font-bold tracking-tight mb-3">
               {t("heading")}
             </h1>
-            <p className="text-lg text-muted-foreground leading-relaxed">
+            <p className="text-muted-foreground">
               {t("subtitle")}
             </p>
           </div>
