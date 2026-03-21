@@ -311,15 +311,20 @@ describe("ShiftDayCard", () => {
     breakMinutes: 60,
   };
 
+  const defaultProps = {
+    onConfirm: mockConfirmShift,
+    isConfirmPending: false,
+  };
+
   it("renders shift type label and time range", () => {
-    render(<ShiftDayCard shift={baseShift} shiftType={shiftType} />);
+    render(<ShiftDayCard shift={baseShift} shiftType={shiftType} {...defaultProps} />);
 
     expect(screen.getByText("Chirurgie")).toBeDefined();
     expect(screen.getByText("08:30 — 18:30")).toBeDefined();
   });
 
   it("falls back to shiftTypeCode when shiftType is undefined", () => {
-    render(<ShiftDayCard shift={baseShift} />);
+    render(<ShiftDayCard shift={baseShift} {...defaultProps} />);
 
     expect(screen.getByText("CHIR")).toBeDefined();
   });
@@ -332,6 +337,7 @@ describe("ShiftDayCard", () => {
         shift={{ ...baseShift, isConfirmed: true }}
         shiftType={shiftType}
         publicationStatus="PUBLISHED"
+        {...defaultProps}
       />,
     );
 
@@ -348,6 +354,7 @@ describe("ShiftDayCard", () => {
         shift={{ ...baseShift, isConfirmed: false }}
         shiftType={shiftType}
         publicationStatus="PUBLISHED"
+        {...defaultProps}
       />,
     );
 
@@ -364,6 +371,7 @@ describe("ShiftDayCard", () => {
         shift={{ ...baseShift, isConfirmed: false }}
         shiftType={shiftType}
         publicationStatus="DRAFT"
+        {...defaultProps}
       />,
     );
 
@@ -380,6 +388,7 @@ describe("ShiftDayCard", () => {
         shift={{ ...baseShift, isConfirmed: false }}
         shiftType={shiftType}
         publicationStatus="PUBLISHED"
+        {...defaultProps}
       />,
     );
 
@@ -394,6 +403,7 @@ describe("ShiftDayCard", () => {
         shift={{ ...baseShift, id: "shift-42", isConfirmed: false }}
         shiftType={shiftType}
         publicationStatus="PUBLISHED"
+        {...defaultProps}
       />,
     );
 
@@ -406,6 +416,7 @@ describe("ShiftDayCard", () => {
       <ShiftDayCard
         shift={{ ...baseShift, breakMinutes: 60 }}
         shiftType={shiftType}
+        {...defaultProps}
       />,
     );
 
@@ -417,6 +428,7 @@ describe("ShiftDayCard", () => {
       <ShiftDayCard
         shift={{ ...baseShift, breakMinutes: 0 }}
         shiftType={shiftType}
+        {...defaultProps}
       />,
     );
 

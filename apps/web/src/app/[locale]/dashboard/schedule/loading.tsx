@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ScheduleLoading() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <Skeleton className="h-8 w-40" />
         <Skeleton className="h-6 w-24 rounded-full" />

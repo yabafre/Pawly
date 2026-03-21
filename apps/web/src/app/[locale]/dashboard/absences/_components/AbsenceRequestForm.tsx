@@ -16,13 +16,15 @@ import type { AbsenceType } from "@pawly/validators";
 
 interface AbsenceRequestFormProps {
   employeeId: string;
+  onSuccess?: () => void;
+  preselectedType?: AbsenceType | null;
 }
 
-export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
+export function AbsenceRequestForm({ employeeId, onSuccess, preselectedType }: AbsenceRequestFormProps) {
   const t = useTranslations("dashboard.absences.form");
   const tOverlap = useTranslations("dashboard.absences.overlap");
   const locale = useLocale();
-  const [selectedType, setSelectedType] = useState<AbsenceType | null>(null);
+  const [selectedType, setSelectedType] = useState<AbsenceType | null>(preselectedType ?? null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reason, setReason] = useState("");
 
@@ -52,6 +54,7 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
           setSelectedType(null);
           setDateRange(undefined);
           setReason("");
+          onSuccess?.();
         },
       },
     );
@@ -60,18 +63,20 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
   const calendarLocale = locale === "fr" ? fr : enUS;
 
   return (
-    <div className="bg-white rounded-3xl border border-neutral-200 p-6 space-y-6 shadow-sm">
-      <h2 className="text-lg font-bold text-neutral-900">{t("title")}</h2>
+    <div className="rounded-2xl border bg-card p-5 space-y-5">
+      <h2 className="text-sm font-semibold">{t("title")}</h2>
+
+      {!preselectedType && (
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground">
+            {t("selectType")}
+          </Label>
+          <AbsenceTypeSelector selected={selectedType} onSelect={(t) => setSelectedType(t as AbsenceType)} />
+        </div>
+      )}
 
       <div className="space-y-2">
-        <Label className="text-sm font-semibold text-neutral-700">
-          {t("selectType")}
-        </Label>
-        <AbsenceTypeSelector selected={selectedType} onSelect={(t) => setSelectedType(t as AbsenceType)} />
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-sm font-semibold text-neutral-700">
+        <Label className="text-xs font-medium text-muted-foreground">
           {t("dateRange")}
         </Label>
         <div className="flex justify-center">
@@ -81,15 +86,14 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
             onSelect={setDateRange}
             disabled={{ before: new Date() }}
             locale={calendarLocale}
-            className="rounded-2xl border border-neutral-200"
           />
         </div>
       </div>
 
       {overlap.hasOverlap && (
-        <div className="flex items-start gap-2 rounded-xl bg-orange-50 border border-orange-200 p-3">
-          <AlertTriangle size={16} className="text-orange-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-orange-700">
+        <div className="flex items-start gap-2 rounded-2xl border bg-card p-3">
+          <AlertTriangle size={14} className="text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">
             {tOverlap("warning", {
               startDate: overlap.overlappingAbsences[0]?.startDate
                 ? new Date(overlap.overlappingAbsences[0].startDate).toLocaleDateString(locale)
@@ -107,24 +111,20 @@ export function AbsenceRequestForm({ employeeId }: AbsenceRequestFormProps) {
       )}
 
       <div className="space-y-2">
-        <Label className="text-sm font-semibold text-neutral-700">
+        <Label className="text-xs font-medium text-muted-foreground">
           {t("reason")}
         </Label>
         <Textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder={t("reasonPlaceholder")}
-          rows={3}
+          rows={2}
           maxLength={500}
-          className="rounded-xl resize-none"
+          className="resize-none"
         />
       </div>
 
-      <Button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full rounded-xl h-12 text-base font-bold"
-      >
+      <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full">
         {isPending ? t("submitting") : t("submit")}
       </Button>
     </div>

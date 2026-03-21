@@ -28,7 +28,6 @@ export function WeeklySummaryCard({
   const percent = contractHours > 0 ? Math.min(Math.round((totalHours / contractHours) * 100), 100) : 0;
   const shiftCount = thisWeek?.shiftCount ?? 0;
 
-  // Compute confirmed/total ratio for current week shifts (year-aware, H4 fix)
   const weekShifts = useMemo(
     () =>
       shifts.filter((s) => {
@@ -41,12 +40,12 @@ export function WeeklySummaryCard({
   const weekTotal = weekShifts.length;
 
   return (
-    <div className="rounded-xl bg-neutral-900 p-4 text-white shadow-lg">
+    <div className="rounded-2xl bg-card border p-5">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-neutral-300">
+        <span className="text-sm font-medium text-muted-foreground">
           {t("title")}
         </span>
-        <span className="text-xs text-neutral-400">
+        <span className="text-xs text-muted-foreground">
           {t("target", { target: contractHours })}
         </span>
       </div>
@@ -56,20 +55,20 @@ export function WeeklySummaryCard({
           {t("hours", { hours: totalHours })}
         </span>
         <div className="text-right">
-          <span className="block text-sm text-neutral-400">
+          <span className="block text-sm text-muted-foreground">
             {t("shifts", { count: shiftCount })}
           </span>
           {weekTotal > 0 && (
-            <span className="block text-xs text-emerald-400">
+            <span className="block text-xs text-primary">
               {t("confirmedRatio", { confirmed: confirmedCount, total: weekTotal })}
             </span>
           )}
         </div>
       </div>
 
-      <div className="h-2 overflow-hidden rounded-full bg-neutral-700">
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+          className="h-full rounded-full bg-primary transition-all duration-500"
           style={{ width: `${percent}%` }}
           role="progressbar"
           aria-valuenow={percent}
