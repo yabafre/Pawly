@@ -42,7 +42,9 @@
       "forgotPassword": "Forgot?",
       "magicLinkTab": "Magic Link",
       "emailTab": "Email",
-      "passwordTab": "Password"
+      "passwordTab": "Password",
+      "employeeTab": "Employee",
+      "adminTab": "Admin"
     },
     "magicLink": {
       "emailLabel": "Professional email",
@@ -856,6 +858,11 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "overview": "Overview",
+    "slideToValidate": "Slide to validate",
+    "slideValidated": "Day validated",
+    "inProgress": "In progress",
+    "confirmed": "Confirmed",
     "nav": {
       "title": "Pawly Employee",
       "home": "Home",
@@ -913,11 +920,11 @@
         "title": "Reminder",
         "message": "You have not yet declared your school days for {month}. Please submit before the end of the month."
       },
-      "submit": "Submit my school days",
+      "submit": "Submit",
       "submitting": "Submitting...",
       "success": {
         "title": "Declaration submitted",
-        "message": "Your school days for {month} have been recorded. You can modify them at any time.",
+        "message": "Days recorded for {month}.",
         "modify": "Modify declaration"
       },
       "empty": {
@@ -940,8 +947,9 @@
       }
     },
     "absences": {
-      "title": "Absence Requests",
-      "subtitle": "Submit and track your absence requests.",
+      "title": "Absences",
+      "subtitle": "Track your requests.",
+      "newRequest": "New request",
       "form": {
         "title": "Request an absence",
         "selectType": "Select absence type",
@@ -1041,8 +1049,9 @@
         "today": "Today",
         "noShifts": "No shifts scheduled this month.",
         "restDay": "Rest day",
-        "break": "Break: {minutes} min",
-        "scheduleList": "Monthly schedule"
+        "break": "Break {duration}",
+        "scheduleList": "Monthly schedule",
+        "mainClinic": "Main clinic"
       },
       "shiftStatus": {
         "confirmed": "Confirmed",
@@ -1629,10 +1638,13 @@
     },
     "hero": {
       "title": "Intelligent planning for your veterinary clinic",
+      "titleLine1": "Intelligent scheduling.",
+      "titleLine2": "For your clinic.",
       "subtitle": "Pawly streamlines scheduling, team management, and daily operations — so you can focus on what matters most: animal care.",
-      "cta": "View Pricing",
-      "secondaryCta": "Learn More",
+      "cta": "Start Free",
+      "secondaryCta": "View Pricing",
       "badge": "New: AI-powered Scheduling",
+      "trialNote": "Free trial · No credit card required",
       "trustTitle": "Trusted by leading clinics:",
       "trustBadges": ["VetLife", "AniCura", "MonVéto"]
     },
@@ -1665,31 +1677,38 @@
         "description": "Magic link authentication, JWT tokens, and role-based access control. Your clinic data is protected at every level."
       }
     },
+    "workflow": {
+      "badge": "How it works",
+      "title": "From your constraints to an optimal schedule",
+      "subtitle": "Pawly centralizes your clinic data and automatically generates fair, compliant schedules.",
+      "steps": {
+        "employees": "Team",
+        "constraints": "Constraints",
+        "templates": "Templates",
+        "schedule": "Schedule",
+        "notifications": "Notifications",
+        "equity": "Equity"
+      }
+    },
     "pricing": {
       "title": "Simple, transparent pricing",
-      "subtitle": "Choose the plan that fits your clinic. All plans include a free trial.",
+      "subtitle": "Start free, upgrade when you're ready.",
       "badge": "Transparent Pricing",
       "starter": {
         "name": "Starter",
-        "price": "29",
+        "price": "0",
         "interval": "month",
-        "description": "Perfect for small clinics getting started",
-        "features": ["Up to 5 team members", "Basic scheduling", "Absence management", "Email support"]
+        "description": "Ideal to discover Pawly and its essential features",
+        "free": "Free",
+        "features": ["Up to 3 team members", "Basic scheduling", "Absence management", "Community support"]
       },
       "professional": {
         "name": "Professional",
-        "price": "59",
+        "price": "29",
         "interval": "month",
         "description": "For growing clinics that need more",
         "popular": "Most Popular",
         "features": ["Up to 20 team members", "Advanced scheduling algorithms", "Equity counters", "Priority support", "Custom shift types"]
-      },
-      "enterprise": {
-        "name": "Enterprise",
-        "price": "99",
-        "interval": "month",
-        "description": "For multi-clinic operations",
-        "features": ["Unlimited team members", "Multi-clinic management", "API access", "Dedicated support", "Custom integrations"]
       },
       "cta": "Get Started",
       "currency": "€",

@@ -42,7 +42,9 @@
       "forgotPassword": "Oublié ?",
       "magicLinkTab": "Magic Link",
       "emailTab": "Email",
-      "passwordTab": "Mot de passe"
+      "passwordTab": "Mot de passe",
+      "employeeTab": "Employé",
+      "adminTab": "Admin"
     },
     "magicLink": {
       "emailLabel": "Email professionnel",
@@ -856,6 +858,11 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "overview": "Aperçu",
+    "slideToValidate": "Glisser pour valider",
+    "slideValidated": "Journée validée",
+    "inProgress": "En cours",
+    "confirmed": "Confirmé",
     "nav": {
       "title": "Pawly Employé",
       "home": "Accueil",
@@ -913,11 +920,11 @@
         "title": "Rappel",
         "message": "Vous n'avez pas encore déclaré vos jours d'école pour {month}. Veuillez soumettre avant la fin du mois."
       },
-      "submit": "Soumettre mes jours d'école",
+      "submit": "Valider",
       "submitting": "Envoi en cours...",
       "success": {
         "title": "Déclaration soumise",
-        "message": "Vos jours d'école pour {month} ont été enregistrés. Vous pouvez les modifier à tout moment.",
+        "message": "Jours enregistrés pour {month}.",
         "modify": "Modifier la déclaration"
       },
       "empty": {
@@ -940,8 +947,9 @@
       }
     },
     "absences": {
-      "title": "Demandes d'absence",
-      "subtitle": "Soumettez et suivez vos demandes d'absence.",
+      "title": "Absences",
+      "subtitle": "Suivez vos demandes.",
+      "newRequest": "Nouvelle demande",
       "form": {
         "title": "Demander une absence",
         "selectType": "Sélectionnez le type d'absence",
@@ -1041,8 +1049,9 @@
         "today": "Aujourd'hui",
         "noShifts": "Aucun créneau prévu ce mois-ci.",
         "restDay": "Repos",
-        "break": "Pause: {minutes} min",
-        "scheduleList": "Planning du mois"
+        "break": "Pause {duration}",
+        "scheduleList": "Planning du mois",
+        "mainClinic": "Clinique principale"
       },
       "shiftStatus": {
         "confirmed": "Confirmé",
@@ -1629,10 +1638,13 @@
     },
     "hero": {
       "title": "Le planning intelligent pour votre clinique vétérinaire",
+      "titleLine1": "Le planning intelligent.",
+      "titleLine2": "Pour votre clinique.",
       "subtitle": "Pawly simplifie la planification, la gestion d'équipe et les opérations quotidiennes — pour vous concentrer sur l'essentiel : le soin animal.",
-      "cta": "Voir les tarifs",
-      "secondaryCta": "En savoir plus",
+      "cta": "Commencer gratuitement",
+      "secondaryCta": "Voir les tarifs",
       "badge": "Nouveau : Planning IA automatisé",
+      "trialNote": "Essai gratuit · Sans carte bancaire",
       "trustTitle": "Ils nous font confiance :",
       "trustBadges": ["VetLife", "AniCura", "MonVéto"]
     },
@@ -1665,31 +1677,38 @@
         "description": "Authentification par magic link, tokens JWT et contrôle d'accès basé sur les rôles. Les données de votre clinique sont protégées à chaque niveau."
       }
     },
+    "workflow": {
+      "badge": "Comment ça marche",
+      "title": "De vos contraintes à un planning optimal",
+      "subtitle": "Pawly centralise les données de votre clinique et génère automatiquement des plannings équitables et conformes.",
+      "steps": {
+        "employees": "Équipe",
+        "constraints": "Contraintes",
+        "templates": "Modèles",
+        "schedule": "Planning",
+        "notifications": "Notifications",
+        "equity": "Équité"
+      }
+    },
     "pricing": {
       "title": "Des tarifs simples et transparents",
-      "subtitle": "Choisissez le plan adapté à votre clinique. Tous les plans incluent un essai gratuit.",
+      "subtitle": "Commencez gratuitement, évoluez quand vous êtes prêt.",
       "badge": "Tarifs transparents",
       "starter": {
         "name": "Starter",
-        "price": "29",
+        "price": "0",
         "interval": "mois",
-        "description": "Parfait pour les petites cliniques qui démarrent",
-        "features": ["Jusqu'à 5 membres d'équipe", "Planning de base", "Gestion des absences", "Support par email"]
+        "description": "Idéal pour découvrir Pawly et ses fonctionnalités essentielles",
+        "free": "Gratuit",
+        "features": ["Jusqu'à 3 membres d'équipe", "Planning de base", "Gestion des absences", "Support communautaire"]
       },
       "professional": {
         "name": "Professionnel",
-        "price": "59",
+        "price": "29",
         "interval": "mois",
         "description": "Pour les cliniques en croissance qui ont besoin de plus",
         "popular": "Le plus populaire",
         "features": ["Jusqu'à 20 membres d'équipe", "Algorithmes de planning avancés", "Compteurs d'équité", "Support prioritaire", "Types de postes personnalisés"]
-      },
-      "enterprise": {
-        "name": "Entreprise",
-        "price": "99",
-        "interval": "mois",
-        "description": "Pour les opérations multi-cliniques",
-        "features": ["Membres d'équipe illimités", "Gestion multi-cliniques", "Accès API", "Support dédié", "Intégrations personnalisées"]
       },
       "cta": "Commencer",
       "currency": "€",
