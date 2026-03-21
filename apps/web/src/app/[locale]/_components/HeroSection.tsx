@@ -1,72 +1,50 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { Star } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { FallingAnimals } from "@/components/ui/falling-animals";
 
 export async function HeroSection() {
   const t = await getTranslations("landing.hero");
-  const trustBadges: string[] = t.raw("trustBadges") as string[];
 
   return (
-    <section className="pt-32 pb-20 md:pt-48 md:pb-32 px-6 overflow-hidden relative">
-      {/* Background blur orbs */}
-      <div
-        className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-primary/5 blur-[120px] rounded-full pointer-events-none"
-        aria-hidden="true"
+    <section className="relative overflow-hidden min-h-[calc(100dvh-3.5rem)] flex items-center">
+      <FallingAnimals
+        color="#009588"
+        speed={0.8}
+        size={14}
+        gap={48}
+        className="absolute inset-0 h-full w-full [mask-image:radial-gradient(ellipse_at_center,transparent_30%,black_70%)]"
       />
-      <div
-        className="absolute bottom-[10%] right-[-5%] w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full pointer-events-none"
-        aria-hidden="true"
-      />
+      <div className="relative z-10 max-w-4xl mx-auto px-6 pt-28 pb-24 text-center">
+        <p className="text-xs font-mono mb-6 inline-block text-muted-foreground">
+          {t("badge")}
+        </p>
 
-      <div className="max-w-7xl mx-auto text-center relative z-10">
-        {/* Announcement badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-neutral-200 shadow-sm mb-8">
-          <Star className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
-          <span className="text-xs font-bold text-foreground uppercase tracking-wide">
-            {t("badge")}
-          </span>
-        </div>
-
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground mb-6 leading-[1.1]">
-          {t("title")}
+        <h1 className="text-5xl lg:text-7xl font-bold tracking-tighter leading-[1.08] mb-5">
+          {t("titleLine1")}
+          <br />
+          <span className="text-muted-foreground">{t("titleLine2")}</span>
         </h1>
 
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-base lg:text-lg text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
           {t("subtitle")}
         </p>
 
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-          <Button
-            size="lg"
-            asChild
-            className="w-full md:w-auto min-w-[200px] rounded-xl text-base h-12"
-          >
-            <Link href="/pricing">{t("cta")}</Link>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Button size="lg" asChild className="gap-2">
+            <Link href="/pricing?plan=starter">
+              {t("cta")}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            asChild
-            className="w-full md:w-auto min-w-[200px] rounded-xl text-base h-12"
-          >
-            <a href="#features">{t("secondaryCta")}</a>
+          <Button variant="outline" size="lg" asChild>
+            <a href="#pricing">{t("secondaryCta")}</a>
           </Button>
         </div>
-
-        {/* Trust badges */}
-        <div className="mt-16 pt-8 border-t border-neutral-100 flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 opacity-60 hover:opacity-100 transition-all duration-500">
-          <span className="text-sm font-bold text-muted-foreground">
-            {t("trustTitle")}
-          </span>
-          <div className="flex gap-8 items-center">
-            {trustBadges.map((badge) => (
-              <span key={badge} className="font-bold text-xl text-foreground">
-                {badge}
-              </span>
-            ))}
-          </div>
-        </div>
+        <p className="text-xs text-muted-foreground mt-4">
+          {t("trialNote")}
+        </p>
       </div>
     </section>
   );
