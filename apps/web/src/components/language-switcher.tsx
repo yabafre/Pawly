@@ -45,7 +45,7 @@ export function LanguageSwitcher() {
         <Globe className="h-4 w-4 text-neutral-500" />
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="end">
+      <SelectContent align="end" position="popper" sideOffset={4}>
         {routing.locales.map((loc) => (
           <SelectItem key={loc} value={loc}>
             {t(loc)}

@@ -11,27 +11,26 @@ export function PawlyLogo({
   theme?: "light" | "dark";
 }) {
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-2", className)}>
       <div
         className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg relative overflow-hidden group shrink-0",
+          "w-7 h-7 rounded-lg flex items-center justify-center relative overflow-hidden shrink-0",
           theme === "dark"
-            ? "bg-white shadow-white/10"
-            : "bg-neutral-900 shadow-neutral-900/10",
+            ? "bg-white"
+            : "bg-neutral-900",
           iconClassName
         )}
       >
-        <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent" />
         <PawPrint
           className={cn(
-            "w-5 h-5 relative z-10 fill-current",
+            "w-3.5 h-3.5 relative z-10 fill-current",
             theme === "dark" ? "text-neutral-900" : "text-white"
           )}
         />
       </div>
       <span
         className={cn(
-          "text-2xl font-bold tracking-tighter leading-none",
+          "text-sm font-semibold tracking-tight leading-none",
           theme === "dark" ? "text-white" : "text-neutral-900"
         )}
       >
