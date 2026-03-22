@@ -130,9 +130,9 @@ export function EmployeeConstraintsPanel({
 
   return (
     <Dialog key={employee?.id ?? "none"} open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[760px] rounded-3xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[760px] rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-neutral-900">
+          <DialogTitle className="text-xl font-bold text-foreground">
             {t("constraints.title", {
               name: `${employee.firstName} ${employee.lastName}`,
             })}
@@ -141,11 +141,11 @@ export function EmployeeConstraintsPanel({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-neutral-50/70 p-3">
-            <p className="text-sm text-neutral-600">{t("constraints.subtitle")}</p>
+          <div className="flex items-center justify-between rounded-2xl border border-border bg-muted p-3">
+            <p className="text-sm text-muted-foreground">{t("constraints.subtitle")}</p>
             <Button
               onClick={openCreateForm}
-              className="h-9 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800"
+              className="h-9 rounded-xl bg-foreground text-background hover:bg-foreground/90"
             >
               <Plus className="mr-1.5 h-4 w-4" />
               {t("constraints.actions.add")}
@@ -154,7 +154,7 @@ export function EmployeeConstraintsPanel({
 
           {isFormVisible && (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-neutral-800">
+              <h3 className="text-sm font-semibold text-foreground">
                 {formMode === "create"
                   ? t("constraints.form.createTitle")
                   : t("constraints.form.editTitle")}
@@ -190,18 +190,18 @@ export function EmployeeConstraintsPanel({
           )}
 
           {isPending ? (
-            <div className="py-8 text-center text-sm text-neutral-500">
+            <div className="py-8 text-center text-sm text-muted-foreground">
               {t("constraints.loading")}
             </div>
           ) : orderedConstraints.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-200 bg-white py-10 text-center">
-              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100">
-                <CalendarClock className="h-5 w-5 text-neutral-500" />
+            <div className="rounded-2xl border border-dashed border-border bg-card py-10 text-center">
+              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <CalendarClock className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-neutral-800">
+              <p className="text-sm font-medium text-foreground">
                 {t("constraints.empty.title")}
               </p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-neutral-500">
+              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
                 {t("constraints.empty.description")}
               </p>
             </div>
@@ -210,26 +210,26 @@ export function EmployeeConstraintsPanel({
               {orderedConstraints.map((constraint) => (
                 <div
                   key={constraint.id}
-                  className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
+                  className="rounded-2xl border border-border bg-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-neutral-700">
+                        <Badge variant="outline" className="text-muted-foreground">
                           {t(`constraints.types.${constraint.type}` as Parameters<typeof t>[0])}
                         </Badge>
-                        <Badge variant="outline" className="text-neutral-500">
+                        <Badge variant="outline" className="text-muted-foreground">
                           {constraint.daysOfWeek.length > 0
                             ? t("constraints.labels.recurring")
                             : t("constraints.labels.oneTime")}
                         </Badge>
                       </div>
-                      <p className="text-sm text-neutral-700">
+                      <p className="text-sm text-muted-foreground">
                         {toDateLabel(constraint.startDate, locale)} -{" "}
                         {toDateLabel(constraint.endDate, locale)}
                       </p>
                       {constraint.daysOfWeek.length > 0 && (
-                        <p className="text-sm text-neutral-500">
+                        <p className="text-sm text-muted-foreground">
                           {constraint.daysOfWeek
                             .map((weekday) =>
                               t(
@@ -240,7 +240,7 @@ export function EmployeeConstraintsPanel({
                         </p>
                       )}
                       {constraint.reason && (
-                        <p className="text-sm text-neutral-600">{constraint.reason}</p>
+                        <p className="text-sm text-muted-foreground">{constraint.reason}</p>
                       )}
                     </div>
 
@@ -257,7 +257,7 @@ export function EmployeeConstraintsPanel({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-600 hover:text-red-700"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => setDeletingConstraintId(constraint.id)}
                         disabled={isDeleting}
                         aria-label={t("constraints.actions.delete")}

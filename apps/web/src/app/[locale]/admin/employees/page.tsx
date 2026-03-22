@@ -24,10 +24,10 @@ export default async function EmployeesPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {t("page.title")}
         </h1>
-        <p className="text-neutral-500">{t("page.subtitle")}</p>
+        <p className="text-muted-foreground">{t("page.subtitle")}</p>
       </div>
       <EmployeeList />
     </div>

@@ -93,7 +93,7 @@ describe("EmployeeCard — school days badge", () => {
     );
 
     const badge = screen.getByText("schoolDays.declared").closest("[data-slot='badge']");
-    expect(badge?.classList.contains("bg-emerald-50")).toBe(true);
+    expect(badge?.classList.contains("border-border")).toBe(true);
   });
 
   it("renders not-declared badge with amber styling", () => {
@@ -106,6 +106,6 @@ describe("EmployeeCard — school days badge", () => {
     );
 
     const badge = screen.getByText("schoolDays.notDeclared").closest("[data-slot='badge']");
-    expect(badge?.classList.contains("bg-amber-50")).toBe(true);
+    expect(badge?.classList.contains("border-border")).toBe(true);
   });
 });

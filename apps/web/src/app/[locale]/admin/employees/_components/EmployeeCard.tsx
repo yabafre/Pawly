@@ -18,9 +18,9 @@ type EmployeeCardProps = {
 };
 
 const JOB_TYPE_STYLES: Record<string, string> = {
-  VET: "bg-indigo-50 border-indigo-100 text-indigo-700",
-  ASV: "bg-orange-50 border-orange-100 text-orange-700",
-  APPRENTICE: "bg-neutral-100 border-neutral-200 text-neutral-600",
+  VET: "bg-muted border-border text-muted-foreground",
+  ASV: "bg-muted border-border text-muted-foreground",
+  APPRENTICE: "bg-muted border-border text-muted-foreground",
 };
 
 export function EmployeeCard({
@@ -48,17 +48,17 @@ export function EmployeeCard({
               {employee.lastName[0]}
             </div>
             <div>
-              <h3 className="font-bold text-neutral-900 leading-tight">
+              <h3 className="font-bold text-foreground leading-tight">
                 {employee.firstName} {employee.lastName}
               </h3>
               <div className="flex items-center gap-2 mt-1">
                 <span
                   className={`inline-block h-2 w-2 rounded-full ${
-                    employee.isActive ? "bg-emerald-500" : "bg-neutral-300"
+                    employee.isActive ? "bg-primary" : "bg-muted-foreground/40"
                   }`}
                   aria-label={employee.isActive ? t("status.active") : t("status.inactive")}
                 />
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                   {employee.isActive ? t("status.active") : t("status.inactive")}
                 </span>
               </div>
@@ -69,23 +69,23 @@ export function EmployeeCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full hover:bg-neutral-100"
+              className="h-8 w-8 rounded-full hover:bg-muted"
               onClick={() => onEdit(employee)}
               aria-label={t("actions.edit")}
             >
-              <Pencil className="h-4 w-4 text-neutral-500" />
+              <Pencil className="h-4 w-4 text-muted-foreground" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full hover:bg-neutral-100"
+              className="h-8 w-8 rounded-full hover:bg-muted"
               onClick={() => onToggleActive(employee)}
               aria-label={employee.isActive ? t("actions.deactivate") : t("actions.activate")}
             >
               {employee.isActive ? (
-                <UserX className="h-4 w-4 text-neutral-500" />
+                <UserX className="h-4 w-4 text-muted-foreground" />
               ) : (
-                <UserCheck className="h-4 w-4 text-emerald-600" />
+                <UserCheck className="h-4 w-4 text-primary" />
               )}
             </Button>
           </div>
@@ -98,10 +98,10 @@ export function EmployeeCard({
           >
             {t(`jobTypes.${employee.jobType}` as Parameters<typeof t>[0])}
           </Badge>
-          <Badge variant="outline" className="text-neutral-600 border-neutral-200">
+          <Badge variant="outline" className="text-muted-foreground border-border">
             {t(`contractTypes.${employee.contractType}` as Parameters<typeof t>[0])}
           </Badge>
-          <span className="text-[10px] font-bold text-neutral-400">
+          <span className="text-[10px] font-bold text-muted-foreground">
             {t("labels.contractHoursPerWeek", {
               hours: employee.contractHours,
             })}
@@ -109,11 +109,7 @@ export function EmployeeCard({
           {employee.jobType === "APPRENTICE" && schoolDaysDeclared !== undefined && (
             <Badge
               variant="outline"
-              className={
-                schoolDaysDeclared
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  : "bg-amber-50 border-amber-200 text-amber-700"
-              }
+              className="border-border text-muted-foreground"
             >
               <GraduationCap className="mr-1 h-3 w-3" />
               {schoolDaysDeclared
@@ -124,17 +120,17 @@ export function EmployeeCard({
         </div>
 
         {employee.email && (
-          <p className="mt-3 text-xs text-neutral-500 truncate">{employee.email}</p>
+          <p className="mt-3 text-xs text-muted-foreground truncate">{employee.email}</p>
         )}
 
         <div className="mt-4 flex flex-col gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start rounded-xl text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 border-neutral-200"
+            className="w-full justify-start rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border-border"
             onClick={() => onManageConstraints(employee)}
           >
-            <CalendarClock className="mr-2 h-4 w-4 text-neutral-400" />
+            <CalendarClock className="mr-2 h-4 w-4 text-muted-foreground" />
             {t("constraints.actions.manage")}
           </Button>
 
@@ -142,11 +138,11 @@ export function EmployeeCard({
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-start rounded-xl text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 border-neutral-200"
+              className="w-full justify-start rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border-border"
               onClick={() => onResendInvitation(employee)}
               disabled={isResendingInvitation}
             >
-              <Mail className="mr-2 h-4 w-4 text-neutral-400" />
+              <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
               {t("actions.resendInvitation")}
             </Button>
           )}

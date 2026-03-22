@@ -8,6 +8,7 @@ import {
   UNAVAILABILITY_TYPES,
 } from "@pawly/validators";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,7 +103,7 @@ export function EmployeeConstraintForm({
         e.stopPropagation();
         form.handleSubmit();
       }}
-      className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/70 p-4"
+      className="space-y-4 rounded-2xl border border-border bg-muted p-4"
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <form.Field name="type">
@@ -160,7 +161,7 @@ export function EmployeeConstraintForm({
                 aria-invalid={field.state.meta.errors.length > 0}
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {t("constraints.validation.startDateRequired")}
                 </p>
               )}
@@ -194,7 +195,7 @@ export function EmployeeConstraintForm({
                 aria-invalid={field.state.meta.errors.length > 0}
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {field.state.meta.errors[0]}
                 </p>
               )}
@@ -205,12 +206,10 @@ export function EmployeeConstraintForm({
 
       <form.Field name="isRecurring">
         {(field: any) => (
-          <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
-            <input
-              type="checkbox"
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <Checkbox
               checked={field.state.value}
-              onChange={(e) => field.handleChange(e.target.checked)}
-              className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
+              onCheckedChange={(checked) => field.handleChange(checked === true)}
             />
             {t("constraints.form.recurring")}
           </label>
@@ -239,15 +238,14 @@ export function EmployeeConstraintForm({
                     return (
                       <label
                         key={weekday}
-                        className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm cursor-pointer hover:bg-neutral-50 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm cursor-pointer hover:bg-muted transition-colors"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
+                          onCheckedChange={(checked) => {
+                            if (checked) {
                               field.handleChange(
-                                [...field.state.value, weekday].sort((a, b) => a - b),
+                                [...field.state.value, weekday].sort((a: number, b: number) => a - b),
                               );
                               return;
                             }
@@ -255,7 +253,6 @@ export function EmployeeConstraintForm({
                               field.state.value.filter((value: number) => value !== weekday),
                             );
                           }}
-                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
                         />
                         {t(
                           `constraints.days.${weekday}` as Parameters<typeof t>[0],
@@ -265,7 +262,7 @@ export function EmployeeConstraintForm({
                   })}
                 </div>
                 {field.state.meta.errors.length > 0 && (
-                  <p className="text-sm text-red-600" role="alert">
+                  <p className="text-sm text-destructive" role="alert">
                     {t("constraints.validation.weekdayRequired")}
                   </p>
                 )}
@@ -282,7 +279,7 @@ export function EmployeeConstraintForm({
         <Button
           type="submit"
           disabled={isPending}
-          className="rounded-xl bg-neutral-900 text-white hover:bg-neutral-800"
+          className="rounded-xl bg-foreground text-background hover:bg-foreground/90"
         >
           {isPending ? "..." : t("actions.save")}
         </Button>

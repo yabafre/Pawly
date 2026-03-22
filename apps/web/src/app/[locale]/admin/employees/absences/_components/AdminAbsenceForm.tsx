@@ -92,14 +92,14 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
       <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">{t("adminCreate.title")}</DialogTitle>
-          <DialogDescription className="text-sm text-neutral-500">
+          <DialogDescription className="text-sm text-muted-foreground">
             {t("adminCreate.subtitle")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 pt-2">
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-neutral-700">
+            <Label className="text-sm font-semibold text-muted-foreground">
               {t("adminCreate.selectEmployee")}
             </Label>
             <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
@@ -117,7 +117,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-neutral-700">
+            <Label className="text-sm font-semibold text-muted-foreground">
               {t("adminCreate.selectType")}
             </Label>
             <Select value={selectedType} onValueChange={(v) => setSelectedType(v as AbsenceType)}>
@@ -135,7 +135,7 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-neutral-700">
+            <Label className="text-sm font-semibold text-muted-foreground">
               {t("list.from")} / {t("list.to")}
             </Label>
             <div className="flex justify-center">
@@ -144,13 +144,13 @@ export function AdminAbsenceForm({ open, onClose }: AdminAbsenceFormProps) {
                 selected={dateRange}
                 onSelect={setDateRange}
                 locale={calendarLocale}
-                className="rounded-2xl border border-neutral-200"
+                className="rounded-2xl border border-border"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-neutral-700">
+            <Label className="text-sm font-semibold text-muted-foreground">
               {t("list.reason")}
             </Label>
             <Textarea

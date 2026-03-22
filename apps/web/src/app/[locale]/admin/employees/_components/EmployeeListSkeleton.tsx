@@ -16,7 +16,7 @@ export function EmployeeListSkeleton() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-3xl border border-neutral-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-5 space-y-4"
+            className="rounded-2xl border border-border bg-card p-5 space-y-4"
           >
             {/* Avatar + name + actions */}
             <div className="flex items-start justify-between">
