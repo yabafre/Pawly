@@ -48,7 +48,7 @@ export function VariancePageClient() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900">
+            <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
               {t("title")}
             </h1>
             {pendingCount > 0 && (
@@ -57,14 +57,14 @@ export function VariancePageClient() {
               </Badge>
             )}
           </div>
-          <p className="text-sm text-neutral-500 mt-1">{t("subtitle")}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={employeeId ?? ""}
             onChange={(e) => setEmployeeId(e.target.value || undefined)}
             aria-label={t("list.employee")}
-            className="h-9 rounded-xl border border-neutral-200 px-3 text-sm bg-white"
+            className="h-9 rounded-xl border border-border px-3 text-sm bg-card"
           >
             <option value="">{t("list.allEmployees")}</option>
             {(employees as { id: string; firstName: string; lastName: string }[]).map((emp) => (
@@ -78,7 +78,7 @@ export function VariancePageClient() {
             value={month}
             onChange={handleMonthChange}
             aria-label={t("monthSelector.label")}
-            className="h-9 rounded-xl border border-neutral-200 px-3 text-sm"
+            className="h-9 rounded-xl border border-border px-3 text-sm"
           />
           <Button
             variant="outline"

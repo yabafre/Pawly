@@ -254,28 +254,28 @@ export function StaffGrid({
       onDragCancel={onDragCancel}
     >
       <div
-        className="bg-white rounded-3xl border border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden"
+        className="bg-card rounded-2xl border border-border overflow-hidden"
       >
         {/* Lite view navigation (tablet only) */}
         {!isDesktop && days.length > LITE_VIEW_DAYS && (
-          <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-100 bg-neutral-50">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted">
             <button
               type="button"
               onClick={() => setDayOffset((prev) => Math.max(0, prev - 1))}
               disabled={safeDayOffset === 0}
-              className="p-1 rounded-lg hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label={t("responsive.previousDays")}
             >
               <ChevronLeft size={18} />
             </button>
-            <span className="text-xs font-semibold text-neutral-500">
+            <span className="text-xs font-semibold text-muted-foreground">
               {t("responsive.liteView")}
             </span>
             <button
               type="button"
               onClick={() => setDayOffset((prev) => Math.min(maxOffset, prev + 1))}
               disabled={safeDayOffset >= maxOffset}
-              className="p-1 rounded-lg hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label={t("responsive.nextDays")}
             >
               <ChevronRight size={18} />

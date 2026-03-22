@@ -16,7 +16,7 @@ export function StaffGridHeader({ days }: Props) {
       {/* Employee column header */}
       <div
         role="columnheader"
-        className="sticky left-0 z-10 bg-neutral-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-neutral-400 border-b border-r border-neutral-100"
+        className="sticky left-0 z-10 bg-muted px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-r border-border"
       >
         {t("grid.employeeColumn")}
       </div>
@@ -30,10 +30,10 @@ export function StaffGridHeader({ days }: Props) {
           <div
             key={day.date}
             role="columnheader"
-            className={`px-2 py-3 text-center border-b border-neutral-100 ${
+            className={`px-2 py-3 text-center border-b border-border ${
               day.isClosed || !day.isWorkDay
-                ? "bg-neutral-100 text-neutral-400"
-                : "bg-neutral-50 text-neutral-600"
+                ? "bg-muted text-muted-foreground"
+                : "bg-muted text-muted-foreground"
             }`}
           >
             <div className="text-xs font-bold uppercase">{dayName}</div>
@@ -44,7 +44,7 @@ export function StaffGridHeader({ days }: Props) {
               </div>
             )}
             {day.isClosed && (
-              <div className="text-[10px] text-neutral-400 mt-0.5">
+              <div className="text-[10px] text-muted-foreground mt-0.5">
                 {t("grid.closedDay")}
               </div>
             )}
@@ -54,9 +54,9 @@ export function StaffGridHeader({ days }: Props) {
       {/* Hours summary column header */}
       <div
         role="columnheader"
-        className="sticky right-0 z-10 bg-neutral-50 px-3 py-3 text-center border-b border-l border-neutral-100"
+        className="sticky right-0 z-10 bg-muted px-3 py-3 text-center border-b border-l border-border"
       >
-        <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           {t("grid.hoursColumn")}
         </div>
       </div>

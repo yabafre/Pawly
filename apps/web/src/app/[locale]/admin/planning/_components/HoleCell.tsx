@@ -24,7 +24,7 @@ export function HoleCell({ holes, onHoleClick }: Props) {
             assigned: hole.assignedStaff,
             required: hole.requiredStaff,
           })}
-          className="w-full rounded-lg border-2 border-dashed border-neutral-300 px-2 py-1.5 flex items-center justify-center gap-1.5 cursor-pointer hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
+          className="w-full rounded-lg border-2 border-dashed border-border px-2 py-1.5 flex items-center justify-center gap-1.5 cursor-pointer hover:border-border hover:bg-muted transition-colors"
           title={t("tooltip", {
             shiftType: hole.shiftTypeCode,
             assigned: hole.assignedStaff,
@@ -38,8 +38,8 @@ export function HoleCell({ holes, onHoleClick }: Props) {
             }
           }}
         >
-          <Plus size={14} className="text-neutral-400" />
-          <span className="text-[10px] font-semibold text-neutral-400 truncate">
+          <Plus size={14} className="text-muted-foreground" />
+          <span className="text-[10px] font-semibold text-muted-foreground truncate">
             {hole.shiftTypeCode}
           </span>
         </div>

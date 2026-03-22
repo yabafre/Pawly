@@ -35,7 +35,7 @@ export function ConflictIndicator({ conflicts }: Props) {
           {t("hardTitle")} ({conflicts.length})
         </p>
         {conflicts.map((c, i) => (
-          <p key={i} className="text-[11px] text-neutral-600 leading-snug">
+          <p key={i} className="text-[11px] text-muted-foreground leading-snug">
             {c.message}
           </p>
         ))}

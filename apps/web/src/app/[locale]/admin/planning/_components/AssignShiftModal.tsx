@@ -101,10 +101,10 @@ export function AssignShiftModal({
         </DialogHeader>
 
         <div className="space-y-2 mt-2">
-          <div className="text-sm text-neutral-500">
+          <div className="text-sm text-muted-foreground">
             {t("date", { date: hole.date })}
           </div>
-          <div className="text-sm text-neutral-500">
+          <div className="text-sm text-muted-foreground">
             {t("shiftType", {
               shiftType: hole.shiftTypeCode,
               start: "–",
@@ -115,7 +115,7 @@ export function AssignShiftModal({
 
         <div className="mt-4 max-h-[300px] overflow-y-auto space-y-1">
           {employees.length === 0 && (
-            <p className="text-sm text-neutral-400 text-center py-4">
+            <p className="text-sm text-muted-foreground text-center py-4">
               {t("noEligible")}
             </p>
           )}
@@ -132,15 +132,15 @@ export function AssignShiftModal({
                 onClick={() => handleAssign(emp.id)}
                 className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-colors ${
                   isBlocked
-                    ? "opacity-50 cursor-not-allowed bg-neutral-50"
-                    : "hover:bg-neutral-50 cursor-pointer"
+                    ? "opacity-50 cursor-not-allowed bg-muted"
+                    : "hover:bg-muted cursor-pointer"
                 }`}
               >
                 <div>
-                  <div className="text-sm font-medium text-neutral-900">
+                  <div className="text-sm font-medium text-foreground">
                     {emp.firstName} {emp.lastName}
                   </div>
-                  <div className="text-xs text-neutral-400">{emp.jobType}</div>
+                  <div className="text-xs text-muted-foreground">{emp.jobType}</div>
                   {isBlocked && empStatus?.reasons.length > 0 && (
                     <div className="text-xs text-rose-500 mt-0.5">
                       {empStatus.reasons.join(", ")}
@@ -150,7 +150,7 @@ export function AssignShiftModal({
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     isLoading
-                      ? "bg-neutral-100 text-neutral-400"
+                      ? "bg-muted text-muted-foreground"
                       : isBlocked
                         ? "bg-rose-100 text-rose-600"
                         : empStatus?.status === "warning"

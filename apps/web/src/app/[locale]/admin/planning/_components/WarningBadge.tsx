@@ -41,7 +41,7 @@ export function WarningBadge({ warnings }: Props) {
           {t("softTitle")} ({warnings.length})
         </p>
         {warnings.map((w, i) => (
-          <p key={i} className="text-[11px] text-neutral-600 leading-snug">
+          <p key={i} className="text-[11px] text-muted-foreground leading-snug">
             {w.messageKey ? tv(w.messageKey, w.messageParams) : w.message}
           </p>
         ))}

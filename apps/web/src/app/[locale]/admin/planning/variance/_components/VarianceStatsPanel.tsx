@@ -78,7 +78,7 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-3xl bg-neutral-100 animate-pulse" />
+          <div key={i} className="h-24 rounded-2xl bg-muted animate-pulse" />
         ))}
       </div>
     );
@@ -96,7 +96,7 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
           <m.div
             key={card.label}
             variants={cardVariants}
-            className="bg-white rounded-3xl border border-neutral-200 p-4 shadow-sm"
+            className="bg-card rounded-2xl border border-border p-4 shadow-sm"
           >
             <div className="flex items-center gap-3">
               <div
@@ -105,10 +105,10 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
                 <card.icon size={18} />
               </div>
               <div>
-                <p className="text-2xl font-extrabold text-neutral-900">
+                <p className="text-2xl font-extrabold text-foreground">
                   {card.value}
                 </p>
-                <p className="text-xs text-neutral-500 font-medium">
+                <p className="text-xs text-muted-foreground font-medium">
                   {card.label}
                 </p>
               </div>

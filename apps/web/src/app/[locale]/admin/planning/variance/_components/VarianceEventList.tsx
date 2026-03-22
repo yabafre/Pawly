@@ -50,7 +50,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-28 rounded-2xl bg-neutral-100 animate-pulse" />
+          <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />
         ))}
       </div>
     );
@@ -58,7 +58,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
 
   if (!events.length) {
     return (
-      <div className="text-center py-12 text-neutral-400">
+      <div className="text-center py-12 text-muted-foreground">
         <p className="text-sm">{t("list.empty")}</p>
       </div>
     );
@@ -92,21 +92,21 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
           return (
             <div
               key={event.id}
-              className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-sm"
+              className="bg-card rounded-2xl border border-border p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
-                    <Icon size={18} className="text-neutral-600" />
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                    <Icon size={18} className="text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="font-semibold text-neutral-900">
+                    <p className="font-semibold text-foreground">
                       {event.shift.employee.firstName} {event.shift.employee.lastName}
-                      <span className="text-neutral-400 font-normal ml-1">
+                      <span className="text-muted-foreground font-normal ml-1">
                         · {event.shift.employee.jobType}
                       </span>
                     </p>
-                    <p className="text-sm text-neutral-500">
+                    <p className="text-sm text-muted-foreground">
                       {new Date(event.shift.date).toLocaleDateString(locale, {
                         weekday: "short",
                         day: "numeric",
@@ -114,7 +114,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                       })}{" "}
                       · {event.shift.shiftTypeCode} {event.shift.startTime}-{event.shift.endTime}
                     </p>
-                    <p className="text-sm text-neutral-600 mt-0.5">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                       {isNoShow ? (
                         t("list.notConfirmed")
                       ) : (
@@ -134,7 +134,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                   <span
                     className={cn(
                       "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide",
-                      TYPE_STYLES[event.type] ?? "bg-neutral-100 text-neutral-600",
+                      TYPE_STYLES[event.type] ?? "bg-muted text-muted-foreground",
                     )}
                   >
                     {t(`types.${event.type}` as VarianceTypeKey)}
@@ -142,7 +142,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                   <span
                     className={cn(
                       "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide",
-                      STATUS_STYLES[event.status] ?? "bg-neutral-100 text-neutral-600",
+                      STATUS_STYLES[event.status] ?? "bg-muted text-muted-foreground",
                     )}
                   >
                     {t(`status.${event.status}` as VarianceStatusKey)}
@@ -165,7 +165,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                         onClick={() => setRejectTarget(event.id)}
                         disabled={isReviewing}
                         aria-label={`${t("actions.reject")} - ${event.shift.employee.lastName}`}
-                        className="rounded-xl border-rose-300 text-rose-600 hover:bg-rose-50"
+                        className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/5"
                       >
                         <X size={14} className="mr-1" />
                         {t("actions.reject")}

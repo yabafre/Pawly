@@ -70,9 +70,9 @@ export function EquityDistributionChart({ counters }: Props) {
   if (data.length === 0) return null;
 
   return (
-    <Card className="border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+    <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+        <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           {t("chart.title")}
         </CardTitle>
       </CardHeader>

@@ -80,7 +80,7 @@ export function EquityCountersClient() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 rounded-xl text-xs font-bold text-neutral-600 border-neutral-200 hover:bg-neutral-50 shadow-sm"
+              className="gap-2 rounded-xl text-xs font-bold text-muted-foreground border-border hover:bg-muted shadow-sm"
               disabled={isRecalculating}
             >
               <RefreshCw
@@ -117,9 +117,9 @@ export function EquityCountersClient() {
       />
 
       {view === "quarterly" && !isQuarterlyPending && quarterlySummary.length > 0 && (
-        <Card className="border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
               {t("quarterly.title")}
             </CardTitle>
           </CardHeader>
@@ -128,12 +128,12 @@ export function EquityCountersClient() {
               {quarterlySummary.map((row: { employeeId: string; counterType: string; _sum: { count: number | null } }) => (
                 <div
                   key={`${row.employeeId}-${row.counterType}`}
-                  className="rounded-xl border border-neutral-100 bg-neutral-50/50 px-4 py-3 text-center"
+                  className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-center"
                 >
-                  <div className="text-2xl font-bold text-neutral-900 mb-1">
+                  <div className="text-2xl font-bold text-foreground mb-1">
                     {row._sum.count ?? 0}
                   </div>
-                  <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                     {t(`counterTypes.${row.counterType}`)}
                   </div>
                 </div>

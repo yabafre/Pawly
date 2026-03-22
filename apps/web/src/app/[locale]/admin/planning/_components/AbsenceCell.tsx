@@ -26,9 +26,9 @@ const ABSENCE_STYLES: Record<
     Icon: GraduationCap,
   },
   OTHER: {
-    bg: "bg-neutral-50",
-    border: "border-neutral-100",
-    text: "text-neutral-400",
+    bg: "bg-muted",
+    border: "border-border",
+    text: "text-muted-foreground",
     Icon: CircleMinus,
   },
 };

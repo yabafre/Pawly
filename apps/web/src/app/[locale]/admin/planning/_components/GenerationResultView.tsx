@@ -24,7 +24,7 @@ export function GenerationResultView({ result }: Props) {
         <StatCard
           label={t("stats.totalSlots")}
           value={result.stats.totalSlots}
-          icon={<BarChart3 size={16} className="text-neutral-400" />}
+          icon={<BarChart3 size={16} className="text-muted-foreground" />}
         />
         <StatCard
           label={t("stats.filledSlots")}
@@ -39,7 +39,7 @@ export function GenerationResultView({ result }: Props) {
         <StatCard
           label={t("stats.hardViolations")}
           value={result.stats.hardViolationCount}
-          icon={<XCircle size={16} className="text-red-500" />}
+          icon={<XCircle size={16} className="text-destructive" />}
         />
         <StatCard
           label={t("stats.softWarnings")}
@@ -76,14 +76,14 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-4">
+    <div className="bg-card rounded-2xl border border-border p-4">
       <div className="flex items-center gap-2 mb-1">
         {icon}
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           {label}
         </span>
       </div>
-      <div className="text-2xl font-extrabold text-neutral-900">{value}</div>
+      <div className="text-2xl font-extrabold text-foreground">{value}</div>
     </div>
   );
 }
