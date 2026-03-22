@@ -144,7 +144,12 @@
       "apprenticesWarning": "{count, plural, one {# apprentice hasn't} other {# apprentices haven't}} declared school days.",
       "goToPlanning": "View planning",
       "goToAbsences": "Manage absences",
-      "goToVariance": "View variances"
+      "goToVariance": "View variances",
+      "coverage": "Coverage",
+      "coverageHelper": "{percent}% of slots filled",
+      "noCoverage": "No template configured",
+      "todayTeam": "Working today",
+      "noOneToday": "No one is scheduled today."
     },
     "planningRules": {
       "title": "Planning Rules",
@@ -262,7 +267,15 @@
         "categorySkill": "Skill Requirements",
         "categoryEquity": "Rotation Equity",
         "categoryContract": "Contract Compliance",
-        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}"
+        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}",
+        "violations": {
+          "rotationEquity": {
+            "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
+          },
+          "contractCompliance": {
+            "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+          }
+        }
       }
     },
     "equityCounters": {
@@ -655,7 +668,8 @@
         "confirmNoSchool": "Confirm: no school",
         "removeDeclaration": "Remove declaration"
       },
-      "empty": "No apprentices in this clinic"
+      "empty": "No apprentices in this clinic",
+      "missingCount": "{count, plural, one {# undeclared apprentice} other {# undeclared apprentices}}"
     },
     "absences": {
       "title": "Absence Requests",

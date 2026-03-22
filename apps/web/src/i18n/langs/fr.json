@@ -144,7 +144,12 @@
       "apprenticesWarning": "{count, plural, one {# apprenti n'a pas} other {# apprentis n'ont pas}} déclaré ses jours d'école.",
       "goToPlanning": "Voir le planning",
       "goToAbsences": "Gérer les absences",
-      "goToVariance": "Voir les écarts"
+      "goToVariance": "Voir les écarts",
+      "coverage": "Couverture",
+      "coverageHelper": "{percent}% des créneaux pourvus",
+      "noCoverage": "Aucun modèle configuré",
+      "todayTeam": "Aujourd'hui en poste",
+      "noOneToday": "Personne n'est prévu aujourd'hui."
     },
     "planningRules": {
       "title": "Règles de planning",
@@ -262,7 +267,15 @@
         "categorySkill": "Compétences requises",
         "categoryEquity": "Équité de rotation",
         "categoryContract": "Conformité contrat",
-        "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}"
+        "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}",
+        "violations": {
+          "rotationEquity": {
+            "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
+          },
+          "contractCompliance": {
+            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+          }
+        }
       }
     },
     "equityCounters": {
@@ -655,7 +668,8 @@
         "confirmNoSchool": "Confirmer : pas d'école",
         "removeDeclaration": "Supprimer la déclaration"
       },
-      "empty": "Aucun apprenti dans cette clinique"
+      "empty": "Aucun apprenti dans cette clinique",
+      "missingCount": "{count, plural, one {# apprenti non déclaré} other {# apprentis non déclarés}}"
     },
     "absences": {
       "title": "Demandes d'absence",
