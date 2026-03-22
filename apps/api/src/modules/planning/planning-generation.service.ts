@@ -154,7 +154,7 @@ export class PlanningGenerationService {
         return map[d] || 0;
       }).filter(Boolean),
     );
-    const slots = this.reorderSlotsNonWorkDaysFirst(rawSlots, workDaySet);
+    const slotsPreOrdered = this.reorderSlotsNonWorkDaysFirst(rawSlots, workDaySet);
 
     const [year, monthNum] = month.split('-').map(Number);
     const daysInMonth = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
@@ -192,6 +192,9 @@ export class PlanningGenerationService {
       );
     }
 
+    // FIX 1 — MRV heuristic: sort slots by eligible pool size (most constrained first).
+    const slots = this.reorderByMRV(slotsPreOrdered, employees, constraints);
+
     // Load existing shifts from adjacent months for border ISO weeks.
     // This ensures weekly hour calculations are correct when weeks straddle month boundaries.
     const borderShifts = await this.loadBorderWeekShifts(clinicId, month);
@@ -210,6 +213,33 @@ export class PlanningGenerationService {
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
     const allShiftsForScoring: AssignedShift[] = [...borderShifts];
 
+    // FIX 4 — O(1) weekly minutes counter: maintained incrementally instead of O(E×A) per slot
+    const weeklyMinutesCounter = new Map<string, number>(); // key: `empId|weekStart`
+    // Pre-seed from border shifts
+    for (const bs of borderShifts) {
+      const weekKey = `${bs.employeeId}|${this.getWeekBounds(bs.date).start}`;
+      const netMin = this.calculateShiftMinutes(bs.startTime, bs.endTime) - (bs.breakMinutes || 0);
+      weeklyMinutesCounter.set(weekKey, (weeklyMinutesCounter.get(weekKey) || 0) + netMin);
+    }
+    // Pre-seed school day minutes into weekly counter
+    for (const emp of employees) {
+      const schoolDates = constraints.schoolDayMap.get(emp.id);
+      if (schoolDates) {
+        for (const date of schoolDates) {
+          const weekKey = `${emp.id}|${this.getWeekBounds(date).start}`;
+          weeklyMinutesCounter.set(
+            weekKey,
+            (weeklyMinutesCounter.get(weekKey) || 0) + PlanningGenerationService.SCHOOL_DAY_MINUTES,
+          );
+        }
+      }
+    }
+
+    // FIX 4 — O(1) shift type counter: maintained incrementally
+    const shiftTypeCounts = new Map<string, Map<string, number>>(); // empId -> (shiftTypeCode -> count)
+    // FIX 4 — O(1) shift count per employee
+    const employeeShiftCounts = new Map<string, number>();
+
     const holes: GenerationResult['holes'] = [];
     const hardViolations: GenerationResult['violations']['hard'] = [];
     const softViolations: GenerationResult['violations']['soft'] = [];
@@ -227,6 +257,9 @@ export class PlanningGenerationService {
         assignmentIndex,
         employeeMinutes,
         weeksInMonth,
+        weeklyMinutesCounter,
+        shiftTypeCounts,
+        employeeShiftCounts,
       );
 
       assignedShifts.push(...result.assigned);
@@ -236,6 +269,28 @@ export class PlanningGenerationService {
         const existing = assignmentIndex.get(key) || [];
         existing.push(a);
         assignmentIndex.set(key, existing);
+
+        // FIX 4 — Update incremental counters
+        const netMin = this.calculateShiftMinutes(a.startTime, a.endTime) - (a.breakMinutes || 0);
+        const weekKey = `${a.employeeId}|${this.getWeekBounds(a.date).start}`;
+        weeklyMinutesCounter.set(weekKey, (weeklyMinutesCounter.get(weekKey) || 0) + netMin);
+
+        // Update shift type counts
+        let typeCounts = shiftTypeCounts.get(a.employeeId);
+        if (!typeCounts) { typeCounts = new Map(); shiftTypeCounts.set(a.employeeId, typeCounts); }
+        typeCounts.set(a.shiftTypeCode, (typeCounts.get(a.shiftTypeCode) || 0) + 1);
+
+        // Update employee shift count
+        employeeShiftCounts.set(a.employeeId, (employeeShiftCounts.get(a.employeeId) || 0) + 1);
+
+        // FIX 3 — Update equity counters during generation
+        const date = new Date(`${a.date}T00:00:00.000Z`);
+        const dayOfWeek = date.getUTCDay();
+        const equity = constraints.equityMap.get(a.employeeId);
+        if (equity) {
+          if (dayOfWeek === 6) equity.saturdayCount++;
+          if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
+        }
       }
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
@@ -565,6 +620,9 @@ export class PlanningGenerationService {
     assignmentIndex: Map<string, AssignedShift[]>,
     employeeMinutes: Map<string, number>,
     weeksInMonth: number,
+    weeklyMinutesCounter: Map<string, number>,
+    shiftTypeCounts: Map<string, Map<string, number>>,
+    employeeShiftCountsMap: Map<string, number>,
   ): {
     assigned: AssignedShift[];
     holeInfo?: GenerationResult['holes'][number];
@@ -579,37 +637,15 @@ export class PlanningGenerationService {
     const slotMinutes = this.calculateShiftMinutes(slot.startTime, slot.endTime) - (slot.breakMinutes || 0);
     const weekBounds = this.getWeekBounds(slot.date);
 
-    // Compute weekly minutes for ALL employees (needed for HARD CONTRACT_COMPLIANCE filter)
+    // FIX 4 — O(1) weekly minutes lookup from incremental counter
     const weeklyMinutesMap = new Map<string, number>();
     for (const emp of employees) {
-      let weekMin = 0;
-      for (const a of alreadyAssigned) {
-        if (a.employeeId !== emp.id) continue;
-        if (a.date >= weekBounds.start && a.date <= weekBounds.end) {
-          weekMin += this.calculateShiftMinutes(a.startTime, a.endTime) - (a.breakMinutes || 0);
-        }
-      }
-      const schoolDates = constraints.schoolDayMap.get(emp.id);
-      if (schoolDates) {
-        for (const date of schoolDates) {
-          if (date >= weekBounds.start && date <= weekBounds.end) {
-            weekMin += PlanningGenerationService.SCHOOL_DAY_MINUTES;
-          }
-        }
-      }
-      weeklyMinutesMap.set(emp.id, weekMin);
+      const weekKey = `${emp.id}|${weekBounds.start}`;
+      weeklyMinutesMap.set(emp.id, weeklyMinutesCounter.get(weekKey) || 0);
     }
 
-    // Pre-compute shift type counts per employee for diversity scoring
-    const employeeShiftTypeCounts = new Map<string, Map<string, number>>();
-    for (const a of alreadyAssigned) {
-      let typeCounts = employeeShiftTypeCounts.get(a.employeeId);
-      if (!typeCounts) {
-        typeCounts = new Map();
-        employeeShiftTypeCounts.set(a.employeeId, typeCounts);
-      }
-      typeCounts.set(a.shiftTypeCode, (typeCounts.get(a.shiftTypeCode) || 0) + 1);
-    }
+    // FIX 4 — Use pre-maintained shift type counts (O(1) lookup)
+    const employeeShiftTypeCounts = shiftTypeCounts;
 
     // Extract HARD CONTRACT_COMPLIANCE rules for eligibility filter
     const hardContractRules = constraints.hardRules.filter(
@@ -771,7 +807,9 @@ export class PlanningGenerationService {
       }
     }
 
-    if (hardViols.length > 0) {
+    // FIX 2 — Partial fill: when hard rules fire, still assign available employees
+    // instead of leaving the slot completely empty. Record a hole for the shortfall.
+    if (hardViols.length > 0 && eligible.length === 0) {
       const holeInfo: GenerationResult['holes'][number] = {
         date: slot.date,
         shiftTypeCode: slot.shiftTypeCode,
@@ -781,12 +819,11 @@ export class PlanningGenerationService {
       };
       return { assigned: [], holeInfo, hardViolations: hardViols, softViolations: [] };
     }
+    // If we have hard violations but some eligible employees, proceed with partial fill.
+    // The hole will be recorded later with assignedStaff < requiredStaff.
 
-    // Build shift count index for monthly workload balancing
-    const employeeShiftCounts = new Map<string, number>();
-    for (const a of alreadyAssigned) {
-      employeeShiftCounts.set(a.employeeId, (employeeShiftCounts.get(a.employeeId) || 0) + 1);
-    }
+    // FIX 4 — O(1) shift count lookup from incremental counter
+    const employeeShiftCounts = employeeShiftCountsMap;
     const eligibleShiftCounts = eligible.map(e => employeeShiftCounts.get(e.id) || 0);
     const avgShifts = eligibleShiftCounts.length > 0
       ? eligibleShiftCounts.reduce((sum, c) => sum + c, 0) / eligibleShiftCounts.length
@@ -2543,6 +2580,55 @@ export class PlanningGenerationService {
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
     }));
+  }
+
+  // FIX 1 — MRV (Minimum Remaining Values) heuristic: process most constrained slots first.
+  // Within each ISO week (to preserve the non-workday-first grouping), re-sort by eligible pool size.
+  private reorderByMRV(
+    slots: SlotRequirement[],
+    employees: EmployeeInfo[],
+    constraints: ConstraintMap,
+  ): SlotRequirement[] {
+    // Quick eligibility count: unavailability + jobType filter only (no contract checks — too expensive)
+    const eligibleCount = (slot: SlotRequirement): number => {
+      let count = 0;
+      for (const emp of employees) {
+        const unavail = constraints.unavailableMap.get(emp.id);
+        if (unavail?.has(slot.date)) continue;
+        if (
+          slot.requiredJobTypes &&
+          slot.requiredJobTypes.length > 0 &&
+          !slot.requiredJobTypes.includes(emp.jobType)
+        ) continue;
+        count++;
+      }
+      return count;
+    };
+
+    // Group by ISO week to preserve week-level ordering
+    const weekGroups = new Map<string, SlotRequirement[]>();
+    for (const slot of slots) {
+      const weekKey = this.getWeekBounds(slot.date).start;
+      const group = weekGroups.get(weekKey) || [];
+      group.push(slot);
+      weekGroups.set(weekKey, group);
+    }
+
+    const result: SlotRequirement[] = [];
+    const sortedWeeks = [...weekGroups.keys()].sort();
+    for (const weekKey of sortedWeeks) {
+      const group = weekGroups.get(weekKey)!;
+      // Within each week, sort by eligible count ascending (most constrained first)
+      // Preserve existing order as tiebreaker (non-workdays first from previous sort)
+      const indexed = group.map((slot, i) => ({ slot, originalIdx: i, eligible: eligibleCount(slot) }));
+      indexed.sort((a, b) => {
+        if (a.eligible !== b.eligible) return a.eligible - b.eligible;
+        return a.originalIdx - b.originalIdx;
+      });
+      result.push(...indexed.map(x => x.slot));
+    }
+
+    return result;
   }
 
   // Count target-day shifts for an employee (monthly or quarterly)
