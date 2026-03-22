@@ -57,7 +57,7 @@ export default async function AdminLayout({ children, params }: Props) {
         if (!isOnboardingRoute) {
             redirect(`/${locale}/admin/onboarding`);
         }
-        return <AdminLayoutClient>{children}</AdminLayoutClient>;
+        return <AdminLayoutClient clinicName={clinicName}>{children}</AdminLayoutClient>;
     }
 
     if (onboardingStatus && !onboardingStatus.onboardingCompleted && !isOnboardingRoute) {
@@ -66,6 +66,15 @@ export default async function AdminLayout({ children, params }: Props) {
 
     if (onboardingStatus?.onboardingCompleted && isOnboardingRoute) {
         redirect(`/${locale}/admin/dashboard`);
+    }
+
+    // Fetch clinic name for header
+    let clinicName = "Pawly";
+    try {
+        const profile = await trpc.clinic.getProfile.query();
+        clinicName = profile.name;
+    } catch {
+        // Fallback to default name
     }
 
     // Subscription guard: server-side check (after auth + onboarding)
@@ -91,7 +100,7 @@ export default async function AdminLayout({ children, params }: Props) {
             status={subscriptionStatus?.status ?? null}
             entitlementTier={subscriptionStatus?.entitlementTier ?? "starter"}
         >
-            <AdminLayoutClient>{children}</AdminLayoutClient>
+            <AdminLayoutClient clinicName={clinicName}>{children}</AdminLayoutClient>
         </SubscriptionProvider>
     );
 }

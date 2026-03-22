@@ -138,7 +138,6 @@ function GroupDropdown({
 
   const prevPathnameRef = useRef(pathname);
 
-  // Close dropdown on navigation (derived state, no useEffect)
   if (prevPathnameRef.current !== pathname) {
     prevPathnameRef.current = pathname;
     if (open) {
@@ -156,10 +155,10 @@ function GroupDropdown({
         aria-expanded={open}
         aria-haspopup="true"
         className={cn(
-          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
+          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
           active
-            ? "bg-neutral-900 text-white shadow-md"
-            : "text-neutral-500 hover:bg-neutral-100",
+            ? "bg-foreground text-background shadow-sm"
+            : "text-muted-foreground hover:bg-muted",
         )}
       >
         <group.icon size={16} />
@@ -174,7 +173,7 @@ function GroupDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-neutral-100 bg-white p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute left-0 top-full mt-2 z-50 min-w-[200px] rounded-2xl border border-border bg-card p-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-150">
           {group.children.map((child) => {
             const childActive = isChildActive(child, group.children, pathname);
             return (
@@ -184,8 +183,8 @@ function GroupDropdown({
                 className={cn(
                   "flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all",
                   childActive
-                    ? "bg-neutral-900 text-white"
-                    : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900",
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <child.icon size={15} />
@@ -201,7 +200,7 @@ function GroupDropdown({
 
 // ── Main layout ───────────────────────────────────────────────────
 
-export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
+export function AdminLayoutClient({ children, clinicName }: { children: React.ReactNode; clinicName: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -210,7 +209,6 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
 
   const prevSettingsPathRef = useRef(pathname);
 
-  // Invalidate clinic config only when entering /admin/settings from another section
   if (prevSettingsPathRef.current !== pathname) {
     const wasInSettings = prevSettingsPathRef.current.startsWith("/admin/settings");
     const isInSettings = pathname.startsWith("/admin/settings");
@@ -228,22 +226,22 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] font-sans text-neutral-900">
-      <nav className="sticky top-0 z-50 w-full bg-[#FDFDFD]/90 backdrop-blur-xl border-b border-neutral-100">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-background font-sans text-foreground">
+      <nav className="sticky top-0 z-50 w-full bg-background/90 backdrop-blur-md border-b border-border/40">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-neutral-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-neutral-900/10">
+            <div className="w-9 h-9 bg-foreground rounded-xl flex items-center justify-center text-background">
               <PawPrint size={18} />
             </div>
-            <span className="font-extrabold text-lg tracking-tight">{t("title")}</span>
+            <span className="font-extrabold text-lg tracking-tight">{clinicName}</span>
           </div>
 
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <button className="relative p-2 text-neutral-400 hover:text-neutral-900 transition-colors">
+            <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
               <Bell size={20} />
             </button>
-            <Button variant="ghost" className="text-neutral-500 hover:text-neutral-900" onClick={handleLogout}>
+            <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               {tCommon("logout")}
             </Button>
@@ -271,10 +269,10 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                 key={group.href}
                 href={group.href}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
+                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
                   active
-                    ? "bg-neutral-900 text-white shadow-md"
-                    : "text-neutral-500 hover:bg-neutral-100",
+                    ? "bg-foreground text-background shadow-sm"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
               >
                 <group.icon size={16} />
