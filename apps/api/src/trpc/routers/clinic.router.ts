@@ -25,6 +25,10 @@ const adminOnly = (role: string) => {
 };
 
 export const clinicRouter = router({
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.clinicService.getProfile(ctx.user.clinicId);
+  }),
+
   // getOnboardingStatus stays as protectedProcedure — must work before subscription exists
   getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
     return ctx.clinicService.getOnboardingStatus(ctx.user.clinicId);
