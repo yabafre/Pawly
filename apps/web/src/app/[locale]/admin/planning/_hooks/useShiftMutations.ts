@@ -25,7 +25,7 @@ export const useShiftMutations = (month?: string) => {
       queryKey: QueryKeyFactory.planningShifts(month),
     });
     queryClient.invalidateQueries({
-      queryKey: QueryKeyFactory.equityCounters(),
+      queryKey: ["planning", "equity-counters"],
     });
   };
 

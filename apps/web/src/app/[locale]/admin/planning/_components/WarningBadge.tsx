@@ -30,7 +30,7 @@ export function WarningBadge({ warnings }: Props) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="absolute bottom-0 right-0 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white shadow-sm hover:bg-orange-500 transition-colors"
+          className="absolute bottom-0 right-0 z-[5] flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white shadow-sm hover:bg-orange-500 transition-colors"
           aria-label={t("softCount", { count: warnings.length })}
         >
           <AlertTriangle size={10} strokeWidth={2.5} />

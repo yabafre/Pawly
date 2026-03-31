@@ -43,7 +43,7 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
   };
 
   return (
-    <div className="group/slot relative flex items-center justify-between p-3 bg-card border border-border rounded-xl shadow-sm mb-2 last:mb-0">
+    <div className="group/slot flex items-center gap-2 p-3 bg-card border border-border rounded-xl shadow-sm mb-2 last:mb-0">
       <div className="flex flex-1 items-end justify-between gap-4 min-w-0">
         <div className="min-w-0 flex-1">
           <Label className="sr-only">{t("shiftType")}</Label>
@@ -121,7 +121,7 @@ export function TemplateSlotForm({ slot, shiftTypes, onUpdate, onRemove }: Props
         type="button"
         onClick={onRemove}
         aria-label={t("removeSlot")}
-        className="absolute top-2 right-2 h-7 w-7 rounded-lg text-muted-foreground opacity-0 transition-all group-hover/slot:opacity-100 hover:bg-destructive/5 hover:text-destructive"
+        className="shrink-0 h-7 w-7 rounded-lg text-muted-foreground opacity-0 transition-all group-hover/slot:opacity-100 hover:bg-destructive/5 hover:text-destructive"
       >
         <X className="h-3.5 w-3.5 mx-auto" />
       </button>

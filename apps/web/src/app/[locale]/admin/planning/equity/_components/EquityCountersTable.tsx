@@ -78,17 +78,15 @@ function aggregateByEmployee(counters: EquityCounter[]): CounterRow[] {
   );
 }
 
-function getThresholdColor(current: number, max: number | undefined): string {
+function getThresholdStyle(current: number, max: number | undefined): string {
   if (max === undefined || max <= 0) {
-    return current > 0
-      ? "bg-muted text-muted-foreground border-border"
-      : "border-border bg-muted text-muted-foreground";
+    return "bg-muted text-muted-foreground border-border";
   }
   const ratio = current / max;
-  if (ratio >= 1) return "bg-rose-50 text-rose-700 border-rose-200";
-  if (ratio >= 0.75) return "bg-amber-50 text-amber-700 border-amber-200";
-  if (current > 0) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  return "border-border bg-muted text-muted-foreground";
+  if (ratio >= 1) return "bg-primary/10 text-primary border-primary/30 font-extrabold";
+  if (ratio >= 0.75) return "bg-muted text-foreground border-border font-extrabold";
+  if (current > 0) return "bg-muted text-muted-foreground border-border";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function formatCounterValue(ct: string, value: number): string {
@@ -128,7 +126,7 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
   }
 
   return (
-    <Card className="overflow-hidden border-border">
+    <Card className="overflow-hidden border-border shadow-none">
       <Table>
         <TableHeader>
           <TableRow className="border-border bg-muted/60 hover:bg-muted/60">
@@ -162,14 +160,14 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
               {COUNTER_TYPES.map((ct) => {
                 const value = row[ct];
                 const max = thresholdMap.get(ct);
-                const colorClass = getThresholdColor(value, max);
+                const styleClass = getThresholdStyle(value, max);
                 const display = formatCounterValue(ct, value);
                 const label = max !== undefined ? `${display}/${max}` : display;
 
                 return (
                   <TableCell key={ct} className="text-center py-4">
                     <span
-                      className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold transition-all ${colorClass}`}
+                      className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold transition-all ${styleClass}`}
                     >
                       {label}
                     </span>

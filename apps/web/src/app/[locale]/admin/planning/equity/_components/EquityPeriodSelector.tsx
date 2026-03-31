@@ -54,7 +54,7 @@ export function EquityPeriodSelector({
   const years = Array.from({ length: 3 }, (_, i) => currentYear - i);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 bg-card p-1.5 rounded-2xl border border-border shadow-sm w-fit">
+    <div className="flex flex-wrap items-center gap-3 bg-card p-1.5 rounded-2xl border border-border w-fit">
       <div className="flex rounded-xl bg-muted p-1">
         <button
           onClick={() => onViewChange("monthly")}

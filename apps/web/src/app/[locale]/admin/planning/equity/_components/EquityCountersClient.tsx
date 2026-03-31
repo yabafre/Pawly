@@ -80,7 +80,7 @@ export function EquityCountersClient() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 rounded-xl text-xs font-bold text-muted-foreground border-border hover:bg-muted shadow-sm"
+              className="gap-2 rounded-2xl text-xs font-bold text-muted-foreground border-border hover:bg-muted"
               disabled={isRecalculating}
             >
               <RefreshCw
@@ -117,7 +117,7 @@ export function EquityCountersClient() {
       />
 
       {view === "quarterly" && !isQuarterlyPending && quarterlySummary.length > 0 && (
-        <Card className="border-border">
+        <Card className="border-border shadow-none">
           <CardHeader>
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
               {t("quarterly.title")}
@@ -128,7 +128,7 @@ export function EquityCountersClient() {
               {quarterlySummary.map((row: { employeeId: string; counterType: string; _sum: { count: number | null } }) => (
                 <div
                   key={`${row.employeeId}-${row.counterType}`}
-                  className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-center"
+                  className="rounded-2xl border border-border bg-muted/50 px-4 py-3 text-center"
                 >
                   <div className="text-2xl font-bold text-foreground mb-1">
                     {row._sum.count ?? 0}
