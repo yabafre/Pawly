@@ -136,15 +136,6 @@ function GroupDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const prevPathnameRef = useRef(pathname);
-
-  if (prevPathnameRef.current !== pathname) {
-    prevPathnameRef.current = pathname;
-    if (open) {
-      setOpen(false);
-    }
-  }
-
   return (
     <div ref={ref} className="relative">
       <button
@@ -180,6 +171,7 @@ function GroupDropdown({
               <Link
                 key={child.href}
                 href={child.href}
+                onClick={() => setOpen(false)}
                 className={cn(
                   "flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all",
                   childActive

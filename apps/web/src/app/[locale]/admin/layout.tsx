@@ -57,7 +57,7 @@ export default async function AdminLayout({ children, params }: Props) {
         if (!isOnboardingRoute) {
             redirect(`/${locale}/admin/onboarding`);
         }
-        return <AdminLayoutClient clinicName={clinicName}>{children}</AdminLayoutClient>;
+        return <AdminLayoutClient clinicName="Pawly">{children}</AdminLayoutClient>;
     }
 
     if (onboardingStatus && !onboardingStatus.onboardingCompleted && !isOnboardingRoute) {
