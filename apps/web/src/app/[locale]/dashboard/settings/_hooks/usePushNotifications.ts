@@ -33,6 +33,7 @@ export function usePushNotifications() {
   const [permissionState, setPermissionState] = useState<
     "default" | "granted" | "denied" | "unsupported"
   >("default");
+  const [browserEndpoint, setBrowserEndpoint] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window) || !("PushManager" in window)) {
@@ -40,6 +41,14 @@ export function usePushNotifications() {
       return;
     }
     setPermissionState(Notification.permission);
+
+    // Check what the browser actually has registered
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => setBrowserEndpoint(sub?.endpoint ?? null))
+        .catch(() => setBrowserEndpoint(null));
+    }
   }, []);
 
   const { data: rawSubscription, isPending: isLoadingSub } =
@@ -53,6 +62,11 @@ export function usePushNotifications() {
     | { subscribed: true; endpoint: string }
     | { subscribed: false }
     | undefined;
+
+  // Only consider truly subscribed if server record matches current browser endpoint
+  const serverEndpoint = subscription?.subscribed ? subscription.endpoint : null;
+  const isReallySubscribed = !!(serverEndpoint && browserEndpoint && serverEndpoint === browserEndpoint);
+  const isStale = !!(serverEndpoint && (!browserEndpoint || serverEndpoint !== browserEndpoint));
 
   const { mutateAsync: subscribeMutateAsync, isPending: isSubscribing } =
     useServerActionMutation(subscribePushAction, {
@@ -71,6 +85,7 @@ export function usePushNotifications() {
     useServerActionMutation(unsubscribePushAction, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: QueryKeyFactory.myPushSubscription() });
+        setBrowserEndpoint(null);
         toast.success(t("pushDisabled"));
       },
       onError: (err: { message?: string }) => {
@@ -120,15 +135,22 @@ export function usePushNotifications() {
         ),
       ]);
 
-      // Step 4: Get or create push subscription
-      let pushSub = await registration.pushManager.getSubscription();
-
-      if (!pushSub) {
-        pushSub = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
+      // Step 4: Clean up stale server subscription if origin changed
+      if (isStale && serverEndpoint) {
+        await unsubscribeMutateAsync({ endpoint: serverEndpoint }).catch(() => {});
       }
+
+      // Step 5: Unsubscribe old browser subscription (different VAPID/origin)
+      let pushSub = await registration.pushManager.getSubscription();
+      if (pushSub) {
+        await pushSub.unsubscribe();
+      }
+
+      // Step 6: Create fresh push subscription
+      pushSub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
 
       const json = pushSub.toJSON();
       if (!json.endpoint || !json.keys) {
@@ -136,7 +158,7 @@ export function usePushNotifications() {
         return;
       }
 
-      // Step 5: Register on server (awaited for error handling)
+      // Step 7: Register on server
       await subscribeMutateAsync({
         endpoint: json.endpoint,
         keys: {
@@ -144,32 +166,40 @@ export function usePushNotifications() {
           auth: json.keys.auth!,
         },
       });
+      setBrowserEndpoint(json.endpoint);
     } catch (err) {
       const message = (err as Error).message ?? "Unknown error";
       console.error("[Push] Subscribe failed:", err);
       toast.error(t("pushError", { message }));
     }
-  }, [permissionState, subscribeMutateAsync, t]);
+  }, [permissionState, subscribeMutateAsync, unsubscribeMutateAsync, isStale, serverEndpoint, t]);
 
   const unsubscribe = useCallback(async () => {
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const pushSub = await registration.pushManager.getSubscription();
+      // Unsubscribe browser push if it exists
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        const pushSub = await registration.pushManager.getSubscription();
+        if (pushSub) {
+          await pushSub.unsubscribe();
+        }
+      }
 
-      if (pushSub) {
-        const endpoint = pushSub.endpoint;
-        await pushSub.unsubscribe();
-        await unsubscribeMutateAsync({ endpoint });
+      // Always clean up server record — use browser endpoint or fall back to server's stale endpoint
+      const endpointToRemove = browserEndpoint ?? serverEndpoint;
+      if (endpointToRemove) {
+        await unsubscribeMutateAsync({ endpoint: endpointToRemove });
       }
     } catch (err) {
       console.error("[Push] Unsubscribe failed:", err);
       toast.error(t("pushUnsubscribeError"));
     }
-  }, [unsubscribeMutateAsync, t]);
+  }, [unsubscribeMutateAsync, browserEndpoint, serverEndpoint, t]);
 
   return {
     permissionState,
-    isSubscribed: subscription?.subscribed ?? false,
+    isSubscribed: isReallySubscribed,
+    isStale,
     isLoading: isLoadingSub || isSubscribing || isUnsubscribing,
     subscribe,
     unsubscribe,

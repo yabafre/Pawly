@@ -30,6 +30,7 @@ export function SettingsPageClient() {
     const {
         permissionState,
         isSubscribed: pushSubscribed,
+        isStale: pushStale,
         isLoading: pushLoading,
         subscribe: subscribePush,
         unsubscribe: unsubscribePush,
@@ -120,11 +121,23 @@ export function SettingsPageClient() {
                             {permissionState === "denied" && (
                                 <p className="text-xs text-destructive mt-1">{t("pushDenied")}</p>
                             )}
+                            {pushStale && (
+                                <p className="text-xs text-amber-600 mt-1">{t("pushStale")}</p>
+                            )}
                         </div>
                         {pushSubscribed ? (
                             <Button variant="outline" size="sm" onClick={unsubscribePush} disabled={pushLoading}>
                                 {t("pushDisable")}
                             </Button>
+                        ) : pushStale ? (
+                            <div className="flex gap-2 shrink-0">
+                                <Button variant="outline" size="sm" onClick={unsubscribePush} disabled={pushLoading}>
+                                    {t("pushDisable")}
+                                </Button>
+                                <Button size="sm" onClick={subscribePush} disabled={pushLoading}>
+                                    {t("pushReactivate")}
+                                </Button>
+                            </div>
                         ) : (
                             <Button size="sm" onClick={subscribePush} disabled={pushLoading || permissionState === "denied"}>
                                 {t("pushEnable")}

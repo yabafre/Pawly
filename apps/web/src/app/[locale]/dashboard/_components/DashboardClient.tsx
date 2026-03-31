@@ -134,7 +134,7 @@ const EmployeeDashboard = () => {
 
     const { data: rawScheduleData, isPending } = useMySchedule(currentMonth);
     const { data: rawShiftTypes } = useMyShiftTypes();
-    const { confirmShift, isConfirmPending } = useConfirmShift(currentMonth);
+    const { confirmShift, isPending: isConfirmPending } = useConfirmShift(currentMonth);
     const scheduleData = rawScheduleData as EmployeeScheduleData | undefined;
     const shiftTypes = rawShiftTypes as EmployeeShiftTypeInfo[] | undefined;
 
