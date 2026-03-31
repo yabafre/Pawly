@@ -921,7 +921,9 @@
       "pushSwUnavailable": "Service Worker unavailable",
       "pushSubscriptionInvalid": "Push subscription invalid",
       "pushError": "Push error: {message}",
-      "pushUnsubscribeError": "Failed to disable push"
+      "pushUnsubscribeError": "Failed to disable push",
+      "pushStale": "Push subscription is outdated (app URL changed). Reactivate or disable.",
+      "pushReactivate": "Reactivate"
     },
     "schoolDays": {
       "title": "School Days Declaration",

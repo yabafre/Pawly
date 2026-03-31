@@ -921,7 +921,9 @@
       "pushSwUnavailable": "Service Worker non disponible",
       "pushSubscriptionInvalid": "Souscription push invalide",
       "pushError": "Échec push : {message}",
-      "pushUnsubscribeError": "Échec de la désactivation push"
+      "pushUnsubscribeError": "Échec de la désactivation push",
+      "pushStale": "L'abonnement push est obsolète (l'URL de l'app a changé). Réactivez ou désactivez.",
+      "pushReactivate": "Réactiver"
     },
     "schoolDays": {
       "title": "Déclaration des jours d'école",
