@@ -1,27 +1,75 @@
-PROPRIETARY AND CONFIDENTIAL LICENSE
+PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
 
-Copyright (c) 2026 Pawly. All rights reserved.
+Copyright (c) 2026 BRAINST. All rights reserved.
+
+Pawly is an exclusive brand and product of BRAINST.
+
+LEGAL INFORMATION — BRAINST
+  Dénomination sociale   : BRAINST
+  Forme juridique        : Société à responsabilité limitée (SARL)
+  SIREN                  : 980 134 944
+  SIRET (siège social)   : 980 134 944 00019
+  N° TVA Intracommunautaire : FR00 980 134 944
+  Code NAF/APE           : 62.02A — Conseil en systèmes et logiciels informatiques
+  Adresse du siège social: 24 Avenue de la Concorde, 91270 Vigneux-sur-Seine, France
+  Date d'immatriculation : 01 octobre 2023 (INSEE) / 06 octobre 2023 (INPI — RNE)
+  Catégorie              : Petite ou Moyenne Entreprise (PME)
+
+─────────────────────────────────────────────────────────────────────────────
 
 1. PROPRIETARY RIGHTS
-This software, including all source code, documentation, interfaces, designs, and intellectual property associated with it (collectively the "Software"), is the sole and exclusive property of Pawly. 
+   This software, including all source code, documentation, interfaces,
+   designs, algorithms, and all associated intellectual property (collectively
+   the "Software"), is the sole and exclusive property of BRAINST, operator
+   of the Pawly brand. All rights not expressly stated herein are reserved.
 
 2. CONFIDENTIALITY
-The Software contains trade secrets and confidential information belonging to Pawly. Unauthorized access, copying, inspection, or distribution of this code or its concepts is strictly prohibited. Anyone accessing this code is bound by a strict non-disclosure obligation.
+   The Software constitutes trade secrets and strictly confidential
+   information belonging to BRAINST. Any individual or entity gaining access
+   to this code is subject to a strict and unconditional non-disclosure
+   obligation. Unauthorized access, inspection, or disclosure of its contents
+   to any third party is prohibited.
 
 3. RESTRICTIONS
-You may NOT under any circumstances:
-  - Copy, reproduce, or replicate the Software or any portion thereof.
-  - Modify, translate, adapt, or create derivative works.
-  - Reverse-engineer, decompile, or disassemble the Software.
-  - Rent, lease, distribute, publish, sub-license, or sell the Software.
-  - Use the Software for any commercial, public, or individual purpose outside of explicitly authorized operations.
+   You may NOT, under any circumstances and without prior written authorization
+   from BRAINST:
+   a) Copy, reproduce, or replicate the Software or any portion thereof.
+   b) Modify, translate, adapt, or create derivative works based on it.
+   c) Reverse-engineer, decompile, disassemble, or otherwise attempt to
+      derive the source code, algorithms, or logic of the Software.
+   d) Rent, lease, lend, distribute, publish, sub-license, or sell the
+      Software or access thereto.
+   e) Use the Software for any commercial, public, or personal purpose
+      outside of operations explicitly authorized in writing by BRAINST.
 
-4. INTERNAL AUDIT & DEVELOPMENT USE
-Access to the Software is granted solely for the purposes of internal development, testing, deployment, or auditing by explicitly authorized employees, partners, and contractors of Pawly, all of whom must remain under active Non-Disclosure Agreements (NDAs).
+4. AUTHORIZED USE
+   Access to this Software is granted exclusively for internal development,
+   testing, deployment, and audit operations by personnel explicitly mandated
+   by BRAINST (employees, partners, or independent contractors), all of whom
+   must be bound by active and valid Non-Disclosure Agreements (NDAs).
 
-5. DISCLAIMER
-THE SOFTWARE IS PROVIDED "AS IS", STRICTLY FOR AUTHORIZED INTERNAL PURPOSES, WITHOUT ANY WARRANTY, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL PAWLY BE LIABLE FOR ANY DAMAGES, CLAIMS, OR LIABILITY ARISING OUT OF THE USE, DISTRIBUTION, OR UNAUTHORIZED INTERACTION WITH THE SOFTWARE.
+5. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS", SOLELY FOR AUTHORIZED INTERNAL PURPOSES.
+   BRAINST MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+   TO ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, OR NON-INFRINGEMENT.
 
-By interacting with this repository, cloning it, or accessing the files within, you automatically acknowledge and agree to abide by the entirety of this license agreement.
+6. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL BRAINST, ITS DIRECTORS, OFFICERS, EMPLOYEES, OR AGENTS
+   BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+   PUNITIVE DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS SOFTWARE, EVEN
+   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
-ANY VIOLATION OF THESE TERMS WILL RESULT IN IMMEDIATE LEGAL ACTION AND PROSECUTION TO THE MAXIMUM EXTENT PERMITTED BY LAW.
+7. GOVERNING LAW
+   This License Agreement shall be governed by and construed in accordance
+   with the laws of the French Republic. Any dispute arising hereunder shall
+   be subject to the exclusive jurisdiction of the competent courts of France.
+
+─────────────────────────────────────────────────────────────────────────────
+
+By accessing, cloning, or interacting with this repository in any way, you
+acknowledge having read, understood, and agreed to be legally bound by the
+entirety of this license agreement.
+
+ANY VIOLATION OF THESE TERMS WILL RESULT IN IMMEDIATE LEGAL ACTION AND
+PROSECUTION TO THE MAXIMUM EXTENT PERMITTED BY FRENCH AND INTERNATIONAL LAW.

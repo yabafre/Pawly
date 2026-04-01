@@ -1,6 +1,7 @@
 <div align="center">
   <h1>🐾 Pawly</h1>
   <p><strong>The all-in-one SaaS management platform for veterinary clinics.</strong></p>
+  <p><sub>A product by <strong>BRAINST</strong> — SARL · SIREN 980 134 944 · Vigneux-sur-Seine, France</sub></p>
   
   [![Website](https://img.shields.io/website?url=https%3A%2F%2Fpawly.app&up_message=online&down_message=offline&style=flat-square)](https://pawly.app)
   [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -129,15 +130,24 @@ fix(auth): correct jwt token expiration
 
 ## ⚖️ License & Legal
 
-**Copyright © 2026 Pawly. All rights reserved.**
+**Copyright © 2026 BRAINST — All rights reserved.**
 
-This software, including all its source code, documentation, UI/UX designs, and digital assets, is the sole and exclusive property of **Pawly**. 
+Pawly is an exclusive brand and product of **BRAINST**.
 
-By accessing this repository, you agree to the following strict conditions:
-1. **No Reproduction**: You may not use, copy, clone, modify, merge, publish, distribute, sublicense, reverse engineer, or sell copies of this software under any circumstances.
-2. **Internal Use Only**: The code is provided strictly for internal development, deployment, and auditing purposes by explicitly authorized personnel (employees and contractors under NDA).
-3. **Confidentiality**: All algorithms, business logic, system architecture, and proprietary features contained herein are strictly confidential trade secrets.
+| | |
+|---|---|
+| **Société** | BRAINST — SARL |
+| **SIREN** | 980 134 944 |
+| **SIRET (siège)** | 980 134 944 00019 |
+| **TVA** | FR00 980 134 944 |
+| **NAF/APE** | 62.02A — Conseil en systèmes et logiciels informatiques |
+| **Adresse** | 24 Avenue de la Concorde, 91270 Vigneux-sur-Seine, France |
+| **Immatriculée** | 01/10/2023 (INSEE) — 06/10/2023 (INPI/RNE) |
 
-Any unauthorized access, distribution, theft, or reproduction of this repository or its contents is a violation of international copyright and intellectual property laws and will result in immediate and severe legal action.
+This software, its source code, documentation, designs, and all associated intellectual property are the **sole and exclusive property of BRAINST**. Access is strictly reserved for authorized personnel bound by an active NDA.
 
-**STRICTLY PROPRIETARY AND CONFIDENTIAL.**
+**No reproduction, distribution, reverse engineering, or unauthorized use is permitted under any circumstances.**
+
+Any violation of these terms will result in immediate legal action under French and international intellectual property law.
+
+Refer to the [LICENSE](./LICENSE) file for the complete terms.
