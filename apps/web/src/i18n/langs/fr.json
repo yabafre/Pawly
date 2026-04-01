@@ -42,7 +42,9 @@
       "forgotPassword": "Oublié ?",
       "magicLinkTab": "Magic Link",
       "emailTab": "Email",
-      "passwordTab": "Mot de passe"
+      "passwordTab": "Mot de passe",
+      "employeeTab": "Employé",
+      "adminTab": "Admin"
     },
     "magicLink": {
       "emailLabel": "Email professionnel",
@@ -103,6 +105,45 @@
       "invalidToken": "Lien d'activation invalide",
       "tokenMissing": "Le lien d'activation est manquant ou malformé. Vérifiez votre email."
     },
+    "forgotPassword": {
+      "title": "Mot de passe oublié",
+      "subtitle": "Entrez votre email pour recevoir un lien de réinitialisation.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinique.fr",
+      "submitButton": "Envoyer le lien",
+      "submitting": "Envoi...",
+      "successTitle": "Email envoyé",
+      "successMessage": "Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.",
+      "backToLogin": "Retour à la connexion"
+    },
+    "resetPassword": {
+      "title": "Nouveau mot de passe",
+      "subtitle": "Choisissez un nouveau mot de passe sécurisé.",
+      "passwordLabel": "Nouveau mot de passe",
+      "confirmLabel": "Confirmer le mot de passe",
+      "passwordHint": "Min. 8 caractères, majuscule, minuscule et chiffre.",
+      "submitButton": "Réinitialiser",
+      "submitting": "Réinitialisation...",
+      "successTitle": "Mot de passe réinitialisé",
+      "successMessage": "Votre mot de passe a été mis à jour. Redirection en cours...",
+      "goToLogin": "Se connecter",
+      "errorTitle": "Lien invalide",
+      "errorMessage": "Ce lien de réinitialisation est expiré ou a déjà été utilisé.",
+      "requestNew": "Demander un nouveau lien",
+      "mismatch": "Les mots de passe ne correspondent pas",
+      "rules": {
+        "min8": "8 caractères min.",
+        "uppercase": "Une majuscule",
+        "lowercase": "Une minuscule",
+        "digit": "Un chiffre"
+      },
+      "strength": {
+        "empty": "",
+        "weak": "Faible",
+        "medium": "Moyen",
+        "strong": "Fort"
+      }
+    },
     "errors": {
       "generic": "Une erreur est survenue",
       "invalidEmail": "Email invalide",
@@ -142,7 +183,13 @@
       "apprenticesWarning": "{count, plural, one {# apprenti n'a pas} other {# apprentis n'ont pas}} déclaré ses jours d'école.",
       "goToPlanning": "Voir le planning",
       "goToAbsences": "Gérer les absences",
-      "goToVariance": "Voir les écarts"
+      "goToVariance": "Voir les écarts",
+      "coverage": "Couverture",
+      "coverageHelper": "{percent}% des créneaux pourvus",
+      "noCoverage": "Aucun modèle configuré",
+      "todayTeam": "Aujourd'hui en poste",
+      "noOneToday": "Personne n'est prévu aujourd'hui.",
+      "title": "Tableau de bord"
     },
     "planningRules": {
       "title": "Règles de planning",
@@ -260,7 +307,15 @@
         "categorySkill": "Compétences requises",
         "categoryEquity": "Équité de rotation",
         "categoryContract": "Conformité contrat",
-        "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}"
+        "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}",
+        "violations": {
+          "rotationEquity": {
+            "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
+          },
+          "contractCompliance": {
+            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+          }
+        }
       }
     },
     "equityCounters": {
@@ -653,7 +708,8 @@
         "confirmNoSchool": "Confirmer : pas d'école",
         "removeDeclaration": "Supprimer la déclaration"
       },
-      "empty": "Aucun apprenti dans cette clinique"
+      "empty": "Aucun apprenti dans cette clinique",
+      "missingCount": "{count, plural, one {# apprenti non déclaré} other {# apprentis non déclarés}}"
     },
     "absences": {
       "title": "Demandes d'absence",
@@ -749,7 +805,8 @@
         "notConfirmed": "Non confirmé",
         "reason": "Note d'exception",
         "employee": "Employé",
-        "allEmployees": "Tous les employés"
+        "allEmployees": "Tous les employés",
+        "pagination": "{from}–{to} sur {total}"
       },
       "actions": {
         "approve": "Approuver",
@@ -856,6 +913,11 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "overview": "Aperçu",
+    "slideToValidate": "Glisser pour valider",
+    "slideValidated": "Journée validée",
+    "inProgress": "En cours",
+    "confirmed": "Confirmé",
     "nav": {
       "title": "Pawly Employé",
       "home": "Accueil",
@@ -900,7 +962,9 @@
       "pushSwUnavailable": "Service Worker non disponible",
       "pushSubscriptionInvalid": "Souscription push invalide",
       "pushError": "Échec push : {message}",
-      "pushUnsubscribeError": "Échec de la désactivation push"
+      "pushUnsubscribeError": "Échec de la désactivation push",
+      "pushStale": "L'abonnement push est obsolète (l'URL de l'app a changé). Réactivez ou désactivez.",
+      "pushReactivate": "Réactiver"
     },
     "schoolDays": {
       "title": "Déclaration des jours d'école",
@@ -913,11 +977,11 @@
         "title": "Rappel",
         "message": "Vous n'avez pas encore déclaré vos jours d'école pour {month}. Veuillez soumettre avant la fin du mois."
       },
-      "submit": "Soumettre mes jours d'école",
+      "submit": "Valider",
       "submitting": "Envoi en cours...",
       "success": {
         "title": "Déclaration soumise",
-        "message": "Vos jours d'école pour {month} ont été enregistrés. Vous pouvez les modifier à tout moment.",
+        "message": "Jours enregistrés pour {month}.",
         "modify": "Modifier la déclaration"
       },
       "empty": {
@@ -940,8 +1004,9 @@
       }
     },
     "absences": {
-      "title": "Demandes d'absence",
-      "subtitle": "Soumettez et suivez vos demandes d'absence.",
+      "title": "Absences",
+      "subtitle": "Suivez vos demandes.",
+      "newRequest": "Nouvelle demande",
       "form": {
         "title": "Demander une absence",
         "selectType": "Sélectionnez le type d'absence",
@@ -1041,8 +1106,9 @@
         "today": "Aujourd'hui",
         "noShifts": "Aucun créneau prévu ce mois-ci.",
         "restDay": "Repos",
-        "break": "Pause: {minutes} min",
-        "scheduleList": "Planning du mois"
+        "break": "Pause {duration}",
+        "scheduleList": "Planning du mois",
+        "mainClinic": "Clinique principale"
       },
       "shiftStatus": {
         "confirmed": "Confirmé",
@@ -1491,7 +1557,9 @@
   "settings": {
     "tabs": {
       "operational": "Général",
-      "shiftTypes": "Types de quarts"
+      "shiftTypes": "Types de quarts",
+      "clinic": "Clinique",
+      "account": "Mon compte"
     },
     "shiftTypes": {
       "title": "Types de quarts",
@@ -1602,6 +1670,35 @@
         "SATURDAY": "Samedi",
         "SUNDAY": "Dimanche"
       }
+    },
+    "clinic": {
+      "title": "Informations de la clinique",
+      "nameLabel": "Nom de la clinique",
+      "slugLabel": "Identifiant",
+      "createdAtLabel": "Date de création",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "saved": "Nom de la clinique mis à jour",
+      "saveError": "Erreur lors de la mise à jour"
+    },
+    "account": {
+      "profileTitle": "Mon profil",
+      "nameLabel": "Nom",
+      "emailLabel": "Email",
+      "localeLabel": "Langue",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "saved": "Profil mis à jour",
+      "saveError": "Erreur lors de la mise à jour",
+      "passwordTitle": "Changer le mot de passe",
+      "currentPassword": "Mot de passe actuel",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "changePassword": "Changer le mot de passe",
+      "changingPassword": "Changement...",
+      "passwordChanged": "Mot de passe mis à jour",
+      "passwordError": "Erreur lors du changement",
+      "wrongPassword": "Mot de passe actuel incorrect"
     }
   },
   "errors": {
@@ -1623,18 +1720,26 @@
     },
     "header": {
       "login": "Se connecter",
+      "account": "Mon compte",
       "cta": "Commencer",
       "navFeatures": "Fonctionnalités",
       "navPricing": "Tarifs"
     },
     "hero": {
       "title": "Le planning intelligent pour votre clinique vétérinaire",
+      "titleLine1": "Le planning intelligent.",
+      "titleLine2": "Pour votre clinique.",
       "subtitle": "Pawly simplifie la planification, la gestion d'équipe et les opérations quotidiennes — pour vous concentrer sur l'essentiel : le soin animal.",
-      "cta": "Voir les tarifs",
-      "secondaryCta": "En savoir plus",
+      "cta": "Commencer gratuitement",
+      "secondaryCta": "Voir les tarifs",
       "badge": "Nouveau : Planning IA automatisé",
+      "trialNote": "Essai gratuit · Sans carte bancaire",
       "trustTitle": "Ils nous font confiance :",
-      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+      "trustBadges": [
+        "VetLife",
+        "AniCura",
+        "MonVéto"
+      ]
     },
     "features": {
       "title": "Tout ce dont votre clinique a besoin",
@@ -1665,31 +1770,49 @@
         "description": "Authentification par magic link, tokens JWT et contrôle d'accès basé sur les rôles. Les données de votre clinique sont protégées à chaque niveau."
       }
     },
+    "workflow": {
+      "badge": "Comment ça marche",
+      "title": "De vos contraintes à un planning optimal",
+      "subtitle": "Pawly centralise les données de votre clinique et génère automatiquement des plannings équitables et conformes.",
+      "steps": {
+        "employees": "Équipe",
+        "constraints": "Contraintes",
+        "templates": "Modèles",
+        "schedule": "Planning",
+        "notifications": "Notifications",
+        "equity": "Équité"
+      }
+    },
     "pricing": {
       "title": "Des tarifs simples et transparents",
-      "subtitle": "Choisissez le plan adapté à votre clinique. Tous les plans incluent un essai gratuit.",
+      "subtitle": "Commencez gratuitement, évoluez quand vous êtes prêt.",
       "badge": "Tarifs transparents",
       "starter": {
         "name": "Starter",
-        "price": "29",
+        "price": "0",
         "interval": "mois",
-        "description": "Parfait pour les petites cliniques qui démarrent",
-        "features": ["Jusqu'à 5 membres d'équipe", "Planning de base", "Gestion des absences", "Support par email"]
+        "description": "Idéal pour découvrir Pawly et ses fonctionnalités essentielles",
+        "free": "Gratuit",
+        "features": [
+          "Jusqu'à 3 membres d'équipe",
+          "Planning de base",
+          "Gestion des absences",
+          "Support communautaire"
+        ]
       },
       "professional": {
         "name": "Professionnel",
-        "price": "59",
+        "price": "29",
         "interval": "mois",
         "description": "Pour les cliniques en croissance qui ont besoin de plus",
         "popular": "Le plus populaire",
-        "features": ["Jusqu'à 20 membres d'équipe", "Algorithmes de planning avancés", "Compteurs d'équité", "Support prioritaire", "Types de postes personnalisés"]
-      },
-      "enterprise": {
-        "name": "Entreprise",
-        "price": "99",
-        "interval": "mois",
-        "description": "Pour les opérations multi-cliniques",
-        "features": ["Membres d'équipe illimités", "Gestion multi-cliniques", "Accès API", "Support dédié", "Intégrations personnalisées"]
+        "features": [
+          "Jusqu'à 20 membres d'équipe",
+          "Algorithmes de planning avancés",
+          "Compteurs d'équité",
+          "Support prioritaire",
+          "Types de postes personnalisés"
+        ]
       },
       "cta": "Commencer",
       "currency": "€",
@@ -1735,5 +1858,11 @@
       "terms": "Conditions d'utilisation",
       "copyright": "© 2026 Pawly. Tous droits réservés."
     }
+  },
+  "employeeAbsences": {
+    "title": "Mes absences"
+  },
+  "employeeSettings": {
+    "title": "Paramètres"
   }
 }

@@ -64,7 +64,7 @@ export function VarianceRejectDialog({ open, onClose, onConfirm }: VarianceRejec
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={!note.trim()}
-            className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
+            className="rounded-xl bg-destructive hover:bg-destructive/90 text-white"
           >
             {t("confirm")}
           </AlertDialogAction>

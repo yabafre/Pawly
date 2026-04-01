@@ -23,6 +23,19 @@ export class ClinicService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  async getProfile(clinicId: string) {
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { name: true, slug: true, createdAt: true },
+    });
+
+    if (!clinic) {
+      throw new NotFoundException(`Clinic ${clinicId} not found`);
+    }
+
+    return clinic;
+  }
+
   async getClinicById(clinicId: string) {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: clinicId },

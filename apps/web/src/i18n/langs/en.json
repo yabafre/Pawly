@@ -42,7 +42,9 @@
       "forgotPassword": "Forgot?",
       "magicLinkTab": "Magic Link",
       "emailTab": "Email",
-      "passwordTab": "Password"
+      "passwordTab": "Password",
+      "employeeTab": "Employee",
+      "adminTab": "Admin"
     },
     "magicLink": {
       "emailLabel": "Professional email",
@@ -103,6 +105,45 @@
       "invalidToken": "Invalid activation link",
       "tokenMissing": "The activation link is missing or malformed. Please check your email."
     },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "subtitle": "Enter your email to receive a reset link.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinic.com",
+      "submitButton": "Send reset link",
+      "submitting": "Sending...",
+      "successTitle": "Email sent",
+      "successMessage": "If an account exists with this email, a reset link has been sent.",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "title": "New password",
+      "subtitle": "Choose a new secure password.",
+      "passwordLabel": "New password",
+      "confirmLabel": "Confirm password",
+      "passwordHint": "Min. 8 characters, uppercase, lowercase, and number.",
+      "submitButton": "Reset password",
+      "submitting": "Resetting...",
+      "successTitle": "Password reset",
+      "successMessage": "Your password has been updated. Redirecting...",
+      "goToLogin": "Log in",
+      "errorTitle": "Invalid link",
+      "errorMessage": "This reset link has expired or has already been used.",
+      "requestNew": "Request a new link",
+      "mismatch": "Passwords do not match",
+      "rules": {
+        "min8": "8 characters min.",
+        "uppercase": "One uppercase",
+        "lowercase": "One lowercase",
+        "digit": "One number"
+      },
+      "strength": {
+        "empty": "",
+        "weak": "Weak",
+        "medium": "Medium",
+        "strong": "Strong"
+      }
+    },
     "errors": {
       "generic": "An error occurred",
       "invalidEmail": "Invalid email",
@@ -142,7 +183,13 @@
       "apprenticesWarning": "{count, plural, one {# apprentice hasn't} other {# apprentices haven't}} declared school days.",
       "goToPlanning": "View planning",
       "goToAbsences": "Manage absences",
-      "goToVariance": "View variances"
+      "goToVariance": "View variances",
+      "coverage": "Coverage",
+      "coverageHelper": "{percent}% of slots filled",
+      "noCoverage": "No template configured",
+      "todayTeam": "Working today",
+      "noOneToday": "No one is scheduled today.",
+      "title": "Dashboard"
     },
     "planningRules": {
       "title": "Planning Rules",
@@ -260,7 +307,15 @@
         "categorySkill": "Skill Requirements",
         "categoryEquity": "Rotation Equity",
         "categoryContract": "Contract Compliance",
-        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}"
+        "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}",
+        "violations": {
+          "rotationEquity": {
+            "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
+          },
+          "contractCompliance": {
+            "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+          }
+        }
       }
     },
     "equityCounters": {
@@ -653,7 +708,8 @@
         "confirmNoSchool": "Confirm: no school",
         "removeDeclaration": "Remove declaration"
       },
-      "empty": "No apprentices in this clinic"
+      "empty": "No apprentices in this clinic",
+      "missingCount": "{count, plural, one {# undeclared apprentice} other {# undeclared apprentices}}"
     },
     "absences": {
       "title": "Absence Requests",
@@ -749,7 +805,8 @@
         "notConfirmed": "Not confirmed",
         "reason": "Exception note",
         "employee": "Employee",
-        "allEmployees": "All employees"
+        "allEmployees": "All employees",
+        "pagination": "{from}–{to} of {total}"
       },
       "actions": {
         "approve": "Approve",
@@ -856,6 +913,11 @@
     "designSystem": "Pawly Design System • v1.1"
   },
   "dashboard": {
+    "overview": "Overview",
+    "slideToValidate": "Slide to validate",
+    "slideValidated": "Day validated",
+    "inProgress": "In progress",
+    "confirmed": "Confirmed",
     "nav": {
       "title": "Pawly Employee",
       "home": "Home",
@@ -900,7 +962,9 @@
       "pushSwUnavailable": "Service Worker unavailable",
       "pushSubscriptionInvalid": "Push subscription invalid",
       "pushError": "Push error: {message}",
-      "pushUnsubscribeError": "Failed to disable push"
+      "pushUnsubscribeError": "Failed to disable push",
+      "pushStale": "Push subscription is outdated (app URL changed). Reactivate or disable.",
+      "pushReactivate": "Reactivate"
     },
     "schoolDays": {
       "title": "School Days Declaration",
@@ -913,11 +977,11 @@
         "title": "Reminder",
         "message": "You have not yet declared your school days for {month}. Please submit before the end of the month."
       },
-      "submit": "Submit my school days",
+      "submit": "Submit",
       "submitting": "Submitting...",
       "success": {
         "title": "Declaration submitted",
-        "message": "Your school days for {month} have been recorded. You can modify them at any time.",
+        "message": "Days recorded for {month}.",
         "modify": "Modify declaration"
       },
       "empty": {
@@ -940,8 +1004,9 @@
       }
     },
     "absences": {
-      "title": "Absence Requests",
-      "subtitle": "Submit and track your absence requests.",
+      "title": "Absences",
+      "subtitle": "Track your requests.",
+      "newRequest": "New request",
       "form": {
         "title": "Request an absence",
         "selectType": "Select absence type",
@@ -1041,8 +1106,9 @@
         "today": "Today",
         "noShifts": "No shifts scheduled this month.",
         "restDay": "Rest day",
-        "break": "Break: {minutes} min",
-        "scheduleList": "Monthly schedule"
+        "break": "Break {duration}",
+        "scheduleList": "Monthly schedule",
+        "mainClinic": "Main clinic"
       },
       "shiftStatus": {
         "confirmed": "Confirmed",
@@ -1491,7 +1557,9 @@
   "settings": {
     "tabs": {
       "operational": "General",
-      "shiftTypes": "Shift Types"
+      "shiftTypes": "Shift Types",
+      "clinic": "Clinic",
+      "account": "My account"
     },
     "shiftTypes": {
       "title": "Shift Types",
@@ -1602,6 +1670,35 @@
         "SATURDAY": "Saturday",
         "SUNDAY": "Sunday"
       }
+    },
+    "clinic": {
+      "title": "Clinic information",
+      "nameLabel": "Clinic name",
+      "slugLabel": "Identifier",
+      "createdAtLabel": "Created on",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Clinic name updated",
+      "saveError": "Failed to update"
+    },
+    "account": {
+      "profileTitle": "My profile",
+      "nameLabel": "Name",
+      "emailLabel": "Email",
+      "localeLabel": "Language",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Profile updated",
+      "saveError": "Failed to update",
+      "passwordTitle": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "changePassword": "Change password",
+      "changingPassword": "Changing...",
+      "passwordChanged": "Password updated",
+      "passwordError": "Failed to change password",
+      "wrongPassword": "Current password is incorrect"
     }
   },
   "errors": {
@@ -1623,18 +1720,26 @@
     },
     "header": {
       "login": "Log in",
+      "account": "My account",
       "cta": "Get Started",
       "navFeatures": "Features",
       "navPricing": "Pricing"
     },
     "hero": {
       "title": "Intelligent planning for your veterinary clinic",
+      "titleLine1": "Intelligent scheduling.",
+      "titleLine2": "For your clinic.",
       "subtitle": "Pawly streamlines scheduling, team management, and daily operations — so you can focus on what matters most: animal care.",
-      "cta": "View Pricing",
-      "secondaryCta": "Learn More",
+      "cta": "Start Free",
+      "secondaryCta": "View Pricing",
       "badge": "New: AI-powered Scheduling",
+      "trialNote": "Free trial · No credit card required",
       "trustTitle": "Trusted by leading clinics:",
-      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+      "trustBadges": [
+        "VetLife",
+        "AniCura",
+        "MonVéto"
+      ]
     },
     "features": {
       "title": "Everything your clinic needs",
@@ -1665,31 +1770,49 @@
         "description": "Magic link authentication, JWT tokens, and role-based access control. Your clinic data is protected at every level."
       }
     },
+    "workflow": {
+      "badge": "How it works",
+      "title": "From your constraints to an optimal schedule",
+      "subtitle": "Pawly centralizes your clinic data and automatically generates fair, compliant schedules.",
+      "steps": {
+        "employees": "Team",
+        "constraints": "Constraints",
+        "templates": "Templates",
+        "schedule": "Schedule",
+        "notifications": "Notifications",
+        "equity": "Equity"
+      }
+    },
     "pricing": {
       "title": "Simple, transparent pricing",
-      "subtitle": "Choose the plan that fits your clinic. All plans include a free trial.",
+      "subtitle": "Start free, upgrade when you're ready.",
       "badge": "Transparent Pricing",
       "starter": {
         "name": "Starter",
-        "price": "29",
+        "price": "0",
         "interval": "month",
-        "description": "Perfect for small clinics getting started",
-        "features": ["Up to 5 team members", "Basic scheduling", "Absence management", "Email support"]
+        "description": "Ideal to discover Pawly and its essential features",
+        "free": "Free",
+        "features": [
+          "Up to 3 team members",
+          "Basic scheduling",
+          "Absence management",
+          "Community support"
+        ]
       },
       "professional": {
         "name": "Professional",
-        "price": "59",
+        "price": "29",
         "interval": "month",
         "description": "For growing clinics that need more",
         "popular": "Most Popular",
-        "features": ["Up to 20 team members", "Advanced scheduling algorithms", "Equity counters", "Priority support", "Custom shift types"]
-      },
-      "enterprise": {
-        "name": "Enterprise",
-        "price": "99",
-        "interval": "month",
-        "description": "For multi-clinic operations",
-        "features": ["Unlimited team members", "Multi-clinic management", "API access", "Dedicated support", "Custom integrations"]
+        "features": [
+          "Up to 20 team members",
+          "Advanced scheduling algorithms",
+          "Equity counters",
+          "Priority support",
+          "Custom shift types"
+        ]
       },
       "cta": "Get Started",
       "currency": "€",
@@ -1735,5 +1858,11 @@
       "terms": "Terms of Service",
       "copyright": "© 2026 Pawly. All rights reserved."
     }
+  },
+  "employeeAbsences": {
+    "title": "My absences"
+  },
+  "employeeSettings": {
+    "title": "Settings"
   }
 }

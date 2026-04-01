@@ -1,1 +1,1 @@
-export type { DashboardStats } from "./dashboard.types";
+export type { DashboardStats, TodayEmployee } from "./dashboard.types";

@@ -60,36 +60,36 @@ export function PublishConfirmDialog({
 
         {preview && preview.totalWithShifts > 0 && (
           <div className="space-y-3 py-2">
-            <div className="flex items-center gap-2 text-sm text-neutral-700">
-              <Mail className="h-4 w-4 text-[#009588]" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Mail className="h-4 w-4 text-primary" />
               <span>{t("employeesNotified", { count: preview.emailCount })}</span>
             </div>
 
             {preview.disabledCount > 0 && (
-              <div className="flex items-center gap-2 text-sm text-neutral-500">
-                <BellOff className="h-4 w-4 text-neutral-400" />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BellOff className="h-4 w-4 text-muted-foreground" />
                 <span>{t("employeesDisabled", { count: preview.disabledCount })}</span>
               </div>
             )}
 
-            <ScrollArea className="max-h-40 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+            <ScrollArea className="max-h-40 rounded-lg border border-border bg-muted p-3">
               <ul className="space-y-1.5">
                 {preview.employees.map((emp) => (
                   <li
                     key={emp.id}
                     className="flex items-center justify-between text-sm"
                   >
-                    <span className="text-neutral-700">
+                    <span className="text-muted-foreground">
                       {emp.firstName} {emp.lastName}
-                      <span className="text-neutral-400 ml-1">
+                      <span className="text-muted-foreground ml-1">
                         ({emp.shiftCount} {emp.shiftCount > 1 ? t("shifts") : t("shift")})
                       </span>
                     </span>
                     <span className="shrink-0 ml-2">
                       {emp.notifyOnPublish ? (
-                        <Mail className="h-3.5 w-3.5 text-[#009588]" />
+                        <Mail className="h-3.5 w-3.5 text-primary" />
                       ) : (
-                        <BellOff className="h-3.5 w-3.5 text-neutral-300" />
+                        <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </span>
                   </li>

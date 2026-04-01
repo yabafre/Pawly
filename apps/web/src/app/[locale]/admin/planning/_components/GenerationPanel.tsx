@@ -2,8 +2,18 @@
 
 import { useState, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Sparkles, Loader2 } from "lucide-react";
+import {
+  Sparkles,
+  Loader2,
+  Calendar,
+  Users,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  GraduationCap,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -11,12 +21,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useGeneration } from "../_hooks/useGeneration";
 import { useTemplates } from "../templates/_hooks/useTemplates";
-import { MonthShiftsSummary } from "./MonthShiftsSummary";
+import { useScheduleView } from "../_hooks/useScheduleView";
+import { useApprenticeDeclarations } from "../_hooks/useApprenticeDeclarations";
 import { ConfirmRegenerateDialog } from "./ConfirmRegenerateDialog";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import type { GenerationResult } from "@pawly/validators";
+import type { ShiftData } from "@pawly/types";
 
 function getMonthOptions(locale: string) {
   const options: { value: string; label: string }[] = [];
@@ -40,6 +59,8 @@ type Props = {
 
 export function GenerationPanel({ month, onMonthChange }: Props) {
   const t = useTranslations("admin.planningGeneration");
+  const tExisting = useTranslations("admin.planningGeneration.existing");
+  const tApprentice = useTranslations("admin.apprenticeDeclarations");
   const locale = useLocale();
   const monthOptions = getMonthOptions(locale);
 
@@ -60,10 +81,21 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
     deleteGenerated,
     isDeleting,
   } = useGeneration(selectedMonth);
+  const { scheduleData } = useScheduleView(selectedMonth);
+  const {
+    declarations,
+    isLoading: isLoadingDeclarations,
+    confirmNoSchool,
+    isConfirming,
+  } = useApprenticeDeclarations(selectedMonth);
 
   const existingGeneratedCount = shifts.filter(
     (s: { source?: string }) => s.source === "GENERATED",
   ).length;
+
+  const missingDeclarations = declarations.filter(
+    (d) => d.status === "MISSING",
+  );
 
   const handleGenerate = useCallback(() => {
     if (!selectedTemplateId) return;
@@ -100,18 +132,84 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
     );
   }, [selectedMonth, selectedTemplateId, generatePlan]);
 
+  // Stats
+  const generated = shifts.filter((s: ShiftData) => s.source === "GENERATED");
+  const manual = shifts.filter((s: ShiftData) => s.source === "MANUAL");
+  const uniqueEmployees = new Set(
+    shifts.filter((s: ShiftData) => s.employee).map((s: ShiftData) => s.employee!.id),
+  );
+  const typeMap = new Map<string, number>();
+  for (const shift of shifts) {
+    typeMap.set(shift.shiftTypeCode, (typeMap.get(shift.shiftTypeCode) || 0) + 1);
+  }
+
+  // Violations count — deduplicated (detail is shown in the HealthBar below the schedule)
+  const hardViolations = generationResult?.violations?.hard ?? scheduleData?.violations?.hard ?? [];
+  const softViolations = generationResult?.violations?.soft ?? scheduleData?.violations?.soft ?? [];
+  const dedupCount = (items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>) => {
+    const seen = new Set<string>();
+    return items.filter((v) => {
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).length;
+  };
+  const totalWarnings = dedupCount(hardViolations) + dedupCount(softViolations);
+
   return (
     <div className="space-y-6">
-      {/* Controls */}
-      <div className="bg-white rounded-2xl border border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-6">
-        <h2 className="text-lg font-bold text-neutral-900 mb-4">
-          {t("title")}
-        </h2>
-        <p className="text-sm text-neutral-500 mb-6">{t("subtitle")}</p>
+      <div className="bg-card rounded-2xl border border-border p-6">
+        {/* Title + apprentice warning */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">{t("title")}</h2>
+            <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+          </div>
+          {!isLoadingDeclarations && missingDeclarations.length > 0 && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs">
+                  <GraduationCap size={12} className="mr-1.5" />
+                  {tApprentice("missingCount", { count: missingDeclarations.length })}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{tApprentice("title")}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 mt-2">
+                  {missingDeclarations.map((row) => (
+                    <div
+                      key={row.employeeId}
+                      className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-muted/50"
+                    >
+                      <span className="text-sm font-medium">
+                        {row.firstName} {row.lastName}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          confirmNoSchool({ employeeId: row.employeeId, month: selectedMonth })
+                        }
+                        disabled={isConfirming}
+                        className="text-xs"
+                      >
+                        {tApprentice("actions.confirmNoSchool")}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
 
+        {/* Controls row */}
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label id="month-label" className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
+            <label id="month-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
               {t("monthLabel")}
             </label>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -129,7 +227,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
           </div>
 
           <div className="flex-1 min-w-[220px]">
-            <label id="template-label" className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5 block">
+            <label id="template-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
               {t("templateLabel")}
             </label>
             <Select
@@ -138,9 +236,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
               disabled={isLoadingTemplates}
             >
               <SelectTrigger aria-labelledby="template-label">
-                <SelectValue
-                  placeholder={t("templatePlaceholder")}
-                />
+                <SelectValue placeholder={t("templatePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {templates.map(
@@ -157,28 +253,72 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
           <Button
             onClick={handleGenerate}
             disabled={!selectedTemplateId || isGenerating}
-            className="bg-neutral-900 text-white shadow-lg hover:scale-[1.02] transition-transform font-bold"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl"
           >
             {isGenerating ? (
               <Loader2 size={16} className="animate-spin mr-2" />
             ) : (
-              <Sparkles size={16} className="text-yellow-300 mr-2" />
+              <Sparkles size={16} className="mr-2" />
             )}
             {isGenerating ? t("generating") : t("generateButton")}
           </Button>
         </div>
-      </div>
 
-      {/* Persistent month summary (survives refresh) */}
-      <MonthShiftsSummary
-        shifts={shifts}
-        isLoading={isLoadingShifts}
-        month={selectedMonth}
-        onDeleteGenerated={() => setShowDeleteConfirm(true)}
-        isDeleting={isDeleting}
-        isGenerating={isGenerating}
-        generationResult={generationResult}
-      />
+        {/* Inline stats — only when shifts exist */}
+        {!isLoadingShifts && shifts.length > 0 && (
+          <div className="mt-6 pt-5 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4 text-sm">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Calendar size={13} />
+                  <strong className="text-foreground">{shifts.length}</strong> {tExisting("totalShifts")}
+                </span>
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Sparkles size={13} />
+                  <strong className="text-foreground">{generated.length}</strong> {tExisting("generated")}
+                </span>
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Pencil size={13} />
+                  <strong className="text-foreground">{manual.length}</strong> {tExisting("manual")}
+                </span>
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Users size={13} />
+                  <strong className="text-foreground">{uniqueEmployees.size}</strong> {tExisting("employees")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {totalWarnings > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-orange-600">
+                    <AlertTriangle size={12} />
+                    {totalWarnings} {tExisting("warnings")}
+                  </span>
+                )}
+                {generated.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isDeleting || isGenerating}
+                    className="text-destructive border-destructive/20 hover:bg-destructive/5 text-xs"
+                  >
+                    <Trash2 size={12} className="mr-1.5" />
+                    {tExisting("deleteGenerated")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Shift type badges */}
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from(typeMap.entries()).map(([code, count]) => (
+                <Badge key={code} variant="outline" className="text-xs font-medium px-2 py-0.5">
+                  {code} &mdash; {count}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <ConfirmRegenerateDialog
         open={showConfirm}

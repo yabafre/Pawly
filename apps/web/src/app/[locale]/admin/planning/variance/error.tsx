@@ -9,11 +9,11 @@ export default function VarianceError({ reset }: { error: Error; reset: () => vo
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <AlertCircle className="w-12 h-12 text-rose-400 mb-4" />
-      <h2 className="text-lg font-semibold text-neutral-900 mb-1">
+      <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+      <h2 className="text-lg font-semibold text-foreground mb-1">
         {t("loadFailed")}
       </h2>
-      <p className="text-sm text-neutral-500 mb-6">
+      <p className="text-sm text-muted-foreground mb-6">
         {t("loadFailedDescription")}
       </p>
       <Button onClick={reset} className="rounded-xl">

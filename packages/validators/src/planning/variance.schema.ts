@@ -26,6 +26,8 @@ export const listVarianceEventsSchema = z.object({
     )
     .optional(),
   type: z.enum(VARIANCE_EVENT_TYPES).optional(),
+  page: z.number().int().min(0).default(0),
+  pageSize: z.number().int().min(1).max(100).default(10),
 });
 
 export type ListVarianceEventsInput = z.infer<typeof listVarianceEventsSchema>;
@@ -63,6 +65,9 @@ export const getVarianceStatsSchema = z.object({
       "Month must be in YYYY-MM format (01-12)",
     )
     .optional(),
+  status: z.enum(VARIANCE_EVENT_STATUSES).optional(),
+  employeeId: z.string().uuid().optional(),
+  type: z.enum(VARIANCE_EVENT_TYPES).optional(),
 });
 
 export type GetVarianceStatsInput = z.infer<typeof getVarianceStatsSchema>;

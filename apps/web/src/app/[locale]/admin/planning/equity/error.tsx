@@ -14,19 +14,19 @@ export default function EquityError({
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-6">
-      <div className="flex items-center gap-4 rounded-2xl border border-red-100 bg-red-50/60 p-6">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100">
-          <AlertCircle className="h-5 w-5 text-red-600" />
+      <div className="flex items-center gap-4 rounded-2xl border border-destructive/10 bg-destructive/5 p-6">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+          <AlertCircle className="h-5 w-5 text-destructive" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-red-700">{t("loadFailed")}</p>
-          <p className="mt-1 text-xs text-red-500">{t("loadFailedDescription")}</p>
+          <p className="text-sm font-semibold text-destructive">{t("loadFailed")}</p>
+          <p className="mt-1 text-xs text-destructive">{t("loadFailedDescription")}</p>
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={reset}
-          className="shrink-0 rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+          className="shrink-0 rounded-xl border-destructive/20 text-destructive hover:bg-destructive/5"
         >
           <RotateCcw className="mr-2 h-3.5 w-3.5" />
           {t("retry")}

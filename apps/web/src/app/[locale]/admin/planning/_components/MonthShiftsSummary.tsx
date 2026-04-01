@@ -72,9 +72,9 @@ export function MonthShiftsSummary({
   const totalWarnings = hardViolations.length + softViolations.length;
 
   return (
-    <div className="bg-white rounded-2xl border border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-6 animate-in fade-in">
+    <div className="bg-card rounded-2xl border border-border p-6 animate-in fade-in">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-400">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
           {t("title")}
         </h3>
         <div className="flex items-center gap-2">
@@ -101,14 +101,14 @@ export function MonthShiftsSummary({
                   {hardViolations.map((v, i) => (
                     <div
                       key={`hard-${i}`}
-                      className="flex items-start gap-3 rounded-xl bg-red-50/50 px-4 py-2.5 text-sm"
+                      className="flex items-start gap-3 rounded-xl bg-destructive/5 px-4 py-2.5 text-sm"
                     >
-                      <XCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                      <XCircle size={14} className="text-destructive mt-0.5 shrink-0" />
                       <div>
-                        <span className="font-medium text-neutral-800">
+                        <span className="font-medium text-foreground">
                           {v.ruleName}
                         </span>
-                        <p className="text-xs text-neutral-500 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {v.message}
                         </p>
                       </div>
@@ -121,10 +121,10 @@ export function MonthShiftsSummary({
                     >
                       <AlertTriangle size={14} className="text-orange-400 mt-0.5 shrink-0" />
                       <div>
-                        <span className="font-medium text-neutral-800">
+                        <span className="font-medium text-foreground">
                           {v.ruleName}
                         </span>
-                        <p className="text-xs text-neutral-500 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {v.message}
                         </p>
                       </div>
@@ -140,7 +140,7 @@ export function MonthShiftsSummary({
               size="sm"
               onClick={onDeleteGenerated}
               disabled={isDeleting || isGenerating}
-              className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 text-xs"
+              className="text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive text-xs"
             >
               <Trash2 size={12} className="mr-1.5" />
               {t("deleteGenerated")}
@@ -187,7 +187,7 @@ export function MonthShiftsSummary({
       </div>
 
       {/* Days breakdown (compact) */}
-      <div className="text-xs text-neutral-400">
+      <div className="text-xs text-muted-foreground">
         {t("daysWithShifts", { count: dateMap.size })}
       </div>
     </div>
@@ -204,13 +204,13 @@ function MiniStat({
   value: number;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-neutral-50/80 px-3 py-2.5">
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/80 px-3 py-2.5">
       {icon}
       <div>
-        <div className="text-lg font-extrabold text-neutral-900 leading-none">
+        <div className="text-lg font-extrabold text-foreground leading-none">
           {value}
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mt-0.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">
           {label}
         </div>
       </div>

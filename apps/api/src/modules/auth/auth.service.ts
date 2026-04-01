@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import type { EnvConfig } from '@/config/index';
 import type { User } from '@prisma/client';
+import { authRequestCounter } from '@/common/metrics';
 import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 const BCRYPT_ROUNDS = 12;
@@ -16,6 +17,7 @@ const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
 const MIN_RESPONSE_MS = 300;
 const ACTIVATION_TOKEN_TTL_HOURS = 24;
+const PASSWORD_RESET_TTL_HOURS = 1;
 const WELCOME_MAGIC_LINK_TTL_HOURS = 24;
 const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
@@ -113,6 +115,7 @@ export class AuthService {
         const locale = (user.locale as MailLocale) ?? 'fr';
         await this.mailService.sendMagicLink(user.email, callbackUrl, locale);
 
+        authRequestCounter.add(1, { method: 'magic_link', outcome: 'sent' });
         return { message: 'If an account exists, a magic link has been sent' };
     }
 
@@ -143,6 +146,8 @@ export class AuthService {
 
             return magicLink.user;
         });
+
+        authRequestCounter.add(1, { method: 'magic_link', outcome: 'validated' });
 
         // Cleanup expired magic links in background (non-blocking)
         // TODO: Replace with scheduled cron job (e.g., @nestjs/schedule) for reliable cleanup.
@@ -215,6 +220,7 @@ export class AuthService {
         const locale = (user.locale as MailLocale) ?? 'fr';
         await this.mailService.sendOtpCode(email, rawCode, locale);
 
+        authRequestCounter.add(1, { method: 'otp', outcome: 'sent' });
         await this.delayToMinimumResponse(startTime);
         return { method: 'otp' as const, message: 'If account exists, code sent' };
     }
@@ -308,6 +314,7 @@ export class AuthService {
         }
 
         if (!user) {
+            authRequestCounter.add(1, { method: 'otp', outcome: 'invalid' });
             await this.delayToMinimumResponse(startTime);
             throw new UnauthorizedException('Invalid or expired code');
         }
@@ -317,6 +324,7 @@ export class AuthService {
             this.logger.warn('Failed to cleanup expired OTP codes', err),
         );
 
+        authRequestCounter.add(1, { method: 'otp', outcome: 'validated' });
         await this.delayToMinimumResponse(startTime);
         return this.generateToken(user);
     }
@@ -422,6 +430,138 @@ export class AuthService {
         );
 
         return this.generateToken(user);
+    }
+
+    // ── Password Reset ────────────────────────────────────────────────
+
+    async requestPasswordReset(email: string) {
+        const startTime = Date.now();
+
+        const user = await this.prisma.user.findUnique({ where: { email } });
+
+        // Only admin users have passwords — employees use OTP
+        if (!user || user.role !== 'ADMIN') {
+            await this.delayToMinimumResponse(startTime);
+            return { message: 'If an account exists, a reset link has been sent' };
+        }
+
+        // Invalidate previous unused tokens for this user
+        await this.prisma.passwordResetToken.updateMany({
+            where: { userId: user.id, used: false },
+            data: { used: true },
+        });
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = this.hashToken(rawToken);
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + PASSWORD_RESET_TTL_HOURS);
+
+        await this.prisma.passwordResetToken.create({
+            data: {
+                token: hashedToken,
+                expiresAt,
+                userId: user.id,
+                clinicId: user.clinicId,
+            },
+        });
+
+        const baseUrl = this.configService.get('WEB_APP_URL', { infer: true });
+        const locale = (user.locale ?? 'fr') as 'fr' | 'en';
+        const prefix = locale === 'fr' ? '' : `/${locale}`;
+        const resetUrl = `${baseUrl}${prefix}/reset-password?token=${rawToken}`;
+
+        await this.mailService.sendPasswordResetEmail(email, resetUrl, locale);
+        await this.delayToMinimumResponse(startTime);
+
+        return { message: 'If an account exists, a reset link has been sent' };
+    }
+
+    async resetPassword(token: string, password: string) {
+        const hashedToken = this.hashToken(token);
+
+        const user = await this.prisma.$transaction(async (tx) => {
+            const resetToken = await tx.passwordResetToken.findUnique({
+                where: { token: hashedToken },
+                include: { user: true },
+            });
+
+            const isInvalid = !resetToken || resetToken.used || resetToken.expiresAt < new Date();
+            if (isInvalid) {
+                throw new UnauthorizedException('Invalid or expired reset token');
+            }
+
+            const updated = await tx.passwordResetToken.updateMany({
+                where: { token: hashedToken, used: false },
+                data: { used: true },
+            });
+
+            if (updated.count === 0) {
+                throw new UnauthorizedException('Invalid or expired reset token');
+            }
+
+            const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+            await tx.user.update({
+                where: { id: resetToken.userId },
+                data: { password: hashedPassword },
+            });
+
+            return resetToken.user;
+        });
+
+        this.cleanupExpiredPasswordResetTokens().catch((err) =>
+            this.logger.warn('Failed to cleanup expired password reset tokens', err),
+        );
+
+        return this.generateToken(user);
+    }
+
+    // ── Change Password (authenticated) ────────────────────────────────
+
+    async changePassword(userId: string, currentPassword: string, newPassword: string) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+        if (!user || !user.password || user.role !== 'ADMIN') {
+            throw new UnauthorizedException('Cannot change password');
+        }
+
+        const isValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isValid) {
+            throw new UnauthorizedException('Current password is incorrect');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword },
+        });
+
+        return { success: true };
+    }
+
+    async updateAdminProfile(userId: string, data: { name?: string; locale?: string }) {
+        const updated = await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                ...(data.name !== undefined && { name: data.name }),
+                ...(data.locale !== undefined && { locale: data.locale }),
+            },
+            select: { id: true, name: true, email: true, locale: true },
+        });
+
+        return updated;
+    }
+
+    private async cleanupExpiredPasswordResetTokens() {
+        const cutoff = new Date();
+        cutoff.setHours(cutoff.getHours() - PASSWORD_RESET_TTL_HOURS);
+        await this.prisma.passwordResetToken.deleteMany({
+            where: {
+                OR: [
+                    { expiresAt: { lt: cutoff } },
+                    { used: true, createdAt: { lt: cutoff } },
+                ],
+            },
+        });
     }
 
     private async cleanupExpiredOtpCodes() {

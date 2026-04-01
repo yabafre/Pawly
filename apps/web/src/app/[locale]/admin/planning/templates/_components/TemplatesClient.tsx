@@ -77,8 +77,8 @@ export function TemplatesClient() {
   if (isPending || isLoadingShiftTypes) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
-        <span className="ml-2 text-sm text-neutral-500">{t("loading")}</span>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">{t("loading")}</span>
       </div>
     );
   }

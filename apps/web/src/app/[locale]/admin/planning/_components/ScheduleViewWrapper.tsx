@@ -129,20 +129,30 @@ export function ScheduleViewWrapper({ month }: Props) {
   // Empty state: no data or no shifts
   if (!scheduleData || !currentWeekData) {
     return (
-      <div className="bg-white rounded-3xl border border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-12 text-center">
-        <CalendarX size={48} className="mx-auto text-neutral-300 mb-4" />
-        <h3 className="text-lg font-bold text-neutral-900 mb-2">
+      <div className="bg-card rounded-2xl border border-border p-12 text-center">
+        <CalendarX size={48} className="mx-auto text-muted-foreground mb-4" />
+        <h3 className="text-lg font-bold text-foreground mb-2">
           {t("emptyState.title")}
         </h3>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted-foreground">
           {t("emptyState.description")}
         </p>
       </div>
     );
   }
 
-  const hardViolationCount = scheduleData.violations.hard.length;
-  const softViolationCount = scheduleData.violations.soft.length;
+  // Deduplicate violation counts
+  const dedupViolations = (items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>) => {
+    const seen = new Set<string>();
+    return items.filter((v) => {
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const hardViolationCount = dedupViolations(scheduleData.violations.hard).length;
+  const softViolationCount = dedupViolations(scheduleData.violations.soft).length;
   const totalShifts = scheduleData.shifts.length;
 
   return (
@@ -157,15 +167,16 @@ export function ScheduleViewWrapper({ month }: Props) {
         publicationStatus={publicationStatus ?? undefined}
         violations={scheduleData.violations}
         holes={scheduleData.holes}
+        employees={scheduleData.employees}
       />
 
       {/* Header: title + week navigator */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-neutral-900">
+          <h2 className="text-lg font-bold text-foreground">
             {t("title")}
           </h2>
-          <p className="text-sm text-neutral-500">{t("subtitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <WeekNavigator
           weeks={weeks}
@@ -213,23 +224,23 @@ export function ScheduleViewWrapper({ month }: Props) {
 
 function ScheduleViewSkeleton() {
   return (
-    <div className="bg-white rounded-3xl border border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="bg-card rounded-2xl border border-border overflow-hidden">
       <div className="p-6 space-y-4 animate-pulse">
         {/* Header skeleton */}
         <div className="flex items-center justify-between">
-          <div className="h-6 w-48 bg-neutral-100 rounded" />
+          <div className="h-6 w-48 bg-muted rounded" />
           <div className="flex gap-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-8 w-8 bg-neutral-100 rounded-lg" />
+              <div key={i} className="h-8 w-8 bg-muted rounded-lg" />
             ))}
           </div>
         </div>
         {/* Grid skeleton */}
         {[1, 2, 3, 4].map((row) => (
           <div key={row} className="flex gap-2">
-            <div className="h-14 w-[200px] bg-neutral-100 rounded shrink-0" />
+            <div className="h-14 w-[200px] bg-muted rounded shrink-0" />
             {[1, 2, 3, 4, 5, 6, 7].map((col) => (
-              <div key={col} className="h-14 flex-1 bg-neutral-50 rounded" />
+              <div key={col} className="h-14 flex-1 bg-muted rounded" />
             ))}
           </div>
         ))}

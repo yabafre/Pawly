@@ -41,7 +41,7 @@ export const varianceRouter = router({
       if (ctx.user.role !== 'ADMIN') {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can view variance statistics' });
       }
-      return ctx.varianceService.getVarianceStats(ctx.user.clinicId, input.month);
+      return ctx.varianceService.getVarianceStats(ctx.user.clinicId, input);
     }),
 
   countPending: subscribedProcedure

@@ -1,5 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { trpc } from "@/lib/trpc/client";
 import { LandingHeader } from "./_components/LandingHeader";
 import { HeroSection } from "./_components/HeroSection";
 import { FeaturesSection } from "./_components/FeaturesSection";
@@ -7,6 +10,7 @@ import { PricingPreviewSection } from "./_components/PricingPreviewSection";
 import { TestimonialsSection } from "./_components/TestimonialsSection";
 import { CTASection } from "./_components/CTASection";
 import { LandingFooter } from "./_components/LandingFooter";
+import { IntegrationsSection } from "./_components/IntegrationsSection";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -15,8 +19,8 @@ type Props = {
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://pawly.com";
 
 const PRICING = {
-  LOW: "29",
-  HIGH: "99",
+  LOW: "0",
+  HIGH: "29",
   CURRENCY: "EUR",
 } as const;
 
@@ -63,6 +67,20 @@ export default async function LandingPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
 
+  // Redirect authenticated users to their dashboard
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth-token")?.value;
+  if (authToken) {
+    try {
+      const me = await trpc.auth.getMe.query();
+      const prefix = locale === "fr" ? "" : `/${locale}`;
+      if (me.role === "ADMIN") redirect(`${prefix}/admin/dashboard`);
+      else redirect(`${prefix}/dashboard`);
+    } catch {
+      // Invalid/expired token — continue to landing page
+    }
+  }
+
   const t2 = await getTranslations({ locale, namespace: "landing.meta" });
 
   const jsonLd = [
@@ -85,7 +103,7 @@ export default async function LandingPage({ params }: Props) {
         priceCurrency: PRICING.CURRENCY,
         lowPrice: PRICING.LOW,
         highPrice: PRICING.HIGH,
-        offerCount: "3",
+        offerCount: "2",
         url: `${baseUrl}/pricing`,
       },
     },
@@ -105,7 +123,7 @@ export default async function LandingPage({ params }: Props) {
   ];
 
   return (
-    <>
+    <div className="min-h-dvh flex flex-col bg-background text-foreground antialiased selection:bg-primary/30">
       {/* Safe: jsonLd is a static object built from constants, no user input */}
       {jsonLd.map((item, i) => (
         <script
@@ -115,14 +133,15 @@ export default async function LandingPage({ params }: Props) {
         />
       ))}
       <LandingHeader />
-      <main id="main-content">
+      <main id="main-content" className="flex-1">
         <HeroSection />
         <FeaturesSection />
+        <IntegrationsSection />
         <PricingPreviewSection />
         <TestimonialsSection />
         <CTASection />
       </main>
       <LandingFooter />
-    </>
+    </div>
   );
 }

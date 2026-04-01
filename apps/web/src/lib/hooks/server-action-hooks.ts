@@ -26,8 +26,8 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   planningGeneration: () => ["planning", "generation"],
   planningScheduleView: (month?: string) => ["planning", "schedule-view", month ?? "all"],
   publicationStatus: (month?: string) => ["planning", "publication-status", month ?? "all"],
-  equityCounters: () => ["planning", "equity-counters"],
-  equityQuarterlySummary: () => ["planning", "equity-quarterly"],
+  equityCounters: (year?: number, months?: number[]) => ["planning", "equity-counters", String(year ?? "all"), months?.join("-") ?? "all"],
+  equityQuarterlySummary: (year?: number, quarter?: number) => ["planning", "equity-quarterly", String(year ?? "all"), String(quarter ?? "all")],
   absences: (employeeId?: string) => ["absences", employeeId ?? "all"],
   adminAbsences: (filter?: string) => ["admin-absences", filter ?? "all"],
   pendingAbsenceCount: () => ["absences", "pending-count"],
@@ -43,6 +43,8 @@ export const QueryKeyFactory = createServerActionsKeyFactory({
   publishPreview: (month?: string) => ["publish-preview", month ?? "all"],
   myNotificationPreferences: () => ["my-notification-preferences"],
   myPushSubscription: () => ["my-push-subscription"],
+  adminMe: () => ["admin-me"],
+  clinicProfile: () => ["clinic-profile"],
 });
 
 export const {

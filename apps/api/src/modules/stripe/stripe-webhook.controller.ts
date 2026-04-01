@@ -17,6 +17,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
 import { StripeService } from './stripe.service';
 import { deriveEntitlementTier } from './stripe.utils';
+import { stripeWebhookDuration, stripeWebhookCounter } from '@/common/metrics';
 import type {
   SubscriptionStatus,
   CouponMetadataType,
@@ -110,6 +111,7 @@ export class StripeWebhookController {
     }
 
     // Event routing — only one thread reaches here per event
+    const webhookStart = Date.now();
     try {
       switch (event.type) {
         case 'checkout.session.completed': {
@@ -151,11 +153,15 @@ export class StripeWebhookController {
           this.logger.log(`Unhandled event type: ${event.type}`);
       }
     } catch (err) {
+      stripeWebhookDuration.record(Date.now() - webhookStart, { event_type: event.type });
+      stripeWebhookCounter.add(1, { event_type: event.type, outcome: 'failure' });
       // Unclaim event to allow Stripe retry on processing failure
       await this.stripeService.deleteEvent(event.id).catch(() => {});
       throw err;
     }
 
+    stripeWebhookDuration.record(Date.now() - webhookStart, { event_type: event.type });
+    stripeWebhookCounter.add(1, { event_type: event.type, outcome: 'success' });
     return { received: true };
   }
 

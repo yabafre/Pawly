@@ -14,16 +14,13 @@ export default function SchoolDaysError({
   const t = useTranslations("dashboard.schoolDays");
 
   return (
-    <div className="rounded-2xl sm:rounded-3xl bg-white p-4 sm:p-6 md:p-8 shadow-sm border border-neutral-100 text-center">
-      <AlertTriangle className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-red-500 mb-3 sm:mb-4" />
-      <h2 className="text-base sm:text-lg font-bold text-neutral-900 mb-2">
+    <div className="rounded-2xl bg-card border p-6 text-center">
+      <AlertTriangle className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+      <h2 className="text-base font-semibold mb-2">
         {t("errors.loadFailed")}
       </h2>
-      <p className="text-xs sm:text-sm text-neutral-500 mb-4">{error.message}</p>
-      <Button
-        onClick={reset}
-        className="w-full sm:w-auto bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl sm:rounded-2xl font-bold"
-      >
+      <p className="text-xs text-muted-foreground mb-4">{error.message}</p>
+      <Button onClick={reset} variant="outline">
         {t("errors.retry")}
       </Button>
     </div>

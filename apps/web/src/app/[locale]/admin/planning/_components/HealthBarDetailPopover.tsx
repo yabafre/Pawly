@@ -15,12 +15,15 @@ import type { ScheduleViewData, ScheduleHole } from "@pawly/validators";
 type HardViolation = ScheduleViewData["violations"]["hard"][number];
 type SoftViolation = ScheduleViewData["violations"]["soft"][number];
 
+type EmployeeLookup = { id: string; firstName: string; lastName: string };
+
 type Props = {
   violations?: {
     hard: HardViolation[];
     soft: SoftViolation[];
   };
   holes?: ScheduleHole[];
+  employees?: EmployeeLookup[];
   children: React.ReactNode;
 };
 
@@ -56,6 +59,7 @@ function groupHolesByDate(holes: ScheduleHole[]): Record<string, ScheduleHole[]>
 export function HealthBarDetailPopover({
   violations,
   holes,
+  employees,
   children,
 }: Props) {
   const t = useTranslations("admin.planningRules.healthBar");
@@ -73,8 +77,24 @@ export function HealthBarDetailPopover({
 
   useEffect(() => () => clearTimeout(closeTimeout.current), []);
 
-  const hardByCategory = groupByCategory(violations?.hard ?? []);
-  const softByCategory = groupByCategory(violations?.soft ?? []);
+  const empMap = new Map<string, string>();
+  for (const e of employees ?? []) {
+    empMap.set(e.id, `${e.firstName} ${e.lastName}`);
+  }
+
+  // Deduplicate violations by ruleId + affectedEmployeeId
+  function dedup<T extends { ruleId: string; affectedEmployeeId?: string; message: string }>(items: T[]): T[] {
+    const seen = new Set<string>();
+    return items.filter((v) => {
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  const hardByCategory = groupByCategory(dedup(violations?.hard ?? []));
+  const softByCategory = groupByCategory(dedup(violations?.soft ?? []));
   const holesByDate = groupHolesByDate(holes ?? []);
 
   const hasContent =
@@ -105,11 +125,15 @@ export function HealthBarDetailPopover({
                 </span>
               </div>
               <ul className="mt-1 space-y-0.5">
-                {items.map((v, i) => (
-                  <li key={`${v.ruleId}-${i}`} className="text-xs text-neutral-600 pl-4">
-                    {v.message}
-                  </li>
-                ))}
+                {items.map((v, i) => {
+                  const name = v.affectedEmployeeId ? empMap.get(v.affectedEmployeeId) : undefined;
+                  return (
+                    <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
+                      {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
+                      {v.message}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -124,13 +148,17 @@ export function HealthBarDetailPopover({
                 </span>
               </div>
               <ul className="mt-1 space-y-0.5">
-                {items.map((v, i) => (
-                  <li key={`${v.ruleId}-${i}`} className="text-xs text-neutral-600 pl-4">
-                    {"messageKey" in v && v.messageKey
-                      ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
-                      : v.message}
-                  </li>
-                ))}
+                {items.map((v, i) => {
+                  const name = v.affectedEmployeeId ? empMap.get(v.affectedEmployeeId) : undefined;
+                  return (
+                    <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
+                      {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
+                      {"messageKey" in v && v.messageKey
+                        ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
+                        : v.message}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -138,7 +166,7 @@ export function HealthBarDetailPopover({
           {/* Holes grouped by date */}
           {Object.entries(holesByDate).map(([date, dateHoles]) => (
             <div key={`holes-${date}`}>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-500">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Circle className="h-3 w-3" />
                 <span>
                   {t("holesOnDate", { count: dateHoles.length, date })}
@@ -146,7 +174,7 @@ export function HealthBarDetailPopover({
               </div>
               <ul className="mt-1 space-y-0.5">
                 {dateHoles.map((h, i) => (
-                  <li key={`${h.shiftTypeCode}-${i}`} className="text-xs text-neutral-500 pl-4">
+                  <li key={`${h.shiftTypeCode}-${i}`} className="text-xs text-muted-foreground pl-4">
                     {h.shiftTypeCode} — {h.reason}
                   </li>
                 ))}

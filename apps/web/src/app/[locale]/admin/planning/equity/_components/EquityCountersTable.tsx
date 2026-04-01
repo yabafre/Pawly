@@ -78,17 +78,15 @@ function aggregateByEmployee(counters: EquityCounter[]): CounterRow[] {
   );
 }
 
-function getThresholdColor(current: number, max: number | undefined): string {
+function getThresholdStyle(current: number, max: number | undefined): string {
   if (max === undefined || max <= 0) {
-    return current > 0
-      ? "bg-neutral-100 text-neutral-700 border-neutral-200"
-      : "border-neutral-100 bg-neutral-50 text-neutral-300";
+    return "bg-muted text-muted-foreground border-border";
   }
   const ratio = current / max;
-  if (ratio >= 1) return "bg-rose-50 text-rose-700 border-rose-200";
-  if (ratio >= 0.75) return "bg-amber-50 text-amber-700 border-amber-200";
-  if (current > 0) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  return "border-neutral-100 bg-neutral-50 text-neutral-300";
+  if (ratio >= 1) return "bg-primary/10 text-primary border-primary/30 font-extrabold";
+  if (ratio >= 0.75) return "bg-muted text-foreground border-border font-extrabold";
+  if (current > 0) return "bg-muted text-muted-foreground border-border";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function formatCounterValue(ct: string, value: number): string {
@@ -120,28 +118,28 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
 
   if (rows.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center border-dashed border-neutral-200 bg-neutral-50/50 py-16 text-center shadow-none">
-        <p className="text-sm font-bold text-neutral-500">{t("table.noData")}</p>
-        <p className="mt-1 text-xs text-neutral-400">{t("table.noDataDescription")}</p>
+      <Card className="flex flex-col items-center justify-center border-dashed border-border bg-muted/50 py-16 text-center shadow-none">
+        <p className="text-sm font-bold text-muted-foreground">{t("table.noData")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("table.noDataDescription")}</p>
       </Card>
     );
   }
 
   return (
-    <Card className="overflow-hidden border-neutral-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+    <Card className="overflow-hidden border-border shadow-none">
       <Table>
         <TableHeader>
-          <TableRow className="border-neutral-100 bg-neutral-50/60 hover:bg-neutral-50/60">
-            <TableHead className="pl-6 h-12 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+          <TableRow className="border-border bg-muted/60 hover:bg-muted/60">
+            <TableHead className="pl-6 h-12 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               {t("table.employee")}
             </TableHead>
-            <TableHead className="h-12 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+            <TableHead className="h-12 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               {t("table.jobType")}
             </TableHead>
             {COUNTER_TYPES.map((ct) => (
               <TableHead
                 key={ct}
-                className="h-12 text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                className="h-12 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
               >
                 {t(`counterTypes.${ct}`)}
               </TableHead>
@@ -150,26 +148,26 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.employeeId} className="border-neutral-50 hover:bg-neutral-50/50 transition-colors">
-              <TableCell className="pl-6 py-4 font-bold text-sm text-neutral-900">
+            <TableRow key={row.employeeId} className="border-border hover:bg-muted/50 transition-colors">
+              <TableCell className="pl-6 py-4 font-bold text-sm text-foreground">
                 {row.employeeName}
               </TableCell>
               <TableCell className="py-4">
-                <Badge variant="outline" className="text-[10px] border-neutral-200 text-neutral-500 font-medium">
+                <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-medium">
                   {row.jobType}
                 </Badge>
               </TableCell>
               {COUNTER_TYPES.map((ct) => {
                 const value = row[ct];
                 const max = thresholdMap.get(ct);
-                const colorClass = getThresholdColor(value, max);
+                const styleClass = getThresholdStyle(value, max);
                 const display = formatCounterValue(ct, value);
                 const label = max !== undefined ? `${display}/${max}` : display;
 
                 return (
                   <TableCell key={ct} className="text-center py-4">
                     <span
-                      className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold transition-all ${colorClass}`}
+                      className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold transition-all ${styleClass}`}
                     >
                       {label}
                     </span>

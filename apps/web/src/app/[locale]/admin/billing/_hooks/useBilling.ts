@@ -29,7 +29,8 @@ export const useBilling = (locale: string) => {
   );
 
   const openBillingPortal = async () => {
-    const returnUrl = `${window.location.origin}/${locale}/admin/billing`;
+    const prefix = locale === "fr" ? "" : `/${locale}`;
+    const returnUrl = `${window.location.origin}${prefix}/admin/billing`;
     const [result, err] = await portalMutation.mutateAsync({
       returnUrl,
       locale: locale as "fr" | "en",

@@ -8,6 +8,9 @@ describe('DashboardService', () => {
   const clinicId = 'clinic-123';
 
   const mockPrismaService = {
+    clinic: {
+      findUniqueOrThrow: jest.fn(),
+    },
     employee: {
       count: jest.fn(),
       groupBy: jest.fn(),
@@ -23,6 +26,9 @@ describe('DashboardService', () => {
     },
     apprenticeMonthDeclaration: {
       count: jest.fn(),
+    },
+    planningTemplate: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -40,6 +46,7 @@ describe('DashboardService', () => {
 
   describe('getStats', () => {
     const setupDefaultMocks = () => {
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({ name: 'Test Clinic' });
       mockPrismaService.employee.count
         .mockResolvedValueOnce(12)  // activeEmployees
         .mockResolvedValueOnce(3)   // totalApprentices
@@ -51,11 +58,32 @@ describe('DashboardService', () => {
       ]);
       mockPrismaService.absence.count.mockResolvedValue(3);
       mockPrismaService.varianceEvent.count.mockResolvedValue(2);
-      mockPrismaService.shift.findMany.mockResolvedValue([
-        { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-        { startTime: '09:00', endTime: '17:00', breakMinutes: 30 },
-      ]);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([ // monthShifts
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60, shiftTypeCode: 'CONSULT', date: new Date() },
+          { startTime: '09:00', endTime: '17:00', breakMinutes: 30, shiftTypeCode: 'CONSULT', date: new Date() },
+        ])
+        .mockResolvedValueOnce([ // todayShifts
+          { startTime: '08:00', endTime: '18:00', employee: { id: 'e1', firstName: 'Alice', lastName: 'Dupont', jobType: 'VET' } },
+        ]);
       mockPrismaService.apprenticeMonthDeclaration.count.mockResolvedValue(1);
+      mockPrismaService.planningTemplate.findFirst.mockResolvedValue(null);
+    };
+
+    const setupEmptyMocks = () => {
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({ name: 'Test Clinic' });
+      mockPrismaService.employee.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      mockPrismaService.employee.groupBy.mockResolvedValue([]);
+      mockPrismaService.absence.count.mockResolvedValue(0);
+      mockPrismaService.varianceEvent.count.mockResolvedValue(0);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([])  // monthShifts
+        .mockResolvedValueOnce([]); // todayShifts
+      mockPrismaService.apprenticeMonthDeclaration.count.mockResolvedValue(0);
+      mockPrismaService.planningTemplate.findFirst.mockResolvedValue(null);
     };
 
     it('should return all dashboard stats', async () => {
@@ -63,6 +91,7 @@ describe('DashboardService', () => {
 
       const result = await service.getStats(clinicId);
 
+      expect(result.clinicName).toBe('Test Clinic');
       expect(result.activeEmployees).toBe(12);
       expect(result.pendingRequests).toBe(5); // 3 absences + 2 variances
       expect(result.pendingAbsences).toBe(3);
@@ -95,18 +124,28 @@ describe('DashboardService', () => {
       });
     });
 
-    it('should execute 8 parallel queries', async () => {
+    it('should return today employees', async () => {
       setupDefaultMocks();
 
-      await service.getStats(clinicId);
+      const result = await service.getStats(clinicId);
 
-      // employee.count called 3 times (active + total apprentices + apprentices with school)
-      expect(mockPrismaService.employee.count).toHaveBeenCalledTimes(3);
-      expect(mockPrismaService.employee.groupBy).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.absence.count).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.varianceEvent.count).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.shift.findMany).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.apprenticeMonthDeclaration.count).toHaveBeenCalledTimes(1);
+      expect(result.todayEmployees).toHaveLength(1);
+      expect(result.todayEmployees[0]).toEqual({
+        id: 'e1',
+        firstName: 'Alice',
+        lastName: 'Dupont',
+        jobType: 'VET',
+        startTime: '08:00',
+        endTime: '18:00',
+      });
+    });
+
+    it('should return null coverage when no template exists', async () => {
+      setupDefaultMocks();
+
+      const result = await service.getStats(clinicId);
+
+      expect(result.coveragePercent).toBeNull();
     });
 
     it('should filter shifts by current month', async () => {
@@ -128,21 +167,14 @@ describe('DashboardService', () => {
     });
 
     it('should return 0 planned hours when no shifts exist', async () => {
-      mockPrismaService.employee.count
-        .mockResolvedValueOnce(0)  // activeEmployees
-        .mockResolvedValueOnce(0)  // totalApprentices
-        .mockResolvedValueOnce(0); // apprenticesWithSchool
-      mockPrismaService.employee.groupBy.mockResolvedValue([]);
-      mockPrismaService.absence.count.mockResolvedValue(0);
-      mockPrismaService.varianceEvent.count.mockResolvedValue(0);
-      mockPrismaService.shift.findMany.mockResolvedValue([]);
-      mockPrismaService.apprenticeMonthDeclaration.count.mockResolvedValue(0);
+      setupEmptyMocks();
 
       const result = await service.getStats(clinicId);
 
       expect(result.monthlyPlannedHours).toBe(0);
       expect(result.totalShifts).toBe(0);
       expect(result.pendingRequests).toBe(0);
+      expect(result.todayEmployees).toHaveLength(0);
     });
 
     it('should count undeclared apprentices using contractType and checking NO_SCHOOL_THIS_MONTH', async () => {
@@ -171,6 +203,7 @@ describe('DashboardService', () => {
     });
 
     it('should clamp undeclared apprentice count to 0 minimum', async () => {
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({ name: 'Test Clinic' });
       mockPrismaService.employee.count
         .mockResolvedValueOnce(5)   // activeEmployees
         .mockResolvedValueOnce(2)   // totalApprentices
@@ -178,8 +211,11 @@ describe('DashboardService', () => {
       mockPrismaService.employee.groupBy.mockResolvedValue([]);
       mockPrismaService.absence.count.mockResolvedValue(0);
       mockPrismaService.varianceEvent.count.mockResolvedValue(0);
-      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([])   // monthShifts
+        .mockResolvedValueOnce([]);  // todayShifts
       mockPrismaService.apprenticeMonthDeclaration.count.mockResolvedValue(1); // +1 no-school (overlap edge)
+      mockPrismaService.planningTemplate.findFirst.mockResolvedValue(null);
 
       const result = await service.getStats(clinicId);
 

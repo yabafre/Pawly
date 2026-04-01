@@ -7,7 +7,7 @@ import type { ApprenticeDeclarationRow } from "@pawly/validators";
 const statusColors: Record<ApprenticeDeclarationRow["status"], string> = {
   SCHOOL_DAYS_PROVIDED: "bg-green-100 text-green-800",
   NO_SCHOOL_THIS_MONTH: "bg-blue-100 text-blue-800",
-  MISSING: "bg-red-100 text-red-800",
+  MISSING: "bg-destructive/10 text-destructive",
 };
 
 export function ApprenticeDeclarationPanel({ month }: { month: string }) {
@@ -83,7 +83,7 @@ export function ApprenticeDeclarationPanel({ month }: { month: string }) {
                     removeDeclaration({ employeeId: row.employeeId, month })
                   }
                   disabled={isRemoving}
-                  className="text-xs px-3 py-1 rounded-md border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  className="text-xs px-3 py-1 rounded-md border border-destructive/30 text-destructive hover:bg-destructive/5 disabled:opacity-50 transition-colors"
                 >
                   {t("actions.removeDeclaration")}
                 </button>

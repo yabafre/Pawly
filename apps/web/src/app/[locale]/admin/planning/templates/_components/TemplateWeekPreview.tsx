@@ -30,8 +30,8 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
 
   return (
     <div className={cn(
-      "grid grid-cols-7 rounded-2xl overflow-hidden border border-neutral-100",
-      compact ? "gap-px bg-neutral-100" : "gap-px bg-neutral-100",
+      "grid grid-cols-7 rounded-2xl overflow-hidden border border-border",
+      compact ? "gap-px bg-border" : "gap-px bg-border",
     )}>
       {DAY_KEYS.map((dayKey, idx) => {
         const dayOfWeek = idx + 1;
@@ -46,10 +46,10 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
               "text-center transition-colors flex flex-col items-center justify-start",
               compact ? "py-2 px-0.5" : "py-3 px-1.5",
               nonWork
-                ? "bg-neutral-50/80"
+                ? "bg-muted/80"
                 : hasSlots
-                  ? "bg-white"
-                  : "bg-white",
+                  ? "bg-card"
+                  : "bg-card",
             )}
           >
             {/* Day label */}
@@ -57,7 +57,7 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
               className={cn(
                 "font-bold uppercase tracking-wider mb-1.5",
                 compact ? "text-[8px]" : "text-[10px]",
-                nonWork ? "text-neutral-300" : hasSlots ? "text-[#009588]" : "text-neutral-400",
+                nonWork ? "text-muted-foreground" : hasSlots ? "text-primary" : "text-muted-foreground",
               )}
             >
               {t(`days.${dayKey}`)}
@@ -70,7 +70,7 @@ export function TemplateWeekPreview({ data, shiftTypes, workDays, compact = fals
                 compact ? "min-h-[16px]" : "min-h-[24px]"
               )}>
                 <div className={cn(
-                  "rounded-full bg-neutral-100",
+                  "rounded-full bg-muted",
                   compact ? "w-1 h-1" : "w-1.5 h-1.5"
                 )} />
               </div>

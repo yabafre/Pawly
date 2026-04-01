@@ -21,26 +21,51 @@ export const useAdminVarianceEvents = (filters?: {
   employeeId?: string;
   month?: string;
   type?: string;
+  page?: number;
+  pageSize?: number;
 }) => {
   const { data, isPending, isFetching, error } = useServerActionQuery(
     listVarianceEventsAction,
     {
-      input: filters ?? {},
+      input: {
+        status: filters?.status,
+        employeeId: filters?.employeeId,
+        month: filters?.month,
+        type: filters?.type,
+        page: filters?.page ?? 0,
+        pageSize: filters?.pageSize ?? 10,
+      },
       queryKey: QueryKeyFactory.varianceEvents(
-        `${filters?.status ?? "all"}-${filters?.employeeId ?? "all"}-${filters?.month ?? "all"}-${filters?.type ?? "all"}`,
+        `${filters?.status ?? "all"}-${filters?.employeeId ?? "all"}-${filters?.month ?? "all"}-${filters?.type ?? "all"}-p${filters?.page ?? 0}`,
       ),
       placeholderData: (prev: unknown) => prev,
     },
   );
-  return { events: data ?? [], isPending, isFetching, error };
+  return {
+    events: data?.items ?? [],
+    total: data?.total ?? 0,
+    isPending,
+    isFetching,
+    error,
+  };
 };
 
-export const useVarianceStats = (month?: string) => {
+export const useVarianceStats = (filters?: {
+  month?: string;
+  status?: string;
+  employeeId?: string;
+}) => {
   const { data, isPending, error } = useServerActionQuery(
     getVarianceStatsAction,
     {
-      input: { month },
-      queryKey: QueryKeyFactory.varianceStats(month),
+      input: {
+        month: filters?.month,
+        status: filters?.status,
+        employeeId: filters?.employeeId,
+      },
+      queryKey: QueryKeyFactory.varianceStats(
+        `${filters?.month ?? "all"}-${filters?.status ?? "all"}-${filters?.employeeId ?? "all"}`,
+      ),
     },
   );
   return { stats: data ?? null, isPending, error };

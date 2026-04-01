@@ -37,7 +37,7 @@ export function EmployeeEquityBadge({ entry }: Props) {
       ? "text-orange-500"
       : status === "below"
         ? "text-teal-500"
-        : "text-neutral-400";
+        : "text-muted-foreground";
 
   return (
     <Popover>
@@ -51,20 +51,20 @@ export function EmployeeEquityBadge({ entry }: Props) {
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-52 p-3 text-xs" side="right" align="center">
-        <p className="font-semibold text-neutral-900 mb-2">{t("popoverTitle")}</p>
+        <p className="font-semibold text-foreground mb-2">{t("popoverTitle")}</p>
         {entry.counters.map((c) => {
           const threshold = (c as { maxPerPeriod?: number }).maxPerPeriod;
           const displayMax = threshold ?? c.clinicAverage;
           return (
             <div key={c.counterType} className="flex items-center justify-between py-1">
-              <span className="text-neutral-600">{t(`counterType.${c.counterType}`)}</span>
-              <span className={c.count > displayMax ? "font-bold text-orange-600" : "text-neutral-500"}>
+              <span className="text-muted-foreground">{t(`counterType.${c.counterType}`)}</span>
+              <span className={c.count > displayMax ? "font-bold text-orange-600" : "text-muted-foreground"}>
                 {c.count} / {displayMax}
               </span>
             </div>
           );
         })}
-        <p className="text-neutral-400 mt-1 text-[10px]">{t("popoverHint")}</p>
+        <p className="text-muted-foreground mt-1 text-[10px]">{t("popoverHint")}</p>
       </PopoverContent>
     </Popover>
   );

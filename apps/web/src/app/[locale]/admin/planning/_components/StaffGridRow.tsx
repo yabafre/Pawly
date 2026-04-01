@@ -24,9 +24,9 @@ import type { DropFeedback } from "../_hooks/useDragAndDrop";
 type GetDropFeedbackFn = (key: string) => DropFeedback;
 
 const JOB_TYPE_STYLES: Record<string, string> = {
-  VET: "bg-neutral-100 text-neutral-500",
-  ASV: "bg-neutral-100 text-neutral-500",
-  APPRENTICE: "bg-neutral-100 text-neutral-500",
+  VET: "bg-muted text-muted-foreground",
+  ASV: "bg-muted text-muted-foreground",
+  APPRENTICE: "bg-muted text-muted-foreground",
 };
 
 type ConflictEntry = { message: string; severity: "blocking" | "warning" };
@@ -71,7 +71,7 @@ export const StaffGridRow = React.memo(function StaffGridRow({
 }: Props) {
   const t = useTranslations("admin.scheduleView");
   const color = employee.color || getEmployeeColorFallback(employee.id);
-  const badgeClass = JOB_TYPE_STYLES[employee.jobType] || "bg-neutral-100 text-neutral-600";
+  const badgeClass = JOB_TYPE_STYLES[employee.jobType] || "bg-muted text-muted-foreground";
 
   // Compute gross presence hours, break hours, and school hours
   const { grossHours, breakHours, schoolHours } = useMemo(() => {
@@ -111,14 +111,14 @@ export const StaffGridRow = React.memo(function StaffGridRow({
       {/* Employee name cell */}
       <div
         role="rowheader"
-        className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-r border-neutral-100 flex items-center gap-2"
+        className="sticky left-0 z-10 bg-card px-4 py-3 border-b border-r border-border flex items-center gap-2"
       >
         <div
           className="w-0.5 h-6 rounded-full shrink-0"
           style={{ backgroundColor: color }}
         />
         <div className="min-w-0">
-          <div className="flex items-center gap-1 text-sm font-semibold text-neutral-900 truncate">
+          <div className="flex items-center gap-1 text-sm font-semibold text-foreground truncate">
             <span className="truncate">{employee.firstName} {employee.lastName.charAt(0)}.</span>
             {equitySummaryEntry && <EmployeeEquityBadge entry={equitySummaryEntry} />}
           </div>
@@ -167,7 +167,7 @@ export const StaffGridRow = React.memo(function StaffGridRow({
               tabIndex={tabIndex}
               data-row={rowIndex}
               data-col={colIndex}
-              className="border-b border-neutral-100 p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset"
+              className="border-b border-border p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset"
             >
               <AbsenceCell type={unavailability.type} reason={unavailability.reason} />
             </div>
@@ -212,15 +212,15 @@ export const StaffGridRow = React.memo(function StaffGridRow({
       {/* Weekly hours summary cell */}
       <div
         role="gridcell"
-        className="sticky right-0 z-10 bg-white border-b border-l border-neutral-100 px-3 py-3 flex items-center justify-center"
+        className="sticky right-0 z-10 bg-card border-b border-l border-border px-3 py-3 flex items-center justify-center"
       >
         <div
           className={`text-sm font-bold text-center ${
             hoursRatio > 1
-              ? "text-red-600"
+              ? "text-destructive"
               : weeklyHours === 0
-                ? "text-neutral-300"
-                : "text-neutral-700"
+                ? "text-muted-foreground"
+                : "text-muted-foreground"
           }`}
           title={
             hoursRatio > 1
@@ -232,16 +232,16 @@ export const StaffGridRow = React.memo(function StaffGridRow({
         >
           <div>{grossHours}h</div>
           {schoolHours > 0 && (
-            <div className="text-[10px] font-normal text-neutral-400">
+            <div className="text-[10px] font-normal text-muted-foreground">
               +{schoolHours}h {t("grid.school")}
             </div>
           )}
           {breakHours > 0 && (
-            <div className="text-[10px] font-normal text-neutral-300">
+            <div className="text-[10px] font-normal text-muted-foreground">
               -{breakHours}h {t("grid.break")}
             </div>
           )}
-          <div className="text-[10px] font-normal text-neutral-400">
+          <div className="text-[10px] font-normal text-muted-foreground">
             / {Math.round(proratedContract * 10) / 10}h
           </div>
         </div>

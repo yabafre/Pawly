@@ -30,11 +30,12 @@ type Props = {
   counters: EquityCounter[];
 };
 
+// Monochrome palette: primary teal + neutral grays for contrast
 const COUNTER_FILLS: Record<string, string> = {
-  SATURDAY_WORKED: "#f97316",
-  WEEKEND_TOTAL: "#3b82f6",
-  HOLIDAY_WORKED: "#f43f5e",
-  OVERTIME_HOURS: "#f59e0b",
+  SATURDAY_WORKED: "hsl(174, 100%, 29%)",    // primary teal
+  WEEKEND_TOTAL: "hsl(174, 50%, 50%)",       // lighter teal
+  HOLIDAY_WORKED: "hsl(220, 10%, 50%)",      // neutral gray
+  OVERTIME_HOURS: "hsl(220, 10%, 72%)",      // light gray
 };
 
 export function EquityDistributionChart({ counters }: Props) {
@@ -70,24 +71,24 @@ export function EquityDistributionChart({ counters }: Props) {
   if (data.length === 0) return null;
 
   return (
-    <Card className="border-neutral-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+    <Card className="border-border shadow-none overflow-visible">
       <CardHeader>
-        <CardTitle className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+        <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           {t("chart.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-visible">
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fill: "#737373" }}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
-              axisLine={{ stroke: "#e5e5e5" }}
+              axisLine={{ stroke: "hsl(var(--border))" }}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "#737373" }}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
               allowDecimals={false}
@@ -95,12 +96,16 @@ export function EquityDistributionChart({ counters }: Props) {
             <Tooltip
               contentStyle={{
                 borderRadius: "16px",
-                border: "1px solid #e5e5e5",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                border: "1px solid hsl(var(--border))",
+                backgroundColor: "hsl(var(--card))",
                 fontSize: "12px",
                 padding: "12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
               }}
-              cursor={{ fill: "#f5f5f5" }}
+              cursor={{ fill: "rgba(0,0,0,0.03)" }}
+              wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+              allowEscapeViewBox={{ x: true, y: false }}
+              position={{ y: -10 }}
             />
             <Legend
               wrapperStyle={{ fontSize: "11px", paddingTop: "20px" }}

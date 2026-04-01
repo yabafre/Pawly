@@ -42,22 +42,19 @@ export function SpecialDaysFieldArray({
   };
 
   return (
-    <section className="group relative overflow-hidden rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:p-6">
-      {/* Glow spot interne */}
-      <div className="pointer-events-none absolute -left-16 -bottom-16 h-[200px] w-[200px] rounded-full bg-amber-400 opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.04]" />
-
-      <div className="relative z-10">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+      <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-100">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted">
               <CalendarClock className="h-4 w-4 text-amber-500" strokeWidth={1.5} />
             </div>
-            <h3 className="text-sm font-bold text-neutral-900">
+            <h3 className="text-sm font-bold text-foreground">
               {t("sections.specialDays")}
             </h3>
             <Badge
               variant="secondary"
-              className="bg-neutral-100 text-neutral-500 hover:bg-neutral-100 text-[10px] font-bold tabular-nums"
+              className="bg-muted text-muted-foreground hover:bg-muted text-[10px] font-bold tabular-nums"
             >
               {items.length}
             </Badge>
@@ -67,7 +64,7 @@ export function SpecialDaysFieldArray({
             variant="ghost"
             size="sm"
             onClick={addRow}
-            className="text-[#009588] hover:bg-[#009588]/10 hover:text-[#00796B] font-bold text-xs"
+            className="text-primary hover:bg-primary/10 hover:text-primary/80 font-bold text-xs"
           >
             <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
             {t("actions.addSpecialDay")}
@@ -75,11 +72,11 @@ export function SpecialDaysFieldArray({
         </div>
 
         {items.length === 0 ? (
-          <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/40 py-10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100">
-              <CalendarClock className="h-6 w-6 text-neutral-300" strokeWidth={1.5} />
+          <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30 py-10">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+              <CalendarClock className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
             </div>
-            <p className="mt-3 text-sm text-neutral-400">
+            <p className="mt-3 text-sm text-muted-foreground">
               {t("empty.specialDays")}
             </p>
           </div>
@@ -88,7 +85,7 @@ export function SpecialDaysFieldArray({
             {items.map((item, index) => (
               <div
                 key={`special-${index}`}
-                className="rounded-2xl border border-neutral-100 bg-neutral-50/50 p-5 transition-all hover:border-[#009588]/20 hover:shadow-sm"
+                className="rounded-2xl border border-border bg-muted/30 p-5 transition-all hover:border-primary/20 hover:shadow-sm"
               >
                 {/* Mobile: stack, Desktop: inline grid */}
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1.5fr_auto]">
@@ -96,7 +93,7 @@ export function SpecialDaysFieldArray({
                   <div className="space-y-2">
                     <Label
                       htmlFor={`special-day-date-${index}`}
-                      className="text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                      className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                     >
                       {t("fields.date")}
                     </Label>
@@ -108,7 +105,7 @@ export function SpecialDaysFieldArray({
                         updateRow(index, { date: event.target.value })
                       }
                       aria-invalid={!!errors[`specialDays.${index}.date`]}
-                      className="rounded-xl border-neutral-200 bg-white focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                      className="rounded-xl border-border bg-card focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                     {errors[`specialDays.${index}.date`] && (
                       <p className="text-xs text-red-600" role="alert">
@@ -121,7 +118,7 @@ export function SpecialDaysFieldArray({
                   <div className="space-y-2">
                     <Label
                       htmlFor={`special-day-label-${index}`}
-                      className="text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                      className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                     >
                       {t("fields.label")}
                     </Label>
@@ -132,7 +129,7 @@ export function SpecialDaysFieldArray({
                         updateRow(index, { label: event.target.value })
                       }
                       placeholder={t("fields.labelPlaceholder")}
-                      className="rounded-xl border-neutral-200 bg-white focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                      className="rounded-xl border-border bg-card focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
 
@@ -144,7 +141,7 @@ export function SpecialDaysFieldArray({
                       size="icon"
                       onClick={() => removeRow(index)}
                       aria-label={t("actions.remove")}
-                      className="h-9 w-9 rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                      className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
                     >
                       <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                     </Button>
@@ -156,7 +153,7 @@ export function SpecialDaysFieldArray({
                   <div className="space-y-2">
                     <Label
                       htmlFor={`special-day-start-${index}`}
-                      className="text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                      className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                     >
                       {t("fields.startTime")}
                     </Label>
@@ -168,7 +165,7 @@ export function SpecialDaysFieldArray({
                         updateRow(index, { startTime: event.target.value })
                       }
                       aria-invalid={!!errors[`specialDays.${index}.startTime`]}
-                      className="rounded-xl border-neutral-200 bg-white focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                      className="rounded-xl border-border bg-card focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                     {errors[`specialDays.${index}.startTime`] && (
                       <p className="text-xs text-red-600" role="alert">
@@ -180,7 +177,7 @@ export function SpecialDaysFieldArray({
                   <div className="space-y-2">
                     <Label
                       htmlFor={`special-day-end-${index}`}
-                      className="text-[10px] font-bold uppercase tracking-widest text-neutral-400"
+                      className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                     >
                       {t("fields.endTime")}
                     </Label>
@@ -192,7 +189,7 @@ export function SpecialDaysFieldArray({
                         updateRow(index, { endTime: event.target.value })
                       }
                       aria-invalid={!!errors[`specialDays.${index}.endTime`]}
-                      className="rounded-xl border-neutral-200 bg-white focus:border-[#009588] focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                      className="rounded-xl border-border bg-card focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                     {errors[`specialDays.${index}.endTime`] && (
                       <p className="text-xs text-red-600" role="alert">
@@ -210,7 +207,7 @@ export function SpecialDaysFieldArray({
                     size="sm"
                     onClick={() => removeRow(index)}
                     aria-label={t("actions.remove")}
-                    className="rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    className="rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
                   >
                     <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
                     {t("actions.remove")}

@@ -63,9 +63,9 @@ function DayEditor({
 
   return (
     <div
-      className={`transition-all duration-300 border border-neutral-100 overflow-hidden ${isOpen
-        ? "bg-neutral-50 rounded-2xl shadow-sm my-4"
-        : "bg-white rounded-xl my-2 hover:border-neutral-200"
+      className={`transition-all duration-300 border border-border overflow-hidden ${isOpen
+        ? "bg-muted rounded-2xl shadow-sm my-4"
+        : "bg-card rounded-xl my-2 hover:border-border"
         }`}
     >
       <div
@@ -75,34 +75,34 @@ function DayEditor({
         }}
         role="button"
         tabIndex={0}
-        className="flex items-center justify-between p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-200"
+        className="flex items-center justify-between p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-border"
       >
         <div className="flex items-center gap-4">
           <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isOpen ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-400"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isOpen ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
               }`}
           >
             <Calendar size={14} />
           </div>
 
-          <span className={`font-bold text-sm ${isOpen ? "text-neutral-900" : "text-neutral-600"}`}>
+          <span className={`font-bold text-sm ${isOpen ? "text-foreground" : "text-muted-foreground"}`}>
             {dayLabel}
           </span>
 
           {isNonWorkDay && !isWorked && (
-            <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-full uppercase tracking-wide">
+            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded-full uppercase tracking-wide">
               {t("nonWorkDay")}
             </span>
           )}
 
           {!isNonWorkDay && !isWorked && (
-            <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-full uppercase tracking-wide">
+            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded-full uppercase tracking-wide">
               {t("preview.noSlots")}
             </span>
           )}
 
           {isWorked && !isOpen && (
-            <span className="text-[10px] font-bold text-[#009588] bg-[#009588]/10 px-2 py-1 rounded-full uppercase tracking-wide">
+            <span className="text-[10px] font-bold text-primary bg-secondary px-2 py-1 rounded-full uppercase tracking-wide">
               {t("card.slotsCount", { count: slots.length })}
             </span>
           )}
@@ -110,19 +110,19 @@ function DayEditor({
 
         <ChevronDown
           size={16}
-          className={`text-neutral-400 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+          className={`text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
         />
       </div>
 
       {isOpen && (
         <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-300">
           {isNonWorkDay && slots.length === 0 ? (
-            <div className="text-center py-8 border-t border-neutral-200 border-dashed mt-2">
-              <p className="text-xs text-neutral-400 mb-4">{t("nonWorkDay")}</p>
+            <div className="text-center py-8 border-t border-border border-dashed mt-2">
+              <p className="text-xs text-muted-foreground mb-4">{t("nonWorkDay")}</p>
               <button
                 type="button"
                 onClick={onAddSlot}
-                className="px-4 py-2 bg-white border border-neutral-200 text-neutral-900 text-xs font-bold rounded-xl hover:bg-neutral-50 transition-colors shadow-sm"
+                className="px-4 py-2 bg-card border border-border text-foreground text-xs font-bold rounded-xl hover:bg-muted transition-colors shadow-sm"
               >
                 {t("slot.addSlot")}
               </button>
@@ -131,10 +131,10 @@ function DayEditor({
             <div className="space-y-3 mt-2">
               {slots.length > 0 && (
                 <div className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-3 px-2 mb-1">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                     {t("slot.shiftType")}
                   </span>
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest text-center whitespace-nowrap">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center whitespace-nowrap">
                     {t("slot.requiredStaff")}
                   </span>
                 </div>
@@ -156,7 +156,7 @@ function DayEditor({
               <button
                 type="button"
                 onClick={onAddSlot}
-                className="w-full py-3 border border-dashed border-neutral-300 rounded-xl flex items-center justify-center gap-2 text-neutral-400 hover:text-[#009588] hover:border-[#009588] hover:bg-[#009588]/5 transition-all group mt-4"
+                className="w-full py-3 border border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group mt-4"
               >
                 <Plus size={16} className="group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-bold">{t("slot.addSlot")}</span>
@@ -263,32 +263,32 @@ export function TemplateEditor({
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="w-full sm:max-w-none md:w-[640px] xl:w-[700px] p-0 flex flex-col gap-0 border-l border-neutral-200 shadow-2xl"
+        className="w-full sm:max-w-none md:w-[640px] xl:w-[700px] p-0 flex flex-col gap-0 border-l border-border shadow-2xl"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Template Editor</SheetTitle>
           <SheetDescription>Planning template editor panel</SheetDescription>
         </SheetHeader>
 
-        <div className="px-6 py-5 border-b border-neutral-100 flex justify-between items-start bg-white/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="px-6 py-5 border-b border-border flex justify-between items-start bg-card/80 backdrop-blur-md sticky top-0 z-10">
           <div>
-            <h2 className="text-xl font-bold text-neutral-900 mb-1">
+            <h2 className="text-xl font-bold text-foreground mb-1">
               {isEditing ? t("form.editTitle") : t("form.createTitle")}
             </h2>
-            <p className="text-xs text-neutral-500">{t("form.subtitle")}</p>
+            <p className="text-xs text-muted-foreground">{t("form.subtitle")}</p>
           </div>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="p-2 rounded-full hover:bg-neutral-100 text-neutral-400 hover:text-neutral-900 transition-colors"
+            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA]">
+        <div className="flex-1 overflow-y-auto p-6 bg-muted">
           <div className="mb-8">
-            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">
               {t("form.name")}
             </label>
             <Input
@@ -296,7 +296,7 @@ export function TemplateEditor({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("form.namePlaceholder")}
-              className="w-full bg-white border border-neutral-200 rounded-xl py-4 px-4 text-sm font-medium text-neutral-900 focus-visible:outline-none focus-visible:border-[#009588] focus-visible:ring-4 focus-visible:ring-[#009588]/10 transition-all shadow-sm h-12"
+              className="w-full bg-card border border-border rounded-xl py-4 px-4 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-ring/10 transition-all shadow-sm h-12"
               aria-invalid={!name.trim() && name.length > 0}
               aria-describedby={!name.trim() && name.length > 0 ? "template-name-error" : undefined}
             />
@@ -308,11 +308,11 @@ export function TemplateEditor({
           </div>
 
           <div className="flex items-center gap-4 mb-6">
-            <div className="h-px bg-neutral-200 flex-1" />
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest bg-[#FAFAFA] px-2">
+            <div className="h-px bg-border flex-1" />
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted px-2">
               {t("preview.title")}
             </span>
-            <div className="h-px bg-neutral-200 flex-1" />
+            <div className="h-px bg-border flex-1" />
           </div>
 
           <div className="space-y-2">
@@ -338,12 +338,12 @@ export function TemplateEditor({
           </div>
         </div>
 
-        <div className="p-5 border-t border-neutral-100 bg-white flex justify-between items-center gap-4">
+        <div className="p-5 border-t border-border bg-card flex justify-between items-center gap-4">
           <div className="flex gap-3 flex-1 justify-end">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="h-11 px-5 border border-neutral-200 text-neutral-600 font-bold rounded-xl text-sm hover:bg-neutral-50 cursor-pointer"
+              className="h-11 px-5 border border-border text-muted-foreground font-bold rounded-xl text-sm hover:bg-muted cursor-pointer"
             >
               {t("form.cancel")}
             </button>
@@ -351,7 +351,7 @@ export function TemplateEditor({
               type="button"
               onClick={handleSubmit}
               disabled={!name.trim() || isSaving}
-              className="h-11 px-6 bg-[#171717] text-white font-bold rounded-xl text-sm hover:bg-neutral-900 shadow-lg shadow-neutral-900/10 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 px-6 bg-foreground text-background font-bold rounded-xl text-sm hover:bg-foreground/90 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
               {t("form.save")}

@@ -28,7 +28,7 @@ export const useEquityCounters = (
 ) => {
   const queryClient = useQueryClient();
   const t = useTranslations("admin.equityCounters.toast");
-  const queryKey = QueryKeyFactory.equityCounters();
+  const queryKey = QueryKeyFactory.equityCounters(year, months);
 
   const { data, isPending, isLoading, isFetching, error, refetch } =
     useServerActionQuery(getEquityCountersAction, {
@@ -38,9 +38,9 @@ export const useEquityCounters = (
     });
 
   const invalidateCounters = () => {
-    queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: ["planning", "equity-counters"] });
     queryClient.invalidateQueries({
-      queryKey: QueryKeyFactory.equityQuarterlySummary(),
+      queryKey: ["planning", "equity-quarterly"],
     });
     queryClient.invalidateQueries({
       queryKey: QueryKeyFactory.planning(),
@@ -77,7 +77,7 @@ export const useEquityCounters = (
 };
 
 export const useQuarterlySummary = (year: number, quarter: number) => {
-  const queryKey = QueryKeyFactory.equityQuarterlySummary();
+  const queryKey = QueryKeyFactory.equityQuarterlySummary(year, quarter);
 
   const { data, isPending, isLoading, isFetching, error, refetch } =
     useServerActionQuery(getQuarterlySummaryAction, {
