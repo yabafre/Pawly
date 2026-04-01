@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { PawlyLogo } from "@/components/pawly-logo";
+import { FallingAnimals } from "@/components/ui/falling-animals";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, AlertCircle, ArrowRight, Eye, EyeOff, Check } from "lucide-react";
 
@@ -229,12 +230,24 @@ function PasswordStrength({ password, t }: { password: string; t: ReturnType<typ
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-center">
-          <PawlyLogo />
+    <div className="min-h-dvh flex bg-background">
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="flex flex-col items-center gap-1.5">
+            <PawlyLogo />
+          </div>
+          {children}
         </div>
-        {children}
+      </div>
+
+      <div className="hidden lg:block w-1/2 relative">
+        <FallingAnimals
+          color="#009588"
+          speed={0.6}
+          size={18}
+          gap={52}
+          className="absolute inset-0 h-full w-full [mask-image:linear-gradient(to_right,transparent,black_30%)]"
+        />
       </div>
     </div>
   );

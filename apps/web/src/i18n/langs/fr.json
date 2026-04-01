@@ -188,7 +188,8 @@
       "coverageHelper": "{percent}% des créneaux pourvus",
       "noCoverage": "Aucun modèle configuré",
       "todayTeam": "Aujourd'hui en poste",
-      "noOneToday": "Personne n'est prévu aujourd'hui."
+      "noOneToday": "Personne n'est prévu aujourd'hui.",
+      "title": "Tableau de bord"
     },
     "planningRules": {
       "title": "Règles de planning",
@@ -1703,7 +1704,11 @@
       "badge": "Nouveau : Planning IA automatisé",
       "trialNote": "Essai gratuit · Sans carte bancaire",
       "trustTitle": "Ils nous font confiance :",
-      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+      "trustBadges": [
+        "VetLife",
+        "AniCura",
+        "MonVéto"
+      ]
     },
     "features": {
       "title": "Tout ce dont votre clinique a besoin",
@@ -1757,7 +1762,12 @@
         "interval": "mois",
         "description": "Idéal pour découvrir Pawly et ses fonctionnalités essentielles",
         "free": "Gratuit",
-        "features": ["Jusqu'à 3 membres d'équipe", "Planning de base", "Gestion des absences", "Support communautaire"]
+        "features": [
+          "Jusqu'à 3 membres d'équipe",
+          "Planning de base",
+          "Gestion des absences",
+          "Support communautaire"
+        ]
       },
       "professional": {
         "name": "Professionnel",
@@ -1765,7 +1775,13 @@
         "interval": "mois",
         "description": "Pour les cliniques en croissance qui ont besoin de plus",
         "popular": "Le plus populaire",
-        "features": ["Jusqu'à 20 membres d'équipe", "Algorithmes de planning avancés", "Compteurs d'équité", "Support prioritaire", "Types de postes personnalisés"]
+        "features": [
+          "Jusqu'à 20 membres d'équipe",
+          "Algorithmes de planning avancés",
+          "Compteurs d'équité",
+          "Support prioritaire",
+          "Types de postes personnalisés"
+        ]
       },
       "cta": "Commencer",
       "currency": "€",
@@ -1811,5 +1827,11 @@
       "terms": "Conditions d'utilisation",
       "copyright": "© 2026 Pawly. Tous droits réservés."
     }
+  },
+  "employeeAbsences": {
+    "title": "Mes absences"
+  },
+  "employeeSettings": {
+    "title": "Paramètres"
   }
 }

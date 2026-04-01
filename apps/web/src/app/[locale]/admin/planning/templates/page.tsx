@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatesClient } from "./_components/TemplatesClient";
@@ -5,6 +6,12 @@ import { TemplatesClient } from "./_components/TemplatesClient";
 type Props = {
   params: Promise<{ locale: string }>;
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "admin.planningTemplates" });
+  return { title: t("title") };
+}
 
 export default async function TemplatesPage({ params }: Props) {
   const { locale } = await params;

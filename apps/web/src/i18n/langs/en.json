@@ -188,7 +188,8 @@
       "coverageHelper": "{percent}% of slots filled",
       "noCoverage": "No template configured",
       "todayTeam": "Working today",
-      "noOneToday": "No one is scheduled today."
+      "noOneToday": "No one is scheduled today.",
+      "title": "Dashboard"
     },
     "planningRules": {
       "title": "Planning Rules",
@@ -1703,7 +1704,11 @@
       "badge": "New: AI-powered Scheduling",
       "trialNote": "Free trial · No credit card required",
       "trustTitle": "Trusted by leading clinics:",
-      "trustBadges": ["VetLife", "AniCura", "MonVéto"]
+      "trustBadges": [
+        "VetLife",
+        "AniCura",
+        "MonVéto"
+      ]
     },
     "features": {
       "title": "Everything your clinic needs",
@@ -1757,7 +1762,12 @@
         "interval": "month",
         "description": "Ideal to discover Pawly and its essential features",
         "free": "Free",
-        "features": ["Up to 3 team members", "Basic scheduling", "Absence management", "Community support"]
+        "features": [
+          "Up to 3 team members",
+          "Basic scheduling",
+          "Absence management",
+          "Community support"
+        ]
       },
       "professional": {
         "name": "Professional",
@@ -1765,7 +1775,13 @@
         "interval": "month",
         "description": "For growing clinics that need more",
         "popular": "Most Popular",
-        "features": ["Up to 20 team members", "Advanced scheduling algorithms", "Equity counters", "Priority support", "Custom shift types"]
+        "features": [
+          "Up to 20 team members",
+          "Advanced scheduling algorithms",
+          "Equity counters",
+          "Priority support",
+          "Custom shift types"
+        ]
       },
       "cta": "Get Started",
       "currency": "€",
@@ -1811,5 +1827,11 @@
       "terms": "Terms of Service",
       "copyright": "© 2026 Pawly. All rights reserved."
     }
+  },
+  "employeeAbsences": {
+    "title": "My absences"
+  },
+  "employeeSettings": {
+    "title": "Settings"
   }
 }
