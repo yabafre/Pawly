@@ -87,7 +87,7 @@ describe('varianceRouter', () => {
 
   describe('list', () => {
     it('should list variance events for authenticated user', async () => {
-      const events = [{ id: 'v1' }];
+      const events = { items: [{ id: 'v1' }], total: 1 };
       mockVarianceService.listVarianceEvents.mockResolvedValue(events);
 
       const caller = createAdminCaller();
@@ -96,7 +96,7 @@ describe('varianceRouter', () => {
       expect(result).toEqual(events);
       expect(mockVarianceService.listVarianceEvents).toHaveBeenCalledWith(
         'clinic-123',
-        { status: 'PENDING' },
+        { status: 'PENDING', page: 0, pageSize: 10 },
       );
     });
 
