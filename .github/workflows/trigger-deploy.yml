@@ -4,20 +4,11 @@ on:
   push:
     branches:
       - main
-      - develop
     paths:
       - 'apps/api/src/trigger/**'
       - 'apps/api/trigger.config.ts'
       - 'apps/api/prisma/**'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        type: choice
-        options:
-          - staging
-          - prod
 
 jobs:
   deploy:
@@ -46,22 +37,12 @@ jobs:
           DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
 
       - name: Login to private registry
-        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login registry.brainst.fr -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${{ secrets.BRAINST_REGISTRY_URL }}" -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
 
-      - name: Determine environment
-        id: env
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "target=${{ inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "target=prod" >> $GITHUB_OUTPUT
-          else
-            echo "target=staging" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Deploy to Trigger.dev (${{ steps.env.outputs.target }})
+      - name: Deploy to Trigger.dev (prod)
         env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_API_URL: ${{ secrets.TRIGGER_API_URL }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-        run: cd apps/api && npx trigger.dev@latest deploy --env ${{ steps.env.outputs.target }}
+        run: cd apps/api && npx trigger.dev@latest deploy --env prod
