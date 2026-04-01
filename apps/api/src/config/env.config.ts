@@ -17,9 +17,12 @@ export const envSchema = z.object({
   VAPID_SUBJECT: z.string().min(1).optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional().or(z.literal('').transform(() => undefined)),
   OTEL_SERVICE_NAME: z.string().default('pawly-api'),
+  OTEL_SERVICE_NAME_FRONT: z.string().default('pawly-web'),
   OTEL_INSECURE_SKIP_VERIFY: z.enum(['true', 'false']).default('false'),
   TRIGGER_SECRET_KEY: z.string().min(1).optional(),
   TRIGGER_API_URL: z.string().url().optional(),
+  TRIGGER_PROJECT_ID: z.string().min(1).optional(),
+  TRIGGER_ACCESS_TOKEN: z.string().min(1).optional(),
   CRON_ENABLED: z.enum(['true', 'false']).default('true'),
 });
 

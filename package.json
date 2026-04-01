@@ -5,7 +5,7 @@
   "scripts": {
     "build": "NODE_ENV=production dotenv -- turbo run build",
     "start": "dotenv -- turbo run start",
-    "dev": "dotenv -- turbo run dev",
+    "dev": "dotenv -- turbo run dev trigger:dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:generate": "dotenv -- pnpm --filter @pawly/api db:generate",
@@ -16,16 +16,20 @@
     "db:studio": "dotenv -- pnpm --filter @pawly/api db:studio",
     "db:seed": "dotenv -- pnpm --filter @pawly/api db:seed",
     "test": "dotenv -- turbo run test",
-    "trigger:dev": "dotenv -- pnpm --filter @pawly/api trigger:dev"
+    "trigger:dev": "dotenv -- pnpm --filter @pawly/api trigger:dev",
+    "trigger:deploy:staging": "dotenv -- pnpm --filter @pawly/api trigger:deploy:staging",
+    "trigger:deploy:prod": "dotenv -- pnpm --filter @pawly/api trigger:deploy:prod"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
     "prettier": "^3.4.2",
     "sharp": "^0.34.5",
-    "turbo": "^2.8.1"
+    "turbo": "latest"
   },
   "pnpm": {
-    "overrides": {}
+    "overrides": {
+      "c12>pkg-types": "1.3.1"
+    }
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

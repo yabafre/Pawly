@@ -86,11 +86,39 @@
             "env": [
                 "TRIGGER_SECRET_KEY",
                 "TRIGGER_API_URL",
+                "TRIGGER_PROJECT_ID",
                 "DATABASE_URL",
                 "RESEND_API_KEY",
                 "VAPID_PUBLIC_KEY",
                 "VAPID_PRIVATE_KEY",
                 "VAPID_SUBJECT"
+            ]
+        },
+        "trigger:deploy": {
+            "cache": false,
+            "env": [
+                "TRIGGER_SECRET_KEY",
+                "TRIGGER_API_URL",
+                "TRIGGER_PROJECT_ID",
+                "TRIGGER_ACCESS_TOKEN"
+            ]
+        },
+        "trigger:deploy:staging": {
+            "cache": false,
+            "env": [
+                "TRIGGER_SECRET_KEY",
+                "TRIGGER_API_URL",
+                "TRIGGER_PROJECT_ID",
+                "TRIGGER_ACCESS_TOKEN"
+            ]
+        },
+        "trigger:deploy:prod": {
+            "cache": false,
+            "env": [
+                "TRIGGER_SECRET_KEY",
+                "TRIGGER_API_URL",
+                "TRIGGER_PROJECT_ID",
+                "TRIGGER_ACCESS_TOKEN"
             ]
         }
     }
