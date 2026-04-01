@@ -744,3 +744,16 @@ So that I can regain access to my clinic management dashboard without contacting
 **Then** I'm taken to a page where I enter my email, receive a reset link by email (1h TTL, SHA256 token), and can set a new password.
 **And** the flow prevents user enumeration (timing-safe responses, generic messages).
 **And** previous unused tokens are invalidated when a new one is requested.
+
+### Story 10.2: Admin Settings — Clinic & Profile Management
+As an admin user,
+I want to manage my clinic information and personal account settings from the settings page,
+So that I can update my clinic name, change my password, and configure my preferences without contacting support.
+
+**Acceptance Criteria:**
+**Given** the admin settings page
+**When** I navigate to it
+**Then** I see tabs for clinic info (name, slug), general config, shift types, and my account (name, locale, change password).
+**And** I can edit my clinic name (slug auto-regenerated).
+**And** I can change my password (current password required, strength indicator).
+**And** I can switch my language preference (FR/EN).

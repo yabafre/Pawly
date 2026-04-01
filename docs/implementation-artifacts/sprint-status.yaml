@@ -262,4 +262,5 @@ development_status:
   # ===========================================================================
   epic-10: in-progress
   10-1-admin-password-reset-workflow: done  # Admin forgot password flow. PasswordResetToken model, SHA256 hashing, 1h TTL, timing-safe, Resend email template, forgot-password + reset-password pages, server actions, i18n FR/EN. 16 validator tests pass. 0 TS errors.
+  10-2-admin-settings-clinic-profile-management: done  # Clinic profile (name, slug, createdAt) + admin account (name, locale, change password with strength indicator) tabs. 15 validator tests. 0 TS errors.
   epic-10-retrospective: optional
