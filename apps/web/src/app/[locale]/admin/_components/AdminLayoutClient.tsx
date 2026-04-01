@@ -23,9 +23,11 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
+import { updateAdminProfileAction } from "@/app/[locale]/admin/settings/_actions/settings-actions";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { useEffect, useState, useRef } from "react";
+import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 // ── Navigation types ──────────────────────────────────────────────
 
@@ -199,6 +201,11 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
   const t = useTranslations("admin.nav");
   const tCommon = useTranslations("common");
 
+  const { mutate: persistLocale } = useServerActionMutation(updateAdminProfileAction);
+  const handleLocaleChange = useCallback((newLocale: string) => {
+    persistLocale({ locale: newLocale as "fr" | "en" });
+  }, [persistLocale]);
+
   const prevSettingsPathRef = useRef(pathname);
 
   if (prevSettingsPathRef.current !== pathname) {
@@ -229,7 +236,7 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
           </div>
 
           <div className="flex items-center gap-2">
-            <LanguageSwitcher />
+            <LanguageSwitcher onLocaleChange={handleLocaleChange} />
             <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
               <Bell size={20} />
             </button>

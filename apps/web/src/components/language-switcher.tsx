@@ -19,7 +19,11 @@ import { isStandalone } from '@/lib/pwa-utils';
  * Uses next-intl's useRouter.replace() for client-side navigation.
  * In PWA standalone mode, uses window.location to avoid iOS breaking out of standalone.
  */
-export function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+  onLocaleChange?: (locale: string) => void;
+}
+
+export function LanguageSwitcher({ onLocaleChange }: LanguageSwitcherProps = {}) {
   const locale = useLocale() as Locale;
   const pathname = usePathname();
   const router = useRouter();
@@ -27,6 +31,8 @@ export function LanguageSwitcher() {
   const [isPending, startTransition] = useTransition();
 
   const handleLocaleChange = (newLocale: string) => {
+    onLocaleChange?.(newLocale);
+
     if (isStandalone()) {
       // In PWA standalone mode, use window.location to stay in standalone context.
       // next-intl's router.replace() triggers a Next.js soft navigation that
