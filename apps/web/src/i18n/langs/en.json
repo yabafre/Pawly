@@ -105,6 +105,45 @@
       "invalidToken": "Invalid activation link",
       "tokenMissing": "The activation link is missing or malformed. Please check your email."
     },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "subtitle": "Enter your email to receive a reset link.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinic.com",
+      "submitButton": "Send reset link",
+      "submitting": "Sending...",
+      "successTitle": "Email sent",
+      "successMessage": "If an account exists with this email, a reset link has been sent.",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "title": "New password",
+      "subtitle": "Choose a new secure password.",
+      "passwordLabel": "New password",
+      "confirmLabel": "Confirm password",
+      "passwordHint": "Min. 8 characters, uppercase, lowercase, and number.",
+      "submitButton": "Reset password",
+      "submitting": "Resetting...",
+      "successTitle": "Password reset",
+      "successMessage": "Your password has been updated. Redirecting...",
+      "goToLogin": "Log in",
+      "errorTitle": "Invalid link",
+      "errorMessage": "This reset link has expired or has already been used.",
+      "requestNew": "Request a new link",
+      "mismatch": "Passwords do not match",
+      "rules": {
+        "min8": "8 characters min.",
+        "uppercase": "One uppercase",
+        "lowercase": "One lowercase",
+        "digit": "One number"
+      },
+      "strength": {
+        "empty": "",
+        "weak": "Weak",
+        "medium": "Medium",
+        "strong": "Strong"
+      }
+    },
     "errors": {
       "generic": "An error occurred",
       "invalidEmail": "Invalid email",
@@ -765,7 +804,8 @@
         "notConfirmed": "Not confirmed",
         "reason": "Exception note",
         "employee": "Employee",
-        "allEmployees": "All employees"
+        "allEmployees": "All employees",
+        "pagination": "{from}–{to} of {total}"
       },
       "actions": {
         "approve": "Approve",
@@ -1648,6 +1688,7 @@
     },
     "header": {
       "login": "Log in",
+      "account": "My account",
       "cta": "Get Started",
       "navFeatures": "Features",
       "navPricing": "Pricing"

@@ -105,6 +105,45 @@
       "invalidToken": "Lien d'activation invalide",
       "tokenMissing": "Le lien d'activation est manquant ou malformé. Vérifiez votre email."
     },
+    "forgotPassword": {
+      "title": "Mot de passe oublié",
+      "subtitle": "Entrez votre email pour recevoir un lien de réinitialisation.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@clinique.fr",
+      "submitButton": "Envoyer le lien",
+      "submitting": "Envoi...",
+      "successTitle": "Email envoyé",
+      "successMessage": "Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.",
+      "backToLogin": "Retour à la connexion"
+    },
+    "resetPassword": {
+      "title": "Nouveau mot de passe",
+      "subtitle": "Choisissez un nouveau mot de passe sécurisé.",
+      "passwordLabel": "Nouveau mot de passe",
+      "confirmLabel": "Confirmer le mot de passe",
+      "passwordHint": "Min. 8 caractères, majuscule, minuscule et chiffre.",
+      "submitButton": "Réinitialiser",
+      "submitting": "Réinitialisation...",
+      "successTitle": "Mot de passe réinitialisé",
+      "successMessage": "Votre mot de passe a été mis à jour. Redirection en cours...",
+      "goToLogin": "Se connecter",
+      "errorTitle": "Lien invalide",
+      "errorMessage": "Ce lien de réinitialisation est expiré ou a déjà été utilisé.",
+      "requestNew": "Demander un nouveau lien",
+      "mismatch": "Les mots de passe ne correspondent pas",
+      "rules": {
+        "min8": "8 caractères min.",
+        "uppercase": "Une majuscule",
+        "lowercase": "Une minuscule",
+        "digit": "Un chiffre"
+      },
+      "strength": {
+        "empty": "",
+        "weak": "Faible",
+        "medium": "Moyen",
+        "strong": "Fort"
+      }
+    },
     "errors": {
       "generic": "Une erreur est survenue",
       "invalidEmail": "Email invalide",
@@ -765,7 +804,8 @@
         "notConfirmed": "Non confirmé",
         "reason": "Note d'exception",
         "employee": "Employé",
-        "allEmployees": "Tous les employés"
+        "allEmployees": "Tous les employés",
+        "pagination": "{from}–{to} sur {total}"
       },
       "actions": {
         "approve": "Approuver",
@@ -1648,6 +1688,7 @@
     },
     "header": {
       "login": "Se connecter",
+      "account": "Mon compte",
       "cta": "Commencer",
       "navFeatures": "Fonctionnalités",
       "navPricing": "Tarifs"
