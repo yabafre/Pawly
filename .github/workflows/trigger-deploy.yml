@@ -45,6 +45,9 @@ jobs:
         env:
           DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
 
+      - name: Login to private registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login registry.brainst.fr -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+
       - name: Determine environment
         id: env
         run: |
