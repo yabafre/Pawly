@@ -37,9 +37,9 @@ export function SchedulePageClient() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-24 w-full rounded-2xl" />
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          <Skeleton key={i} className="h-20 w-full rounded-2xl" />
         ))}
       </div>
     );
@@ -48,8 +48,8 @@ export function SchedulePageClient() {
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <AlertCircle className="h-10 w-10 text-rose-400" />
-        <p className="text-sm text-neutral-600">{t("errors.loadFailed")}</p>
+        <AlertCircle className="h-10 w-10 text-destructive/60" />
+        <p className="text-sm text-muted-foreground">{t("errors.loadFailed")}</p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           {t("errors.retry")}
         </Button>
@@ -63,9 +63,9 @@ export function SchedulePageClient() {
       scheduleData.unavailabilities.length > 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-neutral-900 sm:text-2xl">
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
           {t("title")}
         </h1>
         {scheduleData && (

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useForm } from "@tanstack/react-form";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { JOB_TYPES, CONTRACT_TYPES, employeeFieldsSchema } from "@pawly/validators";
+
+const EMPLOYEE_COLORS = [
+  "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7",
+  "#ec4899", "#f43f5e", "#ef4444", "#f97316",
+  "#f59e0b", "#eab308", "#84cc16", "#22c55e",
+  "#14b8a6", "#06b6d4", "#0ea5e9", "#6b7280",
+];
 
 type EmployeeFormProps = {
   defaultValues?: {
@@ -95,7 +105,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 required
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {t("validation.firstNameRequired")}
                 </p>
               )}
@@ -124,7 +134,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 required
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {t("validation.lastNameRequired")}
                 </p>
               )}
@@ -155,7 +165,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 aria-invalid={field.state.meta.errors.length > 0}
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {t("validation.invalidEmail")}
                 </p>
               )}
@@ -221,7 +231,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
         </form.Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <form.Field
           name="contractHours"
           validators={{
@@ -245,7 +255,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                 aria-invalid={field.state.meta.errors.length > 0}
               />
               {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {t("validation.hoursRange")}
                 </p>
               )}
@@ -255,20 +265,38 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
 
         <form.Field name="color">
           {(field: any) => (
-            <div className="space-y-1.5">
-              <Label htmlFor="color">{t("form.color")}</Label>
-              <Input
-                id="color"
-                type="color"
-                className="h-11 w-full cursor-pointer p-1"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-              />
+            <div className="space-y-1.5 col-span-2">
+              <div className="flex items-center gap-2">
+                <Label>{t("form.color")}</Label>
+                <span
+                  className="inline-block w-4 h-4 rounded-full border border-border"
+                  style={{ backgroundColor: field.state.value }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {EMPLOYEE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => field.handleChange(color)}
+                    className={cn(
+                      "w-8 h-8 rounded-full cursor-pointer transition-all flex items-center justify-center",
+                      field.state.value === color
+                        ? "ring-2 ring-offset-2 ring-ring scale-110"
+                        : "hover:scale-110"
+                    )}
+                    style={{ backgroundColor: color }}
+                    aria-label={color}
+                  >
+                    {field.state.value === color && (
+                      <Check className="w-4 h-4 text-white drop-shadow-sm" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </form.Field>
-
-        <div />
       </div>
 
       <form.Subscribe selector={(state: any) => state.values.contractType}>
@@ -277,15 +305,11 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
             <form.Field name="hireDate">
               {(field: any) => (
                 <div className="space-y-1.5">
-                  <Label htmlFor="hireDate">{t("form.hireDate")}</Label>
-                  <Input
-                    id="hireDate"
-                    type="date"
-                    value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      field.handleChange(val ? new Date(val).toISOString() : "");
-                    }}
+                  <Label>{t("form.hireDate")}</Label>
+                  <DatePicker
+                    value={field.state.value ? new Date(field.state.value) : null}
+                    onChange={(date) => field.handleChange(date ? date.toISOString() : "")}
+                    placeholder={t("form.hireDate")}
                   />
                 </div>
               )}
@@ -314,19 +338,14 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               >
                 {(field: any) => (
                   <div className="space-y-1.5">
-                    <Label htmlFor="endDate">{t("form.endDate")}</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={field.state.value ? new Date(field.state.value).toISOString().split("T")[0] : ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        field.handleChange(val ? new Date(val).toISOString() : "");
-                      }}
-                      aria-invalid={field.state.meta.errors.length > 0}
+                    <Label>{t("form.endDate")}</Label>
+                    <DatePicker
+                      value={field.state.value ? new Date(field.state.value) : null}
+                      onChange={(date) => field.handleChange(date ? date.toISOString() : "")}
+                      placeholder={t("form.endDate")}
                     />
                     {field.state.meta.errors.length > 0 && (
-                      <p className="text-sm text-red-600" role="alert">
+                      <p className="text-sm text-destructive" role="alert">
                         {t("validation.endDateAfterHire")}
                       </p>
                     )}

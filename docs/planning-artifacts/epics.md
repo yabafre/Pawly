@@ -8,8 +8,10 @@ workflowType: epics-stories
 lastStep: 4
 status: updated
 completedAt: '2026-02-02'
-lastEdited: '2026-02-04'
+lastEdited: '2026-04-01'
 editHistory:
+  - date: '2026-04-01'
+    changes: 'Added Epic 9 (Production Readiness — SigNoz + Trigger.dev) and Epic 10 (Polish & UX Hardening). Story 10.1: Admin Password Reset Workflow.'
   - date: '2026-02-04'
     changes: 'MAJOR REWRITE: Epic reordering (Option B — Stripe = Registration). New numbering (8 epics). Added stories 1.4, 1.5, 3.3. Marked 1.1-1.3 DONE. Added FR17, FR18. Removed clinicId from login flow. Registration = Stripe Checkout only.'
   - date: '2026-02-04'
@@ -711,3 +713,47 @@ So that I stay informed.
 **Then** an automated email is sent via Resend to all concerned employees
 **And** the PWA can be installed on the home screen (manifest.json)
 **And** Push Notifications are identified as an optional "Phase 2" feature.
+
+---
+
+## Epic 9: Production Readiness — Observability & Job Durability
+
+### Quick-Spec: SigNoz + Trigger.dev Integration
+As an ops team,
+I want distributed tracing, metrics, and durable background jobs,
+So that I can monitor and debug the application in production.
+
+**Acceptance Criteria:**
+**Given** the NestJS API and Next.js frontend
+**When** requests are processed
+**Then** traces and metrics are exported to SigNoz via OpenTelemetry
+**And** all cron jobs and async tasks are executed via Trigger.dev with retries and a dashboard.
+
+---
+
+## Epic 10: Polish & UX Hardening
+
+### Story 10.1: Admin Password Reset Workflow
+As an admin user,
+I want to reset my password when I forget it,
+So that I can regain access to my clinic management dashboard without contacting support.
+
+**Acceptance Criteria:**
+**Given** the admin login form
+**When** I click "Forgot password?"
+**Then** I'm taken to a page where I enter my email, receive a reset link by email (1h TTL, SHA256 token), and can set a new password.
+**And** the flow prevents user enumeration (timing-safe responses, generic messages).
+**And** previous unused tokens are invalidated when a new one is requested.
+
+### Story 10.2: Admin Settings — Clinic & Profile Management
+As an admin user,
+I want to manage my clinic information and personal account settings from the settings page,
+So that I can update my clinic name, change my password, and configure my preferences without contacting support.
+
+**Acceptance Criteria:**
+**Given** the admin settings page
+**When** I navigate to it
+**Then** I see tabs for clinic info (name, slug), general config, shift types, and my account (name, locale, change password).
+**And** I can edit my clinic name (slug auto-regenerated).
+**And** I can change my password (current password required, strength indicator).
+**And** I can switch my language preference (FR/EN).

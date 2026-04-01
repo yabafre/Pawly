@@ -22,14 +22,14 @@ export function AdminAbsencePageClient() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-3">
           {pendingCount > 0 && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-rose-100 text-rose-700">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-muted text-muted-foreground border border-border">
               {t("pendingBadge", { count: pendingCount })}
             </span>
           )}

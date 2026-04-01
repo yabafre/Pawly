@@ -24,7 +24,7 @@ export const useApprenticeDeclarations = (month?: string) => {
   };
 
   const {
-    data: declarations,
+    data: rawDeclarations,
     isPending: isLoading,
   } = useServerActionQuery(listApprenticeDeclarationsAction, {
     input: { month: month ?? "" },
@@ -32,6 +32,8 @@ export const useApprenticeDeclarations = (month?: string) => {
     enabled: !!month && month.length > 0,
     placeholderData: (prev: unknown) => prev,
   });
+
+  const declarations = rawDeclarations as ApprenticeDeclarationRow[] | undefined;
 
   const { mutate: confirmNoSchool, isPending: isConfirming } =
     useServerActionMutation(upsertNoSchoolAction, {

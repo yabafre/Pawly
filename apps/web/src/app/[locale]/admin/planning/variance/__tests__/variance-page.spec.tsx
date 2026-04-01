@@ -313,66 +313,66 @@ describe("VarianceStatsPanel", () => {
 
 describe("VarianceEventList", () => {
   it("shows loading skeletons when isPending", () => {
-    const { container } = render(<VarianceEventList events={[]} isPending={true} />);
+    const { container } = render(<VarianceEventList events={[]} total={0} page={0} onPageChange={() => {}} isPending={true} />);
     const skeletons = container.querySelectorAll(".animate-pulse");
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it("shows empty state when no events", () => {
-    render(<VarianceEventList events={[]} isPending={false} />);
+    render(<VarianceEventList events={[]} total={0} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText("list.empty")).toBeInTheDocument();
   });
 
   it("renders event cards with employee name", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText(/Martin/)).toBeInTheDocument();
     expect(screen.getByText(/Dupont/)).toBeInTheDocument();
   });
 
   it("renders type and status badges", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText("types.CLOCK_IN_DEVIATION")).toBeInTheDocument();
     expect(screen.getByText("status.PENDING")).toBeInTheDocument();
   });
 
   it("renders approve/reject buttons for PENDING events", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText("actions.approve")).toBeInTheDocument();
     expect(screen.getByText("actions.reject")).toBeInTheDocument();
   });
 
   it("does not render approve/reject for APPROVED events", () => {
     const approvedEvent = { ...mockEvent, status: "APPROVED" };
-    render(<VarianceEventList events={[approvedEvent]} isPending={false} />);
+    render(<VarianceEventList events={[approvedEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.queryByText("actions.approve")).not.toBeInTheDocument();
   });
 
   it("calls approve when clicking approve button", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     fireEvent.click(screen.getByText("actions.approve"));
     expect(mockApprove).toHaveBeenCalledWith("var-1");
   });
 
   it("opens reject dialog when clicking reject button", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     fireEvent.click(screen.getByText("actions.reject"));
     expect(screen.getByTestId("alert-dialog")).toBeInTheDocument();
   });
 
   it("shows exception note for rejected events", () => {
     const rejectedEvent = { ...mockEvent, status: "REJECTED", exceptionNote: "Not valid" };
-    render(<VarianceEventList events={[rejectedEvent]} isPending={false} />);
+    render(<VarianceEventList events={[rejectedEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText("Not valid")).toBeInTheDocument();
   });
 
   it("shows 'Not confirmed' for NO_SHOW type", () => {
     const noShowEvent = { ...mockEvent, type: "NO_SHOW" };
-    render(<VarianceEventList events={[noShowEvent]} isPending={false} />);
+    render(<VarianceEventList events={[noShowEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     expect(screen.getByText("list.notConfirmed")).toBeInTheDocument();
   });
 
   it("renders approve/reject buttons with descriptive aria-labels", () => {
-    render(<VarianceEventList events={[mockEvent]} isPending={false} />);
+    render(<VarianceEventList events={[mockEvent]} total={1} page={0} onPageChange={() => {}} isPending={false} />);
     const approveBtn = screen.getByText("actions.approve").closest("button");
     expect(approveBtn).toHaveAttribute("aria-label", expect.stringContaining("Dupont"));
   });

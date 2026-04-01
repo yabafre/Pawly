@@ -59,6 +59,8 @@ describe('VarianceService', () => {
 
     service = module.get<VarianceService>(VarianceService);
     jest.clearAllMocks();
+    // Default count mock for paginated listVarianceEvents
+    mockPrismaService.varianceEvent.count.mockResolvedValue(0);
   });
 
   // ── listVarianceEvents ─────────────────────────────────────────────
@@ -66,14 +68,17 @@ describe('VarianceService', () => {
   describe('listVarianceEvents', () => {
     it('should list all variance events for a clinic', async () => {
       mockPrismaService.varianceEvent.findMany.mockResolvedValue([mockVarianceEvent]);
+      mockPrismaService.varianceEvent.count.mockResolvedValue(1);
 
       const result = await service.listVarianceEvents(clinicId, {});
 
-      expect(result).toEqual([mockVarianceEvent]);
+      expect(result).toEqual({ items: [mockVarianceEvent], total: 1 });
       expect(mockPrismaService.varianceEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { clinicId },
           orderBy: { plannedTime: 'desc' },
+          skip: 0,
+          take: 10,
         }),
       );
     });
@@ -238,7 +243,7 @@ describe('VarianceService', () => {
         .mockResolvedValueOnce(mockCountByStatus);
       mockPrismaService.varianceEvent.aggregate.mockResolvedValue(mockTotals);
 
-      const result = await service.getVarianceStats(clinicId, '2026-02');
+      const result = await service.getVarianceStats(clinicId, { month: '2026-02' });
 
       expect(result.countByType).toEqual(mockCountByType);
       expect(result.countByStatus).toEqual(mockCountByStatus);
@@ -253,7 +258,7 @@ describe('VarianceService', () => {
         _avg: { deltaMinutes: null },
       });
 
-      await service.getVarianceStats(clinicId);
+      await service.getVarianceStats(clinicId, {});
 
       expect(mockPrismaService.varianceEvent.groupBy).toHaveBeenCalled();
       expect(mockPrismaService.varianceEvent.aggregate).toHaveBeenCalled();
@@ -267,7 +272,7 @@ describe('VarianceService', () => {
         _avg: { deltaMinutes: null },
       });
 
-      await service.getVarianceStats(clinicId, '2026-02');
+      await service.getVarianceStats(clinicId, { month: '2026-02' });
 
       // groupBy called twice (by type and by status) and aggregate called once
       expect(mockPrismaService.varianceEvent.groupBy).toHaveBeenCalledTimes(2);

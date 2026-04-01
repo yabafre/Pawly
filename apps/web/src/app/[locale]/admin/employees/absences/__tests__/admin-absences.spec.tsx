@@ -233,8 +233,8 @@ describe("AbsenceStatusFilter", () => {
 
     // When selected is undefined, the "all" filter is active
     const allButton = screen.getByText("all");
-    expect(allButton.className).toContain("bg-neutral-900");
-    expect(allButton.className).toContain("text-white");
+    expect(allButton.className).toContain("bg-foreground");
+    expect(allButton.className).toContain("text-background");
   });
 
   it("highlights PENDING filter when selected", () => {
@@ -243,7 +243,7 @@ describe("AbsenceStatusFilter", () => {
     );
 
     const pendingButton = screen.getByText("pending");
-    expect(pendingButton.className).toContain("bg-neutral-900");
+    expect(pendingButton.className).toContain("bg-foreground");
   });
 
   it("does not highlight inactive filters", () => {
@@ -252,8 +252,8 @@ describe("AbsenceStatusFilter", () => {
     );
 
     const allButton = screen.getByText("all");
-    expect(allButton.className).toContain("text-neutral-500");
-    expect(allButton.className).not.toContain("bg-neutral-900");
+    expect(allButton.className).toContain("text-muted-foreground");
+    expect(allButton.className).not.toContain("bg-foreground");
   });
 
   it("calls onSelect with undefined when all tab is clicked", () => {

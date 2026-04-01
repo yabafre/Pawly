@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import type { ListVarianceEventsInput, ExportVarianceInput } from '@pawly/validators';
+import type { ListVarianceEventsInput, ExportVarianceInput, GetVarianceStatsInput } from '@pawly/validators';
 
 const CSV_I18N: Record<string, {
   header: string;
@@ -55,24 +55,33 @@ export class VarianceService {
       where.plannedTime = { gte: monthStart, lte: monthEnd };
     }
 
-    return this.prisma.varianceEvent.findMany({
-      where,
-      include: {
-        shift: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                jobType: true,
+    const { page = 0, pageSize = 10 } = filters;
+
+    const [items, total] = await Promise.all([
+      this.prisma.varianceEvent.findMany({
+        where,
+        include: {
+          shift: {
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  jobType: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { plannedTime: 'desc' },
-    });
+        orderBy: { plannedTime: 'desc' },
+        skip: page * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.varianceEvent.count({ where }),
+    ]);
+
+    return { items, total };
   }
 
   async reviewVariance(
@@ -115,14 +124,18 @@ export class VarianceService {
     });
   }
 
-  async getVarianceStats(clinicId: string, month?: string) {
+  async getVarianceStats(clinicId: string, filters: GetVarianceStatsInput) {
     const now = new Date();
-    const [year, monthNum] = month
-      ? month.split('-').map(Number)
+    const [year, monthNum] = filters.month
+      ? filters.month.split('-').map(Number)
       : [now.getFullYear(), now.getMonth() + 1];
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
-    const where = { clinicId, plannedTime: { gte: monthStart, lte: monthEnd } };
+    const where: Record<string, unknown> = { clinicId, plannedTime: { gte: monthStart, lte: monthEnd } };
+
+    if (filters.status) where.status = filters.status;
+    if (filters.type) where.type = filters.type;
+    if (filters.employeeId) where.shift = { employeeId: filters.employeeId };
 
     const [countByType, countByStatus, totals] = await Promise.all([
       this.prisma.varianceEvent.groupBy({

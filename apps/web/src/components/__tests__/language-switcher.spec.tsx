@@ -34,6 +34,10 @@ vi.mock('@/i18n/routing', () => ({
   },
 }));
 
+vi.mock('@/lib/pwa-utils', () => ({
+  isStandalone: vi.fn(() => false),
+}));
+
 describe('LanguageSwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,5 +97,29 @@ describe('LanguageSwitcher', () => {
 
     const trigger = screen.getByRole('combobox');
     expect(trigger).toHaveAttribute('aria-label', 'Switch language');
+  });
+
+  it('uses window.location.replace in PWA standalone mode', async () => {
+    const { isStandalone } = await import('@/lib/pwa-utils');
+    vi.mocked(isStandalone).mockReturnValue(true);
+
+    const mockLocationReplace = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      value: { ...originalLocation, pathname: '/fr/dashboard/settings', replace: mockLocationReplace },
+      writable: true,
+    });
+
+    render(<LanguageSwitcher />);
+    const trigger = screen.getByRole('combobox');
+    fireEvent.click(trigger);
+
+    const enOption = await screen.findByRole('option', { name: /english/i });
+    fireEvent.click(enOption);
+
+    expect(mockLocationReplace).toHaveBeenCalledWith('/en/dashboard/settings');
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    Object.defineProperty(window, 'location', { value: originalLocation, writable: true });
   });
 });

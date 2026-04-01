@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, Users } from "lucide-react";
 import { JOB_TYPES } from "@pawly/validators";
 import type { Employee } from "@pawly/types";
@@ -148,9 +149,9 @@ export function EmployeeList() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-10 pl-9 focus-visible:ring-[#009588]/20"
+            className="h-10 pl-9 focus-visible:ring-ring/20"
             placeholder={t("filters.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value || null)}
@@ -171,19 +172,17 @@ export function EmployeeList() {
           </SelectContent>
         </Select>
 
-        <label className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
-          <input
-            type="checkbox"
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+          <Checkbox
             checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked || null)}
-            className="rounded border-neutral-300"
+            onCheckedChange={(checked) => setShowInactive(checked === true || null)}
           />
           {t("filters.showInactive")}
         </label>
 
         <Button
           onClick={handleOpenCreate}
-          className="bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 h-10"
+          className="bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90 h-10"
         >
           <Plus className="h-4 w-4 mr-2" />
           {t("actions.add")}
@@ -193,16 +192,16 @@ export function EmployeeList() {
       {/* Employee Grid or Empty State */}
       {employees.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-neutral-100 p-4 mb-4">
-            <Users className="h-8 w-8 text-neutral-400" />
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <Users className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h2 className="text-lg font-semibold text-neutral-900">{t("empty.title")}</h2>
-          <p className="text-sm text-neutral-500 mt-1 max-w-sm">
+          <h2 className="text-lg font-semibold text-foreground">{t("empty.title")}</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
             {t("empty.description")}
           </p>
           <Button
             onClick={handleOpenCreate}
-            className="mt-4 bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800"
+            className="mt-4 bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90"
           >
             <Plus className="h-4 w-4 mr-2" />
             {t("empty.cta")}
@@ -241,7 +240,7 @@ export function EmployeeList() {
       {/* Confirmation Dialog for Toggle Active */}
       {confirmDialog && (
         <Dialog open onOpenChange={() => setConfirmDialog(null)}>
-          <DialogContent className="sm:max-w-[400px] rounded-3xl">
+          <DialogContent className="sm:max-w-[400px] rounded-2xl">
             <DialogHeader>
               <DialogTitle>
                 {confirmDialog.isActive
@@ -249,7 +248,7 @@ export function EmployeeList() {
                   : t("confirm.activateTitle")}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-muted-foreground">
               {confirmDialog.isActive
                 ? t("confirm.deactivateMessage")
                 : t("confirm.activateMessage")}
@@ -265,7 +264,7 @@ export function EmployeeList() {
               <Button
                 onClick={confirmToggle}
                 disabled={isToggling}
-                className="bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800"
+                className="bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90"
               >
                 {confirmDialog.isActive
                   ? t("actions.deactivate")

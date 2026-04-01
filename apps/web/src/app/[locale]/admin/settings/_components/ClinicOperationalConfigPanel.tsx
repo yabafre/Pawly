@@ -179,16 +179,13 @@ function ClinicOperationalConfigForm({
       className="space-y-6"
     >
       {/* ── Weekly defaults ── */}
-      <section className="group relative overflow-hidden rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:p-6">
-        {/* Glow spot interne subtil */}
-        <div className="pointer-events-none absolute -left-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#009588] opacity-0 blur-[60px] transition-opacity duration-700 group-hover:opacity-[0.06]" />
-
-        <div className="relative z-10">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
+        <div>
           <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-100">
-              <Clock className="h-4 w-4 text-[#009588]" strokeWidth={1.5} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted">
+              <Clock className="h-4 w-4 text-primary" strokeWidth={1.5} />
             </div>
-            <h3 className="text-sm font-bold text-neutral-900">
+            <h3 className="text-sm font-bold text-foreground">
               {t("sections.weekly")}
             </h3>
           </div>
@@ -196,7 +193,7 @@ function ClinicOperationalConfigForm({
           <form.Field name="workDays" mode="array">
             {(field: any) => (
               <fieldset className="space-y-3">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   {t("fields.workDays")}
                 </Label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -208,8 +205,8 @@ function ClinicOperationalConfigForm({
                         className={cn(
                           "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all select-none cursor-pointer",
                           isChecked
-                            ? "border-[#009588]/30 bg-[#009588]/8 shadow-sm"
-                            : "border-neutral-100 bg-neutral-50 hover:bg-white hover:border-neutral-200",
+                            ? "border-primary/30 bg-primary/8 shadow-sm"
+                            : "border-border bg-muted hover:bg-card hover:border-border",
                         )}
                       >
                         <Checkbox
@@ -230,7 +227,7 @@ function ClinicOperationalConfigForm({
                           htmlFor={`workday-${day.value}`}
                           className={cn(
                             "cursor-pointer text-sm font-medium",
-                            isChecked ? "text-[#00796B]" : "text-neutral-600",
+                            isChecked ? "text-primary/80" : "text-muted-foreground",
                           )}
                         >
                           {day.label}
@@ -252,7 +249,7 @@ function ClinicOperationalConfigForm({
             <form.Field name="defaultStartTime">
               {(field: any) => (
                 <div className="space-y-2">
-                  <Label htmlFor="defaultStartTime" className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  <Label htmlFor="defaultStartTime" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     {t("fields.defaultStartTime")}
                   </Label>
                   <Input
@@ -261,7 +258,7 @@ function ClinicOperationalConfigForm({
                     value={field.state.value}
                     onChange={(event) => field.handleChange(event.target.value)}
                     aria-invalid={!!submitErrors.defaultStartTime}
-                    className="rounded-xl border-neutral-200 bg-neutral-50 focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                    className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
                   />
                   {submitErrors.defaultStartTime && (
                     <p className="text-xs text-red-600" role="alert">
@@ -275,7 +272,7 @@ function ClinicOperationalConfigForm({
             <form.Field name="defaultEndTime">
               {(field: any) => (
                 <div className="space-y-2">
-                  <Label htmlFor="defaultEndTime" className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                  <Label htmlFor="defaultEndTime" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     {t("fields.defaultEndTime")}
                   </Label>
                   <Input
@@ -284,7 +281,7 @@ function ClinicOperationalConfigForm({
                     value={field.state.value}
                     onChange={(event) => field.handleChange(event.target.value)}
                     aria-invalid={!!submitErrors.defaultEndTime}
-                    className="rounded-xl border-neutral-200 bg-neutral-50 focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20 transition-all"
+                    className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
                   />
                   {submitErrors.defaultEndTime && (
                     <p className="text-xs text-red-600" role="alert">
@@ -327,12 +324,12 @@ function ClinicOperationalConfigForm({
         <Button
           type="submit"
           disabled={isUpdating}
-          className="rounded-2xl bg-neutral-900 px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-neutral-900/10 transition-colors hover:bg-black disabled:opacity-60"
+          className="rounded-xl"
         >
           {isUpdating ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            <CalendarClock className="mr-2 h-4 w-4 text-[#00B3A4]" strokeWidth={1.5} />
+            <CalendarClock className="mr-2 h-4 w-4 text-primary" strokeWidth={1.5} />
           )}
           {isUpdating ? t("actions.saving") : t("actions.save")}
         </Button>

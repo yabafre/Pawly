@@ -7,6 +7,7 @@ import { fr, enUS } from "date-fns/locale";
 import type { EmployeeShift, EmployeeUnavailability, EmployeeShiftTypeInfo } from "@pawly/types";
 import { ShiftDayCard } from "./ShiftDayCard";
 import { AbsenceDayCard } from "./AbsenceDayCard";
+import { useConfirmShift } from "../_hooks/useConfirmShift";
 
 interface ScheduleTimelineProps {
   shifts: EmployeeShift[];
@@ -32,6 +33,7 @@ export function ScheduleTimeline({
   const t = useTranslations("dashboard.schedule.timeline");
   const locale = useLocale();
   const dateFnsLocale = locale === "fr" ? fr : enUS;
+  const { confirmShift, isPending: isConfirmPending } = useConfirmShift(month);
 
   const dayMap = new Map<string, DayEntry>();
 
@@ -54,26 +56,24 @@ export function ScheduleTimeline({
   );
 
   return (
-    <div className="space-y-3" role="list" aria-label={t("scheduleList")}>
+    <div className="space-y-5" role="list" aria-label={t("scheduleList")}>
       {sortedDays.map((day) => {
         const dateObj = parseISO(day.date);
         const isTodayDate = isToday(dateObj);
-        const dayLabel = format(dateObj, "EEEE d MMMM", {
-          locale: dateFnsLocale,
-        });
+        const dayLabel = format(dateObj, "EEEE d MMMM", { locale: dateFnsLocale });
 
         return (
           <div key={day.date} role="listitem">
-            <div className="mb-1.5 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               {isTodayDate && (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                 </span>
               )}
               <span
-                className={`text-sm font-semibold capitalize ${
-                  isTodayDate ? "text-emerald-700" : "text-neutral-500"
+                className={`text-xs font-semibold uppercase tracking-wide ${
+                  isTodayDate ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {isTodayDate ? `${t("today")} — ` : ""}
@@ -91,7 +91,8 @@ export function ScheduleTimeline({
                   shift={shift}
                   shiftType={shiftTypeMap.get(shift.shiftTypeCode)}
                   publicationStatus={publicationStatus}
-                  month={month}
+                  onConfirm={confirmShift}
+                  isConfirmPending={isConfirmPending}
                 />
               ))}
             </div>

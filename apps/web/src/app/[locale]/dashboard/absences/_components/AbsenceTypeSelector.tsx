@@ -11,50 +11,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type AbsenceTypeConfig = {
-  key: string;
-  icon: LucideIcon;
-  colorClass: string;
-  selectedBg: string;
-  selectedBorder: string;
-};
-
-const ABSENCE_TYPE_CONFIG: AbsenceTypeConfig[] = [
-  {
-    key: "PAID_LEAVE",
-    icon: Plane,
-    colorClass: "text-emerald-600",
-    selectedBg: "bg-emerald-50",
-    selectedBorder: "border-emerald-300",
-  },
-  {
-    key: "SICK_LEAVE",
-    icon: Thermometer,
-    colorClass: "text-rose-600",
-    selectedBg: "bg-rose-50",
-    selectedBorder: "border-rose-300",
-  },
-  {
-    key: "TRAINING",
-    icon: GraduationCap,
-    colorClass: "text-neutral-600",
-    selectedBg: "bg-neutral-50",
-    selectedBorder: "border-neutral-400",
-  },
-  {
-    key: "CHILD_SICK",
-    icon: Baby,
-    colorClass: "text-blue-600",
-    selectedBg: "bg-blue-50",
-    selectedBorder: "border-blue-300",
-  },
-  {
-    key: "OTHER",
-    icon: HelpCircle,
-    colorClass: "text-neutral-500",
-    selectedBg: "bg-neutral-50",
-    selectedBorder: "border-neutral-400",
-  },
+const ABSENCE_TYPES: { key: string; icon: LucideIcon }[] = [
+  { key: "PAID_LEAVE", icon: Plane },
+  { key: "SICK_LEAVE", icon: Thermometer },
+  { key: "TRAINING", icon: GraduationCap },
+  { key: "CHILD_SICK", icon: Baby },
+  { key: "OTHER", icon: HelpCircle },
 ];
 
 interface AbsenceTypeSelectorProps {
@@ -62,39 +24,29 @@ interface AbsenceTypeSelectorProps {
   onSelect: (type: string) => void;
 }
 
-export function AbsenceTypeSelector({
-  selected,
-  onSelect,
-}: AbsenceTypeSelectorProps) {
+export function AbsenceTypeSelector({ selected, onSelect }: AbsenceTypeSelectorProps) {
   const t = useTranslations("dashboard.absences.types");
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {ABSENCE_TYPE_CONFIG.map((config) => {
-        const isSelected = selected === config.key;
-        const Icon = config.icon;
+    <div className="grid grid-cols-2 gap-2">
+      {ABSENCE_TYPES.map(({ key, icon: Icon }) => {
+        const isSelected = selected === key;
         return (
           <button
-            key={config.key}
+            key={key}
             type="button"
-            onClick={() => onSelect(config.key)}
+            onClick={() => onSelect(key)}
             className={cn(
-              "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left min-h-[56px]",
+              "flex items-center gap-2.5 p-3 rounded-2xl border transition-all text-left",
               isSelected
-                ? `${config.selectedBg} ${config.selectedBorder} shadow-sm`
-                : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
+                ? "border-primary bg-primary/5"
+                : "border-border bg-card hover:border-border/80",
             )}
             aria-pressed={isSelected}
-            aria-label={t(config.key as any)}
           >
-            <Icon size={20} className={config.colorClass} />
-            <span
-              className={cn(
-                "text-sm font-semibold",
-                isSelected ? "text-neutral-900" : "text-neutral-600"
-              )}
-            >
-              {t(config.key as any)}
+            <Icon size={16} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
+            <span className={cn("text-sm font-medium", isSelected ? "text-foreground" : "text-muted-foreground")}>
+              {t(key as any)}
             </span>
           </button>
         );

@@ -54,15 +54,15 @@ export function EquityPeriodSelector({
   const years = Array.from({ length: 3 }, (_, i) => currentYear - i);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 bg-white p-1.5 rounded-2xl border border-neutral-100 shadow-sm w-fit">
-      <div className="flex rounded-xl bg-neutral-100 p-1">
+    <div className="flex flex-wrap items-center gap-3 bg-card p-1.5 rounded-2xl border border-border w-fit">
+      <div className="flex rounded-xl bg-muted p-1">
         <button
           onClick={() => onViewChange("monthly")}
           className={cn(
             "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
             view === "monthly"
-              ? "bg-white text-neutral-900 shadow-sm"
-              : "text-neutral-500 hover:text-neutral-900"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
           {t("monthly")}
@@ -72,18 +72,18 @@ export function EquityPeriodSelector({
           className={cn(
             "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
             view === "quarterly"
-              ? "bg-white text-neutral-900 shadow-sm"
-              : "text-neutral-500 hover:text-neutral-900"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
           {t("quarterly")}
         </button>
       </div>
 
-      <div className="h-4 w-px bg-neutral-200 mx-1"></div>
+      <div className="h-4 w-px bg-border mx-1"></div>
 
       <Select value={String(year)} onValueChange={(v) => onYearChange(Number(v))}>
-        <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-neutral-900 hover:bg-neutral-50 focus:ring-0">
+        <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-foreground hover:bg-muted focus:ring-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -97,7 +97,7 @@ export function EquityPeriodSelector({
 
       {view === "monthly" ? (
         <Select value={String(month)} onValueChange={(v) => onMonthChange(Number(v))}>
-          <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-neutral-900 hover:bg-neutral-50 focus:ring-0">
+          <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-foreground hover:bg-muted focus:ring-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -110,7 +110,7 @@ export function EquityPeriodSelector({
         </Select>
       ) : (
         <Select value={String(quarter)} onValueChange={(v) => onQuarterChange(Number(v))}>
-          <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-neutral-900 hover:bg-neutral-50 focus:ring-0">
+          <SelectTrigger className="h-8 w-fit gap-2 rounded-lg border-none bg-transparent px-2 text-xs font-bold text-foreground hover:bg-muted focus:ring-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

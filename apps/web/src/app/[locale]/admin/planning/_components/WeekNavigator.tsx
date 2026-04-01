@@ -48,8 +48,8 @@ export function WeekNavigator({ weeks, currentWeekIndex, onWeekChange }: Props) 
             onClick={() => onWeekChange(i)}
             className={`h-8 min-w-[32px] px-2.5 rounded-lg text-xs font-semibold transition-colors ${
               i === currentWeekIndex
-                ? "bg-neutral-900 text-white"
-                : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:bg-muted"
             }`}
             aria-label={`${t("label")} ${i + 1}`}
             aria-current={i === currentWeekIndex ? "true" : undefined}
@@ -70,7 +70,7 @@ export function WeekNavigator({ weeks, currentWeekIndex, onWeekChange }: Props) 
         <ChevronRight size={16} />
       </Button>
 
-      <span className="text-sm text-neutral-500 ml-2">{weekLabel}</span>
+      <span className="text-sm text-muted-foreground ml-2">{weekLabel}</span>
     </div>
   );
 }

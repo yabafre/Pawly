@@ -10,6 +10,10 @@ export const metadata: Metadata = {
     template: "%s | Pawly",
   },
   description: "Intelligent planning for veterinary clinics.",
+  icons: {
+    icon: "/icons/logo.svg",
+    apple: "/icons/icon-192x192.png",
+  },
 };
 
 export default function RootLayout({

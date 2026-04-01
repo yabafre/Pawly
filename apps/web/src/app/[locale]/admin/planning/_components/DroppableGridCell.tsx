@@ -49,7 +49,7 @@ export function DroppableGridCell({
       tabIndex={tabIndex}
       data-row={rowIndex}
       data-col={colIndex}
-      className={`border-b border-neutral-100 p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset ${feedbackClass} ${className}`}
+      className={`border-b border-border p-1 relative outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset ${feedbackClass} ${className}`}
     >
       {children}
     </div>

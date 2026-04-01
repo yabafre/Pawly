@@ -6,6 +6,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RequestIdInterceptor } from '@/common/interceptors/request-id.interceptor';
+import { rateLimitHitCounter } from '@/common/metrics';
 import { TRPCService } from './trpc/trpc.module';
 import type { EnvConfig } from '@/config/index';
 
@@ -35,6 +36,7 @@ function createTrpcRateLimiter(limit: number, windowMs: number) {
     }
     record.count++;
     if (record.count > limit) {
+      rateLimitHitCounter.add(1, { endpoint: 'trpc' });
       return res.status(429).json({ message: 'Too many requests to tRPC endpoint' });
     }
     return next();

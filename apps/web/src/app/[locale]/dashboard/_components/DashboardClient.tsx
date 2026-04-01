@@ -5,20 +5,20 @@ import {
     Briefcase,
     CalendarOff,
     CheckCircle2,
-    AlertCircle,
     Thermometer,
     Plane,
     GraduationCap,
+    Clock,
+    ChevronRight,
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useFormattedNumber } from "@/lib/hooks/useFormattedNumber";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { format, isToday, isFuture, parseISO, getISOWeek } from "date-fns";
 import { fr, enUS } from "date-fns/locale";
 import { useLocale } from "next-intl";
-import { useState, useEffect, useMemo, useReducer } from "react";
+import { useState, useEffect, useMemo, useReducer, useRef, useCallback } from "react";
 import { useMySchedule, useMyShiftTypes } from "../schedule/_hooks/useMySchedule";
+import { useConfirmShift } from "../schedule/_hooks/useConfirmShift";
 import DashboardLoading from "../loading";
 import { PwaInstallPrompt } from "./PwaInstallPrompt";
 import type { EmployeeScheduleData, EmployeeShift, EmployeeUnavailability, EmployeeShiftTypeInfo } from "@pawly/types";
@@ -34,8 +34,77 @@ const UNAVAILABILITY_COLORS: Record<string, string> = {
     VACATION: "bg-emerald-50 text-emerald-600",
     SICK: "bg-rose-50 text-rose-600",
     SCHOOL: "bg-purple-50 text-purple-600",
-    OTHER: "bg-neutral-100 text-neutral-500",
+    OTHER: "bg-muted text-muted-foreground",
 };
+
+// --- Slide to Validate ---
+function SlideToValidate({ onValidate, isPending }: { onValidate: () => void; isPending: boolean }) {
+    const t = useTranslations("dashboard");
+    const [progress, setProgress] = useState(0);
+    const [validated, setValidated] = useState(false);
+    const isDragging = useRef(false);
+
+    const handlePointerDown = useCallback((e: React.PointerEvent) => {
+        if (validated || isPending) return;
+        isDragging.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+    }, [validated, isPending]);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        if (!isDragging.current || validated) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        let pct = (x / rect.width) * 100;
+        pct = Math.max(0, Math.min(pct, 100));
+        setProgress(pct);
+
+        if (pct >= 90) {
+            setValidated(true);
+            setProgress(100);
+            isDragging.current = false;
+            onValidate();
+        }
+    }, [validated, onValidate]);
+
+    const handlePointerUp = useCallback((e: React.PointerEvent) => {
+        isDragging.current = false;
+        if (!validated) setProgress(0);
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    }, [validated]);
+
+    return (
+        <div
+            className={`relative h-12 rounded-full overflow-hidden flex items-center transition-colors duration-300 touch-none ${validated ? "bg-emerald-500" : "bg-foreground"}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+        >
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className={`text-sm font-medium transition-opacity ${validated ? "text-white" : "text-muted-foreground"}`}>
+                    {validated ? t("slideValidated") : t("slideToValidate")}
+                </span>
+            </div>
+            <div className="absolute left-1 right-1 top-1 bottom-1 pointer-events-none">
+                <div
+                    className={`h-10 w-10 bg-background rounded-full flex items-center justify-center shadow-md pointer-events-auto ${validated ? "" : "cursor-grab active:cursor-grabbing"}`}
+                    style={{
+                        left: `${progress}%`,
+                        transform: `translateX(-${progress}%)`,
+                        transition: validated || progress === 0 ? "all 0.3s ease" : "none",
+                        position: "relative",
+                    }}
+                >
+                    {validated ? (
+                        <CheckCircle2 size={18} className="text-emerald-500" strokeWidth={2.5} />
+                    ) : (
+                        <ChevronRight size={18} className="text-foreground" strokeWidth={2.5} />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const EmployeeDashboard = () => {
     const t = useTranslations("dashboard");
@@ -56,7 +125,7 @@ const EmployeeDashboard = () => {
             const timer = setTimeout(() => {
                 dispatch({ isMounted: true, showSplash: false });
                 sessionStorage.setItem("employeeSplashShown", "true");
-            }, 2500); // 2.5 seconds minimum display time for the animation
+            }, 2500);
             return () => clearTimeout(timer);
         }
     }, []);
@@ -65,21 +134,20 @@ const EmployeeDashboard = () => {
 
     const { data: rawScheduleData, isPending } = useMySchedule(currentMonth);
     const { data: rawShiftTypes } = useMyShiftTypes();
+    const { confirmShift, isPending: isConfirmPending } = useConfirmShift(currentMonth);
     const scheduleData = rawScheduleData as EmployeeScheduleData | undefined;
     const shiftTypes = rawShiftTypes as EmployeeShiftTypeInfo[] | undefined;
 
-    const allShiftTypes = (shiftTypes ?? scheduleData?.shiftTypes ?? []) as EmployeeShiftTypeInfo[];
-    const shiftTypeMap = new Map<string, EmployeeShiftTypeInfo>(
-        allShiftTypes.map((st) => [st.code, st]),
-    );
+    const shiftTypeMap = useMemo(() => {
+        const types = (shiftTypes ?? scheduleData?.shiftTypes ?? []) as EmployeeShiftTypeInfo[];
+        return new Map(types.map((st) => [st.code, st]));
+    }, [shiftTypes, scheduleData?.shiftTypes]);
 
     if (!pageState.isMounted || isPending || pageState.showSplash) {
         return <DashboardLoading />;
     }
 
-    const employeeName = scheduleData
-        ? `${scheduleData.employee.firstName}`
-        : "";
+    const employeeName = scheduleData ? scheduleData.employee.firstName : "";
 
     const todayShift = scheduleData?.shifts.find((s) => isToday(parseISO(s.date)));
     const todayShiftType = todayShift ? shiftTypeMap.get(todayShift.shiftTypeCode) : undefined;
@@ -120,119 +188,129 @@ const EmployeeDashboard = () => {
     const nextDays = upcomingEntries.slice(0, 3);
 
     return (
-        <div className="space-y-6 sm:space-y-8 pb-8 motion-safe:animate-in motion-safe:fade-in">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900">
-                    {t("greeting")}
-                    <br />
+        <div className="space-y-6 pb-8">
+            {/* Greeting */}
+            <div className="pt-2">
+                <p className="text-xs text-muted-foreground font-medium mb-1">{t("overview")}</p>
+                <h2 className="text-3xl font-semibold tracking-tight leading-tight">
+                    {t("greeting")}{" "}
                     {employeeName}
                 </h2>
-                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-neutral-100 flex items-center justify-center border border-neutral-200 shadow-sm shrink-0">
-                    <span className="text-xl sm:text-2xl" aria-hidden="true">👩‍⚕️</span>
-                </div>
             </div>
 
+            {/* Stats grid */}
             <div className="grid grid-cols-2 gap-3">
-                <Card className="p-3 sm:p-4 bg-neutral-900 text-white border-none flex flex-col justify-between h-32 sm:h-36 relative overflow-hidden group rounded-2xl">
-                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-20 group-hover:opacity-30 transition-opacity">
-                        <Briefcase className="h-12 w-12 sm:h-[60px] sm:w-[60px]" />
+                {/* Weekly hours */}
+                <div className="bg-card rounded-3xl p-5 border flex flex-col justify-between h-40">
+                    <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-1">{t("thisWeek")}</p>
+                        <p className="text-3xl font-semibold tracking-tight leading-none">
+                            {formatHours(weekHours)}
+                        </p>
                     </div>
-                    <div className="z-10">
-                        <span className="text-neutral-400 text-[10px] sm:text-xs font-bold uppercase">{t("thisWeek")}</span>
-                        <div className="text-2xl sm:text-3xl font-bold mt-1">{formatHours(weekHours)}</div>
-                    </div>
-                    <div className="z-10">
-                        <div className="h-1.5 bg-neutral-700 rounded-full overflow-hidden">
+                    <div>
+                        <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden mb-2">
                             <div
-                                className="h-full bg-emerald-400 transition-all duration-500"
+                                className="bg-primary h-full rounded-full transition-all duration-500"
                                 style={{ width: `${progressPercent}%` }}
                             />
                         </div>
-                        <div className="flex justify-between mt-1 text-[10px] text-neutral-400">
-                            <span>{progressPercent >= 100 ? t("targetReached") : `${progressPercent}%`}</span>
+                        <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${progressPercent >= 100 ? "bg-emerald-500" : "bg-primary"}`} />
+                            <p className="text-[11px] font-medium">
+                                {progressPercent >= 100 ? t("targetReached") : `${progressPercent}%`}
+                            </p>
                         </div>
                     </div>
-                </Card>
+                </div>
 
+                {/* Request absence */}
                 <Link href="/dashboard/absences">
-                    <Card className="p-3 sm:p-4 flex flex-col justify-between h-32 sm:h-36 hover:bg-neutral-50 border-dashed border-2 border-neutral-200 shadow-none cursor-pointer rounded-2xl">
-                        <div className="flex justify-end">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-100 flex items-center justify-center">
-                                <CalendarOff className="h-4 w-4 sm:h-5 sm:w-5 text-neutral-600" />
-                            </div>
+                    <div className="bg-card rounded-3xl p-5 border flex flex-col justify-between h-40 hover:shadow-md transition-shadow cursor-pointer">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                            <CalendarOff size={18} strokeWidth={1.5} />
                         </div>
                         <div>
-                            <div className="font-bold text-base sm:text-lg text-neutral-900 leading-tight">
-                                {t("requestAbsence")}
-                            </div>
-                            <div className="text-[10px] sm:text-xs text-neutral-500 mt-1">{t("absenceTypes")}</div>
+                            <h3 className="font-semibold text-base leading-snug mb-0.5">{t("requestAbsence")}</h3>
+                            <p className="text-xs text-muted-foreground">{t("absenceTypes")}</p>
                         </div>
-                    </Card>
+                    </div>
                 </Link>
             </div>
 
+            {/* Today's shift */}
             {todayShift && (
                 <div>
-                    <h3 className="font-bold text-base sm:text-lg mb-3 sm:mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 motion-safe:animate-pulse" />
-                        {t("today")}
-                    </h3>
-                    <Card className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4 rounded-2xl">
-                        <div
-                            className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0"
-                            style={{
-                                backgroundColor: todayShiftType?.color ? `${todayShiftType.color}15` : "#eef2ff",
-                                color: todayShiftType?.color ?? "#4f46e5",
-                            }}
-                        >
-                            <Briefcase className="h-5 w-5 sm:h-6 sm:w-6" />
+                    <h3 className="text-lg font-semibold mb-3 tracking-tight">{t("today")}</h3>
+                    <div className="bg-card rounded-3xl p-5 border">
+                        <div className={`flex justify-between items-start ${!todayShift.isConfirmed ? "mb-5" : ""}`}>
+                            <div className="flex gap-3">
+                                <div
+                                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                                    style={{
+                                        backgroundColor: todayShiftType?.color ? `${todayShiftType.color}15` : "var(--muted)",
+                                        color: todayShiftType?.color ?? "var(--muted-foreground)",
+                                    }}
+                                >
+                                    <Briefcase size={22} strokeWidth={1.5} />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-base tracking-tight mb-0.5">
+                                        {todayShiftType?.label ?? todayShift.shiftTypeCode}
+                                    </h4>
+                                    <div className="flex items-center text-sm text-muted-foreground">
+                                        <Clock size={14} strokeWidth={1.5} className="mr-1.5 opacity-50" />
+                                        {todayShift.startTime} — {todayShift.endTime}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={`px-2.5 py-1 rounded-full text-[11px] font-medium border flex items-center gap-1.5 ${
+                                todayShift.isConfirmed
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                    : "bg-card text-foreground border-border"
+                            }`}>
+                                {!todayShift.isConfirmed && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                {todayShift.isConfirmed ? t("confirmed") : t("inProgress")}
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-base sm:text-xl text-neutral-900">
-                                {todayShiftType?.label ?? todayShift.shiftTypeCode}
-                            </h4>
-                            <p className="text-xs sm:text-sm text-neutral-500 truncate">
-                                {todayShift.startTime} — {todayShift.endTime}
-                            </p>
-                        </div>
-                        <div
-                            className={`p-2 sm:p-3 rounded-full shrink-0 ${todayShift.isConfirmed
-                                ? "bg-emerald-100 text-emerald-600"
-                                : "bg-orange-100 text-orange-600"
-                                }`}
-                        >
-                            {todayShift.isConfirmed ? (
-                                <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6" />
-                            ) : (
-                                <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-                            )}
-                        </div>
-                    </Card>
+
+                        {!todayShift.isConfirmed && (
+                            <SlideToValidate
+                                onValidate={() => confirmShift({ shiftId: todayShift.id })}
+                                isPending={isConfirmPending}
+                            />
+                        )}
+                    </div>
                 </div>
             )}
 
+            {/* Upcoming */}
             {nextDays.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-base sm:text-lg mb-3 sm:mb-4 text-neutral-400">{t("upcomingDays")}</h3>
-                    <div className="space-y-2 sm:space-y-3">
+                    <h3 className="text-lg font-semibold mb-3 tracking-tight">{t("upcomingDays")}</h3>
+                    <div className="space-y-2">
                         {nextDays.map((entry) => {
                             const dateObj = parseISO(entry.date);
-                            const dayLabel = format(dateObj, "EEE d", { locale: dateFnsLocale });
+                            const dayName = format(dateObj, "EEE", { locale: dateFnsLocale });
+                            const dayNum = format(dateObj, "d");
 
                             if (entry.type === "unavailability" && entry.unavailability) {
                                 const Icon = UNAVAILABILITY_ICONS[entry.unavailability.type] ?? CalendarOff;
-                                const colorClass = UNAVAILABILITY_COLORS[entry.unavailability.type] ?? "bg-neutral-100 text-neutral-500";
+                                const colorClass = UNAVAILABILITY_COLORS[entry.unavailability.type] ?? "bg-muted text-muted-foreground";
                                 return (
                                     <div
                                         key={entry.date + "-ua"}
-                                        className="flex items-center justify-between p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-neutral-100"
+                                        className="bg-card rounded-2xl p-4 border flex items-center gap-4"
                                     >
-                                        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                                            <span className="font-bold text-xs sm:text-sm w-10 sm:w-12 text-neutral-400 shrink-0 capitalize">{dayLabel}</span>
-                                            <div className={`p-1.5 sm:p-2 rounded-lg ${colorClass} shrink-0`}>
-                                                <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                                        <div className="bg-muted rounded-xl p-3 text-center min-w-[52px] border">
+                                            <p className="text-[11px] text-muted-foreground font-medium uppercase">{dayName}</p>
+                                            <p className="text-lg font-semibold leading-none">{dayNum}</p>
+                                        </div>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`p-2 rounded-lg shrink-0 ${colorClass}`}>
+                                                <Icon className="h-4 w-4" />
                                             </div>
-                                            <span className="font-bold text-sm sm:text-base text-neutral-900 truncate">
+                                            <span className="font-semibold text-sm truncate">
                                                 {t(`schedule.absenceTypes.${entry.unavailability.type.toLowerCase()}`)}
                                             </span>
                                         </div>
@@ -245,26 +323,18 @@ const EmployeeDashboard = () => {
                                 return (
                                     <div
                                         key={entry.date + "-shift"}
-                                        className="flex items-center justify-between p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-neutral-100"
+                                        className="bg-card rounded-2xl p-4 border flex items-center gap-4"
                                     >
-                                        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                                            <span className="font-bold text-xs sm:text-sm w-10 sm:w-12 text-neutral-400 shrink-0 capitalize">{dayLabel}</span>
-                                            <div
-                                                className="p-1.5 sm:p-2 rounded-lg shrink-0"
-                                                style={{
-                                                    backgroundColor: st?.color ? `${st.color}15` : "#f5f5f5",
-                                                    color: st?.color ?? "#737373",
-                                                }}
-                                            >
-                                                <Briefcase className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-                                            </div>
-                                            <span className="font-bold text-sm sm:text-base text-neutral-900 truncate">
-                                                {st?.label ?? entry.shift.shiftTypeCode}
-                                            </span>
+                                        <div className="bg-muted rounded-xl p-3 text-center min-w-[52px] border">
+                                            <p className="text-[11px] text-muted-foreground font-medium uppercase">{dayName}</p>
+                                            <p className="text-lg font-semibold leading-none">{dayNum}</p>
                                         </div>
-                                        <Badge variant="secondary" className="text-[10px] sm:text-xs shrink-0 ml-2">
-                                            {entry.shift.startTime} — {entry.shift.endTime}
-                                        </Badge>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm">{st?.label ?? entry.shift.shiftTypeCode}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                {entry.shift.startTime} — {entry.shift.endTime}
+                                            </p>
+                                        </div>
                                     </div>
                                 );
                             }

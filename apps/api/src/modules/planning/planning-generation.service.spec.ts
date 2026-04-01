@@ -508,10 +508,9 @@ describe('PlanningGenerationService', () => {
     });
   });
 
-  // ─── scoreAndAssign ─────────────────────────────────────────
+  // ─── scoreAndAssign helpers ─────────────────────────────────
 
-  describe('scoreAndAssign', () => {
-    const baseConstraints = {
+  const baseConstraints = {
       unavailableMap: new Map<string, Set<string>>(),
       schoolDayMap: new Map<string, Set<string>>(),
       hardRules: [] as Array<{
@@ -532,6 +531,49 @@ describe('PlanningGenerationService', () => {
       quarterlyShifts: [],
     };
 
+    // Helper: call scoreAndAssign with auto-built incremental counters from alreadyAssigned
+  // Accepts 6 args (slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)
+  // or 7 args (same + weeksInMonth). Appends the 3 new counter params automatically.
+  const callScore = (...args: unknown[]) => {
+    const alreadyAssigned = (args[3] || []) as Array<{
+      employeeId: string; date: string; startTime: string; endTime: string;
+      shiftTypeCode: string; breakMinutes?: number;
+    }>;
+
+    // Determine weeksInMonth: if 7th arg exists and is a number, it's weeksInMonth
+    const hasWeeksInMonth = args.length >= 7 && typeof args[6] === 'number';
+    const baseArgs = hasWeeksInMonth ? args : [...args, 4.43];
+
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const getWeekStart = (dateStr: string) => {
+      const d = new Date(`${dateStr}T00:00:00.000Z`);
+      const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+      const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - dow + 1);
+      return mon.toISOString().split('T')[0];
+    };
+
+    const weeklyMinutesCounter = new Map<string, number>();
+    const stc = new Map<string, Map<string, number>>();
+    const esc = new Map<string, number>();
+    for (const a of alreadyAssigned) {
+      const netMin = toMin(a.endTime) - toMin(a.startTime) - (a.breakMinutes || 0);
+      const wk = `${a.employeeId}|${getWeekStart(a.date)}`;
+      weeklyMinutesCounter.set(wk, (weeklyMinutesCounter.get(wk) || 0) + netMin);
+      let tc = stc.get(a.employeeId);
+      if (!tc) { tc = new Map(); stc.set(a.employeeId, tc); }
+      tc.set(a.shiftTypeCode, (tc.get(a.shiftTypeCode) || 0) + 1);
+      esc.set(a.employeeId, (esc.get(a.employeeId) || 0) + 1);
+    }
+
+    return callPrivate('scoreAndAssign',
+      ...baseArgs,
+      weeklyMinutesCounter,
+      stc,
+      esc,
+    ) as ScoreAndAssignResult;
+  };
+
+  describe('scoreAndAssign', () => {
     it('assigns employees to a slot', () => {
       const slot = {
         date: '2026-03-02',
@@ -541,7 +583,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         baseConstraints,
@@ -568,7 +610,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -608,7 +650,7 @@ describe('PlanningGenerationService', () => {
         [`emp-1|2026-03-02`, alreadyAssigned],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         baseConstraints,
@@ -636,7 +678,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         baseConstraints,
@@ -663,7 +705,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         { ...baseConstraints, unavailableMap },
@@ -719,7 +761,7 @@ describe('PlanningGenerationService', () => {
         assignmentIndex.set(key, existing);
       }
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         baseConstraints,
@@ -758,7 +800,7 @@ describe('PlanningGenerationService', () => {
         assignmentIndex.set(key, existing);
       }
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees.slice(0, 2), // emp-1 and emp-2 only
         baseConstraints,
@@ -802,7 +844,7 @@ describe('PlanningGenerationService', () => {
         requiredJobTypes: ['VET'],
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees.filter((e) => e.jobType === 'VET'),
         { ...baseConstraints, equityMap },
@@ -843,7 +885,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 and emp-2
         baseConstraints,
@@ -873,7 +915,7 @@ describe('PlanningGenerationService', () => {
 
       // emp-2 already has 14h (school) + would be 18h
       // emp-1 has 0h + would be 4h
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]],
         { ...baseConstraints, schoolDayMap },
@@ -921,7 +963,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         baseConstraints,
@@ -1065,7 +1107,7 @@ describe('PlanningGenerationService', () => {
       // Run multiple times to account for random tiebreaker
       let emp2Count = 0;
       for (let i = 0; i < 5; i++) {
-        const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+        const result: ScoreAndAssignResult = callScore(
           slot,
           [mockEmployees[0], mockEmployees[1]], // emp-1 (30h) and emp-2 (0h)
           {
@@ -1346,7 +1388,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         constraints,
@@ -1357,10 +1399,9 @@ describe('PlanningGenerationService', () => {
 
       expect(result.hardViolations.length).toBeGreaterThan(0);
       expect(result.hardViolations[0].severity).toBe('blocking');
-      // H1: Hard violations now block assignment
-      expect(result.assigned.length).toBe(0);
-      expect(result.holeInfo).toBeDefined();
-      expect(result.holeInfo!.reason).toContain('Hard rule violated');
+      // FIX 2: Partial fill — employees are still assigned even when hard rule fires
+      expect(result.assigned.length).toBe(2);
+      expect(result.holeInfo).toBeUndefined(); // requiredStaff=2, assigned=2 → no hole
     });
 
     it('enforces HARD ROTATION_EQUITY by excluding employees at limit', () => {
@@ -1407,7 +1448,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees.filter(e => e.jobType === 'VET'), // emp-1 and emp-3
         constraints,
@@ -1457,7 +1498,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees,
         constraints,
@@ -1468,10 +1509,9 @@ describe('PlanningGenerationService', () => {
 
       expect(result.hardViolations.length).toBe(1);
       expect(result.hardViolations[0].message).toContain('INTERN');
-      // H1: Hard violations now block assignment
-      expect(result.assigned.length).toBe(0);
-      expect(result.holeInfo).toBeDefined();
-      expect(result.holeInfo!.reason).toContain('Hard rule violated');
+      // FIX 2: Partial fill — assign available employees despite missing skill type
+      expect(result.assigned.length).toBe(1); // requiredStaff=1, 3 eligible
+      expect(result.holeInfo).toBeUndefined();
     });
   });
 
@@ -1522,7 +1562,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1, emp-2 — both at limit
         constraints,
@@ -1585,7 +1625,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0]], // Only emp-1
         constraints,
@@ -1635,7 +1675,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0]],
         constraints,
@@ -1703,7 +1743,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 and emp-2
         constraints,
@@ -1779,7 +1819,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0]], // only emp-1
         constraints,
@@ -1843,7 +1883,7 @@ describe('PlanningGenerationService', () => {
 
       // With only emp-1 available and at the limit, they'll still be assigned (soft rule)
       // but with a lower score due to high priority penalty
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[2]], // emp-1 and emp-3
         constraintsHigh,
@@ -1927,7 +1967,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mixedEmployees,
         constraints,
@@ -1997,7 +2037,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         partTimeEmployee,
         constraints,
@@ -2050,7 +2090,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         mockEmployees, // only emp-1 available
         constraints,
@@ -2553,7 +2593,7 @@ describe('PlanningGenerationService', () => {
         startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
       }));
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints, alreadyAssigned,
         new Map(), new Map(), 31 / 7,
       );
@@ -2580,7 +2620,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1, requiredJobTypes: ['VET'],
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[2]], // emp-1, emp-3 (both VET)
         constraints, [], new Map(), new Map(), 31 / 7,
@@ -2623,7 +2663,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2649,7 +2689,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-03', [nextShift]],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, [mockEmployees[0]], constraints,
         [nextShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2673,7 +2713,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2709,7 +2749,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, [mockEmployees[0]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2732,7 +2772,7 @@ describe('PlanningGenerationService', () => {
         mockEmployees.map(e => [`${e.id}|2026-03-02`, [prevShifts.find(s => s.employeeId === e.id)!]]),
       );
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints,
         prevShifts, assignmentIndex, new Map(), 31 / 7,
       );
@@ -2758,7 +2798,7 @@ describe('PlanningGenerationService', () => {
         ['emp-1|2026-03-02', [prevShift]],
       ]);
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, [mockEmployees[0], mockEmployees[1]], constraints,
         [prevShift], assignmentIndex, new Map(), 31 / 7,
       );
@@ -2803,7 +2843,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 (3 SURGERY) vs emp-2 (0 SURGERY)
         constraints,
@@ -2845,7 +2885,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[1]],
         constraints,
@@ -2903,7 +2943,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         receptionSlot,
         [mockEmployees[0], mockEmployees[1]], // emp-1 (4 RECEPTION) vs emp-2 (0 RECEPTION)
         constraints,
@@ -2936,7 +2976,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 1,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -2965,7 +3005,7 @@ describe('PlanningGenerationService', () => {
         { employeeId: 'emp-3', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
       ]).flat();
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints,
         alreadyAssigned, new Map(), new Map(), 31 / 7,
       );
@@ -2993,7 +3033,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -3016,7 +3056,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 3,
       };
 
-      const result: ScoreAndAssignResult = callPrivate('scoreAndAssign',
+      const result: ScoreAndAssignResult = callScore(
         slot, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -3042,7 +3082,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result1 = callPrivate('scoreAndAssign',
+      const result1 = callScore(
         slot1, mockEmployees, constraints,
         [], new Map(), new Map(), 31 / 7,
       );
@@ -3053,7 +3093,7 @@ describe('PlanningGenerationService', () => {
         requiredStaff: 2,
       };
 
-      const result2 = callPrivate('scoreAndAssign',
+      const result2 = callScore(
         slot2, mockEmployees, constraints,
         result1.assigned, new Map(), new Map(), 31 / 7,
       );

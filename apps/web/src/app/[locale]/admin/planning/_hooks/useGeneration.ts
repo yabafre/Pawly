@@ -28,7 +28,7 @@ export const useGeneration = (month?: string) => {
       queryKey: ["planning", "schedule-view"],
     });
     queryClient.invalidateQueries({
-      queryKey: QueryKeyFactory.equityCounters(),
+      queryKey: ["planning", "equity-counters"],
     });
     queryClient.invalidateQueries({
       queryKey: QueryKeyFactory.planningGeneration(),

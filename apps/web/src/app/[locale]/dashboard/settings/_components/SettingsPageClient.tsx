@@ -1,13 +1,15 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState, useSyncExternalStore } from "react";
-import { Bell, BellRing, Smartphone } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { Bell, BellRing, Smartphone, LogOut, ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { isStandalone } from "@/lib/pwa-utils";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { Link, useRouter } from "@/i18n/navigation";
+import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
+import { useQueryClient } from "@tanstack/react-query";
 import {
     useNotificationPreferences,
     useUpdateNotificationPreferences,
@@ -20,11 +22,15 @@ const getServerSnapshot = () => false;
 
 export function SettingsPageClient() {
     const t = useTranslations("dashboard.settings");
+    const tCommon = useTranslations("common");
+    const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: preferences, isPending } = useNotificationPreferences();
     const { mutate: updatePreferences, isPending: isUpdating } = useUpdateNotificationPreferences();
     const {
         permissionState,
         isSubscribed: pushSubscribed,
+        isStale: pushStale,
         isLoading: pushLoading,
         subscribe: subscribePush,
         unsubscribe: unsubscribePush,
@@ -37,114 +43,115 @@ export function SettingsPageClient() {
         updatePreferences({ notifyOnPublish: checked });
     };
 
+    const handleLogout = async () => {
+        queryClient.clear();
+        if (typeof window !== "undefined") {
+            window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");
+        }
+        await logoutAction();
+        router.push("/login");
+    };
+
     return (
-        <div className="space-y-6 motion-safe:animate-in motion-safe:fade-in">
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900">
-                {t("title")}
-            </h2>
+        <div className="space-y-5">
+            <div className="flex items-center gap-3">
+                <Link
+                    href="/dashboard"
+                    className="w-8 h-8 flex items-center justify-center rounded-full border bg-card hover:bg-muted transition shrink-0"
+                >
+                    <ArrowLeft size={16} strokeWidth={1.5} />
+                </Link>
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+                    {t("title")}
+                </h1>
+            </div>
 
-            {/* PWA Section */}
-            <Card className="rounded-2xl shadow-sm border border-neutral-100 p-5 sm:p-6">
+            {/* Language */}
+            <div className="rounded-2xl border bg-card p-5">
+                <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{tCommon("language.label")}</span>
+                    <LanguageSwitcher />
+                </div>
+            </div>
+
+            {/* App status */}
+            <div className="rounded-2xl border bg-card p-5">
                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-xl bg-[#009588]/10 flex items-center justify-center">
-                        <Smartphone className="h-5 w-5 text-[#009588]" />
-                    </div>
-                    <h3 className="font-bold text-base sm:text-lg text-neutral-900">
-                        {t("appSection")}
-                    </h3>
+                    <Smartphone size={18} strokeWidth={1.5} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold">{t("appSection")}</h2>
                 </div>
-                <div className="flex items-center justify-between py-2">
-                    <span className="text-sm text-neutral-600">{t("pwaStatus")}</span>
-                    {pwaInstalled ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 rounded-full px-3 py-1 text-xs font-bold uppercase hover:bg-emerald-100">
-                            {t("installed")}
-                        </Badge>
-                    ) : (
-                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-bold uppercase">
-                            {t("notInstalled")}
-                        </Badge>
-                    )}
+                <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{t("pwaStatus")}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${pwaInstalled ? "text-primary bg-primary/5" : "text-muted-foreground"}`}>
+                        {pwaInstalled ? t("installed") : t("notInstalled")}
+                    </span>
                 </div>
-            </Card>
+            </div>
 
-            {/* Notifications Section */}
-            <Card className="rounded-2xl shadow-sm border border-neutral-100 p-5 sm:p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center">
-                        <Bell className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <h3 className="font-bold text-base sm:text-lg text-neutral-900">
-                        {t("notificationsSection")}
-                    </h3>
+            {/* Notifications */}
+            <div className="rounded-2xl border bg-card p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Bell size={18} strokeWidth={1.5} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold">{t("notificationsSection")}</h2>
                 </div>
 
-                {/* Email notification toggle */}
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-4">
-                        <label
-                            htmlFor="notify-on-publish"
-                            className="text-sm font-medium text-neutral-900 cursor-pointer"
-                        >
+                        <label htmlFor="notify-on-publish" className="text-sm font-medium cursor-pointer">
                             {t("notifyOnPublish")}
                         </label>
-                        <p className="text-xs text-neutral-500 mt-0.5">
-                            {t("notifyOnPublishDescription")}
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t("notifyOnPublishDescription")}</p>
                     </div>
                     <Switch
                         id="notify-on-publish"
                         checked={notifyOnPublish}
                         onCheckedChange={handleToggleNotify}
                         disabled={isPending || isUpdating}
-                        aria-label={t("notifyOnPublish")}
-                        className="data-[state=checked]:bg-[#009588]"
                     />
                 </div>
 
-                {/* Push notification toggle */}
                 {permissionState !== "unsupported" && (
-                    <div className="flex items-center justify-between py-2 mt-2 border-t border-neutral-100 pt-4">
+                    <div className="flex items-center justify-between pt-4 border-t">
                         <div className="flex-1 min-w-0 mr-4">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-neutral-900">
-                                    {t("pushNotifications")}
-                                </span>
-                                {pushSubscribed && (
-                                    <BellRing className="h-3.5 w-3.5 text-[#009588]" />
-                                )}
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-medium">{t("pushNotifications")}</span>
+                                {pushSubscribed && <BellRing className="h-3.5 w-3.5 text-primary" />}
                             </div>
-                            <p className="text-xs text-neutral-500 mt-0.5">
-                                {t("pushDescription")}
-                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{t("pushDescription")}</p>
                             {permissionState === "denied" && (
-                                <p className="text-xs text-red-500 mt-1">
-                                    {t("pushDenied")}
-                                </p>
+                                <p className="text-xs text-destructive mt-1">{t("pushDenied")}</p>
+                            )}
+                            {pushStale && (
+                                <p className="text-xs text-amber-600 mt-1">{t("pushStale")}</p>
                             )}
                         </div>
                         {pushSubscribed ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={unsubscribePush}
-                                disabled={pushLoading}
-                                className="rounded-xl text-xs"
-                            >
+                            <Button variant="outline" size="sm" onClick={unsubscribePush} disabled={pushLoading}>
                                 {t("pushDisable")}
                             </Button>
+                        ) : pushStale ? (
+                            <div className="flex gap-2 shrink-0">
+                                <Button variant="outline" size="sm" onClick={unsubscribePush} disabled={pushLoading}>
+                                    {t("pushDisable")}
+                                </Button>
+                                <Button size="sm" onClick={subscribePush} disabled={pushLoading}>
+                                    {t("pushReactivate")}
+                                </Button>
+                            </div>
                         ) : (
-                            <Button
-                                size="sm"
-                                onClick={subscribePush}
-                                disabled={pushLoading || permissionState === "denied"}
-                                className="rounded-xl text-xs bg-[#009588] hover:bg-[#00796B] text-white"
-                            >
+                            <Button size="sm" onClick={subscribePush} disabled={pushLoading || permissionState === "denied"}>
                                 {t("pushEnable")}
                             </Button>
                         )}
                     </div>
                 )}
-            </Card>
+            </div>
+
+            {/* Logout */}
+            <Button variant="outline" onClick={handleLogout} className="w-full gap-2 text-muted-foreground">
+                <LogOut size={16} />
+                {tCommon("logout")}
+            </Button>
         </div>
     );
 }

@@ -49,14 +49,14 @@
 :root {
   --radius: 0.75rem; /* rounded-xl base */
   
-  --background: #FDFDFD; /* Neutral Wash */
-  --foreground: #171717; /* Ink Black */
-  
-  --card: #FFFFFF; /* Surgical White */
-  --card-foreground: #171717;
-  
-  --popover: #FFFFFF;
-  --popover-foreground: #171717;
+  --background: #FAF9F7; /* Warm Linen */
+  --foreground: #1A1A1A; /* Soft Black */
+
+  --card: #FCFCFC;
+  --card-foreground: #1A1A1A;
+
+  --popover: #FCFCFC;
+  --popover-foreground: #1A1A1A;
   
   --primary: #009588; /* Vet Teal - Brand Primary */
   --primary-foreground: #FFFFFF;
@@ -64,8 +64,8 @@
   --secondary: #E0F2F1; /* Teal Wash */
   --secondary-foreground: #009588;
   
-  --muted: #F5F5F5;
-  --muted-foreground: #737373; /* Soft Steel */
+  --muted: #F3F1EE; /* Warm Muted */
+  --muted-foreground: #6B6B6B;
   
   --accent: #E0F2F1; /* Hover state often uses this */
   --accent-foreground: #009588;
@@ -73,8 +73,8 @@
   --destructive: #EF4444; 
   --destructive-foreground: #FFFFFF;
   
-  --border: #E5E5E5; /* Solid Border */
-  --input: #E5E5E5;
+  --border: #E8E5E0;
+  --input: #E8E5E0;
   --ring: #009588; /* Focus ring is teal */
   
   --chart-1: #009588;
@@ -83,44 +83,44 @@
   --chart-4: #FDFDFD;
   --chart-5: #171717;
   
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #171717;
+  --sidebar: #FCFCFC;
+  --sidebar-foreground: #1A1A1A;
   --sidebar-primary: #009588;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #E0F2F1;
   --sidebar-accent-foreground: #009588;
-  --sidebar-border: #E5E5E5;
+  --sidebar-border: #E8E5E0;
   --sidebar-ring: #009588;
 }
 
 .dark {
   /* Minimal dark mode support for now, mapping closely to light mode logic but inverted */
-  --background: #171717;
-  --foreground: #FDFDFD;
-  
-  --card: #1C1C1C;
-  --card-foreground: #FDFDFD;
-  
-  --popover: #1C1C1C;
-  --popover-foreground: #FDFDFD;
+  --background: #0A0A0A;
+  --foreground: #FAFAFA;
+
+  --card: #111111;
+  --card-foreground: #FAFAFA;
+
+  --popover: #111111;
+  --popover-foreground: #FAFAFA;
   
   --primary: #009588;
   --primary-foreground: #FFFFFF;
   
-  --secondary: #262626;
-  --secondary-foreground: #FDFDFD;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #FAFAFA;
   
-  --muted: #262626;
+  --muted: #1A1A1A;
   --muted-foreground: #A3A3A3;
-  
-  --accent: #262626;
-  --accent-foreground: #FDFDFD;
+
+  --accent: #1A1A1A;
+  --accent-foreground: #FAFAFA;
   
   --destructive: #991B1B;
   --destructive-foreground: #FFFFFF;
   
-  --border: #262626;
-  --input: #262626;
+  --border: #1E1E1E;
+  --input: #1E1E1E;
   --ring: #009588;
   
   --chart-1: #009588;

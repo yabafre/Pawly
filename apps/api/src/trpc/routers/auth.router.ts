@@ -8,7 +8,12 @@ import {
   verifyOtpSchema,
   otpRequestResponseSchema,
   authResponseSchema,
+  requestPasswordResetSchema,
+  resetPasswordInputSchema,
+  changePasswordSchema,
+  updateAdminProfileSchema,
 } from '@pawly/validators';
+import { TRPCError } from '@trpc/server';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
 
@@ -16,12 +21,14 @@ export const authRouter = router({
   getMe: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.prisma.user.findUnique({
       where: { id: ctx.user.sub },
-      select: { employee: { select: { id: true, jobType: true } } },
+      select: { name: true, locale: true, employee: { select: { id: true, jobType: true } } },
     });
     return {
       role: ctx.user.role,
       clinicId: ctx.user.clinicId,
       email: ctx.user.email,
+      name: user?.name ?? null,
+      locale: user?.locale ?? 'fr',
       employeeId: user?.employee?.id ?? null,
       jobType: user?.employee?.jobType ?? null,
     };
@@ -58,6 +65,32 @@ export const authRouter = router({
     .output(authResponseSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.authService.verifyOtp(input.email, input.code);
+    }),
+  requestPasswordReset: publicProcedure
+    .input(requestPasswordResetSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.requestPasswordReset(input.email);
+    }),
+  resetPassword: publicProcedure
+    .input(resetPasswordInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.resetPassword(input.token, input.password);
+    }),
+  changePassword: protectedProcedure
+    .input(changePasswordSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can change password' });
+      }
+      return ctx.authService.changePassword(ctx.user.sub, input.currentPassword, input.newPassword);
+    }),
+  updateProfile: protectedProcedure
+    .input(updateAdminProfileSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can update profile' });
+      }
+      return ctx.authService.updateAdminProfile(ctx.user.sub, input);
     }),
 });
 

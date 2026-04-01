@@ -30,7 +30,7 @@ export function WarningBadge({ warnings }: Props) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="absolute bottom-0 right-0 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white shadow-sm hover:bg-orange-500 transition-colors"
+          className="absolute bottom-0 right-0 z-[5] flex items-center justify-center w-5 h-5 rounded-full bg-orange-400 text-white shadow-sm hover:bg-orange-500 transition-colors"
           aria-label={t("softCount", { count: warnings.length })}
         >
           <AlertTriangle size={10} strokeWidth={2.5} />
@@ -41,7 +41,7 @@ export function WarningBadge({ warnings }: Props) {
           {t("softTitle")} ({warnings.length})
         </p>
         {warnings.map((w, i) => (
-          <p key={i} className="text-[11px] text-neutral-600 leading-snug">
+          <p key={i} className="text-[11px] text-muted-foreground leading-snug">
             {w.messageKey ? tv(w.messageKey, w.messageParams) : w.message}
           </p>
         ))}

@@ -30,10 +30,10 @@ export function AbsenceStatusFilter({ selected, onSelect }: AbsenceStatusFilterP
             aria-selected={isActive}
             onClick={() => onSelect(filter.key)}
             className={cn(
-              "px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap",
+              "px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
               isActive
-                ? "bg-neutral-900 text-white shadow-md"
-                : "text-neutral-500 hover:bg-neutral-100"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:bg-muted"
             )}
           >
             {t(filter.labelKey)}
