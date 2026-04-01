@@ -1,18 +1,68 @@
-Copyright (c) 2026 Pawly. All rights reserved.
+PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
 
-This software and associated documentation files (the "Software") are the
-proprietary and confidential property of Pawly. Unauthorized copying,
-modification, distribution, or use of this Software, in whole or in part,
-via any medium, is strictly prohibited.
+Copyright (c) 2026 BRAINST. All rights reserved.
 
-The Software is provided under a commercial license. No part of this
-Software may be reproduced, distributed, transmitted, sublicensed, or
-sold without the prior written permission of Pawly.
+Pawly is an exclusive brand and product of BRAINST.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  BRAINST — Société à responsabilité limitée (SARL)
+  SIREN : 980 134 944
+  Siège social : 24 Avenue de la Concorde, 91270 Vigneux-sur-Seine, France
+
+─────────────────────────────────────────────────────────────────────────────
+
+1. PROPRIETARY RIGHTS
+   This software, including all source code, documentation, interfaces,
+   designs, algorithms, and all associated intellectual property (collectively
+   the "Software"), is the sole and exclusive property of BRAINST, operator
+   of the Pawly brand. All rights not expressly stated herein are reserved.
+
+2. CONFIDENTIALITY
+   The Software constitutes trade secrets and strictly confidential
+   information belonging to BRAINST. Any individual or entity gaining access
+   to this code is subject to a strict and unconditional non-disclosure
+   obligation. Unauthorized access, inspection, or disclosure of its contents
+   to any third party is prohibited.
+
+3. RESTRICTIONS
+   You may NOT, under any circumstances and without prior written authorization
+   from BRAINST:
+   a) Copy, reproduce, or replicate the Software or any portion thereof.
+   b) Modify, translate, adapt, or create derivative works based on it.
+   c) Reverse-engineer, decompile, disassemble, or otherwise attempt to
+      derive the source code, algorithms, or logic of the Software.
+   d) Rent, lease, lend, distribute, publish, sub-license, or sell the
+      Software or access thereto.
+   e) Use the Software for any commercial, public, or personal purpose
+      outside of operations explicitly authorized in writing by BRAINST.
+
+4. AUTHORIZED USE
+   Access to this Software is granted exclusively for internal development,
+   testing, deployment, and audit operations by personnel explicitly mandated
+   by BRAINST (employees, partners, or independent contractors), all of whom
+   must be bound by active and valid Non-Disclosure Agreements (NDAs).
+
+5. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS", SOLELY FOR AUTHORIZED INTERNAL PURPOSES.
+   BRAINST MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+   TO ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, OR NON-INFRINGEMENT.
+
+6. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL BRAINST, ITS DIRECTORS, OFFICERS, EMPLOYEES, OR AGENTS
+   BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+   PUNITIVE DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS SOFTWARE, EVEN
+   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+7. GOVERNING LAW
+   This License Agreement shall be governed by and construed in accordance
+   with the laws of the French Republic. Any dispute arising hereunder shall
+   be subject to the exclusive jurisdiction of the competent courts of France.
+
+─────────────────────────────────────────────────────────────────────────────
+
+By accessing, cloning, or interacting with this repository in any way, you
+acknowledge having read, understood, and agreed to be legally bound by the
+entirety of this license agreement.
+
+ANY VIOLATION OF THESE TERMS WILL RESULT IN IMMEDIATE LEGAL ACTION AND
+PROSECUTION TO THE MAXIMUM EXTENT PERMITTED BY FRENCH AND INTERNATIONAL LAW.

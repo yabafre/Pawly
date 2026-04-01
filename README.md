@@ -1,22 +1,45 @@
-# Pawly
+<div align="center">
+  <h1>🐾 Pawly</h1>
+  <p><strong>The all-in-one SaaS management platform for veterinary clinics.</strong></p>
+  <p><sub>A product by <strong>BRAINST</strong> — SARL · SIREN 980 134 944 · Vigneux-sur-Seine, France</sub></p>
+  
+  [![Website](https://img.shields.io/website?url=https%3A%2F%2Fpawly.app&up_message=online&down_message=offline&style=flat-square)](https://pawly.app)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+  [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+  [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white)](https://nestjs.com/)
+  [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+  [![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io/)
+</div>
 
-**Le SaaS de gestion tout-en-un pour la "Clinique Zen" vétérinaire.**
+<br />
 
-Pawly est une plateforme conçue pour transformer la gestion quotidienne des cliniques vétérinaires. Contrairement aux outils classiques rigides, Pawly offre une approche centrée sur le bien-être des équipes (planification équitable) et l'efficacité opérationnelle (pilotage en temps réel).
+> **⚠️ CONFIDENTIAL & PROPRIETARY**
+> This repository and its contents are the exclusive property of Pawly. Unauthorized copying, reading, distribution, modification, or use of this code, via any medium, is strictly prohibited. This is a private commercial SaaS project, not an open-source tool. Only formally authorized personnel may access this codebase.
 
-## Overview
+**Pawly** is designed to transform the daily management of veterinary clinics. Unlike rigid traditional tools, Pawly offers an approach centered on team well-being (fair scheduling) and operational efficiency (real-time monitoring).
+
+---
+
+## 🚀 Core Features
+
+- **👥 Personnel Management**: Centralized HR data, contract management (Apprentices, CDI), and skills tracking.
+- **📅 Intelligent Scheduling**: Greedy algorithm for automatic schedule generation respecting school constraints, availabilities, and legal rules.
+- **⚙️ Administration & Arbitration**: Real-time Health Bar supervision, intuitive Drag & Drop for manual corrections, variance auditing, and validation.
+- **📱 Employee Portal (PWA)**: Mobile-first schedule consultation and time tracking for effective hours.
+
+## 🛠️ Technology Stack
 
 | Component | Technology |
 |-----------|------------|
-| **API** | NestJS 11, Prisma 7, PostgreSQL |
 | **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
-| **Shared Packages** | TypeScript, Zod validators, shared types |
-| **Testing** | Jest (API) |
-| **Build** | Turborepo, pnpm |
+| **API** | NestJS 11, Prisma 7, PostgreSQL (Neon) |
+| **Shared Packages** | TypeScript, Zod validators |
+| **Testing** | Jest |
+| **Monorepo** | Turborepo, pnpm |
 
-## Project Structure
+## 📂 Project Structure
 
-```
+```text
 Pawly/
 ├── apps/
 │   ├── api/           # NestJS backend API
@@ -29,15 +52,15 @@ Pawly/
 └── docs/              # Documentation & Implementation Artifacts
 ```
 
-## Prerequisites
+## 🏎️ Getting Started
+
+### Prerequisites
 
 - **Node.js** 22 or higher
-- **pnpm** 9.0.0 (package manager)
-- **Neon.com** account (for PostgreSQL database)
+- **pnpm** 9.0.0+
+- **Neon.com** account (PostgreSQL connection)
 
-## Getting Started
-
-### 1. Clone and Install
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/yabafre/Pawly.git
@@ -47,18 +70,17 @@ pnpm install
 
 ### 2. Configure Environment
 
-Copy the example environment file (if available) or ensure your `.env` is set up with:
-- `DATABASE_URL`
+Copy `.env.example` to `.env` in the root and individual app directories. Ensure the following are set:
+- `DATABASE_URL` 
 - `JWT_SECRET`
-- *Note: Check individual app directories for specific `.env.example` files.*
 
 ### 3. Initialize Database
 
-Database is hosted on [Neon.com](https://neon.tech). Make sure `DATABASE_URL` is set in your `.env` file.
+Database is hosted on [Neon.com](https://neon.tech). Make sure `DATABASE_URL` is configured properly.
 
 ```bash
 pnpm db:generate  # Generate Prisma client
-pnpm db:push      # Sync schema to Neon
+pnpm db:push      # Push schema to Neon PostgreSQL
 ```
 
 ### 4. Run Development Servers
@@ -66,14 +88,9 @@ pnpm db:push      # Sync schema to Neon
 ```bash
 pnpm dev
 ```
+Starts the NestJS **API** and the Next.js **Web** frontend concurrently.
 
-This starts:
-- **API** (NestJS)
-- **Web** (Next.js)
-
-## Available Commands
-
-### Development
+## 💻 Available Commands
 
 | Command | Description |
 |---------|-------------|
@@ -81,68 +98,54 @@ This starts:
 | `pnpm build` | Build all packages and apps |
 | `pnpm lint` | Run ESLint across all packages |
 | `pnpm format` | Format code with Prettier |
+| `pnpm db:generate` | Generate Prisma client (via `@pawly/api`) |
+| `pnpm db:push` | Apply migrations (via `@pawly/api`) |
 
-### Database
-
-| Command | Description |
-|---------|-------------|
-| `pnpm db:generate` | Generate Prisma client (via @pawly/api) |
-| `pnpm db:push` | Apply migrations (via @pawly/api) |
-
-## Architecture
+## 🏗️ Architecture
 
 ### Data Flow
-
-```
-Web (Next.js) → React Query/Fetch → NestJS API → Prisma → PostgreSQL
-```
+`Web (Next.js)` → `React Query / Fetch` → `NestJS API` → `Prisma` → `PostgreSQL`
 
 ### Key Patterns
+- **Monorepo**: Turborepo orchestrates builds, enabling seamless caching and execution.
+- **Type-Safety**: End-to-end type safety using shared `@pawly/types` inferred from Zod schemas.
+- **Modular Design**: The API is partitioned by business domains (Staff, Scheduling, Auth).
 
-- **Monorepo**: Turborepo orchestrates builds and tasks.
-- **Type-Safety**: Shared `@pawly/types` and Zod schemas between Web and API.
-- **Modular Design**: API handles business logic (Staff, Scheduling) independently.
+## 📝 Development Guidelines
 
-### Shared Packages
+### Git Workflow & Branching
+All development happens through feature branches, merged via Pull Requests to `develop`.
+- **Protected Branches**: `main` (Production) and `develop` (Integration).
+- **Naming Convention**: `feature/story-X-Y-name`, `fix/bug-name`, `hotfix/critical-issue`.
 
-| Package | Purpose |
-|---------|---------|
-| `@pawly/validators` | Zod schemas for validation |
-| `@pawly/types` | TypeScript types inferred from Zod schemas |
-| `@pawly/zod` | Base Zod configurations |
-
-## Core Features
-
-### Gestion du Personnel
-- **Profils Employés**: Centralisation des données RH.
-- **Contrats**: Gestion des types (Apprentis, CDI) et compétences.
-
-### Planification Intelligente
-- **Algorithme Greedy**: Génération automatique de plannings.
-- **Contraintes**: Respect des écoles, disponibilités et règles légales.
-
-### Administration & Arbitrage
-- **Supervision**: Health Bar en temps réel.
-- **Ajustements**: Drag & Drop intuitif pour corrections manuelles.
-- **Audit**: Vue de variance et validation.
-
-### Portail Employé (PWA)
-- **Mobile First**: Consultation des plannings sur mobile.
-- **Pointage**: Suivi des heures effectives.
-
-## Development Guidelines
-
-### Commit Message Format
-
-```
+### Commit Conventions
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+```text
 type(scope): description
 
 feat(planning): add greedy algorithm for scheduling
 fix(auth): correct jwt token expiration
 ```
+*Types:* `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`
 
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`
+## ⚖️ License & Legal
 
-## License
+**Copyright © 2026 BRAINST — All rights reserved.**
 
-Private - All rights reserved.
+Pawly is an exclusive brand and product of **BRAINST**.
+
+| | |
+|---|---|
+| **Société** | BRAINST — SARL |
+| **SIREN** | 980 134 944 |
+| **SIRET (siège)** | 980 134 944 00019 |
+| **Adresse** | 24 Avenue de la Concorde, 91270 Vigneux-sur-Seine, France |
+| **Immatriculée** | 01/10/2023 (INSEE) — 06/10/2023 (INPI/RNE) |
+
+This software, its source code, documentation, designs, and all associated intellectual property are the **sole and exclusive property of BRAINST**. Access is strictly reserved for authorized personnel bound by an active NDA.
+
+**No reproduction, distribution, reverse engineering, or unauthorized use is permitted under any circumstances.**
+
+Any violation of these terms will result in immediate legal action under French and international intellectual property law.
+
+Refer to the [LICENSE](./LICENSE) file for the complete terms.
