@@ -2,7 +2,6 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { trpc } from "@/lib/trpc/client";
 import { LandingHeader } from "./_components/LandingHeader";
 import { HeroSection } from "./_components/HeroSection";
 import { FeaturesSection } from "./_components/FeaturesSection";
@@ -67,18 +66,13 @@ export default async function LandingPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  // Redirect authenticated users to their dashboard
+  // Redirect authenticated users — just check cookie presence,
+  // the destination layout validates the token (avoids blocking if API is slow)
   const cookieStore = await cookies();
   const authToken = cookieStore.get("auth-token")?.value;
   if (authToken) {
-    try {
-      const me = await trpc.auth.getMe.query();
-      const prefix = locale === "fr" ? "" : `/${locale}`;
-      if (me.role === "ADMIN") redirect(`${prefix}/admin/dashboard`);
-      else redirect(`${prefix}/dashboard`);
-    } catch {
-      // Invalid/expired token — continue to landing page
-    }
+    const prefix = locale === "fr" ? "" : `/${locale}`;
+    redirect(`${prefix}/admin/dashboard`);
   }
 
   const t2 = await getTranslations({ locale, namespace: "landing.meta" });
