@@ -4,20 +4,11 @@ on:
   push:
     branches:
       - main
-      - develop
     paths:
       - 'apps/api/src/trigger/**'
       - 'apps/api/trigger.config.ts'
       - 'apps/api/prisma/**'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        type: choice
-        options:
-          - staging
-          - prod
 
 jobs:
   deploy:
@@ -25,37 +16,33 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Determine environment
-        id: env
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "target=${{ inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "target=prod" >> $GITHUB_OUTPUT
-          else
-            echo "target=staging" >> $GITHUB_OUTPUT
-          fi
+      - uses: actions/checkout@v4
 
-      - name: Deploy Trigger.dev via SSH (${{ steps.env.outputs.target }})
-        uses: appleboy/ssh-action@v1
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.DOKPLOY_HOST }}
-          username: ${{ secrets.DOKPLOY_USER }}
-          key: ${{ secrets.DOKPLOY_SSH_KEY }}
-          script: |
-            set -e
-            cd ${{ secrets.PAWLY_PATH }}
-            git fetch origin ${{ github.ref_name }}
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+          node-version: '22'
 
-            export TRIGGER_ACCESS_TOKEN="${{ secrets.TRIGGER_ACCESS_TOKEN }}"
-            export TRIGGER_API_URL="${{ secrets.TRIGGER_API_URL }}"
-            export TRIGGER_PROJECT_ID="${{ secrets.TRIGGER_PROJECT_ID }}"
-            export DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-            corepack enable
-            pnpm install --frozen-lockfile
-            cd apps/api
-            npx prisma generate --schema=prisma/schema
-            npx trigger.dev@latest deploy --env ${{ steps.env.outputs.target }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: cd apps/api && npx prisma generate --schema=prisma/schema
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+
+      - name: Login to private registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${{ secrets.BRAINST_REGISTRY_URL }}" -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+
+      - name: Deploy to Trigger.dev (prod)
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_API_URL: ${{ secrets.TRIGGER_API_URL }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+        run: cd apps/api && npx trigger.dev@latest deploy --env prod
