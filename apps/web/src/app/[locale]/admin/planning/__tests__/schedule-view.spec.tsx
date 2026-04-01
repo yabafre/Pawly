@@ -937,8 +937,8 @@ describe("DraggableShiftCell", () => {
       activatorEvent: null,
       active: null,
       over: null,
-      rect: { current: null } as any,
-    });
+      activeNodeRect: null,
+    } as any);
   });
 
   it("renders with drag handle aria-label", () => {
@@ -969,8 +969,8 @@ describe("DraggableShiftCell", () => {
       activatorEvent: null,
       active: null,
       over: null,
-      rect: { current: null } as any,
-    });
+      activeNodeRect: null,
+    } as any);
 
     render(<DraggableShiftCell shift={draggableShift} />, { wrapper: Wrapper });
     const el = screen.getByLabelText("dragHandle");

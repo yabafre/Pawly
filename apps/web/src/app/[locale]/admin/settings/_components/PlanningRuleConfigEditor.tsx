@@ -35,7 +35,7 @@ function FieldGroup({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-neutral-500">{label}</Label>
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -54,13 +54,13 @@ export function PlanningRuleConfigEditor({
   };
 
   const inputClass =
-    "rounded-xl border-neutral-200 bg-white transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20";
-  const selectTriggerClass = "rounded-xl border-neutral-200 bg-white";
+    "rounded-xl border-border bg-card transition-all focus:border-primary focus:ring-1 focus:ring-primary/20";
+  const selectTriggerClass = "rounded-xl border-border bg-card";
 
   switch (category) {
     case "STAFFING_MINIMUM":
       return (
-        <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+        <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
           <FieldGroup label={t("config.shiftTypeCode")}>
             {shiftTypes.length > 0 ? (
               <Select
@@ -127,7 +127,7 @@ export function PlanningRuleConfigEditor({
 
     case "ROTATION_EQUITY":
       return (
-        <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+        <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
           <FieldGroup label={t("config.targetDay")}>
             <Select
               value={(config.targetDay as string) ?? "saturday"}
@@ -180,7 +180,7 @@ export function PlanningRuleConfigEditor({
 
     case "SKILL_REQUIREMENT":
       return (
-        <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+        <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
           <FieldGroup label={t("config.shiftTypeCode")}>
             {shiftTypes.length > 0 ? (
               <Select
@@ -234,7 +234,7 @@ export function PlanningRuleConfigEditor({
 
     case "CONTRACT_COMPLIANCE":
       return (
-        <div className="space-y-4 rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4">
+        <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
           <div className="grid grid-cols-2 gap-4">
             <FieldGroup label={t("config.maxWeeklyHours")}>
               <Input

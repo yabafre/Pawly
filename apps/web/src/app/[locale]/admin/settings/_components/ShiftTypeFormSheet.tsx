@@ -78,11 +78,11 @@ export function ShiftTypeFormSheet({
           className="flex min-h-0 flex-1 flex-col"
         >
           {/* Header */}
-          <div className="shrink-0 border-b border-neutral-100 px-6 pb-5 pt-6 pr-12">
-            <SheetTitle className="text-lg font-bold text-neutral-900">
+          <div className="shrink-0 border-b border-border px-6 pb-5 pt-6 pr-12">
+            <SheetTitle className="text-lg font-bold text-foreground">
               {editingShiftType ? t("form.editTitle") : t("form.createTitle")}
             </SheetTitle>
-            <SheetDescription className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">
+            <SheetDescription className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
               {editingShiftType
                 ? t("form.editSubtitle")
                 : t("form.createSubtitle")}
@@ -95,7 +95,7 @@ export function ShiftTypeFormSheet({
             <form.Field name="name">
               {(field: FieldApi) => (
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-neutral-700">
+                  <Label className="text-sm font-medium text-foreground">
                     {t("fields.name")}
                   </Label>
                   <Input
@@ -114,7 +114,7 @@ export function ShiftTypeFormSheet({
                     }}
                     onBlur={field.handleBlur}
                     placeholder={t("fields.namePlaceholder")}
-                    className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                    className="rounded-xl border-border bg-muted transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                   />
                 </div>
               )}
@@ -124,7 +124,7 @@ export function ShiftTypeFormSheet({
             <form.Field name="code">
               {(field: FieldApi) => (
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-neutral-700">
+                  <Label className="text-sm font-medium text-foreground">
                     {t("fields.code")}
                   </Label>
                   <Input
@@ -139,7 +139,7 @@ export function ShiftTypeFormSheet({
                     }
                     onBlur={field.handleBlur}
                     placeholder={t("fields.codePlaceholder")}
-                    className="rounded-xl border-neutral-200 bg-neutral-50 font-mono transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                    className="rounded-xl border-border bg-muted font-mono transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                   />
                 </div>
               )}
@@ -150,14 +150,14 @@ export function ShiftTypeFormSheet({
               <form.Field name="startTime">
                 {(field: FieldApi) => (
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-neutral-700">
+                    <Label className="text-sm font-medium text-foreground">
                       {t("fields.startTime")}
                     </Label>
                     <Input
                       type="time"
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
-                      className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                      className="rounded-xl border-border bg-muted transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
                 )}
@@ -166,14 +166,14 @@ export function ShiftTypeFormSheet({
               <form.Field name="endTime">
                 {(field: FieldApi) => (
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-neutral-700">
+                    <Label className="text-sm font-medium text-foreground">
                       {t("fields.endTime")}
                     </Label>
                     <Input
                       type="time"
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
-                      className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                      className="rounded-xl border-border bg-muted transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
                 )}
@@ -184,7 +184,7 @@ export function ShiftTypeFormSheet({
             <form.Field name="breakMinutes">
               {(field: FieldApi) => (
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-neutral-700">
+                  <Label className="text-sm font-medium text-foreground">
                     {t("fields.breakMinutes")}
                   </Label>
                   <Input
@@ -199,7 +199,7 @@ export function ShiftTypeFormSheet({
                     }
                     onBlur={field.handleBlur}
                     placeholder={t("fields.breakMinutesPlaceholder")}
-                    className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                    className="rounded-xl border-border bg-muted transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                   />
                 </div>
               )}
@@ -209,7 +209,7 @@ export function ShiftTypeFormSheet({
             <form.Field name="color">
               {(field: FieldApi) => (
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-neutral-700">
+                  <Label className="text-sm font-medium text-foreground">
                     {t("fields.color")}
                   </Label>
                   <div className="flex gap-2.5 flex-wrap">
@@ -219,7 +219,7 @@ export function ShiftTypeFormSheet({
                         type="button"
                         onClick={() => field.handleChange(color.value)}
                         className={`w-9 h-9 rounded-xl transition-all ${field.state.value === color.value
-                          ? "ring-2 ring-offset-2 ring-neutral-900 scale-110"
+                          ? "ring-2 ring-offset-2 ring-foreground scale-110"
                           : "hover:scale-105"
                           }`}
                         style={{ backgroundColor: color.value }}
@@ -233,7 +233,7 @@ export function ShiftTypeFormSheet({
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-neutral-100 bg-neutral-50/50 px-6 py-4">
+          <div className="shrink-0 border-t border-border bg-muted/30 px-6 py-4">
             <div className="flex justify-end gap-3">
               <Button
                 type="button"
@@ -246,7 +246,7 @@ export function ShiftTypeFormSheet({
               <Button
                 type="submit"
                 disabled={isBusy}
-                className="rounded-xl bg-[#009588] font-semibold text-white shadow-lg shadow-[#009588]/20 hover:bg-[#00796B] disabled:opacity-60"
+                className="rounded-xl bg-primary font-semibold text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-60"
               >
                 {editingShiftType ? t("actions.save") : t("actions.add")}
               </Button>

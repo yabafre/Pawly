@@ -4,7 +4,7 @@ export function SettingsSkeleton() {
   return (
     <div className="space-y-6">
       {/* Weekly defaults skeleton */}
-      <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:p-6">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
         <div className="mb-6 flex items-center gap-3">
           <Skeleton className="h-8 w-8 rounded-lg" />
           <Skeleton className="h-4 w-32" />
@@ -28,7 +28,7 @@ export function SettingsSkeleton() {
       </section>
 
       {/* Closed days skeleton */}
-      <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:p-6">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
         <div className="mb-4 flex items-center gap-3">
           <Skeleton className="h-8 w-8 rounded-lg" />
           <Skeleton className="h-4 w-40" />
@@ -37,7 +37,7 @@ export function SettingsSkeleton() {
       </section>
 
       {/* Special days skeleton */}
-      <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:p-6">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
         <div className="mb-4 flex items-center gap-3">
           <Skeleton className="h-8 w-8 rounded-lg" />
           <Skeleton className="h-4 w-36" />

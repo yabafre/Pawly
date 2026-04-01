@@ -7,8 +7,18 @@ import { cn } from "@/lib/utils";
 import { Clock, AlertCircle, LogOut, Check, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useState } from "react";
 import type { VarianceEventItem } from "@pawly/types";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export type { VarianceEventItem } from "@pawly/types";
 
@@ -19,32 +29,27 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
   EARLY_DEPARTURE: LogOut,
 };
 
-const TYPE_STYLES: Record<string, string> = {
-  CLOCK_IN_DEVIATION: "bg-orange-100 text-orange-700",
-  CLOCK_OUT_DEVIATION: "bg-amber-100 text-amber-700",
-  NO_SHOW: "bg-rose-100 text-rose-700",
-  EARLY_DEPARTURE: "bg-amber-100 text-amber-700",
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-orange-100 text-orange-700",
-  APPROVED: "bg-emerald-100 text-emerald-700",
-  REJECTED: "bg-rose-100 text-rose-700",
-};
+const BADGE_STYLE = "border border-border bg-muted/50 text-muted-foreground";
 
 type VarianceTypeKey = "types.CLOCK_IN_DEVIATION" | "types.CLOCK_OUT_DEVIATION" | "types.NO_SHOW" | "types.EARLY_DEPARTURE";
 type VarianceStatusKey = "status.PENDING" | "status.APPROVED" | "status.REJECTED";
 
 interface VarianceEventListProps {
   events: VarianceEventItem[];
+  total: number;
+  page: number;
+  onPageChange: (page: number) => void;
   isPending: boolean;
+  pageSize?: number;
 }
 
-export function VarianceEventList({ events, isPending: isLoading }: VarianceEventListProps) {
+export function VarianceEventList({ events, total, page, onPageChange, isPending: isLoading, pageSize = DEFAULT_PAGE_SIZE }: VarianceEventListProps) {
   const t = useTranslations("admin.variance");
   const locale = useLocale();
   const { approve, reject, isPending: isReviewing } = useReviewVariance();
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+
+  const totalPages = Math.ceil(total / pageSize);
 
   if (isLoading) {
     return (
@@ -123,7 +128,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                           {t("list.actual")}: {formatTime(event.actualTime)}{" "}
                           · <span className="font-medium">
                             {event.deltaMinutes > 0 ? "+" : ""}
-                            {t("list.delta", { minutes: event.deltaMinutes })}
+                            {t("list.delta", { minutes: Math.round(Number(event.deltaMinutes)) })}
                           </span>
                         </>
                       )}
@@ -134,17 +139,20 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                   <span
                     className={cn(
                       "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide",
-                      TYPE_STYLES[event.type] ?? "bg-muted text-muted-foreground",
+                      BADGE_STYLE,
                     )}
                   >
                     {t(`types.${event.type}` as VarianceTypeKey)}
                   </span>
                   <span
                     className={cn(
-                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide",
-                      STATUS_STYLES[event.status] ?? "bg-muted text-muted-foreground",
+                      "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide",
+                      BADGE_STYLE,
                     )}
                   >
+                    {event.status === "PENDING" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    )}
                     {t(`status.${event.status}` as VarianceStatusKey)}
                   </span>
                   {isPendingStatus && (
@@ -154,7 +162,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                         onClick={() => handleApprove(event.id)}
                         disabled={isReviewing}
                         aria-label={`${t("actions.approve")} - ${event.shift.employee.lastName}`}
-                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                        className="rounded-xl"
                       >
                         <Check size={14} className="mr-1" />
                         {t("actions.approve")}
@@ -165,7 +173,7 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                         onClick={() => setRejectTarget(event.id)}
                         disabled={isReviewing}
                         aria-label={`${t("actions.reject")} - ${event.shift.employee.lastName}`}
-                        className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/5"
+                        className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <X size={14} className="mr-1" />
                         {t("actions.reject")}
@@ -175,11 +183,11 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
                 </div>
               </div>
               {event.status === "REJECTED" && event.exceptionNote && (
-                <div className="mt-3 rounded-xl bg-rose-50 border border-rose-200 p-3">
-                  <p className="text-xs font-semibold text-rose-600">
+                <div className="mt-3 rounded-xl bg-muted border border-border p-3">
+                  <p className="text-xs font-semibold text-muted-foreground">
                     {t("list.reason")}
                   </p>
-                  <p className="text-sm text-rose-700 mt-1">
+                  <p className="text-sm text-foreground mt-1">
                     {event.exceptionNote}
                   </p>
                 </div>
@@ -188,6 +196,44 @@ export function VarianceEventList({ events, isPending: isLoading }: VarianceEven
           );
         })}
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-muted-foreground">
+            {t("list.pagination", {
+              from: page * pageSize + 1,
+              to: Math.min((page + 1) * pageSize, total),
+              total,
+            })}
+          </p>
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => onPageChange(Math.max(0, page - 1))}
+                  className={cn("cursor-pointer", page === 0 && "pointer-events-none opacity-50")}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={page === i}
+                    onClick={() => onPageChange(i)}
+                    className="cursor-pointer"
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
+                  className={cn("cursor-pointer", page >= totalPages - 1 && "pointer-events-none opacity-50")}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
       <VarianceRejectDialog
         open={!!rejectTarget}
         onClose={() => setRejectTarget(null)}

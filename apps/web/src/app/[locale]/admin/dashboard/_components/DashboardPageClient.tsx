@@ -163,7 +163,7 @@ export function DashboardPageClient() {
         </div>
         {stats?.todayEmployees && stats.todayEmployees.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {stats.todayEmployees.map((emp) => (
+            {stats.todayEmployees.map((emp: { id: string; firstName: string; lastName: string; jobType: string; startTime: string; endTime: string }) => (
               <div
                 key={emp.id}
                 className="flex items-center gap-3 p-3 rounded-xl bg-muted/50"

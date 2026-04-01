@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   ShieldAlert,
@@ -68,10 +69,10 @@ const CATEGORY_ICONS: Record<
 function SectionDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <div className="h-px flex-1 bg-neutral-200/80" />
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -128,11 +129,11 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
           className="flex min-h-0 flex-1 flex-col"
         >
           {/* ── Header ──────────────────────────────────────────────── */}
-          <div className="shrink-0 border-b border-neutral-100 px-6 pb-5 pt-6 pr-12">
-            <SheetTitle className="text-lg font-bold text-neutral-900">
+          <div className="shrink-0 border-b border-border px-6 pb-5 pt-6 pr-12">
+            <SheetTitle className="text-lg font-bold text-foreground">
               {editingRule ? t("form.editTitle") : t("form.createTitle")}
             </SheetTitle>
-            <SheetDescription className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">
+            <SheetDescription className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
               {editingRule
                 ? t("form.editSubtitle")
                 : t("form.createSubtitle")}
@@ -141,20 +142,20 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
             {/* Active toggle pill */}
             <form.Field name="isActive">
               {(field: FieldApi) => (
-                <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-neutral-50 px-3.5 py-2.5">
+                <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-muted px-3.5 py-2.5">
                   <Switch
                     checked={field.state.value}
                     onCheckedChange={(v: boolean) => field.handleChange(v)}
                   />
-                  <Label className="text-sm font-medium text-neutral-600">
+                  <Label className="text-sm font-medium text-muted-foreground">
                     {t("form.isActive")}
                   </Label>
                   <span
                     className={cn(
                       "ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
                       field.state.value
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-neutral-200 text-neutral-500",
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground",
                     )}
                   >
                     {field.state.value ? "ON" : "OFF"}
@@ -173,7 +174,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="rule-name"
-                      className="text-sm font-medium text-neutral-700"
+                      className="text-sm font-medium text-foreground"
                     >
                       {t("form.name")}
                     </Label>
@@ -183,7 +184,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}
                       placeholder={t("form.namePlaceholder")}
-                      className="rounded-xl border-neutral-200 bg-neutral-50 transition-all focus:border-[#009588] focus:bg-white focus:ring-1 focus:ring-[#009588]/20"
+                      className="rounded-xl border-border bg-muted transition-all focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
                 )}
@@ -194,18 +195,18 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="rule-desc"
-                      className="text-sm font-medium text-neutral-700"
+                      className="text-sm font-medium text-foreground"
                     >
                       {t("form.description")}
                     </Label>
-                    <textarea
+                    <Textarea
                       id="rule-desc"
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}
                       placeholder={t("form.descriptionPlaceholder")}
                       rows={2}
-                      className="flex w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm transition-all placeholder:text-neutral-400 focus:border-[#009588] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#009588]/20"
+                      className="resize-none rounded-xl"
                     />
                   </div>
                 )}
@@ -230,9 +231,9 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                             "flex flex-col items-start gap-1.5 rounded-xl border-2 p-3.5 text-left transition-all",
                             isSelected
                               ? isHard
-                                ? "border-rose-200 bg-rose-50/60 shadow-sm"
-                                : "border-amber-200 bg-amber-50/60 shadow-sm"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50",
+                                ? "border-destructive/30 bg-destructive/5 shadow-sm"
+                                : "border-amber-300/40 bg-amber-50/40 shadow-sm"
+                              : "border-border bg-card hover:bg-muted",
                           )}
                         >
                           <div className="flex items-center gap-2">
@@ -241,8 +242,8 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                                 className={cn(
                                   "h-4 w-4",
                                   isSelected
-                                    ? "text-rose-600"
-                                    : "text-neutral-400",
+                                    ? "text-destructive"
+                                    : "text-muted-foreground",
                                 )}
                               />
                             ) : (
@@ -251,15 +252,15 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                                   "h-4 w-4",
                                   isSelected
                                     ? "text-amber-600"
-                                    : "text-neutral-400",
+                                    : "text-muted-foreground",
                                 )}
                               />
                             )}
-                            <span className="text-sm font-semibold text-neutral-900">
+                            <span className="text-sm font-semibold text-foreground">
                               {t(`ruleTypes.${rt}`)}
                             </span>
                           </div>
-                          <span className="text-xs text-neutral-500">
+                          <span className="text-xs text-muted-foreground">
                             {t(`form.ruleTypeHint.${rt}`)}
                           </span>
                         </button>
@@ -295,8 +296,8 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                           className={cn(
                             "flex flex-col items-start gap-1 rounded-xl border-2 p-3.5 text-left transition-all",
                             isSelected
-                              ? "border-[#009588]/30 bg-[#E0F2F1]/30 shadow-sm"
-                              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50",
+                              ? "border-primary/30 bg-primary/5 shadow-sm"
+                              : "border-border bg-card hover:bg-muted",
                           )}
                         >
                           <div className="flex items-center gap-2">
@@ -304,22 +305,22 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                               className={cn(
                                 "h-4 w-4",
                                 isSelected
-                                  ? "text-[#009588]"
-                                  : "text-neutral-400",
+                                  ? "text-primary"
+                                  : "text-muted-foreground",
                               )}
                             />
                             <span
                               className={cn(
                                 "text-sm font-semibold",
                                 isSelected
-                                  ? "text-[#009588]"
-                                  : "text-neutral-700",
+                                  ? "text-primary"
+                                  : "text-foreground",
                               )}
                             >
                               {t(`categories.${cat}`)}
                             </span>
                           </div>
-                          <span className="line-clamp-2 text-[11px] leading-snug text-neutral-500">
+                          <span className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                             {t(`categoryDescriptions.${cat}`)}
                           </span>
                         </button>
@@ -352,7 +353,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
               {(field: FieldApi) => (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-neutral-700">
+                    <Label className="text-sm font-medium text-foreground">
                       {t("form.priority")}
                     </Label>
                     <div className="flex items-center gap-1">
@@ -363,11 +364,11 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                             Math.max(0, (field.state.value as number) - 1),
                           )
                         }
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
-                      <span className="flex h-8 w-12 items-center justify-center rounded-lg border border-neutral-200 bg-white text-sm font-bold tabular-nums text-neutral-900">
+                      <span className="flex h-8 w-12 items-center justify-center rounded-lg border border-border bg-card text-sm font-bold tabular-nums text-foreground">
                         {field.state.value}
                       </span>
                       <button
@@ -377,13 +378,13 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
                             (field.state.value as number) + 1,
                           )
                         }
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-muted-foreground">
                     {t("form.priorityHelp")}
                   </p>
                 </div>
@@ -392,7 +393,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
           </div>
 
           {/* ── Footer ──────────────────────────────────────────────── */}
-          <div className="shrink-0 border-t border-neutral-100 bg-neutral-50/50 px-6 py-4">
+          <div className="shrink-0 border-t border-border bg-muted/50 px-6 py-4">
             <div className="flex justify-end gap-3">
               <Button
                 type="button"
@@ -405,7 +406,7 @@ export function PlanningRuleFormSheet({ open, onClose, editingRule }: Props) {
               <Button
                 type="submit"
                 disabled={isBusy}
-                className="rounded-xl bg-[#009588] font-semibold text-white shadow-lg shadow-[#009588]/20 hover:bg-[#00796B] disabled:opacity-60"
+                className="rounded-xl font-semibold"
               >
                 {editingRule ? t("actions.edit") : t("actions.add")}
               </Button>

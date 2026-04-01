@@ -41,37 +41,27 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
   const totalEvents = stats?.totals._count.id ?? 0;
   const pendingCount =
     stats?.countByStatus.find((s) => s.status === "PENDING")?._count.id ?? 0;
-  const avgDelta = stats?.totals._avg.deltaMinutes
-    ? Math.round(stats.totals._avg.deltaMinutes)
+  const avgDeltaRaw = stats?.totals._avg.deltaMinutes
+    ? Math.round(Number(stats.totals._avg.deltaMinutes))
     : 0;
   const noShowCount =
     stats?.countByType.find((entry) => entry.type === "NO_SHOW")?._count.id ?? 0;
 
+  const formatDelta = (minutes: number) => {
+    if (minutes === 0) return "0 min";
+    const h = Math.floor(Math.abs(minutes) / 60);
+    const m = Math.abs(minutes) % 60;
+    const sign = minutes < 0 ? "-" : "";
+    if (h === 0) return `${sign}${m} min`;
+    if (m === 0) return `${sign}${h}h`;
+    return `${sign}${h}h ${m}min`;
+  };
+
   const cards = [
-    {
-      label: t("totalEvents"),
-      value: totalEvents,
-      icon: BarChart3,
-      color: "bg-blue-100 text-blue-700",
-    },
-    {
-      label: t("pendingCount"),
-      value: pendingCount,
-      icon: Clock,
-      color: "bg-orange-100 text-orange-700",
-    },
-    {
-      label: t("avgDelta"),
-      value: t("minutes", { count: avgDelta }),
-      icon: AlertTriangle,
-      color: "bg-amber-100 text-amber-700",
-    },
-    {
-      label: t("noShowCount"),
-      value: noShowCount,
-      icon: UserX,
-      color: "bg-rose-100 text-rose-700",
-    },
+    { label: t("totalEvents"), value: totalEvents, icon: BarChart3 },
+    { label: t("pendingCount"), value: pendingCount, icon: Clock },
+    { label: t("avgDelta"), value: formatDelta(avgDeltaRaw), icon: AlertTriangle },
+    { label: t("noShowCount"), value: noShowCount, icon: UserX },
   ];
 
   if (isPending) {
@@ -100,7 +90,7 @@ export function VarianceStatsPanel({ stats, isPending }: VarianceStatsPanelProps
           >
             <div className="flex items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.color}`}
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-muted text-muted-foreground"
               >
                 <card.icon size={18} />
               </div>
