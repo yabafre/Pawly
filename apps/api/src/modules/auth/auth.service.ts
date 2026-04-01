@@ -515,6 +515,42 @@ export class AuthService {
         return this.generateToken(user);
     }
 
+    // ── Change Password (authenticated) ────────────────────────────────
+
+    async changePassword(userId: string, currentPassword: string, newPassword: string) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+        if (!user || !user.password || user.role !== 'ADMIN') {
+            throw new UnauthorizedException('Cannot change password');
+        }
+
+        const isValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isValid) {
+            throw new UnauthorizedException('Current password is incorrect');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword },
+        });
+
+        return { success: true };
+    }
+
+    async updateAdminProfile(userId: string, data: { name?: string; locale?: string }) {
+        const updated = await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                ...(data.name !== undefined && { name: data.name }),
+                ...(data.locale !== undefined && { locale: data.locale }),
+            },
+            select: { id: true, name: true, email: true, locale: true },
+        });
+
+        return updated;
+    }
+
     private async cleanupExpiredPasswordResetTokens() {
         const cutoff = new Date();
         cutoff.setHours(cutoff.getHours() - PASSWORD_RESET_TTL_HOURS);

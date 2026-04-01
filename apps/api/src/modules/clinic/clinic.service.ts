@@ -26,7 +26,7 @@ export class ClinicService {
   async getProfile(clinicId: string) {
     const clinic = await this.prisma.clinic.findUnique({
       where: { id: clinicId },
-      select: { name: true },
+      select: { name: true, slug: true, createdAt: true },
     });
 
     if (!clinic) {

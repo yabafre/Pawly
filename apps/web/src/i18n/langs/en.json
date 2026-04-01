@@ -1557,7 +1557,9 @@
   "settings": {
     "tabs": {
       "operational": "General",
-      "shiftTypes": "Shift Types"
+      "shiftTypes": "Shift Types",
+      "clinic": "Clinic",
+      "account": "My account"
     },
     "shiftTypes": {
       "title": "Shift Types",
@@ -1668,6 +1670,35 @@
         "SATURDAY": "Saturday",
         "SUNDAY": "Sunday"
       }
+    },
+    "clinic": {
+      "title": "Clinic information",
+      "nameLabel": "Clinic name",
+      "slugLabel": "Identifier",
+      "createdAtLabel": "Created on",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Clinic name updated",
+      "saveError": "Failed to update"
+    },
+    "account": {
+      "profileTitle": "My profile",
+      "nameLabel": "Name",
+      "emailLabel": "Email",
+      "localeLabel": "Language",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Profile updated",
+      "saveError": "Failed to update",
+      "passwordTitle": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "changePassword": "Change password",
+      "changingPassword": "Changing...",
+      "passwordChanged": "Password updated",
+      "passwordError": "Failed to change password",
+      "wrongPassword": "Current password is incorrect"
     }
   },
   "errors": {

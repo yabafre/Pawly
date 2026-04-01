@@ -1557,7 +1557,9 @@
   "settings": {
     "tabs": {
       "operational": "Général",
-      "shiftTypes": "Types de quarts"
+      "shiftTypes": "Types de quarts",
+      "clinic": "Clinique",
+      "account": "Mon compte"
     },
     "shiftTypes": {
       "title": "Types de quarts",
@@ -1668,6 +1670,35 @@
         "SATURDAY": "Samedi",
         "SUNDAY": "Dimanche"
       }
+    },
+    "clinic": {
+      "title": "Informations de la clinique",
+      "nameLabel": "Nom de la clinique",
+      "slugLabel": "Identifiant",
+      "createdAtLabel": "Date de création",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "saved": "Nom de la clinique mis à jour",
+      "saveError": "Erreur lors de la mise à jour"
+    },
+    "account": {
+      "profileTitle": "Mon profil",
+      "nameLabel": "Nom",
+      "emailLabel": "Email",
+      "localeLabel": "Langue",
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "saved": "Profil mis à jour",
+      "saveError": "Erreur lors de la mise à jour",
+      "passwordTitle": "Changer le mot de passe",
+      "currentPassword": "Mot de passe actuel",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "changePassword": "Changer le mot de passe",
+      "changingPassword": "Changement...",
+      "passwordChanged": "Mot de passe mis à jour",
+      "passwordError": "Erreur lors du changement",
+      "wrongPassword": "Mot de passe actuel incorrect"
     }
   },
   "errors": {
