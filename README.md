@@ -12,6 +12,9 @@
 
 <br />
 
+> **⚠️ CONFIDENTIAL & PROPRIETARY**
+> This repository and its contents are the exclusive property of Pawly. Unauthorized copying, reading, distribution, modification, or use of this code, via any medium, is strictly prohibited. This is a private commercial SaaS project, not an open-source tool. Only formally authorized personnel may access this codebase.
+
 **Pawly** is designed to transform the daily management of veterinary clinics. Unlike rigid traditional tools, Pawly offers an approach centered on team well-being (fair scheduling) and operational efficiency (real-time monitoring).
 
 ---
@@ -124,6 +127,17 @@ fix(auth): correct jwt token expiration
 ```
 *Types:* `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`
 
-## 📄 License
+## ⚖️ License & Legal
 
-Private - All rights reserved.
+**Copyright © 2026 Pawly. All rights reserved.**
+
+This software, including all its source code, documentation, UI/UX designs, and digital assets, is the sole and exclusive property of **Pawly**. 
+
+By accessing this repository, you agree to the following strict conditions:
+1. **No Reproduction**: You may not use, copy, clone, modify, merge, publish, distribute, sublicense, reverse engineer, or sell copies of this software under any circumstances.
+2. **Internal Use Only**: The code is provided strictly for internal development, deployment, and auditing purposes by explicitly authorized personnel (employees and contractors under NDA).
+3. **Confidentiality**: All algorithms, business logic, system architecture, and proprietary features contained herein are strictly confidential trade secrets.
+
+Any unauthorized access, distribution, theft, or reproduction of this repository or its contents is a violation of international copyright and intellectual property laws and will result in immediate and severe legal action.
+
+**STRICTLY PROPRIETARY AND CONFIDENTIAL.**
