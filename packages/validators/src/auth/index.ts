@@ -5,3 +5,9 @@ export { userSchema, authUserSchema } from "./user.schema";
 export { authResponseSchema, magicLinkResponseSchema } from "./response.schema";
 export type { AuthResponse, MagicLinkResponse } from "./response.schema";
 export { requestOtpSchema, verifyOtpSchema, otpRequestResponseSchema } from "./otp.schema";
+export {
+  requestPasswordResetSchema,
+  resetPasswordInputSchema,
+  resetPasswordFormSchema,
+} from "./password-reset.schema";
+export type { RequestPasswordResetInput, ResetPasswordInput } from "./password-reset.schema";

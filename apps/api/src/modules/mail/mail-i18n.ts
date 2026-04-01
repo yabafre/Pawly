@@ -23,6 +23,7 @@ type Translations = {
     schedulePublication: (clinicName: string, month: string) => string;
     absenceRequest: (employeeName: string) => string;
     absenceReview: (status: 'APPROVED' | 'REJECTED') => string;
+    passwordReset: string;
   };
   // Absence type labels
   absenceTypes: Record<string, string>;
@@ -114,6 +115,14 @@ type Translations = {
     statusLabel: (s: 'APPROVED' | 'REJECTED') => string;
     dateRange: (start: string, end: string) => string;
   };
+  passwordReset: {
+    heading: string;
+    subject: string;
+    body: string;
+    button: string;
+    disclaimer: string;
+    expiry: string;
+  };
 };
 
 const fr: Translations = {
@@ -145,6 +154,7 @@ const fr: Translations = {
       `${employeeName} a soumis une demande d'absence`,
     absenceReview: (status) =>
       `Votre demande d'absence a été ${status === 'APPROVED' ? 'approuvée' : 'refusée'}`,
+    passwordReset: 'Réinitialisation de votre mot de passe Pawly',
   },
   absenceTypes: {
     PAID_LEAVE: 'Congé payé',
@@ -252,6 +262,14 @@ const fr: Translations = {
     statusLabel: (s) => (s === 'APPROVED' ? 'approuvée' : 'refusée'),
     dateRange: (start, end) => `Du ${start} au ${end}`,
   },
+  passwordReset: {
+    heading: 'Réinitialisation du mot de passe',
+    subject: 'Réinitialisation de votre mot de passe Pawly',
+    body: 'Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.',
+    button: 'Réinitialiser mon mot de passe',
+    disclaimer: 'Si vous n\'avez pas demandé cette réinitialisation, ignorez simplement cet email. Votre mot de passe restera inchangé.',
+    expiry: 'Ce lien expire dans 1 heure.',
+  },
 };
 
 const en: Translations = {
@@ -283,6 +301,7 @@ const en: Translations = {
       `${employeeName} submitted an absence request`,
     absenceReview: (status) =>
       `Your absence request has been ${status === 'APPROVED' ? 'approved' : 'rejected'}`,
+    passwordReset: 'Reset your Pawly password',
   },
   absenceTypes: {
     PAID_LEAVE: 'Paid leave',
@@ -390,6 +409,14 @@ const en: Translations = {
       'This is an automatic notification. Check your Pawly dashboard for more details.',
     statusLabel: (s) => (s === 'APPROVED' ? 'approved' : 'rejected'),
     dateRange: (start, end) => `From ${start} to ${end}`,
+  },
+  passwordReset: {
+    heading: 'Password Reset',
+    subject: 'Reset your Pawly password',
+    body: 'You requested a password reset. Click the button below to choose a new password.',
+    button: 'Reset my password',
+    disclaimer: 'If you did not request this reset, simply ignore this email. Your password will remain unchanged.',
+    expiry: 'This link expires in 1 hour.',
   },
 };
 

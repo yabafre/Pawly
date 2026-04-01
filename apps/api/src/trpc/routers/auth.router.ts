@@ -8,6 +8,8 @@ import {
   verifyOtpSchema,
   otpRequestResponseSchema,
   authResponseSchema,
+  requestPasswordResetSchema,
+  resetPasswordInputSchema,
 } from '@pawly/validators';
 
 const protectedProcedure = publicProcedure.use(isAuthed);
@@ -58,6 +60,16 @@ export const authRouter = router({
     .output(authResponseSchema)
     .mutation(async ({ input, ctx }) => {
       return ctx.authService.verifyOtp(input.email, input.code);
+    }),
+  requestPasswordReset: publicProcedure
+    .input(requestPasswordResetSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.requestPasswordReset(input.email);
+    }),
+  resetPassword: publicProcedure
+    .input(resetPasswordInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.resetPassword(input.token, input.password);
     }),
 });
 

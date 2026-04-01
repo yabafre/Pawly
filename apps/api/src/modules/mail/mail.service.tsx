@@ -11,6 +11,7 @@ import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import { OtpCodeEmail } from './templates/OtpCodeEmail';
+import { PasswordResetEmail } from './templates/PasswordResetEmail';
 import { sendEmailTask } from '@/trigger/client';
 import { getMailTranslations, formatDateForLocale, type MailLocale } from './mail-i18n';
 import type { EnvConfig } from '@/config/index';
@@ -442,6 +443,34 @@ export class MailService {
       }
     } catch (err) {
       this.logger.error('Unexpected error sending absence review notification', err);
+    }
+  }
+
+  async sendPasswordResetEmail(email: string, url: string, locale: MailLocale = 'fr') {
+    const t = getMailTranslations(locale);
+    try {
+      const html = await render(<PasswordResetEmail url={url} locale={locale} />);
+
+      await this.throttle();
+      const { data, error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: t.subjects.passwordReset,
+        html,
+      });
+
+      if (error) {
+        emailSendCounter.add(1, { type: 'password_reset', outcome: 'failure' });
+        this.logger.error(`Failed to send password reset email: ${error.message}`);
+        throw new InternalServerErrorException('Failed to send password reset email');
+      }
+
+      emailSendCounter.add(1, { type: 'password_reset', outcome: 'success' });
+      return data;
+    } catch (err) {
+      emailSendCounter.add(1, { type: 'password_reset', outcome: 'failure' });
+      this.logger.error('Unexpected error sending password reset email', err);
+      throw new InternalServerErrorException('Failed to send password reset email');
     }
   }
 }

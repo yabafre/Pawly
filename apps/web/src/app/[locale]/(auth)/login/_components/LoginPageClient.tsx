@@ -184,6 +184,12 @@ export const LoginPageClient = () => {
                                     className="h-10"
                                 />
                                 {passwordError && <p className="text-[11px] text-destructive">{passwordError}</p>}
+                                <Link
+                                    href="/forgot-password"
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    {t("forgotPassword")}
+                                </Link>
                             </div>
                         </motion.div>
                     )}

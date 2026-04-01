@@ -11,6 +11,8 @@ import {
     requestOtpSchema,
     verifyOtpSchema,
     otpRequestResponseSchema,
+    requestPasswordResetSchema,
+    resetPasswordInputSchema,
 } from "@pawly/validators";
 
 const AUTH_COOKIE_NAME = "auth-token";
@@ -96,6 +98,24 @@ export const verifyOtpAction = createServerAction()
     .experimental_shapeError(({ err }) => shapeError(err))
     .handler(async ({ input }) => {
         const result = await trpc.auth.verifyOtp.mutate(input);
+        const parsed = authResponseSchema.parse(result);
+        await setAuthCookie(parsed.access_token);
+        return parsed;
+    });
+
+export const requestPasswordResetAction = createServerAction()
+    .input(requestPasswordResetSchema)
+    .experimental_shapeError(({ err }) => shapeError(err))
+    .handler(async ({ input }) => {
+        return trpc.auth.requestPasswordReset.mutate(input);
+    });
+
+export const resetPasswordAction = createServerAction()
+    .input(resetPasswordInputSchema)
+    .output(authResponseSchema)
+    .experimental_shapeError(({ err }) => shapeError(err))
+    .handler(async ({ input }) => {
+        const result = await trpc.auth.resetPassword.mutate(input);
         const parsed = authResponseSchema.parse(result);
         await setAuthCookie(parsed.access_token);
         return parsed;
