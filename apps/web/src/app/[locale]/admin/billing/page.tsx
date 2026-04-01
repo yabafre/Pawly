@@ -12,10 +12,10 @@ export default async function BillingPage({ params }: Props) {
   const t = await getTranslations("billing");
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#171717]">{t("title")}</h1>
-        <p className="text-[#737373] mt-1">{t("subtitle")}</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
       <BillingOverview locale={locale} />
