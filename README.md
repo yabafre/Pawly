@@ -3,7 +3,6 @@
   <p><strong>The all-in-one SaaS management platform for veterinary clinics.</strong></p>
   <p><sub>A product by <strong>BRAINST</strong> — SARL · SIREN 980 134 944 · Vigneux-sur-Seine, France</sub></p>
   
-  [![Website](https://img.shields.io/website?url=https%3A%2F%2Fpawly.app&up_message=online&down_message=offline&style=flat-square)](https://pawly.app)
   [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
   [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
   [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white)](https://nestjs.com/)
