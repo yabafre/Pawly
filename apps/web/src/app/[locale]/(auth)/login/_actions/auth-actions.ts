@@ -46,7 +46,7 @@ async function setAuthCookie(token: string) {
     cookieStore.set(AUTH_COOKIE_NAME, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: AUTH_COOKIE_MAX_AGE,
         path: "/",
     });
@@ -68,7 +68,7 @@ export async function logoutAction() {
     cookieStore.set(AUTH_COOKIE_NAME, "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 0,
         path: "/",
     });
