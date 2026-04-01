@@ -15,8 +15,12 @@ export function SettingsTabs() {
   const t = useTranslations("settings");
 
   return (
-    <Tabs defaultValue="clinic" className="space-y-6">
+    <Tabs defaultValue="account" className="space-y-6">
       <TabsList className="h-auto gap-1 rounded-2xl bg-muted p-1">
+        <TabsTrigger value="account" className={triggerClass}>
+          <User className="h-4 w-4" strokeWidth={1.5} />
+          {t("tabs.account")}
+        </TabsTrigger>
         <TabsTrigger value="clinic" className={triggerClass}>
           <Building2 className="h-4 w-4" strokeWidth={1.5} />
           {t("tabs.clinic")}
@@ -29,11 +33,11 @@ export function SettingsTabs() {
           <Layers className="h-4 w-4" strokeWidth={1.5} />
           {t("tabs.shiftTypes")}
         </TabsTrigger>
-        <TabsTrigger value="account" className={triggerClass}>
-          <User className="h-4 w-4" strokeWidth={1.5} />
-          {t("tabs.account")}
-        </TabsTrigger>
       </TabsList>
+
+      <TabsContent value="account">
+        <AdminAccountPanel />
+      </TabsContent>
 
       <TabsContent value="clinic">
         <ClinicProfilePanel />
@@ -45,10 +49,6 @@ export function SettingsTabs() {
 
       <TabsContent value="shiftTypes">
         <ShiftTypesPanel />
-      </TabsContent>
-
-      <TabsContent value="account">
-        <AdminAccountPanel />
       </TabsContent>
     </Tabs>
   );
