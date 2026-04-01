@@ -139,8 +139,6 @@ Pawly is an exclusive brand and product of **BRAINST**.
 | **Société** | BRAINST — SARL |
 | **SIREN** | 980 134 944 |
 | **SIRET (siège)** | 980 134 944 00019 |
-| **TVA** | FR00 980 134 944 |
-| **NAF/APE** | 62.02A — Conseil en systèmes et logiciels informatiques |
 | **Adresse** | 24 Avenue de la Concorde, 91270 Vigneux-sur-Seine, France |
 | **Immatriculée** | 01/10/2023 (INSEE) — 06/10/2023 (INPI/RNE) |
 
