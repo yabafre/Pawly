@@ -1,0 +1,61 @@
+name: Deploy Trigger.dev tasks
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'apps/api/src/trigger/**'
+      - 'apps/api/trigger.config.ts'
+      - 'apps/api/prisma/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "target=prod" >> $GITHUB_OUTPUT
+          else
+            echo "target=staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Trigger.dev via SSH (${{ steps.env.outputs.target }})
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DOKPLOY_HOST }}
+          username: ${{ secrets.DOKPLOY_USER }}
+          key: ${{ secrets.DOKPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.PAWLY_PATH }}
+            git fetch origin ${{ github.ref_name }}
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+            export TRIGGER_ACCESS_TOKEN="${{ secrets.TRIGGER_ACCESS_TOKEN }}"
+            export TRIGGER_API_URL="${{ secrets.TRIGGER_API_URL }}"
+            export TRIGGER_PROJECT_ID="${{ secrets.TRIGGER_PROJECT_ID }}"
+            export DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+
+            corepack enable
+            pnpm install --frozen-lockfile
+            cd apps/api
+            npx prisma generate --schema=prisma/schema
+            npx trigger.dev@latest deploy --env ${{ steps.env.outputs.target }}
