@@ -1,9 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+import prismaClientPkg from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import pgPkg from 'pg';
 
-let _prisma: PrismaClient | undefined;
-export function getPrisma(): PrismaClient {
+const { PrismaClient } = prismaClientPkg;
+const { Pool } = pgPkg;
+
+let _prisma: PrismaClientType | undefined;
+export function getPrisma(): PrismaClientType {
   if (!_prisma) {
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
