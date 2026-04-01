@@ -1,18 +1,27 @@
+PROPRIETARY AND CONFIDENTIAL LICENSE
+
 Copyright (c) 2026 Pawly. All rights reserved.
 
-This software and associated documentation files (the "Software") are the
-proprietary and confidential property of Pawly. Unauthorized copying,
-modification, distribution, or use of this Software, in whole or in part,
-via any medium, is strictly prohibited.
+1. PROPRIETARY RIGHTS
+This software, including all source code, documentation, interfaces, designs, and intellectual property associated with it (collectively the "Software"), is the sole and exclusive property of Pawly. 
 
-The Software is provided under a commercial license. No part of this
-Software may be reproduced, distributed, transmitted, sublicensed, or
-sold without the prior written permission of Pawly.
+2. CONFIDENTIALITY
+The Software contains trade secrets and confidential information belonging to Pawly. Unauthorized access, copying, inspection, or distribution of this code or its concepts is strictly prohibited. Anyone accessing this code is bound by a strict non-disclosure obligation.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+3. RESTRICTIONS
+You may NOT under any circumstances:
+  - Copy, reproduce, or replicate the Software or any portion thereof.
+  - Modify, translate, adapt, or create derivative works.
+  - Reverse-engineer, decompile, or disassemble the Software.
+  - Rent, lease, distribute, publish, sub-license, or sell the Software.
+  - Use the Software for any commercial, public, or individual purpose outside of explicitly authorized operations.
+
+4. INTERNAL AUDIT & DEVELOPMENT USE
+Access to the Software is granted solely for the purposes of internal development, testing, deployment, or auditing by explicitly authorized employees, partners, and contractors of Pawly, all of whom must remain under active Non-Disclosure Agreements (NDAs).
+
+5. DISCLAIMER
+THE SOFTWARE IS PROVIDED "AS IS", STRICTLY FOR AUTHORIZED INTERNAL PURPOSES, WITHOUT ANY WARRANTY, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL PAWLY BE LIABLE FOR ANY DAMAGES, CLAIMS, OR LIABILITY ARISING OUT OF THE USE, DISTRIBUTION, OR UNAUTHORIZED INTERACTION WITH THE SOFTWARE.
+
+By interacting with this repository, cloning it, or accessing the files within, you automatically acknowledge and agree to abide by the entirety of this license agreement.
+
+ANY VIOLATION OF THESE TERMS WILL RESULT IN IMMEDIATE LEGAL ACTION AND PROSECUTION TO THE MAXIMUM EXTENT PERMITTED BY LAW.
