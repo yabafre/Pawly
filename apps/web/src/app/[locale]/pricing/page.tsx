@@ -24,20 +24,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: locale === "fr" ? `${baseUrl}/pricing` : `${baseUrl}/en/pricing`,
       siteName: "Pawly",
       locale: locale === "fr" ? "fr_FR" : "en_US",
-      images: [
-        {
-          url: `${baseUrl}/og-image-${locale}.png`,
-          width: 1200,
-          height: 630,
-          alt: t("title"),
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title: t("title"),
       description: t("description"),
-      images: [`${baseUrl}/og-image-${locale}.png`],
     },
     alternates: {
       canonical: locale === "fr" ? `${baseUrl}/pricing` : `${baseUrl}/en/pricing`,
