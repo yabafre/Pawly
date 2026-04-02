@@ -32,6 +32,7 @@ export class StripeService {
 
     const session = await this.stripeClient.checkout.sessions.create({
       mode: 'subscription',
+      payment_method_collection: 'if_required',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${webAppUrl}/${locale}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${webAppUrl}/${locale}/pricing`,
@@ -107,6 +108,9 @@ export class StripeService {
       customer: stripeCustomerId,
       return_url: returnUrl,
       locale: (locale as Stripe.BillingPortal.SessionCreateParams['locale']) || 'fr',
+      ...(process.env.STRIPE_PORTAL_CONFIGURATION_ID && {
+        configuration: process.env.STRIPE_PORTAL_CONFIGURATION_ID,
+      }),
     });
 
     return { url: session.url };

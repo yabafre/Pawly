@@ -449,7 +449,7 @@ describe('StripeWebhookController', () => {
             items: {
               data: [
                 {
-                  price: { lookup_key: 'pro_monthly' },
+                  price: { lookup_key: 'professional_monthly' },
                   current_period_end: 1738368000,
                 },
               ],
@@ -481,8 +481,8 @@ describe('StripeWebhookController', () => {
         where: { stripeSubscriptionId: 'sub_test_456' },
         data: {
           status: 'past_due',
-          planKey: 'pro_monthly',
-          entitlementTier: 'pro',
+          planKey: 'professional_monthly',
+          entitlementTier: 'professional',
           currentPeriodEnd: new Date(1738368000 * 1000),
           cancelAtPeriodEnd: true,
           promotionCodeId: null,
@@ -551,7 +551,7 @@ describe('StripeWebhookController', () => {
             items: {
               data: [
                 {
-                  price: { lookup_key: 'pro_monthly' },
+                  price: { lookup_key: 'professional_monthly' },
                   current_period_end: 1738368000,
                 },
               ],
@@ -1279,7 +1279,7 @@ describe('StripeWebhookController', () => {
       });
     });
 
-    it('should derive dynamic entitlementTier from pro_monthly lookup_key', async () => {
+    it('should derive dynamic entitlementTier from professional_monthly lookup_key', async () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEventForPromo();
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
@@ -1289,7 +1289,7 @@ describe('StripeWebhookController', () => {
         items: {
           data: [
             {
-              price: { lookup_key: 'pro_monthly' },
+              price: { lookup_key: 'professional_monthly' },
               current_period_end: 1735689600,
             },
           ],
@@ -1322,7 +1322,7 @@ describe('StripeWebhookController', () => {
 
       expect(mockTx.subscription.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          entitlementTier: 'pro',
+          entitlementTier: 'professional',
         }),
       });
     });
