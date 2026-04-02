@@ -19,8 +19,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Users } from "lucide-react";
-import { JOB_TYPES } from "@pawly/validators";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, Plus, Search, Users } from "lucide-react";
+import { JOB_TYPES, TIER_LIMITS, type EntitlementTier } from "@pawly/validators";
+import { useSubscription } from "@/lib/contexts/subscription-context";
 import type { Employee } from "@pawly/types";
 import {
   useEmployees,
@@ -37,6 +39,9 @@ import { EmployeeListSkeleton } from "./EmployeeListSkeleton";
 
 export function EmployeeList() {
   const t = useTranslations("employees");
+  const { entitlementTier } = useSubscription();
+  const tier = (entitlementTier || "starter") as EntitlementTier;
+  const maxEmployees = TIER_LIMITS[tier]?.maxEmployees ?? TIER_LIMITS.starter.maxEmployees;
 
   // URL-synced filters via nuqs — no focus loss on keystroke
   const [search, setSearch] = useQueryState(
@@ -140,12 +145,36 @@ export function EmployeeList() {
     setDialogOpen(true);
   }, []);
 
+  const activeCount = (employees as Employee[]).filter((e) => e.isActive).length;
+  const limitReached = activeCount >= maxEmployees;
+  const nearLimit = activeCount >= maxEmployees - 2;
+
   if (isPending) {
     return <EmployeeListSkeleton />;
   }
 
   return (
     <>
+      {/* Employee count indicator */}
+      <div className={cn(
+        "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm",
+        limitReached
+          ? "border-rose-200 bg-rose-50 text-rose-700"
+          : nearLimit
+            ? "border-orange-200 bg-orange-50 text-orange-700"
+            : "border-border bg-muted/50 text-muted-foreground",
+      )}>
+        {limitReached ? (
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+        ) : (
+          <Users className="h-4 w-4 shrink-0" />
+        )}
+        <span className="font-medium">
+          {t("limits.count", { current: activeCount, max: maxEmployees })}
+          {limitReached && ` — ${t("limits.reached")}`}
+        </span>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -182,7 +211,9 @@ export function EmployeeList() {
 
         <Button
           onClick={handleOpenCreate}
+          disabled={limitReached}
           className="bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90 h-10"
+          title={limitReached ? t("limits.reached") : undefined}
         >
           <Plus className="h-4 w-4 mr-2" />
           {t("actions.add")}

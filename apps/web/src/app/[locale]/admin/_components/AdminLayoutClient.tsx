@@ -27,6 +27,7 @@ import { updateAdminProfileAction } from "@/app/[locale]/admin/settings/_actions
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
+import { useSubscription } from "@/lib/contexts/subscription-context";
 import { useEffect, useState, useRef, useCallback } from "react";
 
 // ── Navigation types ──────────────────────────────────────────────
@@ -35,6 +36,7 @@ type NavChild = {
   href: string;
   icon: LucideIcon;
   labelKey: string;
+  proOnly?: boolean;
 };
 
 type NavGroupWithChildren = {
@@ -75,9 +77,9 @@ const navGroups: NavGroup[] = [
     children: [
       { href: "/admin/planning", icon: Calendar, labelKey: "planningView" },
       { href: "/admin/planning/templates", icon: LayoutTemplate, labelKey: "templates" },
-      { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters" },
+      { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters", proOnly: true },
       { href: "/admin/planning/variance", icon: GitCompareArrows, labelKey: "variance" },
-      { href: "/admin/planning/rules", icon: ShieldCheck, labelKey: "planningRules" },
+      { href: "/admin/planning/rules", icon: ShieldCheck, labelKey: "planningRules", proOnly: true },
     ],
   },
   {
@@ -119,10 +121,12 @@ function GroupDropdown({
   group,
   pathname,
   t,
+  isPro,
 }: {
   group: NavGroupWithChildren;
   pathname: string;
   t: (key: string) => string;
+  isPro: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -183,6 +187,11 @@ function GroupDropdown({
               >
                 <child.icon size={15} />
                 {t(child.labelKey)}
+                {child.proOnly && !isPro && (
+                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                    Pro
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -200,6 +209,8 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
   const queryClient = useQueryClient();
   const t = useTranslations("admin.nav");
   const tCommon = useTranslations("common");
+  const { canAccessFeature } = useSubscription();
+  const isPro = canAccessFeature("professional");
 
   const { mutate: persistLocale } = useServerActionMutation(updateAdminProfileAction);
   const handleLocaleChange = useCallback((newLocale: string) => {
@@ -258,6 +269,7 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
                   group={group}
                   pathname={pathname}
                   t={t}
+                  isPro={isPro}
                 />
               );
             }

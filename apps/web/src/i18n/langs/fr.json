@@ -1487,6 +1487,10 @@
       "showInactive": "Afficher les inactifs",
       "allJobTypes": "Tous les postes"
     },
+    "limits": {
+      "count": "{current}/{max} membres actifs",
+      "reached": "Passez au plan Pro pour ajouter plus de membres"
+    },
     "schoolDays": {
       "declared": "Déclaré",
       "notDeclared": "Non déclaré"
@@ -1794,24 +1798,24 @@
         "description": "Idéal pour découvrir Pawly et ses fonctionnalités essentielles",
         "free": "Gratuit",
         "features": [
-          "Jusqu'à 3 membres d'équipe",
-          "Planning de base",
+          "Jusqu'à 10 membres d'équipe",
+          "Planning & génération automatique",
           "Gestion des absences",
-          "Support communautaire"
+          "Types de postes personnalisés"
         ]
       },
       "professional": {
         "name": "Professionnel",
-        "price": "29",
+        "price": "29,99",
         "interval": "mois",
         "description": "Pour les cliniques en croissance qui ont besoin de plus",
         "popular": "Le plus populaire",
         "features": [
           "Jusqu'à 20 membres d'équipe",
-          "Algorithmes de planning avancés",
           "Compteurs d'équité",
-          "Support prioritaire",
-          "Types de postes personnalisés"
+          "Règles de planning configurables",
+          "Alertes de santé du planning",
+          "Support prioritaire"
         ]
       },
       "cta": "Commencer",

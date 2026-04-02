@@ -8,6 +8,7 @@ import { WeekNavigator } from "./WeekNavigator";
 import { AssignShiftModal } from "./AssignShiftModal";
 import { PlanningHealthBar } from "./PlanningHealthBar";
 import { PublishConfirmDialog } from "./PublishConfirmDialog";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { useScheduleView } from "../_hooks/useScheduleView";
 import { useShiftMutations } from "../_hooks/useShiftMutations";
 import { usePublish } from "../_hooks/usePublish";
@@ -157,18 +158,20 @@ export function ScheduleViewWrapper({ month }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Health Bar */}
-      <PlanningHealthBar
-        hardViolationCount={hardViolationCount}
-        softViolationCount={softViolationCount}
-        holeCount={scheduleData.holes.length}
-        totalShifts={totalShifts}
-        onPublish={() => setPublishDialogOpen(true)}
-        publicationStatus={publicationStatus ?? undefined}
-        violations={scheduleData.violations}
-        holes={scheduleData.holes}
-        employees={scheduleData.employees}
-      />
+      {/* Health Bar (Professional tier only) */}
+      <SubscriptionGate requiredTier="professional">
+        <PlanningHealthBar
+          hardViolationCount={hardViolationCount}
+          softViolationCount={softViolationCount}
+          holeCount={scheduleData.holes.length}
+          totalShifts={totalShifts}
+          onPublish={() => setPublishDialogOpen(true)}
+          publicationStatus={publicationStatus ?? undefined}
+          violations={scheduleData.violations}
+          holes={scheduleData.holes}
+          employees={scheduleData.employees}
+        />
+      </SubscriptionGate>
 
       {/* Header: title + week navigator */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

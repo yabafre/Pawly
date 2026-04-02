@@ -1487,6 +1487,10 @@
       "showInactive": "Show inactive",
       "allJobTypes": "All job types"
     },
+    "limits": {
+      "count": "{current}/{max} active members",
+      "reached": "Upgrade to Pro to add more members"
+    },
     "schoolDays": {
       "declared": "Declared",
       "notDeclared": "Not declared"
@@ -1794,24 +1798,24 @@
         "description": "Ideal to discover Pawly and its essential features",
         "free": "Free",
         "features": [
-          "Up to 3 team members",
-          "Basic scheduling",
+          "Up to 10 team members",
+          "Scheduling & automatic generation",
           "Absence management",
-          "Community support"
+          "Custom shift types"
         ]
       },
       "professional": {
         "name": "Professional",
-        "price": "29",
+        "price": "29.99",
         "interval": "month",
         "description": "For growing clinics that need more",
         "popular": "Most Popular",
         "features": [
           "Up to 20 team members",
-          "Advanced scheduling algorithms",
           "Equity counters",
-          "Priority support",
-          "Custom shift types"
+          "Configurable scheduling rules",
+          "Schedule health alerts",
+          "Priority support"
         ]
       },
       "cta": "Get Started",
