@@ -37,6 +37,12 @@ describe('AuthService', () => {
       updateMany: jest.fn(),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    refreshToken: {
+      create: jest.fn().mockResolvedValue({ id: 'rt-1' }),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     $transaction: jest.fn(),
   };
 
@@ -187,7 +193,7 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('refresh_token');
       expect(result).toHaveProperty('user');
       expect(result.user).not.toHaveProperty('password');
-      expect(mockJwtService.sign).toHaveBeenCalledTimes(2); // access + refresh
+      expect(mockJwtService.sign).toHaveBeenCalledTimes(1); // access only (refresh is opaque)
     });
 
     it('should include all required fields in JWT payload', async () => {
@@ -212,7 +218,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('should generate refresh token with 7d expiry (NFR8)', async () => {
+    it('should store refresh token hash in DB with 7d expiry (NFR8)', async () => {
       const hashedPassword = await bcrypt.hash(loginDto.password, 10);
       mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-1',
@@ -224,12 +230,14 @@ describe('AuthService', () => {
 
       await service.login(loginDto);
 
-      // Second call is the refresh token
-      expect(mockJwtService.sign).toHaveBeenNthCalledWith(
-        2,
-        expect.any(Object),
-        { expiresIn: '7d' },
-      );
+      expect(mockPrismaService.refreshToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tokenHash: expect.any(String),
+          family: expect.any(String),
+          userId: 'user-1',
+          expiresAt: expect.any(Date),
+        }),
+      });
     });
 
     it('should generate access token without explicit expiresIn (uses module default 1d/24h - NFR8)', async () => {
@@ -1008,40 +1016,82 @@ describe('AuthService', () => {
   });
 
   describe('refreshToken', () => {
+    const mockUser = { id: 'user-1', email: 'test@example.com', role: 'ADMIN', clinicId: 'clinic-1' };
+
     it('should return new tokens for valid refresh token', async () => {
-      const mockPayload = { sub: 'user-1', email: 'test@example.com', role: 'ADMIN', clinicId: 'clinic-1' };
-      const mockUser = { id: 'user-1', email: 'test@example.com', role: 'ADMIN', clinicId: 'clinic-1' };
+      const rawToken = 'valid-refresh-token';
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-      mockJwtService.verify.mockReturnValue(mockPayload);
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        tokenHash,
+        family: 'family-1',
+        expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: null,
+        userId: 'user-1',
+        user: mockUser,
+      });
+      mockPrismaService.refreshToken.update.mockResolvedValue({});
 
-      const result = await service.refreshToken('valid-refresh-token');
+      const result = await service.refreshToken(rawToken);
 
-      expect(mockJwtService.verify).toHaveBeenCalledWith('valid-refresh-token');
       expect(result).toHaveProperty('access_token');
       expect(result).toHaveProperty('refresh_token');
       expect(result).toHaveProperty('user');
+      // Old token should be revoked
+      expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'rt-1' },
+        data: { revokedAt: expect.any(Date) },
+      });
     });
 
-    it('should throw UnauthorizedException if token verification fails', async () => {
-      mockJwtService.verify.mockImplementation(() => {
-        throw new Error('jwt expired');
+    it('should throw UnauthorizedException if token not found in DB', async () => {
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue(null);
+
+      await expect(service.refreshToken('unknown-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+    });
+
+    it('should revoke entire family on reuse detection', async () => {
+      const rawToken = 'reused-token';
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        tokenHash,
+        family: 'family-1',
+        expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: new Date(), // Already revoked = reuse
+        userId: 'user-1',
+        user: mockUser,
       });
 
-      await expect(service.refreshToken('expired-token')).rejects.toThrow(
-        UnauthorizedException,
+      await expect(service.refreshToken(rawToken)).rejects.toThrow(
+        'Refresh token reuse detected',
       );
-      await expect(service.refreshToken('expired-token')).rejects.toThrow(
-        'Invalid or expired refresh token',
-      );
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { family: 'family-1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
     });
 
-    it('should throw UnauthorizedException if user no longer exists', async () => {
-      mockJwtService.verify.mockReturnValue({ sub: 'deleted-user' });
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+    it('should throw UnauthorizedException if token expired', async () => {
+      const rawToken = 'expired-token';
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-      await expect(service.refreshToken('orphan-token')).rejects.toThrow(
-        'Invalid refresh token',
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        tokenHash,
+        family: 'family-1',
+        expiresAt: new Date(Date.now() - 86400000), // Expired
+        revokedAt: null,
+        userId: 'user-1',
+        user: mockUser,
+      });
+
+      await expect(service.refreshToken(rawToken)).rejects.toThrow(
+        'Refresh token expired',
       );
     });
   });

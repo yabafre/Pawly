@@ -13,6 +13,7 @@ import type { MailLocale } from '@/modules/mail/mail-i18n';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
+const REFRESH_TOKEN_TTL_DAYS = 7;
 const MAGIC_LINK_TTL_MINUTES = 15;
 const MAGIC_LINK_CLEANUP_HOURS = 24;
 const MIN_RESPONSE_MS = 300;
@@ -74,12 +75,29 @@ export class AuthService {
         return this.generateToken(user);
     }
 
-    private generateToken(user: User | Omit<User, 'password'>) {
+    private async generateToken(user: User | Omit<User, 'password'>, family?: string) {
         const safeUser = this.sanitizeUser(user);
         const payload = { email: safeUser.email, sub: safeUser.id, role: safeUser.role, clinicId: safeUser.clinicId };
+
+        const accessToken = this.jwtService.sign(payload);
+
+        // Generate opaque refresh token and store hash in DB
+        const rawRefreshToken = crypto.randomBytes(48).toString('base64url');
+        const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+        const tokenFamily = family ?? crypto.randomUUID();
+
+        await this.prisma.refreshToken.create({
+            data: {
+                tokenHash,
+                family: tokenFamily,
+                userId: safeUser.id,
+                expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000),
+            },
+        });
+
         return {
-            access_token: this.jwtService.sign(payload),
-            refresh_token: this.jwtService.sign(payload, { expiresIn: REFRESH_TOKEN_EXPIRY }),
+            access_token: accessToken,
+            refresh_token: rawRefreshToken,
             user: safeUser,
         };
     }
@@ -590,25 +608,48 @@ export class AuthService {
         });
     }
 
-    // NOTE: Refresh tokens are stateless JWTs (7d expiry). This means:
-    // - Cannot revoke individual tokens if compromised
-    // - Cannot implement "logout from all devices"
-    // TODO: For production, migrate to database-backed refresh tokens with family chain for theft detection
     async refreshToken(token: string) {
-        try {
-            const payload = this.jwtService.verify(token);
-            const user = await this.prisma.user.findUnique({
-                where: { id: payload.sub },
-            });
-            if (!user) {
-                this.logger.warn(`Refresh token: user not found for sub=${payload.sub}`);
-                throw new UnauthorizedException('Invalid refresh token');
-            }
-            return this.generateToken(user);
-        } catch (error) {
-            if (error instanceof UnauthorizedException) throw error;
-            this.logger.warn('Refresh token verification failed', error instanceof Error ? error.message : error);
-            throw new UnauthorizedException('Invalid or expired refresh token');
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const storedToken = await this.prisma.refreshToken.findUnique({
+            where: { tokenHash },
+            include: { user: true },
+        });
+
+        if (!storedToken) {
+            this.logger.warn('Refresh token not found in DB');
+            throw new UnauthorizedException('Invalid refresh token');
         }
+
+        if (storedToken.revokedAt) {
+            // Reuse detected — revoke entire family (potential theft)
+            this.logger.warn(`Refresh token reuse detected for family=${storedToken.family}, revoking all`);
+            await this.prisma.refreshToken.updateMany({
+                where: { family: storedToken.family, revokedAt: null },
+                data: { revokedAt: new Date() },
+            });
+            throw new UnauthorizedException('Refresh token reuse detected — all sessions revoked');
+        }
+
+        if (storedToken.expiresAt < new Date()) {
+            this.logger.warn('Refresh token expired');
+            throw new UnauthorizedException('Refresh token expired');
+        }
+
+        // Revoke current token (single-use rotation)
+        await this.prisma.refreshToken.update({
+            where: { id: storedToken.id },
+            data: { revokedAt: new Date() },
+        });
+
+        // Issue new token pair in the same family
+        return this.generateToken(storedToken.user, storedToken.family);
+    }
+
+    async revokeAllUserTokens(userId: string) {
+        await this.prisma.refreshToken.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
     }
 }
