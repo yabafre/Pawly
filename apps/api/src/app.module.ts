@@ -3,6 +3,7 @@ import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from '@/config/index';
 import { PrismaModule } from '@/prisma/prisma.module';
@@ -37,9 +38,23 @@ import type { EnvConfig } from '@/config/index';
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig>) => {
         const redisUrl = config.get('REDIS_URL', { infer: true });
+        let storage: ThrottlerStorageRedisService | undefined;
+        if (redisUrl) {
+          try {
+            const isTls = redisUrl.startsWith('rediss://');
+            const client = new Redis(redisUrl, {
+              maxRetriesPerRequest: 3,
+              ...(isTls && { tls: { rejectUnauthorized: false } }),
+            });
+            client.on('error', () => { /* swallow — fallback to in-memory */ });
+            storage = new ThrottlerStorageRedisService(client);
+          } catch {
+            // Fall back to in-memory
+          }
+        }
         return {
           throttlers: [{ ttl: 60000, limit: 10 }],
-          ...(redisUrl ? { storage: new ThrottlerStorageRedisService(redisUrl) } : {}),
+          ...(storage ? { storage } : {}),
         };
       },
     }),
