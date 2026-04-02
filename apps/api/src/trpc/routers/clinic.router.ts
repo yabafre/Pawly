@@ -26,7 +26,13 @@ const adminOnly = (role: string) => {
 
 export const clinicRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.clinicService.getProfile(ctx.user.clinicId);
+    type Profile = Awaited<ReturnType<typeof ctx.clinicService.getProfile>>;
+    const cacheKey = `clinic:profile:${ctx.user.clinicId}`;
+    const cached = await ctx.redis.get<Profile>(cacheKey);
+    if (cached) return cached;
+    const result = await ctx.clinicService.getProfile(ctx.user.clinicId);
+    await ctx.redis.set(cacheKey, result, 300);
+    return result;
   }),
 
   // getOnboardingStatus stays as protectedProcedure — must work before subscription exists
@@ -35,8 +41,9 @@ export const clinicRouter = router({
   }),
 
   getOperationalConfig: subscribedProcedure.query(async ({ ctx }) => {
+    type Config = Awaited<ReturnType<typeof ctx.clinicService.getOperationalConfig>>;
     const cacheKey = `clinic:ops:${ctx.user.clinicId}`;
-    const cached = await ctx.redis.get(cacheKey);
+    const cached = await ctx.redis.get<Config>(cacheKey);
     if (cached) return cached;
     const result = await ctx.clinicService.getOperationalConfig(ctx.user.clinicId);
     await ctx.redis.set(cacheKey, result, 300);
@@ -47,7 +54,9 @@ export const clinicRouter = router({
     .input(updateClinicNameSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.clinicService.updateClinicName(ctx.user.clinicId, input);
+      const result = await ctx.clinicService.updateClinicName(ctx.user.clinicId, input);
+      await ctx.redis.del(`clinic:profile:${ctx.user.clinicId}`);
+      return result;
     }),
 
   updateClinicConfig: subscribedProcedure
@@ -77,8 +86,9 @@ export const clinicRouter = router({
   listShiftTypes: subscribedProcedure
     .input(listShiftTypesSchema)
     .query(async ({ ctx }) => {
+      type ShiftTypes = Awaited<ReturnType<typeof ctx.clinicService.listShiftTypes>>;
       const cacheKey = `clinic:st:${ctx.user.clinicId}`;
-      const cached = await ctx.redis.get(cacheKey);
+      const cached = await ctx.redis.get<ShiftTypes>(cacheKey);
       if (cached) return cached;
       const result = await ctx.clinicService.listShiftTypes(ctx.user.clinicId);
       await ctx.redis.set(cacheKey, result, 300);

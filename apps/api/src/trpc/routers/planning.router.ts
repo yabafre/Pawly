@@ -152,7 +152,13 @@ export const planningRouter = router({
     .input(listTemplatesSchema)
     .query(async ({ ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.listTemplates(ctx.user.clinicId);
+      type Templates = Awaited<ReturnType<typeof ctx.planningTemplateService.listTemplates>>;
+      const cacheKey = `planning:templates:${ctx.user.clinicId}`;
+      const cached = await ctx.redis.get<Templates>(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningTemplateService.listTemplates(ctx.user.clinicId);
+      await ctx.redis.set(cacheKey, result, 300);
+      return result;
     }),
 
   getTemplateById: subscribedProcedure
@@ -169,40 +175,36 @@ export const planningRouter = router({
     .input(createTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.createTemplate(
-        ctx.user.clinicId,
-        input,
-      );
+      const result = await ctx.planningTemplateService.createTemplate(ctx.user.clinicId, input);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   updateTemplate: subscribedProcedure
     .input(updateTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.updateTemplate(
-        ctx.user.clinicId,
-        input,
-      );
+      const result = await ctx.planningTemplateService.updateTemplate(ctx.user.clinicId, input);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   deleteTemplate: subscribedProcedure
     .input(templateIdSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.deleteTemplate(
-        ctx.user.clinicId,
-        input.id,
-      );
+      const result = await ctx.planningTemplateService.deleteTemplate(ctx.user.clinicId, input.id);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   duplicateTemplate: subscribedProcedure
     .input(duplicateTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.duplicateTemplate(
-        ctx.user.clinicId,
-        input.id,
-      );
+      const result = await ctx.planningTemplateService.duplicateTemplate(ctx.user.clinicId, input.id);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   // Generation procedures
@@ -216,6 +218,7 @@ export const planningRouter = router({
         input.templateId,
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
 
@@ -238,6 +241,7 @@ export const planningRouter = router({
         input.month,
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
 
@@ -246,8 +250,9 @@ export const planningRouter = router({
     .input(scheduleViewInputSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      type ScheduleView = Awaited<ReturnType<typeof ctx.planningGenerationService.getScheduleViewForMonth>>;
       const cacheKey = `schedule:${ctx.user.clinicId}:${input.month}`;
-      const cached = await ctx.redis.get(cacheKey);
+      const cached = await ctx.redis.get<ScheduleView>(cacheKey);
       if (cached) return cached;
       const result = await ctx.planningGenerationService.getScheduleViewForMonth(
         ctx.user.clinicId,
@@ -268,6 +273,7 @@ export const planningRouter = router({
         { targetEmployeeId: input.targetEmployeeId, targetDate: input.targetDate },
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
 
@@ -280,6 +286,7 @@ export const planningRouter = router({
         input,
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
 
@@ -292,6 +299,7 @@ export const planningRouter = router({
         input.shiftId,
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
 
@@ -310,21 +318,29 @@ export const planningRouter = router({
     .input(publishPlanInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.publishPlan(
+      const result = await ctx.planningGenerationService.publishPlan(
         ctx.user.clinicId,
         input.month,
         ctx.user.sub,
       );
+      await ctx.redis.del(`planning:pub:${ctx.user.clinicId}:${input.month}`);
+      return result;
     }),
 
   getPublicationStatus: subscribedProcedure
     .input(publishPlanInputSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.getPublicationStatus(
+      type PubStatus = Awaited<ReturnType<typeof ctx.planningGenerationService.getPublicationStatus>>;
+      const cacheKey = `planning:pub:${ctx.user.clinicId}:${input.month}`;
+      const cached = await ctx.redis.get<PubStatus>(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningGenerationService.getPublicationStatus(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.set(cacheKey, result, 300);
+      return result;
     }),
 
   getPublishPreview: subscribedProcedure

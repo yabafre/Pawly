@@ -163,13 +163,16 @@ export const employeeRouter = router({
       if (ctx.user.role !== 'ADMIN') {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can review absence requests' });
       }
-      return ctx.employeeService.reviewAbsence(
+      const result = await ctx.employeeService.reviewAbsence(
         ctx.user.clinicId,
         ctx.user.sub,
         input.absenceId,
         input.action,
         input.rejectionReason,
       );
+      await ctx.redis.del(`absences:pending:${ctx.user.clinicId}`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   listAbsences: subscribedProcedure
@@ -215,7 +218,10 @@ export const employeeRouter = router({
       if (ctx.user.role !== 'ADMIN') {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can create absences directly' });
       }
-      return ctx.employeeService.adminCreateAbsence(ctx.user.clinicId, ctx.user.sub, input);
+      const result = await ctx.employeeService.adminCreateAbsence(ctx.user.clinicId, ctx.user.sub, input);
+      await ctx.redis.del(`absences:pending:${ctx.user.clinicId}`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   countPendingAbsences: subscribedProcedure
@@ -223,7 +229,12 @@ export const employeeRouter = router({
       if (ctx.user.role !== 'ADMIN') {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can view pending absence count' });
       }
-      return ctx.employeeService.countPendingAbsences(ctx.user.clinicId);
+      const cacheKey = `absences:pending:${ctx.user.clinicId}`;
+      const cached = await ctx.redis.get<number>(cacheKey);
+      if (cached !== null) return cached;
+      const result = await ctx.employeeService.countPendingAbsences(ctx.user.clinicId);
+      await ctx.redis.set(cacheKey, result, 60);
+      return result;
     }),
 
   checkAbsenceOverlap: subscribedProcedure
