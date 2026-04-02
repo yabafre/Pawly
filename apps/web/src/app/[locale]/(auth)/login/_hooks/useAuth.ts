@@ -37,7 +37,7 @@ export const useAuth = () => {
         onSettled: invalidateAuthQueries,
     });
 
-    const login = async (values: LoginFormValues) => {
+    const login = async (values: LoginFormValues & { turnstileToken?: string }) => {
         try {
             const [data, err] = await loginMutation.mutateAsync(values);
 
@@ -85,9 +85,9 @@ export const useAuth = () => {
         }
     };
 
-    const requestOtp = async (email: string) => {
+    const requestOtp = async (email: string, turnstileToken?: string) => {
         try {
-            const [data, err] = await otpRequestMutation.mutateAsync({ email });
+            const [data, err] = await otpRequestMutation.mutateAsync({ email, turnstileToken });
 
             if (err) {
                 toast.error(err.message || t("otpError"));
