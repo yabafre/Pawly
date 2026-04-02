@@ -106,6 +106,15 @@ async function bootstrap() {
       credentials: true,
     });
 
+    // tRPC CSRF protection: require custom header on mutation requests
+    // Browsers won't send custom headers on cross-origin requests without CORS preflight
+    app.use('/trpc', (req: any, res: any, next: () => void) => {
+      if (req.method !== 'GET' && !req.headers['x-trpc-source']) {
+        return res.status(403).json({ message: 'Missing x-trpc-source header' });
+      }
+      next();
+    });
+
     // tRPC rate limiting (60 req/60s per IP — allows normal SPA multi-query usage)
     app.use('/trpc', createTrpcRateLimiter(60, 60_000));
 

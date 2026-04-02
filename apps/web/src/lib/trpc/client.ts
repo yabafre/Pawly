@@ -93,9 +93,11 @@ export const trpc = createTRPCClient<AppRouter>({
           const { cookies } = await import('next/headers');
           const cookieStore = await cookies();
           const token = cookieStore.get('auth-token')?.value;
-          return token ? { authorization: `Bearer ${token}` } : {};
+          return token
+            ? { authorization: `Bearer ${token}`, 'x-trpc-source': 'nextjs' }
+            : { 'x-trpc-source': 'nextjs' };
         } catch {
-          return {};
+          return { 'x-trpc-source': 'nextjs' };
         }
       },
     }),
