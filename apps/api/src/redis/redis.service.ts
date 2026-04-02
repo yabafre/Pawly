@@ -11,16 +11,35 @@ export class RedisService implements OnModuleDestroy {
   constructor(private readonly config: ConfigService<EnvConfig>) {
     const redisUrl = this.config.get('REDIS_URL', { infer: true });
     if (redisUrl) {
-      this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 3,
-        lazyConnect: true,
-        retryStrategy: (times) => Math.min(times * 200, 2000),
-      });
-      this.client.connect().catch((err) => {
-        this.logger.warn(`Redis connection failed, running without cache: ${err.message}`);
+      try {
+        const isTls = redisUrl.startsWith('rediss://');
+        this.client = new Redis(redisUrl, {
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+          ...(isTls && { tls: { rejectUnauthorized: false } }),
+          retryStrategy: (times) => {
+            if (times > 5) return null; // Stop retrying after 5 attempts
+            return Math.min(times * 200, 2000);
+          },
+        });
+        // Prevent unhandled error crashes
+        this.client.on('error', (err) => {
+          this.logger.warn(`Redis error: ${err.message}`);
+          if (this.client && this.client.status !== 'ready') {
+            this.client.disconnect();
+            this.client = null;
+          }
+        });
+        this.client.connect().catch((err) => {
+          this.logger.warn(`Redis connection failed, running without cache: ${err.message}`);
+          this.client?.disconnect();
+          this.client = null;
+        });
+        this.logger.log('Redis cache connecting...');
+      } catch (err) {
+        this.logger.warn(`Redis init failed: ${err instanceof Error ? err.message : err}`);
         this.client = null;
-      });
-      this.logger.log('Redis cache enabled');
+      }
     } else {
       this.logger.log('REDIS_URL not set — cache disabled (in-memory fallback)');
     }
