@@ -1,6 +1,7 @@
 import { z } from '@pawly/zod';
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
+import { TIER_LIMITS, type EntitlementTier } from '@pawly/validators';
 import {
   createEmployeeSchema,
   updateEmployeeSchema,
@@ -40,6 +41,17 @@ export const employeeRouter = router({
   create: subscribedProcedure
     .input(createEmployeeSchema)
     .mutation(async ({ input, ctx }) => {
+      const tier = (ctx.subscription.entitlementTier || 'starter') as EntitlementTier;
+      const limit = TIER_LIMITS[tier]?.maxEmployees ?? TIER_LIMITS.starter.maxEmployees;
+      const currentCount = await ctx.prisma.employee.count({
+        where: { clinicId: ctx.user.clinicId, isActive: true },
+      });
+      if (currentCount >= limit) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `Employee limit reached (${limit}). Upgrade your plan to add more.`,
+        });
+      }
       return ctx.employeeService.create(ctx.user.clinicId, input);
     }),
 

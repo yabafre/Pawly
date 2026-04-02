@@ -46,6 +46,9 @@ describe('employeeRouter', () => {
     user: {
       findUnique: jest.fn(),
     },
+    employee: {
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
 
   const activeSubscription = {

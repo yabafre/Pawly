@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import type { EquityCounterType } from '@prisma/client';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
+import { TIER_HIERARCHY } from '@pawly/validators';
 import {
   createPlanningRuleSchema,
   updatePlanningRuleSchema,
@@ -43,6 +44,17 @@ const adminOnly = (role: string) => {
   }
 };
 
+const requireProfessional = (tier: string) => {
+  const currentIndex = TIER_HIERARCHY.indexOf(tier as (typeof TIER_HIERARCHY)[number]);
+  const requiredIndex = TIER_HIERARCHY.indexOf('professional');
+  if (currentIndex === -1 || currentIndex < requiredIndex) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: "Subscription tier 'professional' required",
+    });
+  }
+};
+
 export const planningRouter = router({
   listRules: subscribedProcedure
     .input(listPlanningRulesSchema)
@@ -60,6 +72,7 @@ export const planningRouter = router({
     .input(createPlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.createRule(ctx.user.clinicId, input);
     }),
 
@@ -67,6 +80,7 @@ export const planningRouter = router({
     .input(updatePlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.updateRule(ctx.user.clinicId, input);
     }),
 
@@ -74,6 +88,7 @@ export const planningRouter = router({
     .input(planningRuleIdSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.deleteRule(ctx.user.clinicId, input.id);
     }),
 
@@ -81,6 +96,7 @@ export const planningRouter = router({
     .input(togglePlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.toggleRule(ctx.user.clinicId, input);
     }),
 
@@ -93,11 +109,12 @@ export const planningRouter = router({
       );
     }),
 
-  // Equity counter procedures
+  // Equity counter procedures (Professional tier only)
   getEquityCounters: subscribedProcedure
     .input(getEquityCountersSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.getCountersForPeriod(
         ctx.user.clinicId,
         input.year,
@@ -110,6 +127,7 @@ export const planningRouter = router({
     .input(getQuarterlySummarySchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.getQuarterlySummary(
         ctx.user.clinicId,
         input.year,
@@ -121,6 +139,7 @@ export const planningRouter = router({
     .input(recalculateCountersSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.recalculateForPeriod(
         ctx.user.clinicId,
         input.year,

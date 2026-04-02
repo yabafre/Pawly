@@ -67,7 +67,7 @@ describe('planningRouter', () => {
 
   const activeSubscription = {
     status: 'active',
-    entitlementTier: 'starter',
+    entitlementTier: 'professional',
     currentPeriodEnd: new Date('2026-12-31'),
     cancelAtPeriodEnd: false,
   };
