@@ -16,7 +16,7 @@ import type { EnvConfig } from '@/config/index';
             inject: [ConfigService],
             useFactory: (configService: ConfigService<EnvConfig, true>) => ({
                 secret: configService.get('JWT_SECRET', { infer: true }),
-                signOptions: { expiresIn: '1d' },
+                signOptions: { expiresIn: '1d', algorithm: 'HS256' as const },
             }),
         }),
     ],

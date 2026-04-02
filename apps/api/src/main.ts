@@ -76,6 +76,9 @@ async function bootstrap() {
     const configService = app.get(ConfigService<EnvConfig, true>);
     const port = configService.get('API_PORT', { infer: true });
 
+    // Trust first proxy hop (Dokploy/Nginx) for correct req.ip
+    app.set('trust proxy', 1);
+
     // Security headers
     app.use(helmet());
 
@@ -111,7 +114,8 @@ async function bootstrap() {
     app.use('/trpc', trpcService.createMiddleware());
     logger.log('tRPC endpoint available at: /trpc');
 
-    // Swagger/OpenAPI Setup
+    // Swagger/OpenAPI Setup (disabled in production)
+    if (configService.get('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Pawly API')
       .setDescription(
@@ -142,6 +146,8 @@ async function bootstrap() {
         showRequestDuration: true,
       },
     });
+    logger.log('Swagger docs available at: /docs');
+    }
 
     await app.listen(port);
 

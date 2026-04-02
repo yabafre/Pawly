@@ -41,24 +41,28 @@ export const clinicRouter = router({
   updateClinicName: subscribedProcedure
     .input(updateClinicNameSchema)
     .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
       return ctx.clinicService.updateClinicName(ctx.user.clinicId, input);
     }),
 
   updateClinicConfig: subscribedProcedure
     .input(updateClinicConfigSchema)
     .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
       return ctx.clinicService.upsertClinicConfig(ctx.user.clinicId, input);
     }),
 
   createShiftTypes: subscribedProcedure
     .input(createShiftTypesSchema)
     .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
       return ctx.clinicService.createShiftTypes(ctx.user.clinicId, input);
     }),
 
   updateOperationalConfig: subscribedProcedure
     .input(updateClinicOperationalConfigSchema)
     .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
       return ctx.clinicService.updateOperationalConfig(ctx.user.clinicId, input);
     }),
 
@@ -95,6 +99,7 @@ export const clinicRouter = router({
   completeOnboarding: protectedProcedure
     .input(completeOnboardingSchema)
     .mutation(async ({ input, ctx }) => {
+      adminOnly(ctx.user.role);
       return ctx.clinicService.completeOnboarding(ctx.user.clinicId, input);
     }),
 });

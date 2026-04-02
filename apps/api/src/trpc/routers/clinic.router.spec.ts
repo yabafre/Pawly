@@ -172,7 +172,7 @@ describe('clinicRouter', () => {
     };
     mockClinicService.updateOperationalConfig.mockResolvedValue(payload);
 
-    const caller = createAuthenticatedCaller();
+    const caller = createAdminCaller();
     const result = await caller.updateOperationalConfig(payload);
 
     expect(result).toEqual(payload);
@@ -183,7 +183,7 @@ describe('clinicRouter', () => {
   });
 
   it('rejects invalid updateOperationalConfig payload', async () => {
-    const caller = createAuthenticatedCaller();
+    const caller = createAdminCaller();
 
     await expect(
       caller.updateOperationalConfig({
