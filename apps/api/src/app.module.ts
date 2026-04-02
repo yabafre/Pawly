@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppConfigModule } from '@/config/index';
 import { PrismaModule } from '@/prisma/prisma.module';
@@ -14,6 +16,7 @@ import { SchedulerModule } from '@/modules/scheduler/scheduler.module';
 import { TRPCModule } from '@/trpc/trpc.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
+import type { EnvConfig } from '@/config/index';
 
 @Module({
   imports: [
@@ -28,13 +31,15 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
     ScheduleModule.forRoot(),
     SchedulerModule,
     TRPCModule,
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 60000,
-          limit: 10,
-        },
-      ],
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvConfig>) => {
+        const redisUrl = config.get('REDIS_URL', { infer: true });
+        return {
+          throttlers: [{ ttl: 60000, limit: 10 }],
+          ...(redisUrl ? { storage: new ThrottlerStorageRedisService(redisUrl) } : {}),
+        };
+      },
     }),
   ],
   providers: [
