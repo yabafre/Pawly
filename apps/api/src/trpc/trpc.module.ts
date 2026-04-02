@@ -31,6 +31,7 @@ import { NotificationModule } from '@/modules/notification/notification.module';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
+import { RedisService } from '@/redis';
 import { appRouter } from './routers/_app';
 import { createContext, type TRPCServices } from './context';
 
@@ -60,6 +61,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly pushNotificationService: PushNotificationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {
     const services: TRPCServices = {
       authService: this.authService,
@@ -78,6 +80,7 @@ export class TRPCMiddleware implements NestMiddleware {
       pushNotificationService: this.pushNotificationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
+      redis: this.redis,
     };
 
     this.middleware = trpcExpress.createExpressMiddleware({
@@ -113,6 +116,7 @@ export class TRPCService {
     private readonly pushNotificationService: PushNotificationService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) { }
 
   /**
@@ -136,6 +140,7 @@ export class TRPCService {
       pushNotificationService: this.pushNotificationService,
       jwtService: this.jwtService,
       prisma: this.prisma,
+      redis: this.redis,
     };
   }
 

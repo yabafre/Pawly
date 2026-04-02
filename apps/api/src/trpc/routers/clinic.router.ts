@@ -35,7 +35,12 @@ export const clinicRouter = router({
   }),
 
   getOperationalConfig: subscribedProcedure.query(async ({ ctx }) => {
-    return ctx.clinicService.getOperationalConfig(ctx.user.clinicId);
+    const cacheKey = `clinic:ops:${ctx.user.clinicId}`;
+    const cached = await ctx.redis.get(cacheKey);
+    if (cached) return cached;
+    const result = await ctx.clinicService.getOperationalConfig(ctx.user.clinicId);
+    await ctx.redis.set(cacheKey, result, 300);
+    return result;
   }),
 
   updateClinicName: subscribedProcedure
@@ -63,21 +68,30 @@ export const clinicRouter = router({
     .input(updateClinicOperationalConfigSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.clinicService.updateOperationalConfig(ctx.user.clinicId, input);
+      const result = await ctx.clinicService.updateOperationalConfig(ctx.user.clinicId, input);
+      await ctx.redis.del(`clinic:ops:${ctx.user.clinicId}`);
+      return result;
     }),
 
   // ─── Shift Type CRUD ──────────────────────────────────────────────
   listShiftTypes: subscribedProcedure
     .input(listShiftTypesSchema)
     .query(async ({ ctx }) => {
-      return ctx.clinicService.listShiftTypes(ctx.user.clinicId);
+      const cacheKey = `clinic:st:${ctx.user.clinicId}`;
+      const cached = await ctx.redis.get(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.clinicService.listShiftTypes(ctx.user.clinicId);
+      await ctx.redis.set(cacheKey, result, 300);
+      return result;
     }),
 
   createShiftType: subscribedProcedure
     .input(createShiftTypeSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.clinicService.createSingleShiftType(ctx.user.clinicId, input);
+      const result = await ctx.clinicService.createSingleShiftType(ctx.user.clinicId, input);
+      await ctx.redis.del(`clinic:st:${ctx.user.clinicId}`);
+      return result;
     }),
 
   updateShiftType: subscribedProcedure
@@ -85,14 +99,18 @@ export const clinicRouter = router({
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
       const { id, ...data } = input;
-      return ctx.clinicService.updateSingleShiftType(ctx.user.clinicId, id, data);
+      const result = await ctx.clinicService.updateSingleShiftType(ctx.user.clinicId, id, data);
+      await ctx.redis.del(`clinic:st:${ctx.user.clinicId}`);
+      return result;
     }),
 
   deleteShiftType: subscribedProcedure
     .input(deleteShiftTypeSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.clinicService.deleteSingleShiftType(ctx.user.clinicId, input.id);
+      const result = await ctx.clinicService.deleteSingleShiftType(ctx.user.clinicId, input.id);
+      await ctx.redis.del(`clinic:st:${ctx.user.clinicId}`);
+      return result;
     }),
 
   // completeOnboarding uses protectedProcedure — must work before subscription is active (onboarding deadlock fix)

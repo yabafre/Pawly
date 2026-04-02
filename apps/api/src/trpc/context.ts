@@ -15,6 +15,7 @@ import type { DashboardService } from '@/modules/dashboard/dashboard.service';
 import type { PushNotificationService } from '@/modules/notification/push-notification.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
+import type { RedisService } from '@/redis';
 import type { AuthenticatedUser } from '@pawly/types';
 
 export interface TRPCServices {
@@ -34,6 +35,7 @@ export interface TRPCServices {
   pushNotificationService: PushNotificationService;
   jwtService: JwtService;
   prisma: PrismaService;
+  redis: RedisService;
 }
 
 export async function createContext(
@@ -48,18 +50,22 @@ export async function createContext(
     const token = authHeader.substring(7);
     try {
       const payload = services.jwtService.verify(token);
-      // Validate user still exists in DB — consistent with JwtStrategy behavior on REST endpoints
-      const dbUser = await services.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
-      if (dbUser) {
-        // Always use current clinicId from DB, not JWT payload, in case user was transferred
-        user = {
-          sub: payload.sub,
-          email: payload.email,
-          role: payload.role,
-          clinicId: dbUser.clinicId,
-        };
+
+      // Try cache first, then DB
+      const cacheKey = `user:${payload.sub}`;
+      const cached = await services.redis.get<{ id: string; clinicId: string }>(cacheKey);
+
+      if (cached) {
+        user = { sub: payload.sub, email: payload.email, role: payload.role, clinicId: cached.clinicId };
+      } else {
+        const dbUser = await services.prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { id: true, clinicId: true },
+        });
+        if (dbUser) {
+          await services.redis.set(cacheKey, { id: dbUser.id, clinicId: dbUser.clinicId }, 300);
+          user = { sub: payload.sub, email: payload.email, role: payload.role, clinicId: dbUser.clinicId };
+        }
       }
     } catch {
       // Invalid token - user remains null

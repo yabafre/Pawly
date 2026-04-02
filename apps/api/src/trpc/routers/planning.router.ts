@@ -210,11 +210,13 @@ export const planningRouter = router({
     .input(generatePlanSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.generateMonthlyPlan(
+      const result = await ctx.planningGenerationService.generateMonthlyPlan(
         ctx.user.clinicId,
         input.month,
         input.templateId,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      return result;
     }),
 
   listShiftsForMonth: subscribedProcedure
@@ -231,21 +233,28 @@ export const planningRouter = router({
     .input(deleteGeneratedShiftsSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.deleteGeneratedShifts(
+      const result = await ctx.planningGenerationService.deleteGeneratedShifts(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      return result;
     }),
 
-  // Schedule view procedure
+  // Schedule view procedure (cached 30s, invalidated on shift mutations)
   getScheduleView: subscribedProcedure
     .input(scheduleViewInputSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.getScheduleViewForMonth(
+      const cacheKey = `schedule:${ctx.user.clinicId}:${input.month}`;
+      const cached = await ctx.redis.get(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningGenerationService.getScheduleViewForMonth(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.set(cacheKey, result, 30);
+      return result;
     }),
 
   // Shift mutation procedures (Story 7.1: Manual Schedule Adjustment)
@@ -253,31 +262,37 @@ export const planningRouter = router({
     .input(moveShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.moveShift(
+      const result = await ctx.planningGenerationService.moveShift(
         ctx.user.clinicId,
         input.shiftId,
         { targetEmployeeId: input.targetEmployeeId, targetDate: input.targetDate },
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      return result;
     }),
 
   createManualShift: subscribedProcedure
     .input(createManualShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.createManualShift(
+      const result = await ctx.planningGenerationService.createManualShift(
         ctx.user.clinicId,
         input,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      return result;
     }),
 
   deleteShift: subscribedProcedure
     .input(deleteShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.deleteShift(
+      const result = await ctx.planningGenerationService.deleteShift(
         ctx.user.clinicId,
         input.shiftId,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      return result;
     }),
 
   preValidateMove: subscribedProcedure

@@ -78,7 +78,7 @@ describe('stripeRouter — getBillingOverview', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -93,7 +93,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -114,7 +114,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -131,7 +131,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -164,7 +164,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_secure' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -193,7 +193,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -214,7 +214,7 @@ describe('stripeRouter — getBillingOverview', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -249,7 +249,7 @@ describe('stripeRouter — getSubscriptionStatus', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -264,7 +264,7 @@ describe('stripeRouter — getSubscriptionStatus', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -283,7 +283,7 @@ describe('stripeRouter — getSubscriptionStatus', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -306,7 +306,7 @@ describe('stripeRouter — getSubscriptionStatus', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -320,7 +320,7 @@ describe('stripeRouter — getSubscriptionStatus', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_secure' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -367,7 +367,7 @@ describe('stripeRouter — createBillingPortalSession', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -388,7 +388,7 @@ describe('stripeRouter — createBillingPortalSession', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -407,7 +407,7 @@ describe('stripeRouter — createBillingPortalSession', () => {
   it('should reject invalid returnUrl via Zod validation', async () => {
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -426,7 +426,7 @@ describe('stripeRouter — createBillingPortalSession', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 
@@ -453,7 +453,7 @@ describe('stripeRouter — createBillingPortalSession', () => {
 
     const caller = createCaller({
       user: { sub: 'user_1', email: 'a@b.com', role: 'STAFF', clinicId: 'clinic_1' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       stripeService: mockStripeService as any,
     } as any);
 

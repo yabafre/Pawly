@@ -15,6 +15,7 @@ import { Public } from '@/common/decorators/public.decorator';
 import { generateSlug } from '@/common/utils/slug';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
+import { RedisService } from '@/redis';
 import { StripeService } from './stripe.service';
 import { deriveEntitlementTier } from './stripe.utils';
 import { stripeWebhookDuration, stripeWebhookCounter } from '@/common/metrics';
@@ -65,6 +66,7 @@ export class StripeWebhookController {
     private readonly stripeService: StripeService,
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly redis: RedisService,
   ) {}
 
   @Public()
@@ -258,7 +260,7 @@ export class StripeWebhookController {
       const promotionData =
         await this.getPromotionDataFromSubscription(latestSubscription);
 
-      await this.prisma.subscription.update({
+      const updated = await this.prisma.subscription.update({
         where: { stripeSubscriptionId },
         data: {
           status: mapSubscriptionStatus(latestSubscription.status),
@@ -270,7 +272,9 @@ export class StripeWebhookController {
           cancelAtPeriodEnd: latestSubscription.cancel_at_period_end,
           ...promotionData,
         },
+        select: { clinicId: true },
       });
+      await this.redis.del(`sub:${updated.clinicId}`);
     } catch (err) {
       if (
         err &&

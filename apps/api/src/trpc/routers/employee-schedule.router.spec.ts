@@ -56,7 +56,7 @@ describe('employeeScheduleRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: staffUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
       employeeService: mockEmployeeService as any,
       pushNotificationService: mockPushNotificationService as any,
@@ -66,7 +66,7 @@ describe('employeeScheduleRouter', () => {
   const createUnauthenticatedCaller = () => {
     return createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
       employeeService: mockEmployeeService as any,
       pushNotificationService: mockPushNotificationService as any,
@@ -77,7 +77,7 @@ describe('employeeScheduleRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(null);
     return createCaller({
       user: staffUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeScheduleService: mockEmployeeScheduleService as any,
       employeeService: mockEmployeeService as any,
       pushNotificationService: mockPushNotificationService as any,

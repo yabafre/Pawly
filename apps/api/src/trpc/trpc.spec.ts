@@ -57,7 +57,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     const result = await caller.subscribedRoute();
@@ -75,7 +75,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     const result = await caller.subscribedRoute();
@@ -93,7 +93,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.subscribedRoute()).rejects.toThrow(TRPCError);
@@ -113,7 +113,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.subscribedRoute()).rejects.toThrow(TRPCError);
@@ -133,7 +133,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.subscribedRoute()).rejects.toThrow(TRPCError);
@@ -148,7 +148,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.subscribedRoute()).rejects.toThrow(TRPCError);
@@ -169,7 +169,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     const result = await caller.subscribedRoute();
@@ -186,7 +186,7 @@ describe('isSubscribed middleware', () => {
 
     const caller = createCaller({
       user: { ...baseUser, clinicId: 'clinic_secure_123' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await caller.subscribedRoute();
@@ -231,7 +231,7 @@ describe('isEntitled middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     const result = await caller.entitledRoute();
@@ -248,7 +248,7 @@ describe('isEntitled middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     const result = await caller.entitledRoute();
@@ -265,7 +265,7 @@ describe('isEntitled middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.entitledRoute()).rejects.toThrow(TRPCError);
@@ -285,7 +285,7 @@ describe('isEntitled middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.entitledRoute()).rejects.toThrow(TRPCError);
@@ -304,7 +304,7 @@ describe('isEntitled middleware', () => {
 
     const caller = createCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.entitledRoute()).rejects.toThrow(TRPCError);
@@ -349,7 +349,7 @@ describe('isEntitled with unknown required tier', () => {
 
     const caller = createUnknownCaller({
       user: baseUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
     } as any);
 
     await expect(caller.unknownRoute()).rejects.toThrow(TRPCError);

@@ -51,7 +51,7 @@ describe('clinicRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
   };
@@ -82,7 +82,7 @@ describe('clinicRouter', () => {
   it('should throw UNAUTHORIZED when getOperationalConfig is called without user', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -97,7 +97,7 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -112,7 +112,7 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -211,7 +211,7 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: { ...authenticatedUser, clinicId: 'clinic-secure' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -228,7 +228,7 @@ describe('clinicRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: { ...authenticatedUser, role: 'ADMIN' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       clinicService: mockClinicService as any,
     } as any);
   };
@@ -250,7 +250,7 @@ describe('clinicRouter', () => {
     it('throws UNAUTHORIZED without user', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         clinicService: mockClinicService as any,
       } as any);
 
@@ -263,7 +263,7 @@ describe('clinicRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(null);
       const caller = createCaller({
         user: authenticatedUser,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         clinicService: mockClinicService as any,
       } as any);
 

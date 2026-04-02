@@ -14,6 +14,7 @@ import { EmployeeModule } from '@/modules/employee/employee.module';
 import { PlanningModule } from '@/modules/planning/planning.module';
 import { SchedulerModule } from '@/modules/scheduler/scheduler.module';
 import { TRPCModule } from '@/trpc/trpc.module';
+import { RedisModule } from '@/redis';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
 import type { EnvConfig } from '@/config/index';
@@ -22,6 +23,7 @@ import type { EnvConfig } from '@/config/index';
   imports: [
     AppConfigModule,
     PrismaModule,
+    RedisModule,
     AuthModule,
     MailModule,
     StripeModule,
