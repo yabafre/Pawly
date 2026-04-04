@@ -4,8 +4,8 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export async function verifyTurnstileToken(token: string | undefined): Promise<boolean> {
-  // Skip verification if Turnstile is not configured (dev environment)
-  if (!TURNSTILE_SECRET) return true;
+  // Skip verification in dev or if Turnstile is not configured
+  if (!TURNSTILE_SECRET || process.env.NODE_ENV === "development") return true;
   if (!token) return false;
 
   try {
