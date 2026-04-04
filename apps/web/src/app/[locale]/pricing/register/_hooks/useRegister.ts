@@ -1,6 +1,6 @@
 "use client";
 
-import { useServerActionMutation } from "zsa-react-query";
+import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
