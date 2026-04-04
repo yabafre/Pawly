@@ -99,32 +99,30 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
 
   return (
     <div className="min-h-dvh flex bg-background">
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-[420px]">
           <div className="absolute top-4 left-4">
             <LanguageSwitcher />
           </div>
 
-          <div className="relative flex flex-col items-center gap-1.5 mb-8">
-            <Button variant="outline" size="icon" asChild className="rounded-full absolute left-0 top-0">
-              <Link href="/pricing" aria-label={t("backToPricing")}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <PawlyLogo />
-            <p className="text-xs text-muted-foreground">{t("tagline")}</p>
-          </div>
-
           <Card className="border bg-card">
-            <CardHeader className="text-center pb-4">
-              <CardTitle className="text-xl font-bold tracking-tight">{t("title")}</CardTitle>
-              <CardDescription>{t("subtitle")}</CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3 mb-1">
+                <Button variant="outline" size="icon" asChild className="rounded-full shrink-0 h-8 w-8">
+                  <Link href="/pricing" aria-label={t("backToPricing")}>
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+                <PawlyLogo />
+              </div>
+              <CardTitle className="text-lg font-bold tracking-tight">{t("title")}</CardTitle>
+              <CardDescription className="text-xs">{t("subtitle")}</CardDescription>
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-                <div className="space-y-2">
-                  <Label htmlFor="clinicName" className="font-medium">{t("clinicName")}</Label>
+              <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+                <div className="space-y-1.5">
+                  <Label htmlFor="clinicName" className="text-sm">{t("clinicName")}</Label>
                   <Input
                     id="clinicName"
                     type="text"
@@ -132,54 +130,56 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
                     value={clinicName}
                     onChange={(e) => { setClinicName(e.target.value); clearError("clinicName"); }}
                     aria-invalid={!!errors.clinicName}
-                    className="h-10"
+                    className="h-9"
                   />
                   {errors.clinicName && <p className="text-[11px] text-destructive">{errors.clinicName}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="adminName" className="font-medium">{t("adminName")}</Label>
-                  <Input
-                    id="adminName"
-                    type="text"
-                    placeholder={t("adminNamePlaceholder")}
-                    value={adminName}
-                    onChange={(e) => { setAdminName(e.target.value); clearError("adminName"); }}
-                    aria-invalid={!!errors.adminName}
-                    className="h-10"
-                  />
-                  {errors.adminName && <p className="text-[11px] text-destructive">{errors.adminName}</p>}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="adminName" className="text-sm">{t("adminName")}</Label>
+                    <Input
+                      id="adminName"
+                      type="text"
+                      placeholder={t("adminNamePlaceholder")}
+                      value={adminName}
+                      onChange={(e) => { setAdminName(e.target.value); clearError("adminName"); }}
+                      aria-invalid={!!errors.adminName}
+                      className="h-9"
+                    />
+                    {errors.adminName && <p className="text-[11px] text-destructive">{errors.adminName}</p>}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-sm">{t("email")}</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={t("emailPlaceholder")}
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
+                      aria-invalid={!!errors.email}
+                      className="h-9"
+                    />
+                    {errors.email && <p className="text-[11px] text-destructive">{errors.email}</p>}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="font-medium">{t("email")}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder={t("emailPlaceholder")}
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
-                    aria-invalid={!!errors.email}
-                    className="h-10"
-                  />
-                  {errors.email && <p className="text-[11px] text-destructive">{errors.email}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="font-medium">{t("password")}</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-sm">{t("password")}</Label>
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); clearError("password"); }}
                     aria-invalid={!!errors.password}
-                    className="h-10"
+                    className="h-9"
                   />
                   {errors.password && <p className="text-[11px] text-destructive">{errors.password}</p>}
                   <PasswordStrength password={password} translations={passwordTranslations} />
                 </div>
 
-                <TurnstileBox onVerify={setTurnstileToken} className="mb-2" />
+                <TurnstileBox onVerify={setTurnstileToken} />
 
                 <Button type="submit" className="w-full gap-2" disabled={isPending}>
                   {isPending ? (
@@ -188,14 +188,14 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
                     <>{t("submitButton")} <ArrowRight className="w-4 h-4" /></>
                   )}
                 </Button>
-              </form>
 
-              <p className="mt-4 text-center text-xs text-muted-foreground">
-                {t("alreadyHaveAccount")}{" "}
-                <Link href="/login" className="text-primary font-medium hover:underline">
-                  {t("loginLink")}
-                </Link>
-              </p>
+                <p className="text-center text-xs text-muted-foreground">
+                  {t("alreadyHaveAccount")}{" "}
+                  <Link href="/login" className="text-primary font-medium hover:underline">
+                    {t("loginLink")}
+                  </Link>
+                </p>
+              </form>
             </CardContent>
           </Card>
         </div>
