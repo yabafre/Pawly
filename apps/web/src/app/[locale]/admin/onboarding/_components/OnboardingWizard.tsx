@@ -20,7 +20,6 @@ import type { OnboardingInitialData } from "@pawly/types";
 import { completeOnboardingAction } from "../_actions/onboarding-actions";
 import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
-import { StepClinicName } from "./steps/StepClinicName";
 import { StepWorkDays } from "./steps/StepWorkDays";
 import { StepWorkHours } from "./steps/StepWorkHours";
 import { StepShiftTypes } from "./steps/StepShiftTypes";
@@ -42,7 +41,7 @@ interface OnboardingFormValues {
   }>;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 export function OnboardingWizard() {
   const t = useTranslations("onboarding");
@@ -50,9 +49,9 @@ export function OnboardingWizard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
+      <div className="min-h-screen bg-background py-12 px-6">
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </div>
     );
@@ -60,9 +59,9 @@ export function OnboardingWizard() {
 
   if (isError || !initialData) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
+      <div className="min-h-screen bg-background py-12 px-6">
         <div className="max-w-2xl mx-auto">
-          <div className="rounded-2xl bg-[#F43F5E]/10 px-6 py-4 text-sm text-[#F43F5E] font-medium">
+          <div className="rounded-2xl bg-destructive/5 border border-destructive/20 px-6 py-4 text-sm text-destructive font-medium">
             {t("errors.loadFailed")}
           </div>
         </div>
@@ -143,7 +142,6 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
   });
 
   const stepLabels = [
-    t("steps.clinicName.title"),
     t("steps.workDays.title"),
     t("steps.workHours.title"),
     t("steps.shiftTypes.title"),
@@ -151,7 +149,6 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
   const stepTitles = stepLabels;
   const stepDescriptions = [
-    t("steps.clinicName.description"),
     t("steps.workDays.description"),
     t("steps.workHours.description"),
     t("steps.shiftTypes.description"),
@@ -161,16 +158,14 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
     const values = form.state.values;
     switch (currentStep) {
       case 0:
-        return values.clinicName.length >= 2 && values.clinicName.length <= 100;
-      case 1:
         return values.workDays.length >= 1;
-      case 2:
+      case 1:
         return (
           /^\d{2}:\d{2}$/.test(values.defaultStartTime) &&
           /^\d{2}:\d{2}$/.test(values.defaultEndTime) &&
           values.defaultEndTime > values.defaultStartTime
         );
-      case 3:
+      case 2:
         return (
           values.shiftTypes.length >= 1 &&
           values.shiftTypes.every(
@@ -208,14 +203,14 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
   const canProceed = validateCurrentStep();
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
+    <div className="min-h-screen bg-background py-12 px-6">
       <div className="max-w-2xl mx-auto space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-900">
+          <h1 className="text-3xl font-bold tracking-tight">
             {t("title")}
           </h1>
-          <p className="text-neutral-500">{t("subtitle")}</p>
+          <p className="text-muted-foreground">{t("subtitle")}</p>
         </div>
 
         {/* Step Indicator */}
@@ -235,12 +230,12 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
             }
           }}
         >
-          <Card className="shadow-[0_4px_20px_-4px_rgba(0,149,136,0.15)] border-neutral-100 rounded-2xl">
+          <Card className="border bg-card rounded-2xl">
             <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-bold text-neutral-900">
+              <CardTitle className="text-xl font-bold">
                 {stepTitles[currentStep]}
               </CardTitle>
-              <CardDescription className="text-neutral-500">
+              <CardDescription>
                 {stepDescriptions[currentStep]}
               </CardDescription>
             </CardHeader>
@@ -248,10 +243,8 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
             <CardContent className="pb-6">
               <div className="transition-all duration-300 ease-in-out">
                 {currentStep === 0 ? (
-                  <StepClinicName form={form} />
-                ) : currentStep === 1 ? (
                   <StepWorkDays form={form} />
-                ) : currentStep === 2 ? (
+                ) : currentStep === 1 ? (
                   <StepWorkHours form={form} />
                 ) : (
                   <StepShiftTypes form={form} />
@@ -259,13 +252,13 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
               </div>
             </CardContent>
 
-            <CardFooter className="flex justify-between pt-4 border-t border-neutral-100">
+            <CardFooter className="flex justify-between pt-4 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handlePrevious}
                 disabled={currentStep === 0}
-                className="min-h-[44px] rounded-xl"
+                className="min-h-[44px]"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
                 {tNav("previous")}
@@ -275,7 +268,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
                 <Button
                   type="submit"
                   disabled={!canProceed || isSubmitting}
-                  className="bg-[#009588] hover:bg-[#00796B] text-white font-bold min-h-[44px] rounded-xl shadow-lg shadow-[#009588]/20 transition-all hover:scale-[1.01]"
+                  className="min-h-[44px]"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
@@ -293,7 +286,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
                 <Button
                   type="submit"
                   disabled={!canProceed}
-                  className="bg-[#009588] hover:bg-[#00796B] text-white font-bold min-h-[44px] rounded-xl shadow-lg shadow-[#009588]/20 transition-all hover:scale-[1.01]"
+                  className="min-h-[44px]"
                 >
                   {tNav("next")}
                   <ChevronRight className="w-4 h-4 ml-1" />

@@ -14,6 +14,8 @@ import { Link } from "@/i18n/navigation";
 import { useDashboardStats } from "../_hooks/useDashboardStats";
 import { useEffect, useReducer } from "react";
 import AdminLoading from "../../loading";
+import { UpgradeModal } from "../../_components/UpgradeModal";
+import { useSubscription } from "@/lib/contexts/subscription-context";
 
 const StatCard = ({
   title,
@@ -101,8 +103,11 @@ export function DashboardPageClient() {
     ? t("coverageHelper", { percent: stats.coveragePercent })
     : t("noCoverage");
 
+  const { entitlementTier } = useSubscription();
+
   return (
     <div className="space-y-6 animate-in fade-in">
+      <UpgradeModal entitlementTier={entitlementTier} />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {t("overview")}

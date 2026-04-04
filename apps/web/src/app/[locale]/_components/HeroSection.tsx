@@ -33,7 +33,7 @@ export async function HeroSection() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button size="lg" asChild className="gap-2">
-            <Link href="/pricing?plan=starter">
+            <Link href="/pricing/register?plan=starter">
               {t("cta")}
               <ArrowRight className="h-4 w-4" />
             </Link>

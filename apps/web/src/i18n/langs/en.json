@@ -1869,5 +1869,35 @@
   },
   "employeeSettings": {
     "title": "Settings"
+  },
+  "upgradeModal": {
+    "title": "Upgrade to Professional",
+    "subtitle": "Unlock all features for your clinic.",
+    "benefits": {
+      "unlimitedEmployees": "Unlimited employees",
+      "advancedRules": "Advanced planning rules",
+      "csvExport": "CSV data export",
+      "prioritySupport": "Priority support"
+    },
+    "ctaButton": "Upgrade to Professional — €29/month",
+    "dismissButton": "Maybe later"
+  },
+  "register": {
+    "pageTitle": "Create your clinic",
+    "title": "Create your clinic",
+    "subtitle": "Start free, no credit card required.",
+    "tagline": "Automated veterinary scheduling",
+    "clinicName": "Clinic name",
+    "clinicNamePlaceholder": "Veterinary Clinic of the Park",
+    "adminName": "Your name",
+    "adminNamePlaceholder": "Dr. Martin",
+    "email": "Email",
+    "emailPlaceholder": "admin@clinic.com",
+    "password": "Password",
+    "submitButton": "Create my account",
+    "submitting": "Creating...",
+    "backToPricing": "Back to pricing",
+    "alreadyHaveAccount": "Already have an account?",
+    "loginLink": "Log in"
   }
 }

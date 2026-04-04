@@ -1869,5 +1869,35 @@
   },
   "employeeSettings": {
     "title": "Paramètres"
+  },
+  "upgradeModal": {
+    "title": "Passez au Professionnel",
+    "subtitle": "Débloquez toutes les fonctionnalités pour votre clinique.",
+    "benefits": {
+      "unlimitedEmployees": "Employés illimités",
+      "advancedRules": "Règles de planning avancées",
+      "csvExport": "Export CSV des données",
+      "prioritySupport": "Support prioritaire"
+    },
+    "ctaButton": "Passer au Professionnel — 29€/mois",
+    "dismissButton": "Plus tard"
+  },
+  "register": {
+    "pageTitle": "Créer votre clinique",
+    "title": "Créer votre clinique",
+    "subtitle": "Commencez gratuitement, sans carte bancaire.",
+    "tagline": "Planification vétérinaire automatisée",
+    "clinicName": "Nom de la clinique",
+    "clinicNamePlaceholder": "Clinique Vétérinaire du Parc",
+    "adminName": "Votre nom",
+    "adminNamePlaceholder": "Dr. Martin",
+    "email": "Email",
+    "emailPlaceholder": "admin@clinique.com",
+    "password": "Mot de passe",
+    "submitButton": "Créer mon compte",
+    "submitting": "Création en cours...",
+    "backToPricing": "Retour aux tarifs",
+    "alreadyHaveAccount": "Déjà un compte ?",
+    "loginLink": "Se connecter"
   }
 }

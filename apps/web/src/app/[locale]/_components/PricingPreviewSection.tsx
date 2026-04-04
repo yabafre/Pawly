@@ -83,7 +83,7 @@ export async function PricingPreviewSection() {
                   variant={isPopular ? "default" : "outline"}
                   className="w-full"
                 >
-                  <Link href={`/pricing?plan=${plan}`}>{t("cta")}</Link>
+                  <Link href={`/pricing/register?plan=${plan}`}>{t("cta")}</Link>
                 </Button>
               </div>
             );
