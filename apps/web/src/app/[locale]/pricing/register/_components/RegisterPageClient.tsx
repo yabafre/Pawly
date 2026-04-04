@@ -10,7 +10,7 @@ import { FallingAnimals } from "@/components/ui/falling-animals";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { TurnstileBox } from "@/components/turnstile";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useRegister } from "../_hooks/useRegister";
@@ -28,6 +28,7 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
   const [adminName, setAdminName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -167,14 +168,24 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-sm">{t("password")}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); clearError("password"); }}
-                    aria-invalid={!!errors.password}
-                    className="h-9"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); clearError("password"); }}
+                      aria-invalid={!!errors.password}
+                      className="h-9 pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   {errors.password && <p className="text-[11px] text-destructive">{errors.password}</p>}
                   <PasswordStrength password={password} translations={passwordTranslations} />
                 </div>
