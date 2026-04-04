@@ -60,6 +60,24 @@ export const stripeRouter = router({
       });
     }
 
+    if (!subscription.stripeCustomerId || !subscription.stripeSubscriptionId) {
+      return {
+        subscription: {
+          status: subscription.status,
+          planKey: subscription.planKey,
+          entitlementTier: subscription.entitlementTier,
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+          promotionCodeId: null,
+          couponId: null,
+          discountType: null as 'percent' | 'amount' | null,
+          discountValue: null,
+          couponMetadataType: null as 'partner' | 'internal' | 'lifetime' | null,
+        },
+        invoices: [],
+      };
+    }
+
     const [details, invoices] = await Promise.all([
       ctx.stripeService.getSubscriptionWithDetails(
         subscription.stripeSubscriptionId,
@@ -115,6 +133,13 @@ export const stripeRouter = router({
             message: 'returnUrl must match an allowed application origin',
           });
         }
+      }
+
+      if (!subscription.stripeCustomerId) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'No Stripe customer found — upgrade to Professional first',
+        });
       }
 
       return ctx.stripeService.createBillingPortalSession(

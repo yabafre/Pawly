@@ -10,6 +10,8 @@ import type { EnvConfig } from '@/config/index';
 import type { User } from '@prisma/client';
 import { authRequestCounter } from '@/common/metrics';
 import type { MailLocale } from '@/modules/mail/mail-i18n';
+import { generateSlug } from '@/common/utils/slug';
+import type { RegisterAdminInput } from '@pawly/validators';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -65,6 +67,65 @@ export class AuthService {
             return result;
         }
         return null;
+    }
+
+    async registerAdmin(input: Omit<RegisterAdminInput, 'turnstileToken'>) {
+        const startTime = Date.now();
+
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email: input.email },
+        });
+
+        if (existingUser) {
+            await this.delayToMinimumResponse(startTime);
+            throw new UnauthorizedException('Registration failed');
+        }
+
+        const hashedPassword = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+
+        const user = await this.prisma.$transaction(async (tx) => {
+            const clinic = await tx.clinic.create({
+                data: {
+                    name: input.clinicName,
+                    slug: generateSlug(input.clinicName),
+                    onboardingCompleted: false,
+                },
+            });
+
+            const createdUser = await tx.user.create({
+                data: {
+                    email: input.email,
+                    name: input.adminName,
+                    password: hashedPassword,
+                    role: 'ADMIN',
+                    clinicId: clinic.id,
+                },
+            });
+
+            await tx.subscription.create({
+                data: {
+                    clinicId: clinic.id,
+                    status: 'active',
+                    planKey: 'starter_free',
+                    entitlementTier: 'starter',
+                },
+            });
+
+            return createdUser;
+        });
+
+        authRequestCounter.add(1, { method: 'register', outcome: 'success' });
+
+        const tokens = await this.generateToken(user);
+
+        // Send welcome email (fire-and-forget)
+        this.mailService.sendActivationEmail(input.email, '', input.adminName).catch((err) =>
+            this.logger.warn('Failed to send welcome email', err),
+        );
+
+        await this.delayToMinimumResponse(startTime);
+
+        return tokens;
     }
 
     async login(loginDto: LoginDto) {

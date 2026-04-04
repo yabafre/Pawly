@@ -1095,4 +1095,162 @@ describe('AuthService', () => {
       );
     });
   });
+
+  describe('registerAdmin', () => {
+    const registerInput = {
+      clinicName: 'Clinique du Parc',
+      adminName: 'Dr. Martin',
+      email: 'admin@clinic.com',
+      password: 'Password1',
+    };
+
+    const mockClinic = { id: 'clinic-1', name: 'Clinique du Parc', slug: 'clinique-du-parc-abc' };
+    const mockUser = {
+      id: 'user-1',
+      email: 'admin@clinic.com',
+      name: 'Dr. Martin',
+      role: 'ADMIN',
+      clinicId: 'clinic-1',
+      password: 'hashed',
+      locale: 'fr',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('should create clinic, user, and subscription atomically', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
+          user: { create: jest.fn().mockResolvedValue(mockUser) },
+          subscription: { create: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
+        };
+        return cb(tx);
+      });
+
+      const result = await service.registerAdmin(registerInput);
+
+      expect(result).toHaveProperty('access_token');
+      expect(result).toHaveProperty('refresh_token');
+      expect(result).toHaveProperty('user');
+      expect(result.user.email).toBe('admin@clinic.com');
+    });
+
+    it('should throw if email already exists', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+
+      await expect(service.registerAdmin(registerInput)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should hash password with bcrypt 12 rounds', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      let capturedPassword = '';
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
+          user: {
+            create: jest.fn().mockImplementation(({ data }) => {
+              capturedPassword = data.password;
+              return mockUser;
+            }),
+          },
+          subscription: { create: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
+        };
+        return cb(tx);
+      });
+
+      await service.registerAdmin(registerInput);
+
+      expect(capturedPassword).not.toBe('Password1');
+      expect(capturedPassword.startsWith('$2b$12$')).toBe(true);
+    });
+
+    it('should create subscription with starter tier', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      let capturedSubData: Record<string, unknown> = {};
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
+          user: { create: jest.fn().mockResolvedValue(mockUser) },
+          subscription: {
+            create: jest.fn().mockImplementation(({ data }) => {
+              capturedSubData = data;
+              return { id: 'sub-1' };
+            }),
+          },
+        };
+        return cb(tx);
+      });
+
+      await service.registerAdmin(registerInput);
+
+      expect(capturedSubData.planKey).toBe('starter_free');
+      expect(capturedSubData.entitlementTier).toBe('starter');
+      expect(capturedSubData.status).toBe('active');
+    });
+
+    it('should send welcome email fire-and-forget', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
+          user: { create: jest.fn().mockResolvedValue(mockUser) },
+          subscription: { create: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
+        };
+        return cb(tx);
+      });
+
+      await service.registerAdmin(registerInput);
+
+      expect(mockMailService.sendActivationEmail).toHaveBeenCalledWith(
+        'admin@clinic.com',
+        '',
+        'Dr. Martin',
+      );
+    });
+
+    it('should set clinic onboardingCompleted to false', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      let capturedClinicData: Record<string, unknown> = {};
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: {
+            create: jest.fn().mockImplementation(({ data }) => {
+              capturedClinicData = data;
+              return mockClinic;
+            }),
+          },
+          user: { create: jest.fn().mockResolvedValue(mockUser) },
+          subscription: { create: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
+        };
+        return cb(tx);
+      });
+
+      await service.registerAdmin(registerInput);
+
+      expect(capturedClinicData.onboardingCompleted).toBe(false);
+    });
+
+    it('should create user with ADMIN role', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      let capturedUserData: Record<string, unknown> = {};
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
+          user: {
+            create: jest.fn().mockImplementation(({ data }) => {
+              capturedUserData = data;
+              return mockUser;
+            }),
+          },
+          subscription: { create: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
+        };
+        return cb(tx);
+      });
+
+      await service.registerAdmin(registerInput);
+
+      expect(capturedUserData.role).toBe('ADMIN');
+    });
+  });
 });

@@ -34,6 +34,9 @@ describe('StripeWebhookController', () => {
   const mockTransaction = jest.fn();
   const mockPrismaService = {
     $transaction: mockTransaction,
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     subscription: {
       update: jest.fn(),
       findUnique: jest.fn(),

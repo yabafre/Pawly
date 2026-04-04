@@ -9,7 +9,7 @@ enum SubscriptionStatus {
 model Subscription {
   id                   String             @id @default(uuid())
   clinicId             String             @unique @map("clinic_id")
-  stripeCustomerId     String             @unique @map("stripe_customer_id")
+  stripeCustomerId     String?            @unique @map("stripe_customer_id")
   stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
   status               SubscriptionStatus @default(trialing)
   planKey              String             @map("plan_key")

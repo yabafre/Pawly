@@ -196,7 +196,38 @@ export class StripeWebhookController {
       session.id,
     );
 
-    // Atomic: create Clinic + Admin User + Subscription in a single transaction
+    // Check if user already exists (account-first registration flow → upgrade)
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: adminEmail },
+      select: { id: true, clinicId: true },
+    });
+
+    if (existingUser) {
+      // Upgrade path: user registered via /pricing/register, now upgrading to Pro
+      this.logger.log(
+        `checkout.session.completed: ${session.id} — upgrading existing account for ${adminEmail}`,
+      );
+
+      const firstItem = subscription.items.data[0];
+      await this.prisma.subscription.update({
+        where: { clinicId: existingUser.clinicId },
+        data: {
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: mapSubscriptionStatus(subscription.status),
+          planKey: firstItem?.price.lookup_key ?? 'default',
+          entitlementTier: deriveEntitlementTier(subscription),
+          currentPeriodEnd: firstItem
+            ? new Date(firstItem.current_period_end * 1000)
+            : null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          ...promotionData,
+        },
+      });
+      return;
+    }
+
+    // Legacy path: create Clinic + Admin User + Subscription (backward compat)
     await this.prisma.$transaction(async (tx) => {
       const clinic = await tx.clinic.create({
         data: {
@@ -233,8 +264,7 @@ export class StripeWebhookController {
       });
     });
 
-    // Send activation email (outside transaction — email is non-reversible)
-    // Admin must set their password to activate their account (Architecture: hybrid auth for admins)
+    // Send activation email (legacy path only — account-first users already have password)
     await this.authService.createActivationToken(adminEmail, adminName || undefined);
   }
 

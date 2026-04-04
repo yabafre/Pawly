@@ -15,3 +15,5 @@ export { changePasswordSchema } from "./change-password.schema";
 export type { ChangePasswordInput } from "./change-password.schema";
 export { updateAdminProfileSchema } from "./update-profile.schema";
 export type { UpdateAdminProfileInput } from "./update-profile.schema";
+export { registerAdminInputSchema, registerAdminFormSchema } from "./register-admin.schema";
+export type { RegisterAdminInput } from "./register-admin.schema";

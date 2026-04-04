@@ -12,6 +12,7 @@ import {
   resetPasswordInputSchema,
   changePasswordSchema,
   updateAdminProfileSchema,
+  registerAdminInputSchema,
 } from '@pawly/validators';
 import { TRPCError } from '@trpc/server';
 
@@ -33,6 +34,12 @@ export const authRouter = router({
       jobType: user?.employee?.jobType ?? null,
     };
   }),
+
+  register: publicProcedure
+    .input(registerAdminInputSchema.omit({ turnstileToken: true }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.registerAdmin(input);
+    }),
 
   login: publicProcedure
     .input(loginSchema)
