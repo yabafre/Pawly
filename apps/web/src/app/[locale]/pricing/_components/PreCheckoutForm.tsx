@@ -69,7 +69,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
           <div className="space-y-2">
             <Label
               htmlFor={field.name}
-              className="text-neutral-900 font-medium"
+              className="text-foreground font-medium"
             >
               {t("clinicNameLabel")}
             </Label>
@@ -82,10 +82,10 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+              className="bg-muted border-border focus:bg-card h-12 transition-all focus-visible:border-primary focus-visible:ring-primary/20"
             />
             {field.state.meta.errors.length > 0 && (
-              <p className="text-[11px] text-orange-600" role="alert">
+              <p className="text-[11px] text-destructive" role="alert">
                 {field.state.meta.errors[0]}
               </p>
             )}
@@ -109,7 +109,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
           <div className="space-y-2">
             <Label
               htmlFor={field.name}
-              className="text-neutral-900 font-medium"
+              className="text-foreground font-medium"
             >
               {t("adminNameLabel")}
             </Label>
@@ -122,10 +122,10 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+              className="bg-muted border-border focus:bg-card h-12 transition-all focus-visible:border-primary focus-visible:ring-primary/20"
             />
             {field.state.meta.errors.length > 0 && (
-              <p className="text-[11px] text-orange-600" role="alert">
+              <p className="text-[11px] text-destructive" role="alert">
                 {field.state.meta.errors[0]}
               </p>
             )}
@@ -149,7 +149,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
           <div className="space-y-2">
             <Label
               htmlFor={field.name}
-              className="text-neutral-900 font-medium"
+              className="text-foreground font-medium"
             >
               {t("adminEmailLabel")}
             </Label>
@@ -162,10 +162,10 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
               onBlur={field.handleBlur}
-              className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 transition-all focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+              className="bg-muted border-border focus:bg-card h-12 transition-all focus-visible:border-primary focus-visible:ring-primary/20"
             />
             {field.state.meta.errors.length > 0 && (
-              <p className="text-[11px] text-orange-600" role="alert">
+              <p className="text-[11px] text-destructive" role="alert">
                 {field.state.meta.errors[0]}
               </p>
             )}
@@ -179,7 +179,7 @@ export const PreCheckoutForm = ({ priceId }: PreCheckoutFormProps) => {
         {([canSubmit, isSubmitting]) => (
           <Button
             type="submit"
-            className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 rounded-xl shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
+            className="w-full bg-foreground hover:bg-black text-white font-bold h-12 rounded-xl shadow-lg shadow-foreground/10 transition-all hover:scale-[1.01]"
             disabled={!canSubmit || isSubmitting || isPending || isRedirecting}
           >
             {isPending || isRedirecting ? (

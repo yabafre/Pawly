@@ -20,7 +20,8 @@ import { useState, useEffect, useMemo, useReducer, useRef, useCallback } from "r
 import { useMySchedule, useMyShiftTypes } from "../schedule/_hooks/useMySchedule";
 import { useConfirmShift } from "../schedule/_hooks/useConfirmShift";
 import DashboardLoading from "../loading";
-import { PwaInstallPrompt } from "./PwaInstallPrompt";
+import dynamic from "next/dynamic";
+const PwaInstallPrompt = dynamic(() => import("./PwaInstallPrompt").then(m => m.PwaInstallPrompt), { ssr: false });
 import type { EmployeeScheduleData, EmployeeShift, EmployeeUnavailability, EmployeeShiftTypeInfo } from "@pawly/types";
 
 const UNAVAILABILITY_ICONS: Record<string, typeof Plane> = {

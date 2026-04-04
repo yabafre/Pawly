@@ -185,7 +185,7 @@ export const StaffGridRow = React.memo(function StaffGridRow({
             tabIndex={tabIndex}
             rowIndex={rowIndex}
             colIndex={colIndex}
-            className={hardConflicts.length > 0 ? "bg-[#F97316]/10 ring-2 ring-[#F97316] ring-inset" : ""}
+            className={hardConflicts.length > 0 ? "bg-orange-500/10 ring-2 ring-orange-500 ring-inset" : ""}
           >
             {dayShifts.map((shift) => (
               <DraggableShiftCell key={shift.id} shift={shift} />

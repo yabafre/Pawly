@@ -30,6 +30,20 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["esbuild-wasm"],
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-select",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-checkbox",
+      "@radix-ui/react-label",
+      "@radix-ui/react-progress",
+      "date-fns",
+      "recharts",
+      "framer-motion",
+    ],
+  },
   turbopack: {
     root: workspaceRoot,
   },

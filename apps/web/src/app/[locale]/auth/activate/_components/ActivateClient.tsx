@@ -35,18 +35,18 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
 
     if (!token) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden px-6">
-                <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-[#009588]/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
+            <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden px-6">
+                <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-primary/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
                 <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
-                <Card className="w-full max-w-md text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-neutral-100 bg-white/90 backdrop-blur-sm">
+                <Card className="w-full max-w-md text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-border bg-card/90 backdrop-blur-sm">
                     <CardHeader className="space-y-3">
                         <div className="mx-auto w-12 h-12 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center">
                             <AlertTriangle className="w-6 h-6 text-orange-500" />
                         </div>
-                        <CardTitle className="text-xl font-bold text-neutral-900">
+                        <CardTitle className="text-xl font-bold text-foreground">
                             {t("invalidToken")}
                         </CardTitle>
-                        <CardDescription className="text-neutral-500">
+                        <CardDescription className="text-muted-foreground">
                             {t("tokenMissing")}
                         </CardDescription>
                     </CardHeader>
@@ -56,19 +56,19 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden px-6">
-            <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-[#009588]/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
+        <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden px-6">
+            <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-primary/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none" />
 
-            <Card className="w-full max-w-md shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-neutral-100 bg-white/90 backdrop-blur-sm">
+            <Card className="w-full max-w-md shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-border bg-card/90 backdrop-blur-sm">
                 <CardHeader className="space-y-1 pb-4">
                     <div className="mx-auto w-12 h-12 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center mb-2">
                         <Lock className="w-6 h-6 text-teal-600" />
                     </div>
-                    <CardTitle className="text-xl font-bold text-neutral-900 text-center">
+                    <CardTitle className="text-xl font-bold text-foreground text-center">
                         {t("title")}
                     </CardTitle>
-                    <CardDescription className="text-neutral-500 text-center">
+                    <CardDescription className="text-muted-foreground text-center">
                         {t("subtitle")}
                     </CardDescription>
                 </CardHeader>
@@ -91,7 +91,7 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
                     >
                         {(field: any) => (
                             <div className="space-y-2">
-                                <Label htmlFor={field.name} className="text-neutral-900 font-medium">
+                                <Label htmlFor={field.name} className="text-foreground font-medium">
                                     {t("passwordLabel")}
                                 </Label>
                                 <div className="relative">
@@ -104,20 +104,20 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
                                         value={field.state.value}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => field.handleChange(e.target.value)}
                                         onBlur={field.handleBlur}
-                                        className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 pr-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        className="bg-muted border-border focus:bg-card h-12 pr-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                                         tabIndex={-1}
                                     >
                                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
-                                <p className="text-[11px] text-neutral-400">{t("passwordHint")}</p>
+                                <p className="text-[11px] text-muted-foreground">{t("passwordHint")}</p>
                                 {field.state.meta.errors.length > 0 && (
-                                    <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">
+                                    <p id={`${field.name}-error`} className="text-[11px] text-destructive" role="alert" aria-live="assertive">
                                         {field.state.meta.errors[0]}
                                     </p>
                                 )}
@@ -139,7 +139,7 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
                     >
                         {(field: any) => (
                             <div className="space-y-2">
-                                <Label htmlFor={field.name} className="text-neutral-900 font-medium">
+                                <Label htmlFor={field.name} className="text-foreground font-medium">
                                     {t("confirmLabel")}
                                 </Label>
                                 <div className="relative">
@@ -152,19 +152,19 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
                                         value={field.state.value}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => field.handleChange(e.target.value)}
                                         onBlur={field.handleBlur}
-                                        className="bg-neutral-50 border-neutral-200 focus:bg-white h-12 pr-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        className="bg-muted border-border focus:bg-card h-12 pr-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirm(!showConfirm)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                                         tabIndex={-1}
                                     >
                                         {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
                                 {field.state.meta.errors.length > 0 && (
-                                    <p id={`${field.name}-error`} className="text-[11px] text-orange-600" role="alert" aria-live="assertive">
+                                    <p id={`${field.name}-error`} className="text-[11px] text-destructive" role="alert" aria-live="assertive">
                                         {field.state.meta.errors[0]}
                                     </p>
                                 )}
@@ -176,7 +176,7 @@ export const ActivateClient = ({ token }: ActivateClientProps) => {
                         {([canSubmit, isSubmitting]) => (
                             <Button
                                 type="submit"
-                                className="w-full bg-neutral-900 hover:bg-black text-white font-bold h-12 shadow-lg shadow-neutral-900/10 transition-all hover:scale-[1.01]"
+                                className="w-full bg-foreground hover:bg-black text-white font-bold h-12 shadow-lg shadow-foreground/10 transition-all hover:scale-[1.01]"
                                 disabled={!canSubmit || isSubmitting || isPending}
                             >
                                 {isPending ? t("submitting") : (

@@ -24,14 +24,14 @@ export function ConflictIndicator({ conflicts }: Props) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="absolute top-0 right-0 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-[#F97316] text-white shadow-sm hover:bg-[#EA6C10] transition-colors"
+          className="absolute top-0 right-0 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 text-white shadow-sm hover:bg-orange-600 transition-colors"
           aria-label={t("hardCount", { count: conflicts.length })}
         >
           <AlertCircle size={12} strokeWidth={2.5} />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-3 space-y-2" side="bottom" align="end">
-        <p className="text-xs font-bold text-[#F97316]">
+        <p className="text-xs font-bold text-orange-500">
           {t("hardTitle")} ({conflicts.length})
         </p>
         {conflicts.map((c, i) => (
