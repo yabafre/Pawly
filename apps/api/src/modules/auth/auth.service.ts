@@ -69,7 +69,7 @@ export class AuthService {
         return null;
     }
 
-    async registerAdmin(input: Omit<RegisterAdminInput, 'turnstileToken'>) {
+    async registerAdmin(input: Omit<RegisterAdminInput, 'turnstileToken'> & { locale?: string }) {
         const startTime = Date.now();
 
         const existingUser = await this.prisma.user.findUnique({
@@ -99,6 +99,7 @@ export class AuthService {
                     password: hashedPassword,
                     role: 'ADMIN',
                     clinicId: clinic.id,
+                    locale: input.locale === 'en' ? 'en' : 'fr',
                 },
             });
 
@@ -118,8 +119,11 @@ export class AuthService {
 
         const tokens = await this.generateToken(user);
 
-        // No welcome email for now — user is already authenticated via auto-login
-        // Future: add a dedicated sendWelcomeEmail method
+        // Welcome email (fire-and-forget — user is already logged in)
+        const mailLocale = (input.locale === 'en' ? 'en' : 'fr') as import('@/modules/mail/mail-i18n').MailLocale;
+        this.mailService.sendWelcomeEmail(input.email, input.adminName, mailLocale).catch((err) =>
+            this.logger.warn('Failed to send welcome email', err),
+        );
 
         await this.delayToMinimumResponse(startTime);
 

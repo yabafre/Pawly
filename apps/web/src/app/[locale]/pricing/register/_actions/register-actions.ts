@@ -5,6 +5,7 @@ import { createServerAction, ZSAError } from "zsa";
 import { trpc } from "@/lib/trpc/client";
 import { registerAdminInputSchema, authResponseSchema } from "@pawly/validators";
 import { verifyTurnstileToken } from "@/lib/turnstile-verify";
+import { z } from "@pawly/zod";
 
 const AUTH_COOKIE_NAME = "auth-token";
 const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24; // 24 hours
@@ -20,20 +21,35 @@ async function setAuthCookie(token: string) {
   });
 }
 
+const registerWithLocaleSchema = z.object({
+  clinicName: z.string().min(2).max(100),
+  adminName: z.string().min(2).max(100),
+  email: z.string().email(),
+  password: z.string().min(8),
+  turnstileToken: z.string().min(1),
+  locale: z.enum(["fr", "en"]).optional(),
+});
+
 export const registerAction = createServerAction()
-  .input(registerAdminInputSchema)
+  .input(registerWithLocaleSchema)
   .output(authResponseSchema)
   .experimental_shapeError(({ err }) => ({
     code: err instanceof ZSAError ? err.code : "SERVER_ERROR",
     message: err instanceof Error ? err.message : "An error occurred",
   }))
   .handler(async ({ input }) => {
-    const { turnstileToken, ...registerInput } = input;
+    const { turnstileToken, locale, ...registerInput } = input;
 
     const valid = await verifyTurnstileToken(turnstileToken);
     if (!valid) throw new ZSAError("FORBIDDEN", "Turnstile verification failed");
 
-    const result = await trpc.auth.register.mutate(registerInput);
+    const result = await trpc.auth.register.mutate({
+      ...registerInput,
+      email: registerInput.email.trim().toLowerCase(),
+      clinicName: registerInput.clinicName.trim(),
+      adminName: registerInput.adminName.trim(),
+      locale,
+    });
     const parsed = authResponseSchema.parse(result);
     await setAuthCookie(parsed.access_token);
     return parsed;

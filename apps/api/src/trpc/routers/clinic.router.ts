@@ -1,5 +1,6 @@
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
 import { TRPCError } from '@trpc/server';
+import { z } from '@pawly/zod';
 import {
   updateClinicNameSchema,
   updateClinicConfigSchema,
@@ -39,6 +40,15 @@ export const clinicRouter = router({
   getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
     return ctx.clinicService.getOnboardingStatus(ctx.user.clinicId);
   }),
+
+  saveOnboardingDraft: protectedProcedure
+    .input(z.object({ step: z.number(), values: z.record(z.string(), z.unknown()) }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.clinicService.saveOnboardingDraft(ctx.user.clinicId, {
+        step: input.step,
+        values: input.values,
+      });
+    }),
 
   getOperationalConfig: subscribedProcedure.query(async ({ ctx }) => {
     type Config = Awaited<ReturnType<typeof ctx.clinicService.getOperationalConfig>>;

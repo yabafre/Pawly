@@ -54,6 +54,7 @@ describe('AuthService', () => {
   const mockMailService = {
     sendMagicLink: jest.fn().mockResolvedValue(undefined),
     sendActivationEmail: jest.fn().mockResolvedValue(undefined),
+    sendWelcomeEmail: jest.fn().mockResolvedValue(undefined),
     sendOtpCode: jest.fn().mockResolvedValue(undefined),
   };
 
@@ -1189,8 +1190,9 @@ describe('AuthService', () => {
       expect(capturedSubData.status).toBe('active');
     });
 
-    it('should not send activation email (user is auto-logged in)', async () => {
+    it('should send welcome email fire-and-forget', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockMailService.sendWelcomeEmail = jest.fn().mockResolvedValue(undefined);
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
         const tx = {
           clinic: { create: jest.fn().mockResolvedValue(mockClinic) },
@@ -1202,7 +1204,10 @@ describe('AuthService', () => {
 
       await service.registerAdmin(registerInput);
 
-      expect(mockMailService.sendActivationEmail).not.toHaveBeenCalled();
+      expect(mockMailService.sendWelcomeEmail).toHaveBeenCalledWith(
+        'admin@clinic.com',
+        'Dr. Martin',
+      );
     });
 
     it('should set clinic onboardingCompleted to false', async () => {

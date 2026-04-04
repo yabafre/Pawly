@@ -61,6 +61,7 @@ const StatCard = ({
 
 export function DashboardPageClient() {
   const t = useTranslations("admin.dashboard");
+  const { entitlementTier } = useSubscription();
   const { stats, isPending } = useDashboardStats();
   const [pageState, dispatch] = useReducer(
     (state: { isMounted: boolean; showSplash: boolean }, action: Partial<{ isMounted: boolean; showSplash: boolean }>) => ({ ...state, ...action }),
@@ -102,8 +103,6 @@ export function DashboardPageClient() {
   const coverageHelper = stats?.coveragePercent != null
     ? t("coverageHelper", { percent: stats.coveragePercent })
     : t("noCoverage");
-
-  const { entitlementTier } = useSubscription();
 
   return (
     <div className="space-y-6 animate-in fade-in">

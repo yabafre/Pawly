@@ -12,7 +12,7 @@ import { PasswordStrength } from "@/components/ui/password-strength";
 import { TurnstileBox } from "@/components/turnstile";
 import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useRegister } from "../_hooks/useRegister";
 import { registerAdminInputSchema } from "@pawly/validators";
 
@@ -23,6 +23,7 @@ interface RegisterPageClientProps {
 export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
   const t = useTranslations("register");
   const tPwd = useTranslations("auth.resetPassword");
+  const locale = useLocale() as "fr" | "en";
 
   const [clinicName, setClinicName] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -73,6 +74,7 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
       email: email.trim().toLowerCase(),
       password,
       turnstileToken,
+      locale,
     });
   };
 

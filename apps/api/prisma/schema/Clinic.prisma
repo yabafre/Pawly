@@ -3,6 +3,7 @@ model Clinic {
   name                String
   slug                String   @unique
   onboardingCompleted Boolean  @default(false) @map("onboarding_completed")
+  onboardingDraft     Json?    @map("onboarding_draft")
 
   users               User[]
   employees           Employee[]

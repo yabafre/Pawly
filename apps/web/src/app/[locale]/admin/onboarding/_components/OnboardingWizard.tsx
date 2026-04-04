@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -8,16 +8,13 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkDay } from "@pawly/validators";
 import type { OnboardingInitialData } from "@pawly/types";
-import { completeOnboardingAction } from "../_actions/onboarding-actions";
+import { completeOnboardingAction, saveOnboardingDraftAction } from "../_actions/onboarding-actions";
 import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
 import { StepWorkDays } from "./steps/StepWorkDays";
@@ -49,22 +46,16 @@ export function OnboardingWizard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background py-12 px-6">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (isError || !initialData) {
     return (
-      <div className="min-h-screen bg-background py-12 px-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="rounded-2xl bg-destructive/5 border border-destructive/20 px-6 py-4 text-sm text-destructive font-medium">
-            {t("errors.loadFailed")}
-          </div>
-        </div>
+      <div className="rounded-2xl bg-destructive/5 border border-destructive/20 px-6 py-4 text-sm text-destructive font-medium">
+        {t("errors.loadFailed")}
       </div>
     );
   }
@@ -72,57 +63,64 @@ export function OnboardingWizard() {
   return <OnboardingWizardForm initialData={initialData} />;
 }
 
-function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialData }) {
+function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialData & { onboardingDraft?: Record<string, unknown> | null } }) {
   const t = useTranslations("onboarding");
   const tNav = useTranslations("onboarding.navigation");
   const router = useRouter();
   const locale = useLocale();
-  const [currentStep, setCurrentStep] = useState(0);
+
+  const draft = initialData.onboardingDraft as { step?: number; values?: Record<string, unknown> } | null;
+  const [currentStep, setCurrentStep] = useState(draft?.step ?? 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fallbackDefaults = {
+    clinicName: initialData.clinicName,
+    workDays:
+      (initialData.config?.workDays as WorkDay[]) ?? [
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+      ],
+    defaultStartTime: initialData.config?.defaultStartTime ?? "08:30",
+    defaultEndTime: initialData.config?.defaultEndTime ?? "18:30",
+    shiftTypes:
+      initialData.shiftTypes.length > 0
+        ? initialData.shiftTypes.map((st) => ({
+          name: st.name,
+          code: st.code,
+          startTime: st.startTime,
+          endTime: st.endTime,
+          breakMinutes: st.breakMinutes ?? 0,
+          color: st.color,
+        }))
+        : [
+          {
+            name: "Surgery",
+            code: "CHIR",
+            startTime: "08:30",
+            endTime: "18:30",
+            breakMinutes: 0,
+            color: "#4F46E5",
+          },
+          {
+            name: "Reception",
+            code: "ACC",
+            startTime: "09:00",
+            endTime: "19:30",
+            breakMinutes: 0,
+            color: "#F97316",
+          },
+        ],
+  };
 
   const form = useForm({
-    defaultValues: {
-      clinicName: initialData.clinicName,
-      workDays:
-        (initialData.config?.workDays as WorkDay[]) ?? [
-          "MONDAY",
-          "TUESDAY",
-          "WEDNESDAY",
-          "THURSDAY",
-          "FRIDAY",
-          "SATURDAY",
-        ],
-      defaultStartTime: initialData.config?.defaultStartTime ?? "08:30",
-      defaultEndTime: initialData.config?.defaultEndTime ?? "18:30",
-      shiftTypes:
-        initialData.shiftTypes.length > 0
-          ? initialData.shiftTypes.map((st) => ({
-            name: st.name,
-            code: st.code,
-            startTime: st.startTime,
-            endTime: st.endTime,
-            breakMinutes: st.breakMinutes ?? 0,
-            color: st.color,
-          }))
-          : [
-            {
-              name: "Surgery",
-              code: "CHIR",
-              startTime: "08:30",
-              endTime: "18:30",
-              breakMinutes: 0,
-              color: "#4F46E5",
-            },
-            {
-              name: "Reception",
-              code: "ACC",
-              startTime: "09:00",
-              endTime: "19:30",
-              breakMinutes: 0,
-              color: "#F97316",
-            },
-          ],
-    },
+    defaultValues: draft?.values
+      ? { ...fallbackDefaults, ...draft.values }
+      : fallbackDefaults,
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
@@ -133,7 +131,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
           return;
         }
         toast.success(t("completion.toast"));
-        router.push(`/${locale}/admin/dashboard`);
+        window.location.href = `/${locale}/admin/dashboard`;
       } catch {
         toast.error(t("errors.saveFailed"));
         setIsSubmitting(false);
@@ -141,13 +139,28 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
     },
   });
 
+  // Debounced save to DB on step/values change
+  const saveDraft = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveOnboardingDraftAction({
+        step: currentStep,
+        values: form.state.values as Record<string, unknown>,
+      }).catch(() => {});
+    }, 1000);
+  }, [currentStep, form.state.values]);
+
+  useEffect(() => {
+    saveDraft();
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [saveDraft]);
+
   const stepLabels = [
     t("steps.workDays.title"),
     t("steps.workHours.title"),
     t("steps.shiftTypes.title"),
   ];
 
-  const stepTitles = stepLabels;
   const stepDescriptions = [
     t("steps.workDays.description"),
     t("steps.workHours.description"),
@@ -203,99 +216,90 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
   const canProceed = validateCurrentStep();
 
   return (
-    <div className="min-h-screen bg-background py-12 px-6">
-      <div className="max-w-2xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+      {/* Left: stepper + header */}
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-xl font-bold tracking-tight">
             {t("title")}
           </h1>
-          <p className="text-muted-foreground">{t("subtitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
 
-        {/* Step Indicator */}
         <StepIndicator
           currentStep={currentStep}
           totalSteps={TOTAL_STEPS}
           stepLabels={stepLabels}
         />
-
-        {/* Step Card */}
-        <form
-          action={() => {
-            if (isLastStep) {
-              handleComplete();
-            } else {
-              handleNext();
-            }
-          }}
-        >
-          <Card className="border bg-card rounded-2xl">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-bold">
-                {stepTitles[currentStep]}
-              </CardTitle>
-              <CardDescription>
-                {stepDescriptions[currentStep]}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="pb-6">
-              <div className="transition-all duration-300 ease-in-out">
-                {currentStep === 0 ? (
-                  <StepWorkDays form={form} />
-                ) : currentStep === 1 ? (
-                  <StepWorkHours form={form} />
-                ) : (
-                  <StepShiftTypes form={form} />
-                )}
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex justify-between pt-4 border-t border-border">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={currentStep === 0}
-                className="min-h-[44px]"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                {tNav("previous")}
-              </Button>
-
-              {isLastStep ? (
-                <Button
-                  type="submit"
-                  disabled={!canProceed || isSubmitting}
-                  className="min-h-[44px]"
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {tNav("completing")}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Check className="w-4 h-4" />
-                      {tNav("complete")}
-                    </span>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={!canProceed}
-                  className="min-h-[44px]"
-                >
-                  {tNav("next")}
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </form>
       </div>
+
+      {/* Right: step content */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (isLastStep) {
+            handleComplete();
+          } else {
+            handleNext();
+          }
+        }}
+      >
+        <Card className="border bg-card rounded-2xl">
+          <CardContent className="pt-6">
+            <div className="space-y-1 mb-5">
+              <h2 className="text-lg font-semibold">{stepLabels[currentStep]}</h2>
+              <p className="text-sm text-muted-foreground">{stepDescriptions[currentStep]}</p>
+            </div>
+
+            {currentStep === 0 ? (
+              <StepWorkDays form={form} />
+            ) : currentStep === 1 ? (
+              <StepWorkHours form={form} />
+            ) : (
+              <StepShiftTypes form={form} />
+            )}
+          </CardContent>
+
+          <CardFooter className="flex justify-between pt-4 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentStep === 0}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              {tNav("previous")}
+            </Button>
+
+            {isLastStep ? (
+              <Button
+                type="submit"
+                disabled={!canProceed || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {tNav("completing")}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    {tNav("complete")}
+                  </span>
+                )}
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!canProceed}
+              >
+                {tNav("next")}
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      </form>
     </div>
   );
 }

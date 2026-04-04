@@ -235,6 +235,8 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
     router.push("/login");
   };
 
+  const isOnboarding = pathname.startsWith("/admin/onboarding");
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <nav className="sticky top-0 z-50 w-full bg-background/90 backdrop-blur-md border-b border-border/40">
@@ -248,50 +250,56 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
 
           <div className="flex items-center gap-2">
             <LanguageSwitcher onLocaleChange={handleLocaleChange} />
-            <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-              <Bell size={20} />
-            </button>
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              {tCommon("logout")}
-            </Button>
+            {!isOnboarding && (
+              <>
+                <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                  <Bell size={20} />
+                </button>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  {tCommon("logout")}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
 
       <main className="max-w-6xl mx-auto p-4 md:p-6 pt-8 space-y-6">
-        <div className="relative flex flex-wrap gap-2 pb-2">
-          {navGroups.map((group) => {
-            if (group.children) {
-              return (
-                <GroupDropdown
-                  key={group.labelKey}
-                  group={group}
-                  pathname={pathname}
-                  t={t}
-                  isPro={isPro}
-                />
-              );
-            }
+        {!isOnboarding && (
+          <div className="relative flex flex-wrap gap-2 pb-2">
+            {navGroups.map((group) => {
+              if (group.children) {
+                return (
+                  <GroupDropdown
+                    key={group.labelKey}
+                    group={group}
+                    pathname={pathname}
+                    t={t}
+                    isPro={isPro}
+                  />
+                );
+              }
 
-            const active = isGroupActive(group, pathname);
-            return (
-              <Link
-                key={group.href}
-                href={group.href}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
-                  active
-                    ? "bg-foreground text-background shadow-sm"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <group.icon size={16} />
-                {t(group.labelKey)}
-              </Link>
-            );
-          })}
-        </div>
+              const active = isGroupActive(group, pathname);
+              return (
+                <Link
+                  key={group.href}
+                  href={group.href}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
+                    active
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <group.icon size={16} />
+                  {t(group.labelKey)}
+                </Link>
+              );
+            })}
+          </div>
+        )}
         {children}
       </main>
     </div>

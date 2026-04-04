@@ -30,6 +30,7 @@ export const useOnboardingStatus = () => {
           breakMinutes: st.breakMinutes ?? 0,
           color: st.color,
         })),
+        onboardingDraft: (data as any).onboardingDraft ?? null,
       }
     : null;
 

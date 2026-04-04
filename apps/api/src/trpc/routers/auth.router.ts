@@ -1,4 +1,5 @@
 import { publicProcedure, router, isAuthed } from '../trpc';
+import { z } from '@pawly/zod';
 import {
   loginSchema,
   requestMagicLinkSchema,
@@ -36,7 +37,7 @@ export const authRouter = router({
   }),
 
   register: publicProcedure
-    .input(registerAdminInputSchema.omit({ turnstileToken: true }))
+    .input(registerAdminInputSchema.omit({ turnstileToken: true }).extend({ locale: z.enum(['fr', 'en']).optional() }))
     .mutation(async ({ input, ctx }) => {
       return ctx.authService.registerAdmin(input);
     }),

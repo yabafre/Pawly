@@ -215,7 +215,15 @@ export class ClinicService {
       clinicName: clinic.name,
       config: clinic.config,
       shiftTypes: clinic.shiftTypes,
+      onboardingDraft: clinic.onboardingDraft as Record<string, unknown> | null,
     };
+  }
+
+  async saveOnboardingDraft(clinicId: string, draft: Record<string, unknown>) {
+    await this.prisma.clinic.update({
+      where: { id: clinicId },
+      data: { onboardingDraft: draft as any },
+    });
   }
 
   async getOperationalConfig(clinicId: string) {

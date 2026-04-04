@@ -107,6 +107,34 @@ export class MailService {
     }
   }
 
+  async sendWelcomeEmail(email: string, adminName?: string, locale: MailLocale = 'fr') {
+    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true });
+    const loginUrl = `${webAppUrl}/${locale === 'en' ? 'en/' : ''}login`;
+    const t = getMailTranslations(locale);
+
+    if (this.useTrigger) {
+      return this.triggerSendEmail('activation', email, { url: loginUrl, adminName, locale });
+    }
+
+    try {
+      const html = await render(<ActivationEmail url={loginUrl} adminName={adminName} locale={locale} />);
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: t.subjects.activation,
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send welcome email: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending welcome email', err);
+    }
+  }
+
   async sendEmployeeInvitationEmail(email: string, url: string, firstName: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
