@@ -1189,7 +1189,7 @@ describe('AuthService', () => {
       expect(capturedSubData.status).toBe('active');
     });
 
-    it('should send welcome email fire-and-forget', async () => {
+    it('should not send activation email (user is auto-logged in)', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
         const tx = {
@@ -1202,11 +1202,7 @@ describe('AuthService', () => {
 
       await service.registerAdmin(registerInput);
 
-      expect(mockMailService.sendActivationEmail).toHaveBeenCalledWith(
-        'admin@clinic.com',
-        '',
-        'Dr. Martin',
-      );
+      expect(mockMailService.sendActivationEmail).not.toHaveBeenCalled();
     });
 
     it('should set clinic onboardingCompleted to false', async () => {

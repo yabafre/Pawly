@@ -118,10 +118,8 @@ export class AuthService {
 
         const tokens = await this.generateToken(user);
 
-        // Send welcome email (fire-and-forget)
-        this.mailService.sendActivationEmail(input.email, '', input.adminName).catch((err) =>
-            this.logger.warn('Failed to send welcome email', err),
-        );
+        // No welcome email for now — user is already authenticated via auto-login
+        // Future: add a dedicated sendWelcomeEmail method
 
         await this.delayToMinimumResponse(startTime);
 

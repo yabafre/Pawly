@@ -209,17 +209,22 @@ export class StripeWebhookController {
       );
 
       const firstItem = subscription.items.data[0];
+      if (!firstItem) {
+        this.logger.error(
+          `checkout.session.completed: ${session.id} — subscription has no items, skipping upgrade`,
+        );
+        return;
+      }
+
       await this.prisma.subscription.update({
         where: { clinicId: existingUser.clinicId },
         data: {
           stripeCustomerId,
           stripeSubscriptionId,
           status: mapSubscriptionStatus(subscription.status),
-          planKey: firstItem?.price.lookup_key ?? 'default',
+          planKey: firstItem.price.lookup_key ?? 'default',
           entitlementTier: deriveEntitlementTier(subscription),
-          currentPeriodEnd: firstItem
-            ? new Date(firstItem.current_period_end * 1000)
-            : null,
+          currentPeriodEnd: new Date(firstItem.current_period_end * 1000),
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
           ...promotionData,
         },
