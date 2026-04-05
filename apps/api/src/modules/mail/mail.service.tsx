@@ -4,6 +4,8 @@ import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import { MagicLinkEmail } from './templates/MagicLinkEmail';
 import { ActivationEmail } from './templates/ActivationEmail';
+import { WelcomeEmail } from './templates/WelcomeEmail';
+import { PlanConfirmationEmail } from './templates/PlanConfirmationEmail';
 import { SchoolDaysDeclarationEmail } from './templates/SchoolDaysDeclarationEmail';
 import { SchoolDaysReminderEmail } from './templates/SchoolDaysReminderEmail';
 import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
@@ -56,6 +58,9 @@ export class MailService {
 
   async sendMagicLink(email: string, url: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
+    if (this.useTrigger) {
+      return this.triggerSendEmail('magic-link', email, { url, locale });
+    }
     try {
       const html = await render(<MagicLinkEmail url={url} locale={locale} />);
 
@@ -84,6 +89,9 @@ export class MailService {
 
   async sendActivationEmail(email: string, url: string, adminName?: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
+    if (this.useTrigger) {
+      return this.triggerSendEmail('welcome', email, { url, adminName, locale });
+    }
     try {
       const html = await render(<ActivationEmail url={url} adminName={adminName} locale={locale} />);
 
@@ -109,21 +117,21 @@ export class MailService {
 
   async sendWelcomeEmail(email: string, adminName?: string, locale: MailLocale = 'fr') {
     const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true });
-    const loginUrl = `${webAppUrl}/${locale === 'en' ? 'en/' : ''}login`;
+    const dashboardUrl = `${webAppUrl}/${locale === 'en' ? 'en/' : ''}admin/dashboard`;
     const t = getMailTranslations(locale);
 
     if (this.useTrigger) {
-      return this.triggerSendEmail('activation', email, { url: loginUrl, adminName, locale });
+      return this.triggerSendEmail('welcome', email, { url: dashboardUrl, adminName, locale });
     }
 
     try {
-      const html = await render(<ActivationEmail url={loginUrl} adminName={adminName} locale={locale} />);
+      const html = await render(<WelcomeEmail url={dashboardUrl} adminName={adminName} locale={locale} />);
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
         from: this.configService.get('MAIL_FROM', { infer: true }),
         to: email,
-        subject: t.subjects.activation,
+        subject: t.subjects.welcome,
         html,
       });
 
@@ -132,6 +140,40 @@ export class MailService {
       }
     } catch (err) {
       this.logger.error('Unexpected error sending welcome email', err);
+    }
+  }
+
+  async sendPlanConfirmationEmail(
+    email: string,
+    plan: 'starter' | 'professional',
+    adminName?: string,
+    invoiceUrl?: string,
+    locale: MailLocale = 'fr',
+  ) {
+    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true });
+    const dashboardUrl = `${webAppUrl}/${locale === 'en' ? 'en/' : ''}admin/dashboard`;
+    const t = getMailTranslations(locale);
+
+    if (this.useTrigger) {
+      return this.triggerSendEmail('plan-confirmation', email, { plan, adminName, dashboardUrl, invoiceUrl, locale });
+    }
+
+    try {
+      const html = await render(<PlanConfirmationEmail plan={plan} adminName={adminName} dashboardUrl={dashboardUrl} invoiceUrl={invoiceUrl} locale={locale} />);
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: t.subjects.planConfirmation(plan),
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send plan confirmation email: ${error.message}`);
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending plan confirmation email', err);
     }
   }
 
@@ -351,6 +393,9 @@ export class MailService {
 
   async sendOtpCode(email: string, code: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
+    if (this.useTrigger) {
+      return this.triggerSendEmail('otp', email, { code, locale });
+    }
     try {
       const html = await render(<OtpCodeEmail code={code} locale={locale} />);
 
@@ -476,6 +521,9 @@ export class MailService {
 
   async sendPasswordResetEmail(email: string, url: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
+    if (this.useTrigger) {
+      return this.triggerSendEmail('password-reset', email, { url, locale });
+    }
     try {
       const html = await render(<PasswordResetEmail url={url} locale={locale} />);
 

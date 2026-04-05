@@ -1207,6 +1207,7 @@ describe('AuthService', () => {
       expect(mockMailService.sendWelcomeEmail).toHaveBeenCalledWith(
         'admin@clinic.com',
         'Dr. Martin',
+        'fr',
       );
     });
 
