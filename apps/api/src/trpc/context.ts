@@ -13,6 +13,7 @@ import type { EmployeeScheduleService } from '@/modules/planning/employee-schedu
 import type { PresenceConfirmationService } from '@/modules/planning/presence-confirmation.service';
 import type { DashboardService } from '@/modules/dashboard/dashboard.service';
 import type { PushNotificationService } from '@/modules/notification/push-notification.service';
+import type { MailService } from '@/modules/mail/mail.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { RedisService } from '@/redis';
@@ -33,6 +34,7 @@ export interface TRPCServices {
   presenceConfirmationService: PresenceConfirmationService;
   dashboardService: DashboardService;
   pushNotificationService: PushNotificationService;
+  mailService: MailService;
   jwtService: JwtService;
   prisma: PrismaService;
   redis: RedisService;
