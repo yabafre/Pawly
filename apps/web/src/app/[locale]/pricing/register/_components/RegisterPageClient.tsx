@@ -33,7 +33,7 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
   const [turnstileToken, setTurnstileToken] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { register, isPending } = useRegister();
+  const { register, isPending } = useRegister(selectedPlan);
 
   const validate = () => {
     const result = registerAdminInputSchema.safeParse({
@@ -63,10 +63,6 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-
-    if (selectedPlan === "professional") {
-      sessionStorage.setItem("pawly_selected_plan", "professional");
-    }
 
     register({
       clinicName: clinicName.trim(),

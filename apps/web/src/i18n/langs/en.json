@@ -1362,9 +1362,23 @@
       },
       "fullDiscount": "100% — Free Access"
     },
+    "starter": {
+      "currentPlan": "Free plan — basic features",
+      "upgradeTitle": "Upgrade to Professional",
+      "upgradeDescription": "Unlock all features for your clinic.",
+      "upgradeButton": "Upgrade to Professional — €29/month",
+      "redirecting": "Redirecting to Stripe...",
+      "features": {
+        "unlimitedEmployees": "Unlimited employees",
+        "advancedRules": "Advanced planning rules",
+        "csvExport": "CSV data export",
+        "prioritySupport": "Priority support"
+      }
+    },
     "errors": {
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",
+      "upgradeFailed": "Unable to create payment session",
       "noSubscription": "No subscription found for your clinic",
       "retry": "Retry"
     },

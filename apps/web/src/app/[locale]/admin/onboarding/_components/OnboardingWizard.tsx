@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "@tanstack/react-form";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { WorkDay } from "@pawly/validators";
 import type { OnboardingInitialData } from "@pawly/types";
 import { completeOnboardingAction, saveOnboardingDraftAction } from "../_actions/onboarding-actions";
+import { setupStarterSubscriptionAction, syncAfterCheckoutAction } from "@/app/[locale]/admin/billing/_actions/billing-actions";
 import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
 import { StepWorkDays } from "./steps/StepWorkDays";
@@ -68,6 +69,8 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
   const tNav = useTranslations("onboarding.navigation");
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
+  const selectedPlan = searchParams.get("plan") ?? "starter";
 
   const draft = initialData.onboardingDraft as { step?: number; values?: Record<string, unknown> } | null;
   const [currentStep, setCurrentStep] = useState(draft?.step ?? 0);
@@ -130,6 +133,15 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
           setIsSubmitting(false);
           return;
         }
+
+        if (selectedPlan === "starter") {
+          // Starter: create Stripe customer/subscription server-side
+          await setupStarterSubscriptionAction().catch(() => {});
+        } else {
+          // Pro: sync subscription from Stripe (fallback if webhook hasn't fired yet)
+          await syncAfterCheckoutAction().catch(() => {});
+        }
+
         toast.success(t("completion.toast"));
         window.location.href = `/${locale}/admin/dashboard`;
       } catch {

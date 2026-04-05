@@ -26,7 +26,7 @@ const registerWithLocaleSchema = z.object({
   adminName: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8),
-  turnstileToken: z.string().min(1),
+  turnstileToken: z.string(),
   locale: z.enum(["fr", "en"]).optional(),
 });
 

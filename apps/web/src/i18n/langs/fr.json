@@ -1362,9 +1362,23 @@
       },
       "fullDiscount": "100% — Accès offert"
     },
+    "starter": {
+      "currentPlan": "Plan gratuit — fonctionnalités de base",
+      "upgradeTitle": "Passez au Professionnel",
+      "upgradeDescription": "Débloquez toutes les fonctionnalités pour votre clinique.",
+      "upgradeButton": "Passer au Professionnel — 29€/mois",
+      "redirecting": "Redirection vers Stripe...",
+      "features": {
+        "unlimitedEmployees": "Employés illimités",
+        "advancedRules": "Règles de planning avancées",
+        "csvExport": "Export CSV des données",
+        "prioritySupport": "Support prioritaire"
+      }
+    },
     "errors": {
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",
+      "upgradeFailed": "Impossible de créer la session de paiement",
       "noSubscription": "Aucun abonnement trouvé pour votre clinique",
       "retry": "Réessayer"
     },
