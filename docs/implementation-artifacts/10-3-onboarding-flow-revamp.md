@@ -148,7 +148,10 @@ apps/api/src/modules/auth/
   auth.service.spec.ts                  # MODIFIED — 7 new tests
 
 apps/api/src/modules/mail/
-  mail.service.tsx                      # MODIFIED — added sendWelcomeEmail()
+  mail.service.tsx                      # MODIFIED — sendWelcomeEmail(), sendPlanConfirmationEmail(), all methods use Trigger
+  mail-i18n.ts                          # MODIFIED — welcome + planConfirmation subjects + sections (FR/EN)
+  templates/WelcomeEmail.tsx            # NEW — generic welcome (no plan)
+  templates/PlanConfirmationEmail.tsx   # NEW — plan card + invoice link for Pro
 
 apps/api/src/modules/clinic/
   clinic.service.ts                     # MODIFIED — saveOnboardingDraft(), onboardingDraft in getOnboardingStatus
@@ -157,10 +160,15 @@ apps/api/src/modules/stripe/
   stripe-webhook.controller.ts          # MODIFIED — upgrade path + empty items guard
   stripe-webhook.controller.spec.ts     # MODIFIED — user.findUnique mock
 
-apps/api/src/trpc/routers/
-  auth.router.ts                        # MODIFIED — register procedure + locale
-  clinic.router.ts                      # MODIFIED — saveOnboardingDraft procedure
-  stripe.router.ts                      # MODIFIED — null stripeCustomerId handling
+apps/api/src/trpc/
+  context.ts                            # MODIFIED — added mailService to TRPCServices
+  trpc.module.ts                        # MODIFIED — MailModule import, mailService injection
+  routers/auth.router.ts                # MODIFIED — register procedure + locale
+  routers/clinic.router.ts              # MODIFIED — saveOnboardingDraft procedure
+  routers/stripe.router.ts              # MODIFIED — setupStarterSubscription, syncAfterCheckout, createUpgradeSession successPath
+
+apps/api/src/trigger/tasks/
+  send-email.ts                         # MODIFIED — 11 email types (was 6), WelcomeEmail + PlanConfirmationEmail
 
 apps/web/src/app/[locale]/pricing/
   register/page.tsx                     # NEW
@@ -177,6 +185,11 @@ apps/web/src/app/[locale]/_components/
 apps/web/src/app/[locale]/admin/
   _components/UpgradeModal.tsx          # NEW
   _components/AdminLayoutClient.tsx     # MODIFIED — hide nav during onboarding, keep LanguageSwitcher
+
+apps/web/src/app/[locale]/admin/billing/
+  _actions/billing-actions.ts           # MODIFIED — setupStarterSubscription, syncAfterCheckout, createUpgradeSession actions
+  _hooks/useUpgradeCheckout.ts          # NEW — upgrade to Pro from billing page
+  _components/BillingOverview.tsx        # MODIFIED — StarterUpgradeView component
 
 apps/web/src/app/[locale]/admin/onboarding/
   loading.tsx                           # NEW
@@ -199,6 +212,11 @@ apps/web/src/components/ui/
   input.tsx                             # UPDATED (shadcn override)
   label.tsx                             # UPDATED (shadcn override)
   textarea.tsx                          # UPDATED (shadcn override)
+
+apps/web/next.config.ts                   # MODIFIED — CSP: challenges.cloudflare.com in script-src + frame-src
+
+apps/web/src/components/ui/
+  falling-animals.tsx                   # MODIFIED — null-check on stamp canvases
 
 apps/web/src/lib/
   turnstile-verify.ts                   # MODIFIED — skip in development
@@ -237,3 +255,15 @@ apps/web/src/i18n/langs/
 - **Task 8**: CTAs → `/pricing/register?plan=X`. `/pricing/success` → redirect.
 - **Task 9**: `sendWelcomeEmail` — reuses ActivationEmail template with login URL. Turnstile dev skip.
 - **Review fixes**: Broken welcome email, hooks order, double padding, nav during onboarding, onboarding guard loop, `@pawly/zod` imports.
+- **Task 10 (2026-04-05)**: Registration flow branching — Starter goes directly to onboarding, Pro goes to Stripe Checkout first. `useRegister` branches on `selectedPlan`. `?plan=` URL param passed to onboarding to control Stripe setup after completion.
+- **Task 11 (2026-04-05)**: `setupStarterSubscription` tRPC procedure — creates Stripe customer + free subscription server-side for Starter users after onboarding. Guarded by entitlementTier + existing Stripe IDs check.
+- **Task 12 (2026-04-05)**: `syncAfterCheckout` tRPC procedure — fallback for webhook latency. Lists recent Stripe checkout sessions by email, syncs Pro subscription data to DB. Works whether webhook has fired or not.
+- **Task 13 (2026-04-05)**: `createUpgradeSession` — accepts optional `successPath` param. Registration flow passes `/admin/onboarding?plan=professional`, billing upgrade uses default `/admin/billing?upgraded=true`.
+- **Task 14 (2026-04-05)**: `WelcomeEmail` template — replaces ActivationEmail for welcome flow. Generic welcome message, teal CTA to dashboard, no plan info (sent at registration before plan is finalized).
+- **Task 15 (2026-04-05)**: `PlanConfirmationEmail` template — sent after Stripe setup. Shows plan card (Starter/Pro), invoice link button for Pro, dashboard CTA. FR/EN translations.
+- **Task 16 (2026-04-05)**: All 11 email types now routed through Trigger.dev — added `welcome`, `plan-confirmation`, `magic-link`, `otp`, `password-reset` to trigger task. Added `if (this.useTrigger)` guards to `sendMagicLink`, `sendActivationEmail`, `sendOtpCode`, `sendPasswordResetEmail`.
+- **Task 17 (2026-04-05)**: `MailService` injected into tRPC context — added to `TRPCServices`, `TRPCMiddleware`, `TRPCService`, `TRPCModule` imports. Enables plan-confirmation emails from Stripe router procedures.
+- **Task 18 (2026-04-05)**: CSP fix — added `challenges.cloudflare.com` to `script-src` and `frame-src` for Turnstile. `turnstileToken` validation relaxed to `z.string()` (empty allowed in dev).
+- **Task 19 (2026-04-05)**: `FallingAnimals` canvas fix — null-check on stamp canvases before `drawImage` (prevents TypeError when `getContext("2d")` returns null).
+- **Task 20 (2026-04-05)**: `StarterUpgradeView` component + `useUpgradeCheckout` hook — billing page shows Starter plan with upgrade CTA to Pro via Stripe Checkout.
+- **Bugs fixed (2026-04-05)**: Race condition (setupStarter overwrites webhook Pro data → plan-aware branching), webhook not firing in dev (syncAfterCheckout fallback), plan-confirmation email not sent when webhook already synced (send in early-return path), CSP blocking Turnstile, FallingAnimals canvas crash.
