@@ -16,6 +16,8 @@ type Translations = {
   subjects: {
     magicLink: string;
     activation: string;
+    welcome: string;
+    planConfirmation: (plan: string) => string;
     invitation: (firstName: string) => string;
     otpCode: string;
     schoolDaysDeclaration: (name: string, month: string) => string;
@@ -48,6 +50,22 @@ type Translations = {
     body: (name?: string) => string;
     button: string;
     disclaimer: string;
+  };
+  welcome: {
+    heading: string;
+    body: (name?: string) => string;
+    button: string;
+    footer: string;
+  };
+  planConfirmation: {
+    heading: (plan: string) => string;
+    body: (plan: string) => string;
+    planLabel: string;
+    planStarter: string;
+    planPro: string;
+    viewInvoice: string;
+    button: string;
+    footer: string;
   };
   invitation: {
     heading: string;
@@ -141,6 +159,9 @@ const fr: Translations = {
   subjects: {
     magicLink: 'Your Magic Link for Pawly',
     activation: 'Complete your Pawly account setup',
+    welcome: 'Bienvenue sur Pawly — votre clinique est prête !',
+    planConfirmation: (plan) =>
+      plan === 'professional' ? 'Votre abonnement Pro Pawly est actif' : 'Votre plan Starter Pawly est activé',
     invitation: (firstName) =>
       `${firstName}, bienvenue dans l'équipe Pawly !`,
     otpCode: 'Votre code Pawly',
@@ -186,6 +207,25 @@ const fr: Translations = {
     button: 'Activer mon compte',
     disclaimer:
       "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+  },
+  welcome: {
+    heading: 'Bienvenue sur Pawly !',
+    body: (name) =>
+      `${name ? `${name}, votre` : 'Votre'} clinique est configurée et prête à accueillir votre équipe. Vous pouvez dès maintenant ajouter vos collaborateurs, configurer vos plannings et gérer vos absences.`,
+    button: 'Accéder à mon tableau de bord',
+    footer: 'Si vous avez des questions, répondez directement à cet email.',
+  },
+  planConfirmation: {
+    heading: (plan) => plan === 'professional' ? 'Votre abonnement Pro est actif !' : 'Votre plan Starter est activé !',
+    body: (plan) => plan === 'professional'
+      ? 'Merci pour votre confiance ! Votre abonnement Professionnel est maintenant actif. Vous avez accès à toutes les fonctionnalités de Pawly.'
+      : 'Votre plan Starter est activé. Vous pouvez commencer à utiliser Pawly dès maintenant. Passez au plan Professionnel à tout moment pour débloquer toutes les fonctionnalités.',
+    planLabel: 'Votre plan',
+    planStarter: 'Starter — Gratuit',
+    planPro: 'Professionnel — 29,99 €/mois',
+    viewInvoice: 'Voir ma facture',
+    button: 'Accéder à mon tableau de bord',
+    footer: 'Si vous avez des questions, répondez directement à cet email.',
   },
   invitation: {
     heading: "Bienvenue dans l'équipe !",
@@ -288,6 +328,9 @@ const en: Translations = {
   subjects: {
     magicLink: 'Your Magic Link for Pawly',
     activation: 'Complete your Pawly account setup',
+    welcome: 'Welcome to Pawly — your clinic is ready!',
+    planConfirmation: (plan) =>
+      plan === 'professional' ? 'Your Pawly Pro subscription is active' : 'Your Pawly Starter plan is activated',
     invitation: (firstName) =>
       `${firstName}, welcome to the Pawly team!`,
     otpCode: 'Your Pawly code',
@@ -333,6 +376,25 @@ const en: Translations = {
     button: 'Activate my account',
     disclaimer:
       'If you did not request this, please ignore this email.',
+  },
+  welcome: {
+    heading: 'Welcome to Pawly!',
+    body: (name) =>
+      `${name ? `${name}, your` : 'Your'} clinic is set up and ready for your team. You can now add team members, configure schedules, and manage absences.`,
+    button: 'Go to my dashboard',
+    footer: 'If you have any questions, reply directly to this email.',
+  },
+  planConfirmation: {
+    heading: (plan) => plan === 'professional' ? 'Your Pro subscription is active!' : 'Your Starter plan is activated!',
+    body: (plan) => plan === 'professional'
+      ? 'Thank you for your trust! Your Professional subscription is now active. You have access to all Pawly features.'
+      : 'Your Starter plan is activated. You can start using Pawly right away. Upgrade to Professional anytime to unlock all features.',
+    planLabel: 'Your plan',
+    planStarter: 'Starter — Free',
+    planPro: 'Professional — €29.99/month',
+    viewInvoice: 'View my invoice',
+    button: 'Go to my dashboard',
+    footer: 'If you have any questions, reply directly to this email.',
   },
   invitation: {
     heading: 'Welcome to the team!',

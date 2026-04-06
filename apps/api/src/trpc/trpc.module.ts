@@ -29,8 +29,11 @@ import { DashboardModule } from '@/modules/dashboard/dashboard.module';
 import { DashboardService } from '@/modules/dashboard/dashboard.service';
 import { NotificationModule } from '@/modules/notification/notification.module';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
+import { MailModule } from '@/modules/mail/mail.module';
+import { MailService } from '@/modules/mail/mail.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
+import { RedisService } from '@/redis';
 import { appRouter } from './routers/_app';
 import { createContext, type TRPCServices } from './context';
 
@@ -58,8 +61,10 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly presenceConfirmationService: PresenceConfirmationService,
     private readonly dashboardService: DashboardService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly mailService: MailService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {
     const services: TRPCServices = {
       authService: this.authService,
@@ -76,8 +81,10 @@ export class TRPCMiddleware implements NestMiddleware {
       presenceConfirmationService: this.presenceConfirmationService,
       dashboardService: this.dashboardService,
       pushNotificationService: this.pushNotificationService,
+      mailService: this.mailService,
       jwtService: this.jwtService,
       prisma: this.prisma,
+      redis: this.redis,
     };
 
     this.middleware = trpcExpress.createExpressMiddleware({
@@ -111,8 +118,10 @@ export class TRPCService {
     private readonly presenceConfirmationService: PresenceConfirmationService,
     private readonly dashboardService: DashboardService,
     private readonly pushNotificationService: PushNotificationService,
+    private readonly mailService: MailService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) { }
 
   /**
@@ -134,8 +143,10 @@ export class TRPCService {
       presenceConfirmationService: this.presenceConfirmationService,
       dashboardService: this.dashboardService,
       pushNotificationService: this.pushNotificationService,
+      mailService: this.mailService,
       jwtService: this.jwtService,
       prisma: this.prisma,
+      redis: this.redis,
     };
   }
 
@@ -161,6 +172,7 @@ export class TRPCService {
     PlanningModule,
     DashboardModule,
     NotificationModule,
+    MailModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],

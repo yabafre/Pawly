@@ -47,9 +47,9 @@ export default async function AdminLayout({ children, params }: Props) {
             err.message.toLowerCase().includes("not found")
         ) {
             clinicNotFound = true;
-        } else {
-            throw err;
         }
+        // Other errors (API down, timeout, transformation) — fall through gracefully.
+        // onboardingStatus stays null, page renders in degraded mode.
     }
 
     // Redirect logic — outside try-catch so NEXT_REDIRECT propagates correctly
@@ -91,7 +91,10 @@ export default async function AdminLayout({ children, params }: Props) {
     const isSubscriptionActive = subscriptionStatus &&
         (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(subscriptionStatus.status);
 
-    if (!isSubscriptionActive && !isBillingPage && !isOnboardingRoute) {
+    // Only redirect to billing if we successfully checked and subscription is inactive.
+    // If subscriptionStatus is null (API down), render the page in degraded mode
+    // instead of redirect-looping to billing which also needs the API.
+    if (subscriptionStatus && !isSubscriptionActive && !isBillingPage && !isOnboardingRoute) {
         redirect(`/${locale}/admin/billing`);
     }
 

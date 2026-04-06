@@ -27,6 +27,7 @@ import { updateAdminProfileAction } from "@/app/[locale]/admin/settings/_actions
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
+import { useSubscription } from "@/lib/contexts/subscription-context";
 import { useEffect, useState, useRef, useCallback } from "react";
 
 // ── Navigation types ──────────────────────────────────────────────
@@ -35,6 +36,7 @@ type NavChild = {
   href: string;
   icon: LucideIcon;
   labelKey: string;
+  proOnly?: boolean;
 };
 
 type NavGroupWithChildren = {
@@ -75,9 +77,9 @@ const navGroups: NavGroup[] = [
     children: [
       { href: "/admin/planning", icon: Calendar, labelKey: "planningView" },
       { href: "/admin/planning/templates", icon: LayoutTemplate, labelKey: "templates" },
-      { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters" },
+      { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters", proOnly: true },
       { href: "/admin/planning/variance", icon: GitCompareArrows, labelKey: "variance" },
-      { href: "/admin/planning/rules", icon: ShieldCheck, labelKey: "planningRules" },
+      { href: "/admin/planning/rules", icon: ShieldCheck, labelKey: "planningRules", proOnly: true },
     ],
   },
   {
@@ -119,10 +121,12 @@ function GroupDropdown({
   group,
   pathname,
   t,
+  isPro,
 }: {
   group: NavGroupWithChildren;
   pathname: string;
   t: (key: string) => string;
+  isPro: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -183,6 +187,11 @@ function GroupDropdown({
               >
                 <child.icon size={15} />
                 {t(child.labelKey)}
+                {child.proOnly && !isPro && (
+                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                    Pro
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -200,6 +209,8 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
   const queryClient = useQueryClient();
   const t = useTranslations("admin.nav");
   const tCommon = useTranslations("common");
+  const { canAccessFeature } = useSubscription();
+  const isPro = canAccessFeature("professional");
 
   const { mutate: persistLocale } = useServerActionMutation(updateAdminProfileAction);
   const handleLocaleChange = useCallback((newLocale: string) => {
@@ -224,6 +235,8 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
     router.push("/login");
   };
 
+  const isOnboarding = pathname.startsWith("/admin/onboarding");
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <nav className="sticky top-0 z-50 w-full bg-background/90 backdrop-blur-md border-b border-border/40">
@@ -237,49 +250,56 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
 
           <div className="flex items-center gap-2">
             <LanguageSwitcher onLocaleChange={handleLocaleChange} />
-            <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-              <Bell size={20} />
-            </button>
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              {tCommon("logout")}
-            </Button>
+            {!isOnboarding && (
+              <>
+                <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                  <Bell size={20} />
+                </button>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  {tCommon("logout")}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
 
       <main className="max-w-6xl mx-auto p-4 md:p-6 pt-8 space-y-6">
-        <div className="relative flex flex-wrap gap-2 pb-2">
-          {navGroups.map((group) => {
-            if (group.children) {
-              return (
-                <GroupDropdown
-                  key={group.labelKey}
-                  group={group}
-                  pathname={pathname}
-                  t={t}
-                />
-              );
-            }
+        {!isOnboarding && (
+          <div className="relative flex flex-wrap gap-2 pb-2">
+            {navGroups.map((group) => {
+              if (group.children) {
+                return (
+                  <GroupDropdown
+                    key={group.labelKey}
+                    group={group}
+                    pathname={pathname}
+                    t={t}
+                    isPro={isPro}
+                  />
+                );
+              }
 
-            const active = isGroupActive(group, pathname);
-            return (
-              <Link
-                key={group.href}
-                href={group.href}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
-                  active
-                    ? "bg-foreground text-background shadow-sm"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                <group.icon size={16} />
-                {t(group.labelKey)}
-              </Link>
-            );
-          })}
-        </div>
+              const active = isGroupActive(group, pathname);
+              return (
+                <Link
+                  key={group.href}
+                  href={group.href}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
+                    active
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <group.icon size={16} />
+                  {t(group.labelKey)}
+                </Link>
+              );
+            })}
+          </div>
+        )}
         {children}
       </main>
     </div>

@@ -26,7 +26,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useBilling } from "../_hooks/useBilling";
+import { useUpgradeCheckout } from "../_hooks/useUpgradeCheckout";
 import { BillingOverviewSkeleton } from "./BillingOverviewSkeleton";
+import { Sparkles, Check } from "lucide-react";
 
 type StatusVariant = "active" | "trialing" | "past_due" | "canceled" | "unpaid";
 type InvoiceStatusVariant = "paid" | "open" | "void" | "uncollectible";
@@ -101,6 +103,12 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
         {errorMessage ?? t("errors.loadFailed")}
       </div>
     );
+  }
+
+  const isStarter = subscription.entitlementTier === "starter" && subscription.priceAmount === 0;
+
+  if (isStarter) {
+    return <StarterUpgradeView locale={locale} t={t} />;
   }
 
   const isInactive = subscription.status === "past_due" ||
@@ -405,6 +413,67 @@ export function BillingOverview({ locale }: BillingOverviewProps) {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function StarterUpgradeView({ locale, t }: { locale: string; t: ReturnType<typeof useTranslations> }) {
+  const { upgrade, isPending } = useUpgradeCheckout(locale);
+
+  const benefits = [
+    t("starter.features.unlimitedEmployees"),
+    t("starter.features.advancedRules"),
+    t("starter.features.csvExport"),
+    t("starter.features.prioritySupport"),
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Current Plan */}
+      <Card className="rounded-2xl border border-border bg-card shadow-sm">
+        <CardContent className="py-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Starter</h2>
+              <p className="text-sm text-muted-foreground">{t("starter.currentPlan")}</p>
+            </div>
+            <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary text-white">
+              {t("status.active")}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Upgrade CTA */}
+      <Card className="rounded-2xl border border-primary/20 bg-primary/[0.03] shadow-sm">
+        <CardContent className="py-8 text-center space-y-5">
+          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-primary" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-foreground">{t("starter.upgradeTitle")}</h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">{t("starter.upgradeDescription")}</p>
+          </div>
+          <div className="flex flex-col items-center gap-2 pt-2">
+            {benefits.map((b) => (
+              <div key={b} className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-primary shrink-0" />
+                <span>{b}</span>
+              </div>
+            ))}
+          </div>
+          <Button onClick={upgrade} disabled={isPending} className="mt-4">
+            {isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t("starter.redirecting")}</>
+            ) : (
+              <>{t("starter.upgradeButton")} <ExternalLink className="w-4 h-4 ml-2" /></>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </div>

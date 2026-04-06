@@ -38,20 +38,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "Pawly",
       locale: locale === "fr" ? "fr_FR" : "en_US",
       type: "website",
-      images: [
-        {
-          url: `${baseUrl}/og-image-${locale}.png`,
-          width: 1200,
-          height: 630,
-          alt: t("meta.title"),
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title: t("meta.title"),
       description: t("meta.description"),
-      images: [`${baseUrl}/og-image-${locale}.png`],
     },
     alternates: {
       canonical: locale === "fr" ? baseUrl : `${baseUrl}/en`,
@@ -92,7 +83,7 @@ export default async function LandingPage({ params }: Props) {
       description: t2("description"),
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
-      image: `${baseUrl}/og-image-${locale}.png`,
+      image: `${baseUrl}/${locale}/opengraph-image`,
       author: {
         "@type": "Organization",
         name: "Pawly",

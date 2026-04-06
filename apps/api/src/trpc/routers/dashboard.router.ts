@@ -9,6 +9,12 @@ export const dashboardRouter = router({
     if (ctx.user.role !== 'ADMIN') {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin only' });
     }
-    return ctx.dashboardService.getStats(ctx.user.clinicId);
+    const cacheKey = `dashboard:stats:${ctx.user.clinicId}`;
+    type Stats = Awaited<ReturnType<typeof ctx.dashboardService.getStats>>;
+    const cached = await ctx.redis.get<Stats>(cacheKey);
+    if (cached) return cached;
+    const result = await ctx.dashboardService.getStats(ctx.user.clinicId);
+    await ctx.redis.set(cacheKey, result, 120);
+    return result;
   }),
 });

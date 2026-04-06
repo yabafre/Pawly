@@ -10,6 +10,12 @@ export const TIER_HIERARCHY = [
 
 export type EntitlementTier = (typeof TIER_HIERARCHY)[number];
 
+export const TIER_LIMITS: Record<EntitlementTier, { maxEmployees: number }> = {
+  starter: { maxEmployees: 10 },
+  professional: { maxEmployees: 20 },
+  enterprise: { maxEmployees: 999 },
+};
+
 export const subscriptionStatusSchema = z.enum([
   "active",
   "trialing",

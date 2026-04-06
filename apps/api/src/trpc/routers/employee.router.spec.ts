@@ -46,6 +46,9 @@ describe('employeeRouter', () => {
     user: {
       findUnique: jest.fn(),
     },
+    employee: {
+      count: jest.fn().mockResolvedValue(0),
+    },
   };
 
   const activeSubscription = {
@@ -66,7 +69,7 @@ describe('employeeRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);
   };
@@ -112,7 +115,7 @@ describe('employeeRouter', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);
 
@@ -127,7 +130,7 @@ describe('employeeRouter', () => {
 
     const caller = createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);
 
@@ -522,7 +525,7 @@ describe('employeeRouter', () => {
 
     const caller = createCaller({
       user: { ...authenticatedUser, clinicId: 'clinic-secure' },
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);
 
@@ -551,7 +554,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -571,7 +574,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -596,7 +599,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -633,7 +636,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -653,7 +656,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -677,7 +680,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -713,7 +716,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -735,7 +738,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -760,7 +763,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -804,7 +807,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -840,7 +843,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -863,7 +866,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -884,7 +887,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -899,7 +902,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'STAFF' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -912,7 +915,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -943,7 +946,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -964,7 +967,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -983,7 +986,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1004,7 +1007,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1043,7 +1046,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1065,7 +1068,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1087,7 +1090,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1110,7 +1113,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1138,7 +1141,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1157,7 +1160,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1172,7 +1175,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'STAFF' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1219,7 +1222,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1237,7 +1240,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1251,7 +1254,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1266,7 +1269,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'STAFF' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1292,7 +1295,7 @@ describe('employeeRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'ADMIN' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1315,7 +1318,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 
@@ -1342,7 +1345,7 @@ describe('employeeRouter', () => {
 
       const caller = createCaller({
         user: { ...authenticatedUser, role: 'EMPLOYEE' },
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         employeeService: mockEmployeeService as any,
       } as any);
 

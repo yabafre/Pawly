@@ -55,7 +55,7 @@ describe('presenceConfirmationRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: staffUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       presenceConfirmationService: mockPresenceConfirmationService as any,
     } as any);
   };
@@ -63,7 +63,7 @@ describe('presenceConfirmationRouter', () => {
   const createUnauthenticatedCaller = () => {
     return createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       presenceConfirmationService: mockPresenceConfirmationService as any,
     } as any);
   };
@@ -72,7 +72,7 @@ describe('presenceConfirmationRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(null);
     return createCaller({
       user: staffUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       presenceConfirmationService: mockPresenceConfirmationService as any,
     } as any);
   };

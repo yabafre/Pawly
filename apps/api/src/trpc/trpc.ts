@@ -73,15 +73,28 @@ export const isSubscribed = t.middleware(async ({ ctx, next }) => {
     });
   }
 
-  const subscription = await ctx.prisma.subscription.findUnique({
-    where: { clinicId: user.clinicId },
-    select: {
-      status: true,
-      entitlementTier: true,
-      currentPeriodEnd: true,
-      cancelAtPeriodEnd: true,
-    },
-  });
+  const cacheKey = `sub:${user.clinicId}`;
+  let subscription = await ctx.redis.get<{
+    status: string;
+    entitlementTier: string;
+    currentPeriodEnd: Date | null;
+    cancelAtPeriodEnd: boolean;
+  }>(cacheKey);
+
+  if (!subscription) {
+    subscription = await ctx.prisma.subscription.findUnique({
+      where: { clinicId: user.clinicId },
+      select: {
+        status: true,
+        entitlementTier: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+      },
+    });
+    if (subscription) {
+      await ctx.redis.set(cacheKey, subscription, 120); // 2 min
+    }
+  }
 
   if (!subscription || !(ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(subscription.status)) {
     throw new TRPCError({

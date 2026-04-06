@@ -14,6 +14,8 @@ import { Link } from "@/i18n/navigation";
 import { useDashboardStats } from "../_hooks/useDashboardStats";
 import { useEffect, useReducer } from "react";
 import AdminLoading from "../../loading";
+import { UpgradeModal } from "../../_components/UpgradeModal";
+import { useSubscription } from "@/lib/contexts/subscription-context";
 
 const StatCard = ({
   title,
@@ -59,6 +61,7 @@ const StatCard = ({
 
 export function DashboardPageClient() {
   const t = useTranslations("admin.dashboard");
+  const { entitlementTier } = useSubscription();
   const { stats, isPending } = useDashboardStats();
   const [pageState, dispatch] = useReducer(
     (state: { isMounted: boolean; showSplash: boolean }, action: Partial<{ isMounted: boolean; showSplash: boolean }>) => ({ ...state, ...action }),
@@ -103,6 +106,7 @@ export function DashboardPageClient() {
 
   return (
     <div className="space-y-6 animate-in fade-in">
+      <UpgradeModal entitlementTier={entitlementTier} />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {t("overview")}

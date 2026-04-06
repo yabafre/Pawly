@@ -2,6 +2,8 @@
 
 import { Calendar } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 import type { OnboardingForm } from "../OnboardingWizard";
 import { WORK_DAYS, type WorkDay } from "@pawly/validators";
 
@@ -14,28 +16,27 @@ export function StepWorkDays({ form }: StepWorkDaysProps) {
   const tDays = useTranslations("onboarding.days");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-[#009588]/10 flex items-center justify-center">
-          <Calendar className="w-5 h-5 text-[#009588]" />
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Calendar className="w-4 h-4 text-primary" />
         </div>
-        <p className="text-sm text-neutral-500">{t("help")}</p>
+        <p className="text-sm text-muted-foreground">{t("help")}</p>
       </div>
 
       <form.Field
         name="workDays"
         validators={{
           onChange: ({ value }: { value: WorkDay[] }) => {
-            if (!value || value.length === 0)
-              return "At least one day is required";
+            if (!value || value.length === 0) return t("required");
             return undefined;
           },
         }}
       >
         {(field: any) => (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-neutral-900">{t("label")}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-2">
+            <Label>{t("label")}</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {WORK_DAYS.map((day) => {
                 const isSelected = field.state.value.includes(day);
                 return (
@@ -49,15 +50,12 @@ export function StepWorkDays({ form }: StepWorkDaysProps) {
                         : [...current, day];
                       field.handleChange(next as WorkDay[]);
                     }}
-                    className={`
-                      px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                      min-h-[44px]
-                      ${
-                        isSelected
-                          ? "bg-[#009588] text-white shadow-md shadow-[#009588]/20"
-                          : "bg-white text-neutral-600 border border-neutral-200 hover:border-[#009588]/40"
-                      }
-                    `}
+                    className={cn(
+                      "px-3 py-2.5 rounded-xl text-sm font-semibold transition-all min-h-[44px]",
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-card border border-border text-muted-foreground hover:border-primary/40",
+                    )}
                   >
                     {tDays(day)}
                   </button>
@@ -65,7 +63,7 @@ export function StepWorkDays({ form }: StepWorkDaysProps) {
               })}
             </div>
             {field.state.meta.errors.length > 0 && (
-              <p className="text-[11px] text-orange-600" role="alert">
+              <p className="text-[11px] text-destructive" role="alert">
                 {field.state.meta.errors[0]}
               </p>
             )}

@@ -1,4 +1,5 @@
 import { publicProcedure, router, isAuthed } from '../trpc';
+import { z } from '@pawly/zod';
 import {
   loginSchema,
   requestMagicLinkSchema,
@@ -12,6 +13,7 @@ import {
   resetPasswordInputSchema,
   changePasswordSchema,
   updateAdminProfileSchema,
+  registerAdminInputSchema,
 } from '@pawly/validators';
 import { TRPCError } from '@trpc/server';
 
@@ -33,6 +35,12 @@ export const authRouter = router({
       jobType: user?.employee?.jobType ?? null,
     };
   }),
+
+  register: publicProcedure
+    .input(registerAdminInputSchema.omit({ turnstileToken: true }).extend({ locale: z.enum(['fr', 'en']).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.authService.registerAdmin(input);
+    }),
 
   login: publicProcedure
     .input(loginSchema)

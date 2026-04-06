@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../_hooks/useAuth";
 import { requestOtpSchema, loginSchema } from "@pawly/validators";
 import { OtpInput, type OtpInputHandle } from "./OtpInput";
+import { TurnstileBox } from "@/components/turnstile";
 
 const roles = ["employee", "admin"] as const;
 type Role = (typeof roles)[number];
@@ -28,6 +29,7 @@ export const LoginPageClient = () => {
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
     const [submittedEmail, setSubmittedEmail] = useState("");
+    const [turnstileToken, setTurnstileToken] = useState("");
     const otpInputRef = useRef<OtpInputHandle>(null);
 
     const t = useTranslations("auth.login");
@@ -66,10 +68,10 @@ export const LoginPageClient = () => {
             const pErr = validatePassword(password);
             setPasswordError(pErr);
             if (pErr) return;
-            await login({ email, password });
+            await login({ email, password, turnstileToken });
         } else {
             setSubmittedEmail(email);
-            const method = await requestOtp(email);
+            const method = await requestOtp(email, turnstileToken);
             if (method === "otp") setStage("otp");
             else if (method === "magic_link") setStage("magic_link_fallback");
         }
@@ -194,6 +196,8 @@ export const LoginPageClient = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                <TurnstileBox onVerify={setTurnstileToken} className="mb-2" />
 
                 <Button type="submit" className="w-full gap-2" disabled={isPending}>
                     {isPending ? t("submitting") : (

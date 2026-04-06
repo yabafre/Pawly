@@ -1362,9 +1362,23 @@
       },
       "fullDiscount": "100% — Accès offert"
     },
+    "starter": {
+      "currentPlan": "Plan gratuit — fonctionnalités de base",
+      "upgradeTitle": "Passez au Professionnel",
+      "upgradeDescription": "Débloquez toutes les fonctionnalités pour votre clinique.",
+      "upgradeButton": "Passer au Professionnel — 29€/mois",
+      "redirecting": "Redirection vers Stripe...",
+      "features": {
+        "unlimitedEmployees": "Employés illimités",
+        "advancedRules": "Règles de planning avancées",
+        "csvExport": "Export CSV des données",
+        "prioritySupport": "Support prioritaire"
+      }
+    },
     "errors": {
       "loadFailed": "Impossible de charger les informations de facturation",
       "portalFailed": "Impossible d'ouvrir le portail de gestion",
+      "upgradeFailed": "Impossible de créer la session de paiement",
       "noSubscription": "Aucun abonnement trouvé pour votre clinique",
       "retry": "Réessayer"
     },
@@ -1486,6 +1500,10 @@
       "searchPlaceholder": "Rechercher un employé...",
       "showInactive": "Afficher les inactifs",
       "allJobTypes": "Tous les postes"
+    },
+    "limits": {
+      "count": "{current}/{max} membres actifs",
+      "reached": "Passez au plan Pro pour ajouter plus de membres"
     },
     "schoolDays": {
       "declared": "Déclaré",
@@ -1732,7 +1750,7 @@
       "subtitle": "Pawly simplifie la planification, la gestion d'équipe et les opérations quotidiennes — pour vous concentrer sur l'essentiel : le soin animal.",
       "cta": "Commencer gratuitement",
       "secondaryCta": "Voir les tarifs",
-      "badge": "Nouveau : Planning IA automatisé",
+      "badge": "Nouveau : Planning automatisé",
       "trialNote": "Essai gratuit · Sans carte bancaire",
       "trustTitle": "Ils nous font confiance :",
       "trustBadges": [
@@ -1794,24 +1812,24 @@
         "description": "Idéal pour découvrir Pawly et ses fonctionnalités essentielles",
         "free": "Gratuit",
         "features": [
-          "Jusqu'à 3 membres d'équipe",
-          "Planning de base",
+          "Jusqu'à 10 membres d'équipe",
+          "Planning & génération automatique",
           "Gestion des absences",
-          "Support communautaire"
+          "Types de postes personnalisés"
         ]
       },
       "professional": {
         "name": "Professionnel",
-        "price": "29",
+        "price": "29,99",
         "interval": "mois",
         "description": "Pour les cliniques en croissance qui ont besoin de plus",
         "popular": "Le plus populaire",
         "features": [
           "Jusqu'à 20 membres d'équipe",
-          "Algorithmes de planning avancés",
           "Compteurs d'équité",
-          "Support prioritaire",
-          "Types de postes personnalisés"
+          "Règles de planning configurables",
+          "Alertes de santé du planning",
+          "Support prioritaire"
         ]
       },
       "cta": "Commencer",
@@ -1846,6 +1864,7 @@
       "button": "Démarrer votre essai gratuit"
     },
     "footer": {
+      "tagline": "La plateforme de planning intelligent pour cliniques vétérinaires.",
       "description": "La plateforme de planning intelligent pour cliniques vétérinaires.",
       "product": "Produit",
       "features": "Fonctionnalités",
@@ -1864,5 +1883,35 @@
   },
   "employeeSettings": {
     "title": "Paramètres"
+  },
+  "upgradeModal": {
+    "title": "Passez au Professionnel",
+    "subtitle": "Débloquez toutes les fonctionnalités pour votre clinique.",
+    "benefits": {
+      "unlimitedEmployees": "Employés illimités",
+      "advancedRules": "Règles de planning avancées",
+      "csvExport": "Export CSV des données",
+      "prioritySupport": "Support prioritaire"
+    },
+    "ctaButton": "Passer au Professionnel — 29€/mois",
+    "dismissButton": "Plus tard"
+  },
+  "register": {
+    "pageTitle": "Créer votre clinique",
+    "title": "Créer votre clinique",
+    "subtitle": "Commencez gratuitement, sans carte bancaire.",
+    "tagline": "Planification vétérinaire automatisée",
+    "clinicName": "Nom de la clinique",
+    "clinicNamePlaceholder": "Clinique Vétérinaire du Parc",
+    "adminName": "Votre nom",
+    "adminNamePlaceholder": "Dr. Martin",
+    "email": "Email",
+    "emailPlaceholder": "admin@clinique.com",
+    "password": "Mot de passe",
+    "submitButton": "Créer mon compte",
+    "submitting": "Création en cours...",
+    "backToPricing": "Retour aux tarifs",
+    "alreadyHaveAccount": "Déjà un compte ?",
+    "loginLink": "Se connecter"
   }
 }

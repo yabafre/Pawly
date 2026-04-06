@@ -67,7 +67,7 @@ describe('planningRouter', () => {
 
   const activeSubscription = {
     status: 'active',
-    entitlementTier: 'starter',
+    entitlementTier: 'professional',
     currentPeriodEnd: new Date('2026-12-31'),
     cancelAtPeriodEnd: false,
   };
@@ -90,7 +90,7 @@ describe('planningRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedAdmin,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -103,7 +103,7 @@ describe('planningRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedEmployee,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -163,7 +163,7 @@ describe('planningRouter', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -180,7 +180,7 @@ describe('planningRouter', () => {
 
     const caller = createCaller({
       user: authenticatedAdmin,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -518,7 +518,7 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
@@ -591,7 +591,7 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
@@ -659,7 +659,7 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,

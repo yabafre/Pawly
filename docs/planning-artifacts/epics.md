@@ -8,8 +8,10 @@ workflowType: epics-stories
 lastStep: 4
 status: updated
 completedAt: '2026-02-02'
-lastEdited: '2026-04-01'
+lastEdited: '2026-04-04'
 editHistory:
+  - date: '2026-04-04'
+    changes: 'Added Story 10.3: Onboarding Flow Revamp — Account-first registration, 3-step wizard, upgrade modal, webhook adaptation.'
   - date: '2026-04-01'
     changes: 'Added Epic 9 (Production Readiness — SigNoz + Trigger.dev) and Epic 10 (Polish & UX Hardening). Story 10.1: Admin Password Reset Workflow.'
   - date: '2026-02-04'
@@ -32,7 +34,7 @@ This document provides the complete epic and story breakdown for Pawly, decompos
 
 ### Global Implementation Rules
 - **Multi-tenancy**: Every business entity (Employee, Shift, Absence, etc.) MUST include a mandatory `clinicId` as a **foreign key** to the `Clinic` model. All database queries and API procedures must be strictly filtered by this ID.
-- **No Self-Registration**: There is NO `register()` endpoint. Account creation happens exclusively via the `checkout.session.completed` Stripe webhook. The webhook creates a Clinic, an Admin User, and a Subscription, then sends a Magic Link email.
+- **Account-First Registration**: The `register` endpoint creates Clinic + Admin User (bcrypt password) + Subscription (Starter tier, no Stripe IDs) atomically. JWT issued immediately (auto-login). Professional upgrade via Stripe Checkout — `checkout.session.completed` webhook updates the existing Subscription.
 - **Login resolves clinicId from DB**: The login flow does NOT accept `clinicId` as input. `User.email` is `@unique`; the backend resolves the user's clinic via `findUnique({ email })`. JWT still contains `clinicId` (resolved from the user record). `NEXT_PUBLIC_CLINIC_ID` is eliminated entirely.
 - **Tech Stack Consistency**: Use `apps/api` for the NestJS/Prisma backend. No direct DB access from `apps/web`.
 - **Data Flow (Non-Negotiable)**: Page -> Client Component -> Hook -> Zsa -> Server Action -> tRPC Client -> NestJS API. No shortcuts.
@@ -757,3 +759,16 @@ So that I can update my clinic name, change my password, and configure my prefer
 **And** I can edit my clinic name (slug auto-regenerated).
 **And** I can change my password (current password required, strength indicator).
 **And** I can switch my language preference (FR/EN).
+
+### Story 10.3: Onboarding Flow Revamp — Account-First Registration
+As a veterinary clinic admin,
+I want to register my account before being asked for payment,
+So that I can explore the platform as a Starter user immediately and upgrade to Professional only when I'm ready.
+
+**Acceptance Criteria:**
+**Given** the pricing page
+**When** I click on a plan CTA
+**Then** I'm redirected to `/pricing/register?plan=starter|professional` where I fill in clinic name, name, email, password (with Turnstile CAPTCHA).
+**And** on submit, Clinic + User + Subscription (starter) are created atomically, I'm auto-logged in and redirected to the onboarding wizard (3 steps: work days, hours, shift types — no clinic name step).
+**And** if I selected Professional, a dismissible upgrade modal appears on the dashboard after onboarding.
+**And** the Stripe webhook handles upgrades for existing accounts (update subscription, not create new clinic).

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '@/prisma/prisma.service';
+import { RedisService } from '@/redis';
 
 const mockPrismaService = {
   user: {
@@ -26,6 +27,10 @@ describe('JwtStrategy', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: RedisService,
+          useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn() },
         },
       ],
     }).compile();
@@ -64,6 +69,7 @@ describe('JwtStrategy', () => {
       });
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
+        select: { id: true, clinicId: true },
       });
     });
 

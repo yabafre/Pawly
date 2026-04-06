@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { RequestIdInterceptor } from '@/common/interceptors/request-id.interceptor';
 import { rateLimitHitCounter } from '@/common/metrics';
 import { TRPCService } from './trpc/trpc.module';
+import { RedisService } from './redis';
 import type { EnvConfig } from '@/config/index';
 
 // Simple in-memory rate limiter for tRPC endpoints
@@ -76,6 +77,9 @@ async function bootstrap() {
     const configService = app.get(ConfigService<EnvConfig, true>);
     const port = configService.get('API_PORT', { infer: true });
 
+    // Trust first proxy hop (Dokploy/Nginx) for correct req.ip
+    app.set('trust proxy', 1);
+
     // Security headers
     app.use(helmet());
 
@@ -103,15 +107,40 @@ async function bootstrap() {
       credentials: true,
     });
 
-    // tRPC rate limiting (60 req/60s per IP — allows normal SPA multi-query usage)
-    app.use('/trpc', createTrpcRateLimiter(60, 60_000));
+    // tRPC CSRF protection: require custom header on mutation requests
+    // Browsers won't send custom headers on cross-origin requests without CORS preflight
+    app.use('/trpc', (req: any, res: any, next: () => void) => {
+      if (req.method !== 'GET' && !req.headers['x-trpc-source']) {
+        return res.status(403).json({ message: 'Missing x-trpc-source header' });
+      }
+      next();
+    });
+
+    // tRPC rate limiting (60 req/60s per IP — uses Redis when available, in-memory fallback)
+    const redisService = app.get(RedisService);
+    if (redisService.isAvailable) {
+      app.use('/trpc', async (req: any, res: any, next: () => void) => {
+        const key = `rl:trpc:${req.ip ?? 'unknown'}`;
+        const count = await redisService.incr(key, 60);
+        if (count > 60) {
+          rateLimitHitCounter.add(1, { endpoint: 'trpc' });
+          return res.status(429).json({ message: 'Too many requests to tRPC endpoint' });
+        }
+        next();
+      });
+      logger.log('tRPC rate limiter: Redis-backed');
+    } else {
+      app.use('/trpc', createTrpcRateLimiter(60, 60_000));
+      logger.log('tRPC rate limiter: in-memory fallback');
+    }
 
     // tRPC Middleware Setup
     const trpcService = app.get(TRPCService);
     app.use('/trpc', trpcService.createMiddleware());
     logger.log('tRPC endpoint available at: /trpc');
 
-    // Swagger/OpenAPI Setup
+    // Swagger/OpenAPI Setup (disabled in production)
+    if (configService.get('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Pawly API')
       .setDescription(
@@ -142,6 +171,8 @@ async function bootstrap() {
         showRequestDuration: true,
       },
     });
+    logger.log('Swagger docs available at: /docs');
+    }
 
     await app.listen(port);
 

@@ -36,8 +36,8 @@ describe('deriveEntitlementTier', () => {
     expect(deriveEntitlementTier(makeSubscription({ lookupKey: 'starter_monthly' }))).toBe('starter');
   });
 
-  it('should extract tier from lookup_key "pro_monthly" → "pro"', () => {
-    expect(deriveEntitlementTier(makeSubscription({ lookupKey: 'pro_monthly' }))).toBe('pro');
+  it('should extract tier from lookup_key "professional_monthly" → "professional"', () => {
+    expect(deriveEntitlementTier(makeSubscription({ lookupKey: 'professional_monthly' }))).toBe('professional');
   });
 
   it('should extract tier from lookup_key "enterprise_yearly" → "enterprise"', () => {
@@ -49,10 +49,10 @@ describe('deriveEntitlementTier', () => {
       deriveEntitlementTier(
         makeSubscription({
           lookupKey: null,
-          productMetadata: { tier: 'pro' },
+          productMetadata: { tier: 'professional' },
         }),
       ),
-    ).toBe('pro');
+    ).toBe('professional');
   });
 
   it('should default to "starter" when no lookup_key and no product metadata', () => {

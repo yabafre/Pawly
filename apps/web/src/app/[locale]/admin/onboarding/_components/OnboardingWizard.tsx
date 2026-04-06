@@ -1,26 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "@tanstack/react-form";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkDay } from "@pawly/validators";
 import type { OnboardingInitialData } from "@pawly/types";
-import { completeOnboardingAction } from "../_actions/onboarding-actions";
+import { completeOnboardingAction, saveOnboardingDraftAction } from "../_actions/onboarding-actions";
+import { setupStarterSubscriptionAction, syncAfterCheckoutAction } from "@/app/[locale]/admin/billing/_actions/billing-actions";
 import { useOnboardingStatus } from "../_hooks/useOnboardingStatus";
 import { StepIndicator } from "./StepIndicator";
-import { StepClinicName } from "./steps/StepClinicName";
 import { StepWorkDays } from "./steps/StepWorkDays";
 import { StepWorkHours } from "./steps/StepWorkHours";
 import { StepShiftTypes } from "./steps/StepShiftTypes";
@@ -42,7 +39,7 @@ interface OnboardingFormValues {
   }>;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 export function OnboardingWizard() {
   const t = useTranslations("onboarding");
@@ -50,22 +47,16 @@ export function OnboardingWizard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-[#009588]" />
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (isError || !initialData) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="rounded-2xl bg-[#F43F5E]/10 px-6 py-4 text-sm text-[#F43F5E] font-medium">
-            {t("errors.loadFailed")}
-          </div>
-        </div>
+      <div className="rounded-2xl bg-destructive/5 border border-destructive/20 px-6 py-4 text-sm text-destructive font-medium">
+        {t("errors.loadFailed")}
       </div>
     );
   }
@@ -73,57 +64,66 @@ export function OnboardingWizard() {
   return <OnboardingWizardForm initialData={initialData} />;
 }
 
-function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialData }) {
+function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialData & { onboardingDraft?: Record<string, unknown> | null } }) {
   const t = useTranslations("onboarding");
   const tNav = useTranslations("onboarding.navigation");
   const router = useRouter();
   const locale = useLocale();
-  const [currentStep, setCurrentStep] = useState(0);
+  const searchParams = useSearchParams();
+  const selectedPlan = searchParams.get("plan") ?? "starter";
+
+  const draft = initialData.onboardingDraft as { step?: number; values?: Record<string, unknown> } | null;
+  const [currentStep, setCurrentStep] = useState(draft?.step ?? 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fallbackDefaults = {
+    clinicName: initialData.clinicName,
+    workDays:
+      (initialData.config?.workDays as WorkDay[]) ?? [
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+      ],
+    defaultStartTime: initialData.config?.defaultStartTime ?? "08:30",
+    defaultEndTime: initialData.config?.defaultEndTime ?? "18:30",
+    shiftTypes:
+      initialData.shiftTypes.length > 0
+        ? initialData.shiftTypes.map((st) => ({
+          name: st.name,
+          code: st.code,
+          startTime: st.startTime,
+          endTime: st.endTime,
+          breakMinutes: st.breakMinutes ?? 0,
+          color: st.color,
+        }))
+        : [
+          {
+            name: "Surgery",
+            code: "CHIR",
+            startTime: "08:30",
+            endTime: "18:30",
+            breakMinutes: 0,
+            color: "#4F46E5",
+          },
+          {
+            name: "Reception",
+            code: "ACC",
+            startTime: "09:00",
+            endTime: "19:30",
+            breakMinutes: 0,
+            color: "#F97316",
+          },
+        ],
+  };
 
   const form = useForm({
-    defaultValues: {
-      clinicName: initialData.clinicName,
-      workDays:
-        (initialData.config?.workDays as WorkDay[]) ?? [
-          "MONDAY",
-          "TUESDAY",
-          "WEDNESDAY",
-          "THURSDAY",
-          "FRIDAY",
-          "SATURDAY",
-        ],
-      defaultStartTime: initialData.config?.defaultStartTime ?? "08:30",
-      defaultEndTime: initialData.config?.defaultEndTime ?? "18:30",
-      shiftTypes:
-        initialData.shiftTypes.length > 0
-          ? initialData.shiftTypes.map((st) => ({
-            name: st.name,
-            code: st.code,
-            startTime: st.startTime,
-            endTime: st.endTime,
-            breakMinutes: st.breakMinutes ?? 0,
-            color: st.color,
-          }))
-          : [
-            {
-              name: "Surgery",
-              code: "CHIR",
-              startTime: "08:30",
-              endTime: "18:30",
-              breakMinutes: 0,
-              color: "#4F46E5",
-            },
-            {
-              name: "Reception",
-              code: "ACC",
-              startTime: "09:00",
-              endTime: "19:30",
-              breakMinutes: 0,
-              color: "#F97316",
-            },
-          ],
-    },
+    defaultValues: draft?.values
+      ? { ...fallbackDefaults, ...draft.values }
+      : fallbackDefaults,
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
@@ -133,8 +133,17 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
           setIsSubmitting(false);
           return;
         }
+
+        if (selectedPlan === "starter") {
+          // Starter: create Stripe customer/subscription server-side
+          await setupStarterSubscriptionAction().catch(() => {});
+        } else {
+          // Pro: sync subscription from Stripe (fallback if webhook hasn't fired yet)
+          await syncAfterCheckoutAction().catch(() => {});
+        }
+
         toast.success(t("completion.toast"));
-        router.push(`/${locale}/admin/dashboard`);
+        window.location.href = `/${locale}/admin/dashboard`;
       } catch {
         toast.error(t("errors.saveFailed"));
         setIsSubmitting(false);
@@ -142,16 +151,29 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
     },
   });
 
+  // Debounced save to DB on step/values change
+  const saveDraft = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveOnboardingDraftAction({
+        step: currentStep,
+        values: form.state.values as Record<string, unknown>,
+      }).catch(() => {});
+    }, 1000);
+  }, [currentStep, form.state.values]);
+
+  useEffect(() => {
+    saveDraft();
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [saveDraft]);
+
   const stepLabels = [
-    t("steps.clinicName.title"),
     t("steps.workDays.title"),
     t("steps.workHours.title"),
     t("steps.shiftTypes.title"),
   ];
 
-  const stepTitles = stepLabels;
   const stepDescriptions = [
-    t("steps.clinicName.description"),
     t("steps.workDays.description"),
     t("steps.workHours.description"),
     t("steps.shiftTypes.description"),
@@ -161,16 +183,14 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
     const values = form.state.values;
     switch (currentStep) {
       case 0:
-        return values.clinicName.length >= 2 && values.clinicName.length <= 100;
-      case 1:
         return values.workDays.length >= 1;
-      case 2:
+      case 1:
         return (
           /^\d{2}:\d{2}$/.test(values.defaultStartTime) &&
           /^\d{2}:\d{2}$/.test(values.defaultEndTime) &&
           values.defaultEndTime > values.defaultStartTime
         );
-      case 3:
+      case 2:
         return (
           values.shiftTypes.length >= 1 &&
           values.shiftTypes.every(
@@ -208,101 +228,90 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
   const canProceed = validateCurrentStep();
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] py-12 px-6">
-      <div className="max-w-2xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-900">
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+      {/* Left: stepper + header */}
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-xl font-bold tracking-tight">
             {t("title")}
           </h1>
-          <p className="text-neutral-500">{t("subtitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
 
-        {/* Step Indicator */}
         <StepIndicator
           currentStep={currentStep}
           totalSteps={TOTAL_STEPS}
           stepLabels={stepLabels}
         />
-
-        {/* Step Card */}
-        <form
-          action={() => {
-            if (isLastStep) {
-              handleComplete();
-            } else {
-              handleNext();
-            }
-          }}
-        >
-          <Card className="shadow-[0_4px_20px_-4px_rgba(0,149,136,0.15)] border-neutral-100 rounded-2xl">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-bold text-neutral-900">
-                {stepTitles[currentStep]}
-              </CardTitle>
-              <CardDescription className="text-neutral-500">
-                {stepDescriptions[currentStep]}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="pb-6">
-              <div className="transition-all duration-300 ease-in-out">
-                {currentStep === 0 ? (
-                  <StepClinicName form={form} />
-                ) : currentStep === 1 ? (
-                  <StepWorkDays form={form} />
-                ) : currentStep === 2 ? (
-                  <StepWorkHours form={form} />
-                ) : (
-                  <StepShiftTypes form={form} />
-                )}
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex justify-between pt-4 border-t border-neutral-100">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={currentStep === 0}
-                className="min-h-[44px] rounded-xl"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                {tNav("previous")}
-              </Button>
-
-              {isLastStep ? (
-                <Button
-                  type="submit"
-                  disabled={!canProceed || isSubmitting}
-                  className="bg-[#009588] hover:bg-[#00796B] text-white font-bold min-h-[44px] rounded-xl shadow-lg shadow-[#009588]/20 transition-all hover:scale-[1.01]"
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {tNav("completing")}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Check className="w-4 h-4" />
-                      {tNav("complete")}
-                    </span>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={!canProceed}
-                  className="bg-[#009588] hover:bg-[#00796B] text-white font-bold min-h-[44px] rounded-xl shadow-lg shadow-[#009588]/20 transition-all hover:scale-[1.01]"
-                >
-                  {tNav("next")}
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        </form>
       </div>
+
+      {/* Right: step content */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (isLastStep) {
+            handleComplete();
+          } else {
+            handleNext();
+          }
+        }}
+      >
+        <Card className="border bg-card rounded-2xl">
+          <CardContent className="pt-6">
+            <div className="space-y-1 mb-5">
+              <h2 className="text-lg font-semibold">{stepLabels[currentStep]}</h2>
+              <p className="text-sm text-muted-foreground">{stepDescriptions[currentStep]}</p>
+            </div>
+
+            {currentStep === 0 ? (
+              <StepWorkDays form={form} />
+            ) : currentStep === 1 ? (
+              <StepWorkHours form={form} />
+            ) : (
+              <StepShiftTypes form={form} />
+            )}
+          </CardContent>
+
+          <CardFooter className="flex justify-between pt-4 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentStep === 0}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              {tNav("previous")}
+            </Button>
+
+            {isLastStep ? (
+              <Button
+                type="submit"
+                disabled={!canProceed || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {tNav("completing")}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    {tNav("complete")}
+                  </span>
+                )}
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!canProceed}
+              >
+                {tNav("next")}
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      </form>
     </div>
   );
 }
