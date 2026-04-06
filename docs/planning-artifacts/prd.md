@@ -43,7 +43,7 @@ editHistory:
 
 ## Executive Summary
 
-**Vision:** Pawly is a bilingual (FR/EN) SaaS scheduling PWA for veterinary clinics, distributed via subscription. It replaces manual Excel-based planning with a smart, constraint-aware system that balances administrative efficiency with employee trust. A public landing page drives clinic acquisition, while Stripe-powered subscriptions serve as the exclusive registration path — clinic accounts are created via Stripe Checkout webhooks, with post-checkout onboarding to configure the clinic.
+**Vision:** Pawly is a bilingual (FR/EN) SaaS scheduling PWA for veterinary clinics, distributed via subscription. It replaces manual Excel-based planning with a smart, constraint-aware system that balances administrative efficiency with employee trust. A public landing page drives clinic acquisition. Admins register directly via a self-service registration form (clinic name, name, email, password), starting on the free Starter tier. Professional plan upgrade is available post-registration via Stripe Checkout. Post-registration onboarding configures the clinic.
 
 **Problem:** Veterinary clinics face high cognitive load in scheduling staff (Vets, Nurses, Apprentices) while respecting complex constraints (school days, contract hours) and maintaining fairness. No affordable, veterinary-specific SaaS solution exists for this niche.
 
@@ -83,13 +83,13 @@ Léa (Apprentice) declares her school weeks. Later, when Sarah tries to assign L
 During a flu outbreak, the algorithm highlights Tuesday in Red: "0/3 Vets Available." It doesn't force a bad plan. Sarah sees the gap, calls a temp agency, adds a "Guest Vet," and the system validates the fix.
 
 ### 5. "Discovery & Subscription" (Acquisition)
-Dr. Martin hears about Pawly at a veterinary conference. He visits the landing page (in French), reads the value proposition, views pricing plans. He clicks "Start Free Trial," enters his clinic details, and is redirected to Stripe Checkout. Within 2 minutes, his clinic account is active and he begins configuring shifts.
+Dr. Martin hears about Pawly at a veterinary conference. He visits the landing page (in French), reads the value proposition, views pricing plans. He clicks "Start Free," fills the registration form (clinic name, name, email, password), and his account is instantly active on the Starter tier. Within 2 minutes, he's configuring shifts. Later, he upgrades to Professional via a one-click Stripe Checkout.
 
 ### 6. "Partner Promotion" (Strategic Access)
 A veterinary school partners with Pawly. The school shares a 100% promotion code with graduating apprentices opening new clinics. Léa enters the code during subscription; Stripe applies a lifetime coupon. She gets full access at zero cost. The promotion is tracked via Stripe metadata (`type=partner`), and does not auto-unlock future premium features beyond the subscribed plan.
 
 ### 7. "First Clinic Setup" (Registration & Onboarding)
-Dr. Martin visits the pricing page and selects a plan. A pre-checkout form asks for his clinic name ("Clinique Vétérinaire du Parc"), his name, and his email. He's redirected to Stripe Checkout and pays. Behind the scenes, the webhook creates his clinic, his admin account, and his subscription. He receives a Magic Link email. Clicking the link authenticates him and redirects to the onboarding wizard: he confirms his clinic name, selects work days (Mon–Sat), configures hours (8:30–18:30), and defines shift types (Surgery, Reception). The wizard completes, `Clinic.onboardingCompleted` is set to `true`, and he lands on his fresh dashboard — ready to add staff and build his first schedule.
+Dr. Martin visits the pricing page and selects a plan. He clicks the CTA and lands on the registration form where he enters his clinic name ("Clinique Vétérinaire du Parc"), his name, email, and password. His account is created instantly on the Starter tier — he's auto-logged in and redirected to the onboarding wizard: he selects work days (Mon–Sat), configures hours (8:30–18:30), and defines shift types (Surgery, Reception). The wizard completes, `Clinic.onboardingCompleted` is set to `true`, and he lands on his fresh dashboard — ready to add staff and build his first schedule. If he selected the Professional plan, a modal proposes upgrading via Stripe Checkout.
 
 ## Product Scope & Roadmap
 
@@ -123,13 +123,13 @@ Dr. Martin visits the pricing page and selects a plan. A pre-checkout form asks 
 *   **PCI-DSS:** All payment processing delegated to Stripe Checkout and Billing Portal. No card data stored or transmitted by Pawly servers.
 
 ### Technical Architecture
-*   **Multi-tenant Logic:** Database isolation via `clinicId` (proper FK to `Clinic` model). `Clinic` created exclusively via Stripe webhook.
+*   **Multi-tenant Logic:** Database isolation via `clinicId` (proper FK to `Clinic` model). `Clinic` created via registration endpoint (Starter tier) or Stripe webhook (legacy/upgrade path).
 *   **PWA Focus:** Mobile-first touch targets (≥44px) and WCAG AA contrast.
 *   **Network Resilience:** Read-only offline cache and "Zen" status indicators for network loss.
 *   **Internationalization:** FR/EN supported via versioned static translation files. Locale detection from browser `Accept-Language` header with user override. No dynamic CMS-based translations.
 *   **Landing Page Isolation:** The public landing page is functionally decoupled from the application. No clinical data exposed. No authentication required. No non-essential cookies by default.
-*   **Subscription Management:** Stripe as single source of truth for subscription status. Webhooks verified via HMAC signature. Promotion coupons stored as Stripe objects with metadata (`type=partner|internal|lifetime`). Stripe Checkout is the exclusive registration path (no self-registration endpoint).
-*   **Onboarding:** Post-checkout onboarding wizard configures clinic (name, days, hours, shifts). Gated by `Clinic.onboardingCompleted` flag. Admin routes redirect to onboarding until completed.
+*   **Subscription Management:** Stripe as single source of truth for subscription status. Webhooks verified via HMAC signature. Promotion coupons stored as Stripe objects with metadata (`type=partner|internal|lifetime`). Registration creates a Starter-tier Subscription without Stripe IDs; Professional upgrade via Stripe Checkout adds Stripe IDs and upgrades the tier.
+*   **Onboarding:** Post-registration onboarding wizard configures clinic (work days, hours, shift types). Gated by `Clinic.onboardingCompleted` flag. Admin routes redirect to onboarding until completed.
 
 ## Functional Requirements
 
@@ -154,14 +154,14 @@ Dr. Martin visits the pricing page and selects a plan. A pre-checkout form asks 
 *   **FR12:** Non-authenticated visitors access a public landing page presenting the product, pricing plans, and a call-to-action for subscription or free trial.
 
 ### Subscription & Billing
-*   **FR13:** Stripe Checkout IS the registration flow. A pre-checkout form collects clinic name, admin name, and admin email. Upon successful payment (or $0 promo), the `checkout.session.completed` webhook creates the Clinic, Admin user, and Subscription. There is no separate registration endpoint.
+*   **FR13:** Registration is a self-service form collecting clinic name, admin name, email, and password. Account is created instantly on the Starter tier (no payment required). Professional upgrade is available post-registration via Stripe Checkout. The `checkout.session.completed` webhook upgrades the existing Subscription (adds Stripe IDs and Professional tier).
 *   **FR14:** Admins manage their subscription (upgrade, downgrade, cancel) via the Stripe Billing Portal.
 *   **FR15:** The system applies promotion codes with discounts up to 100% for indefinite duration. Promotions are limited to a capped number of clinics/accounts and do not auto-unlock future paid features beyond the subscribed plan tier. Promo = Stripe coupon + metadata (`type=partner|internal|lifetime`).
 *   **FR16:** The system restricts access to application features based on active subscription status. Source of truth for subscription state is always Stripe, never the frontend.
 
 ### Registration & Onboarding
-*   **FR17:** Upon `checkout.session.completed`, the Stripe webhook creates a Clinic record, an Admin user linked to that clinic, a Subscription record, and sends a Magic Link email to the new admin for first login.
-*   **FR18:** After first login, new admins are guided through a post-checkout onboarding wizard to configure their clinic (name, work days, work hours, shift types). The `Clinic.onboardingCompleted` flag gates access to the main dashboard.
+*   **FR17:** The `register` endpoint creates a Clinic, Admin user (with bcrypt password), and Subscription (Starter tier, no Stripe IDs) atomically. JWT tokens are issued immediately (auto-login). For Professional upgrades, `checkout.session.completed` webhook updates the existing Subscription record.
+*   **FR18:** After registration, new admins are guided through an onboarding wizard to configure their clinic (work days, work hours, shift types — 3 steps, clinic name already provided at registration). The `Clinic.onboardingCompleted` flag gates access to the main dashboard.
 
 ## Non-Functional Requirements
 

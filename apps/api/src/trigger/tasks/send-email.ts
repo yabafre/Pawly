@@ -1,6 +1,12 @@
 import { task, logger } from '@trigger.dev/sdk';
 import { createElement } from 'react';
 import { render } from '@react-email/render';
+import { ActivationEmail } from '../../modules/mail/templates/ActivationEmail';
+import { WelcomeEmail } from '../../modules/mail/templates/WelcomeEmail';
+import { PlanConfirmationEmail } from '../../modules/mail/templates/PlanConfirmationEmail';
+import { MagicLinkEmail } from '../../modules/mail/templates/MagicLinkEmail';
+import { OtpCodeEmail } from '../../modules/mail/templates/OtpCodeEmail';
+import { PasswordResetEmail } from '../../modules/mail/templates/PasswordResetEmail';
 import { EmployeeInvitationEmail } from '../../modules/mail/templates/EmployeeInvitationEmail';
 import { SchoolDaysDeclarationEmail } from '../../modules/mail/templates/SchoolDaysDeclarationEmail';
 import { SchoolDaysReminderEmail } from '../../modules/mail/templates/SchoolDaysReminderEmail';
@@ -11,6 +17,11 @@ import { getMailTranslations, type MailLocale } from '../../modules/mail/mail-i1
 import { getResend, mailFrom } from '../lib/resend';
 
 type EmailType =
+  | 'welcome'
+  | 'plan-confirmation'
+  | 'magic-link'
+  | 'otp'
+  | 'password-reset'
   | 'invitation'
   | 'school-notification'
   | 'schedule-publication'
@@ -31,6 +42,46 @@ async function renderEmail(type: EmailType, data: Record<string, unknown>): Prom
   const t = getMailTranslations(locale);
 
   switch (type) {
+    case 'welcome': {
+      const html = await render(createElement(WelcomeEmail, {
+        url: data.url as string,
+        adminName: data.adminName as string | undefined,
+        locale,
+      }));
+      return { html, subject: t.subjects.welcome };
+    }
+    case 'plan-confirmation': {
+      const plan = (data.plan as 'starter' | 'professional') ?? 'starter';
+      const html = await render(createElement(PlanConfirmationEmail, {
+        plan,
+        adminName: data.adminName as string | undefined,
+        dashboardUrl: data.dashboardUrl as string,
+        invoiceUrl: data.invoiceUrl as string | undefined,
+        locale,
+      }));
+      return { html, subject: t.subjects.planConfirmation(plan) };
+    }
+    case 'magic-link': {
+      const html = await render(createElement(MagicLinkEmail, {
+        url: data.url as string,
+        locale,
+      }));
+      return { html, subject: t.subjects.magicLink };
+    }
+    case 'otp': {
+      const html = await render(createElement(OtpCodeEmail, {
+        code: data.code as string,
+        locale,
+      }));
+      return { html, subject: t.subjects.otpCode };
+    }
+    case 'password-reset': {
+      const html = await render(createElement(PasswordResetEmail, {
+        url: data.url as string,
+        locale,
+      }));
+      return { html, subject: t.subjects.passwordReset };
+    }
     case 'invitation': {
       const html = await render(createElement(EmployeeInvitationEmail, {
         url: data.url as string,

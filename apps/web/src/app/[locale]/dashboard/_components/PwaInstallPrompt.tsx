@@ -113,24 +113,24 @@ export function PwaInstallPrompt() {
         <div
             role="region"
             aria-label={t("ariaLabel")}
-            className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,149,136,0.15)] border border-teal-100 p-4 sm:p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+            className="bg-card rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,149,136,0.15)] border border-teal-100 p-4 sm:p-5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
         >
             <div className="flex items-start gap-3">
-                <div className="shrink-0 w-10 h-10 rounded-xl bg-[#009588]/10 flex items-center justify-center">
-                    <Download className="h-5 w-5 text-[#009588]" />
+                <div className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Download className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm sm:text-base text-neutral-900">
+                    <h3 className="font-bold text-sm sm:text-base text-foreground">
                         {t("title")}
                     </h3>
-                    <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         {t("description")}
                     </p>
 
                     {platform === "chrome" && (
                         <Button
                             onClick={handleInstall}
-                            className="mt-3 bg-[#009588] hover:bg-[#00796B] text-white rounded-xl px-6 py-2.5 font-semibold text-sm min-h-[44px]"
+                            className="mt-3 bg-primary hover:bg-primary/90 text-white rounded-xl px-6 py-2.5 font-semibold text-sm min-h-[44px]"
                         >
                             <Download className="h-4 w-4 mr-2" />
                             {t("installButton")}
@@ -138,25 +138,25 @@ export function PwaInstallPrompt() {
                     )}
 
                     {platform === "ios" && (
-                        <div className="mt-3 bg-neutral-50 rounded-xl p-3 text-xs sm:text-sm text-neutral-600 space-y-1.5">
+                        <div className="mt-3 bg-muted rounded-xl p-3 text-xs sm:text-sm text-muted-foreground space-y-1.5">
                             <p className="font-semibold">{t("iosTitle")}</p>
                             <p>
                                 1. {t("iosStep1")}{" "}
-                                <Share className="inline h-4 w-4 text-[#009588]" aria-hidden="true" />
+                                <Share className="inline h-4 w-4 text-primary" aria-hidden="true" />
                             </p>
                             <p>2. {t("iosStep2")}</p>
                         </div>
                     )}
 
                     {platform === "other" && (
-                        <p className="mt-2 text-xs text-neutral-400">
+                        <p className="mt-2 text-xs text-muted-foreground">
                             {t("notSupported")}
                         </p>
                     )}
                 </div>
                 <button
                     onClick={handleDismiss}
-                    className="shrink-0 text-neutral-400 hover:text-neutral-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="shrink-0 text-muted-foreground hover:text-muted-foreground transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                     aria-label={t("dismissButton")}
                 >
                     <X className="h-5 w-5" />

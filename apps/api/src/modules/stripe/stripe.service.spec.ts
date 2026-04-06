@@ -203,6 +203,7 @@ describe('StripeService', () => {
 
       expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith({
         mode: 'subscription',
+        payment_method_collection: 'if_required',
         line_items: [{ price: 'price_test_123', quantity: 1 }],
         success_url:
           'http://localhost:3000/fr/pricing/success?session_id={CHECKOUT_SESSION_ID}',

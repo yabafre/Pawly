@@ -67,11 +67,12 @@ export function FallingAnimals({
 
     // Pre-render each animal as a tiny canvas stamp
     const stampPx = Math.ceil(size * dpr);
-    const stampCanvases: HTMLCanvasElement[] = ANIMALS.map((pathStr) => {
+    const stampCanvases: (HTMLCanvasElement | null)[] = ANIMALS.map((pathStr) => {
       const c = document.createElement("canvas");
       c.width = stampPx;
       c.height = stampPx;
-      const sctx = c.getContext("2d")!;
+      const sctx = c.getContext("2d");
+      if (!sctx) return null;
       const scale = (size * dpr) / 16;
       sctx.scale(scale, scale);
       sctx.fillStyle = `rgb(${cr},${cg},${cb})`;
@@ -142,8 +143,10 @@ export function FallingAnimals({
           const alpha = 0.04 + (contour * 0.5 + 0.5) * 0.22;
 
           const idx = animalGrid[row * cols + col] ?? 0;
+          const stamp = stampCanvases[idx];
+          if (!stamp) continue;
           ctx.globalAlpha = alpha;
-          ctx.drawImage(stampCanvases[idx], px * dpr, py * dpr, stampPx, stampPx);
+          ctx.drawImage(stamp, px * dpr, py * dpr, stampPx, stampPx);
         }
       }
 

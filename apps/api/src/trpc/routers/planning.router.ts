@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import type { EquityCounterType } from '@prisma/client';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
+import { TIER_HIERARCHY } from '@pawly/validators';
 import {
   createPlanningRuleSchema,
   updatePlanningRuleSchema,
@@ -43,6 +44,17 @@ const adminOnly = (role: string) => {
   }
 };
 
+const requireProfessional = (tier: string) => {
+  const currentIndex = TIER_HIERARCHY.indexOf(tier as (typeof TIER_HIERARCHY)[number]);
+  const requiredIndex = TIER_HIERARCHY.indexOf('professional');
+  if (currentIndex === -1 || currentIndex < requiredIndex) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: "Subscription tier 'professional' required",
+    });
+  }
+};
+
 export const planningRouter = router({
   listRules: subscribedProcedure
     .input(listPlanningRulesSchema)
@@ -60,6 +72,7 @@ export const planningRouter = router({
     .input(createPlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.createRule(ctx.user.clinicId, input);
     }),
 
@@ -67,6 +80,7 @@ export const planningRouter = router({
     .input(updatePlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.updateRule(ctx.user.clinicId, input);
     }),
 
@@ -74,6 +88,7 @@ export const planningRouter = router({
     .input(planningRuleIdSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.deleteRule(ctx.user.clinicId, input.id);
     }),
 
@@ -81,6 +96,7 @@ export const planningRouter = router({
     .input(togglePlanningRuleSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.planningService.toggleRule(ctx.user.clinicId, input);
     }),
 
@@ -93,11 +109,12 @@ export const planningRouter = router({
       );
     }),
 
-  // Equity counter procedures
+  // Equity counter procedures (Professional tier only)
   getEquityCounters: subscribedProcedure
     .input(getEquityCountersSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.getCountersForPeriod(
         ctx.user.clinicId,
         input.year,
@@ -110,6 +127,7 @@ export const planningRouter = router({
     .input(getQuarterlySummarySchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.getQuarterlySummary(
         ctx.user.clinicId,
         input.year,
@@ -121,6 +139,7 @@ export const planningRouter = router({
     .input(recalculateCountersSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      requireProfessional(ctx.subscription.entitlementTier);
       return ctx.equityCounterService.recalculateForPeriod(
         ctx.user.clinicId,
         input.year,
@@ -133,7 +152,13 @@ export const planningRouter = router({
     .input(listTemplatesSchema)
     .query(async ({ ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.listTemplates(ctx.user.clinicId);
+      type Templates = Awaited<ReturnType<typeof ctx.planningTemplateService.listTemplates>>;
+      const cacheKey = `planning:templates:${ctx.user.clinicId}`;
+      const cached = await ctx.redis.get<Templates>(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningTemplateService.listTemplates(ctx.user.clinicId);
+      await ctx.redis.set(cacheKey, result, 300);
+      return result;
     }),
 
   getTemplateById: subscribedProcedure
@@ -150,40 +175,36 @@ export const planningRouter = router({
     .input(createTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.createTemplate(
-        ctx.user.clinicId,
-        input,
-      );
+      const result = await ctx.planningTemplateService.createTemplate(ctx.user.clinicId, input);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   updateTemplate: subscribedProcedure
     .input(updateTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.updateTemplate(
-        ctx.user.clinicId,
-        input,
-      );
+      const result = await ctx.planningTemplateService.updateTemplate(ctx.user.clinicId, input);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   deleteTemplate: subscribedProcedure
     .input(templateIdSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.deleteTemplate(
-        ctx.user.clinicId,
-        input.id,
-      );
+      const result = await ctx.planningTemplateService.deleteTemplate(ctx.user.clinicId, input.id);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   duplicateTemplate: subscribedProcedure
     .input(duplicateTemplateSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningTemplateService.duplicateTemplate(
-        ctx.user.clinicId,
-        input.id,
-      );
+      const result = await ctx.planningTemplateService.duplicateTemplate(ctx.user.clinicId, input.id);
+      await ctx.redis.del(`planning:templates:${ctx.user.clinicId}`);
+      return result;
     }),
 
   // Generation procedures
@@ -191,11 +212,14 @@ export const planningRouter = router({
     .input(generatePlanSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.generateMonthlyPlan(
+      const result = await ctx.planningGenerationService.generateMonthlyPlan(
         ctx.user.clinicId,
         input.month,
         input.templateId,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   listShiftsForMonth: subscribedProcedure
@@ -212,21 +236,30 @@ export const planningRouter = router({
     .input(deleteGeneratedShiftsSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.deleteGeneratedShifts(
+      const result = await ctx.planningGenerationService.deleteGeneratedShifts(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
-  // Schedule view procedure
+  // Schedule view procedure (cached 30s, invalidated on shift mutations)
   getScheduleView: subscribedProcedure
     .input(scheduleViewInputSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.getScheduleViewForMonth(
+      type ScheduleView = Awaited<ReturnType<typeof ctx.planningGenerationService.getScheduleViewForMonth>>;
+      const cacheKey = `schedule:${ctx.user.clinicId}:${input.month}`;
+      const cached = await ctx.redis.get<ScheduleView>(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningGenerationService.getScheduleViewForMonth(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.set(cacheKey, result, 30);
+      return result;
     }),
 
   // Shift mutation procedures (Story 7.1: Manual Schedule Adjustment)
@@ -234,31 +267,40 @@ export const planningRouter = router({
     .input(moveShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.moveShift(
+      const result = await ctx.planningGenerationService.moveShift(
         ctx.user.clinicId,
         input.shiftId,
         { targetEmployeeId: input.targetEmployeeId, targetDate: input.targetDate },
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   createManualShift: subscribedProcedure
     .input(createManualShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.createManualShift(
+      const result = await ctx.planningGenerationService.createManualShift(
         ctx.user.clinicId,
         input,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   deleteShift: subscribedProcedure
     .input(deleteShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.deleteShift(
+      const result = await ctx.planningGenerationService.deleteShift(
         ctx.user.clinicId,
         input.shiftId,
       );
+      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
+      return result;
     }),
 
   preValidateMove: subscribedProcedure
@@ -276,21 +318,29 @@ export const planningRouter = router({
     .input(publishPlanInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.publishPlan(
+      const result = await ctx.planningGenerationService.publishPlan(
         ctx.user.clinicId,
         input.month,
         ctx.user.sub,
       );
+      await ctx.redis.del(`planning:pub:${ctx.user.clinicId}:${input.month}`);
+      return result;
     }),
 
   getPublicationStatus: subscribedProcedure
     .input(publishPlanInputSchema)
     .query(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      return ctx.planningGenerationService.getPublicationStatus(
+      type PubStatus = Awaited<ReturnType<typeof ctx.planningGenerationService.getPublicationStatus>>;
+      const cacheKey = `planning:pub:${ctx.user.clinicId}:${input.month}`;
+      const cached = await ctx.redis.get<PubStatus>(cacheKey);
+      if (cached) return cached;
+      const result = await ctx.planningGenerationService.getPublicationStatus(
         ctx.user.clinicId,
         input.month,
       );
+      await ctx.redis.set(cacheKey, result, 300);
+      return result;
     }),
 
   getPublishPreview: subscribedProcedure

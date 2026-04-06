@@ -1,8 +1,8 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Layers, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { OnboardingForm } from "../OnboardingWizard";
@@ -26,12 +26,12 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
   const t = useTranslations("onboarding.steps.shiftTypes");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-[#009588]/10 flex items-center justify-center">
-          <Layers className="w-5 h-5 text-[#009588]" />
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Layers className="w-4 h-4 text-primary" />
         </div>
-        <p className="text-sm text-neutral-500">{t("help")}</p>
+        <p className="text-sm text-muted-foreground">{t("help")}</p>
       </div>
 
       <form.Field
@@ -44,18 +44,16 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
         }}
       >
         {(field: any) => (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {field.state.value.map((item: any, index: number) => (
               <div
                 key={item.code || `shift-${index}`}
-                className="p-4 rounded-xl border border-neutral-200 bg-white space-y-3"
+                className="p-4 rounded-xl border border-border bg-card space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{
-                      backgroundColor: field.state.value[index].color,
-                    }}
+                    style={{ backgroundColor: field.state.value[index].color }}
                   />
                   {field.state.value.length > 1 && (
                     <button
@@ -66,7 +64,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                         );
                         field.handleChange(next);
                       }}
-                      className="text-neutral-400 hover:text-red-500 transition-colors p-1"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
                       title={t("removeShiftType")}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -75,10 +73,8 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-neutral-500">
-                      {t("name")}
-                    </Label>
+                  <Field>
+                    <FieldLabel className="text-xs">{t("name")}</FieldLabel>
                     <Input
                       placeholder={t("namePlaceholder")}
                       value={field.state.value[index].name}
@@ -94,14 +90,12 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                         };
                         field.handleChange(next);
                       }}
-                      className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+                      className="h-9"
                     />
-                  </div>
+                  </Field>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs text-neutral-500">
-                      {t("code")}
-                    </Label>
+                  <Field>
+                    <FieldLabel className="text-xs">{t("code")}</FieldLabel>
                     <Input
                       placeholder={t("codePlaceholder")}
                       value={field.state.value[index].code}
@@ -116,79 +110,62 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                         };
                         field.handleChange(next);
                       }}
-                      className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20 font-mono"
+                      className="h-9 font-mono"
                     />
-                  </div>
+                  </Field>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-neutral-500">
-                      {t("startTime")}
-                    </Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field>
+                    <FieldLabel className="text-xs">{t("startTime")}</FieldLabel>
                     <Input
                       type="time"
                       value={field.state.value[index].startTime}
                       onChange={(e) => {
                         const next = [...field.state.value];
-                        next[index] = {
-                          ...next[index],
-                          startTime: e.target.value,
-                        };
+                        next[index] = { ...next[index], startTime: e.target.value };
                         field.handleChange(next);
                       }}
-                      className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+                      className="h-9"
                     />
-                  </div>
+                  </Field>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs text-neutral-500">
-                      {t("endTime")}
-                    </Label>
+                  <Field>
+                    <FieldLabel className="text-xs">{t("endTime")}</FieldLabel>
                     <Input
                       type="time"
                       value={field.state.value[index].endTime}
                       onChange={(e) => {
                         const next = [...field.state.value];
+                        next[index] = { ...next[index], endTime: e.target.value };
+                        field.handleChange(next);
+                      }}
+                      className="h-9"
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel className="text-xs">{t("breakMinutes")}</FieldLabel>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={300}
+                      value={field.state.value[index].breakMinutes ?? 0}
+                      onChange={(e) => {
+                        const next = [...field.state.value];
                         next[index] = {
                           ...next[index],
-                          endTime: e.target.value,
+                          breakMinutes: Math.max(0, Math.min(300, parseInt(e.target.value) || 0)),
                         };
                         field.handleChange(next);
                       }}
-                      className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
+                      className="h-9"
                     />
-                  </div>
+                  </Field>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs text-neutral-500">
-                    {t("breakMinutes")}
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={300}
-                    value={field.state.value[index].breakMinutes ?? 0}
-                    onChange={(e) => {
-                      const next = [...field.state.value];
-                      next[index] = {
-                        ...next[index],
-                        breakMinutes: Math.max(
-                          0,
-                          Math.min(300, parseInt(e.target.value) || 0),
-                        ),
-                      };
-                      field.handleChange(next);
-                    }}
-                    className="bg-neutral-50 border-neutral-200 h-10 rounded-lg focus-visible:border-[#009588] focus-visible:ring-[#009588]/20"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs text-neutral-500">
-                    {t("color")}
-                  </Label>
+                <Field>
+                  <FieldLabel className="text-xs">{t("color")}</FieldLabel>
                   <div className="flex gap-2 flex-wrap">
                     {COLOR_PALETTE.map((color) => (
                       <button
@@ -200,10 +177,10 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                           field.handleChange(next);
                         }}
                         className={`
-                          w-8 h-8 rounded-lg transition-all
+                          w-7 h-7 rounded-lg transition-all
                           ${
                             field.state.value[index].color === color.value
-                              ? "ring-2 ring-offset-2 ring-neutral-900 scale-110"
+                              ? "ring-2 ring-offset-2 ring-foreground scale-110"
                               : "hover:scale-105"
                           }
                         `}
@@ -212,7 +189,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                       />
                     ))}
                   </div>
-                </div>
+                </Field>
               </div>
             ))}
 
@@ -232,16 +209,14 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                   },
                 ]);
               }}
-              className="w-full border-dashed border-neutral-300 text-neutral-500 hover:border-[#009588] hover:text-[#009588] h-12 rounded-xl"
+              className="w-full border-dashed"
             >
               <Plus className="w-4 h-4 mr-2" />
               {t("addShiftType")}
             </Button>
 
             {field.state.meta.errors.length > 0 && (
-              <p className="text-[11px] text-orange-600" role="alert">
-                {field.state.meta.errors[0]}
-              </p>
+              <FieldError errors={field.state.meta.errors} />
             )}
           </div>
         )}

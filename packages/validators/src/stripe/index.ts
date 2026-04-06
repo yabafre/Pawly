@@ -36,6 +36,7 @@ export type {
 export {
   ACTIVE_SUBSCRIPTION_STATUSES,
   TIER_HIERARCHY,
+  TIER_LIMITS,
   subscriptionStatusSchema,
   subscriptionGuardResponseSchema,
 } from "./subscription-status.schema";

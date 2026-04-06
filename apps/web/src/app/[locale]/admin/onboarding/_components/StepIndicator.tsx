@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 interface StepIndicatorProps {
   currentStep: number;
@@ -14,51 +14,45 @@ export function StepIndicator({
   totalSteps,
   stepLabels,
 }: StepIndicatorProps) {
-  const t = useTranslations("onboarding");
-
   return (
-    <div className="w-full">
-      <p className="text-sm text-neutral-500 text-center mb-6">
-        {t("progress", { current: currentStep + 1, total: totalSteps })}
-      </p>
-      <div className="flex items-center justify-center gap-0">
-        {Array.from({ length: totalSteps }).map((_, index) => {
-          const isCompleted = index < currentStep;
-          const isCurrent = index === currentStep;
+    <div className="flex flex-col gap-1">
+      {Array.from({ length: totalSteps }).map((_, index) => {
+        const isCompleted = index < currentStep;
+        const isCurrent = index === currentStep;
 
-          return (
-            <div key={index} className="flex items-center">
-              {/* Step circle */}
+        return (
+          <div key={index} className="flex items-start gap-3">
+            <div className="flex flex-col items-center">
               <div
-                className={`
-                  w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
-                  transition-all duration-300
-                  ${
-                    isCompleted
-                      ? "bg-[#009588] text-white"
-                      : isCurrent
-                        ? "border-2 border-[#009588] text-[#009588] bg-white"
-                        : "border-2 border-neutral-200 text-neutral-400 bg-white"
-                  }
-                `}
-                title={stepLabels[index]}
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all",
+                  isCompleted && "bg-primary text-primary-foreground",
+                  isCurrent && "border-2 border-primary text-primary bg-card",
+                  !isCompleted && !isCurrent && "border-2 border-border text-muted-foreground bg-card",
+                )}
               >
-                {isCompleted ? <Check className="w-5 h-5" /> : index + 1}
+                {isCompleted ? <Check className="w-4 h-4" /> : index + 1}
               </div>
-
-              {/* Connecting line */}
               {index < totalSteps - 1 && (
                 <div
-                  className={`
-                    w-12 h-0.5 transition-all duration-300
-                    ${index < currentStep ? "bg-[#009588]" : "bg-neutral-200"}
-                  `}
+                  className={cn(
+                    "w-0.5 h-6 transition-all",
+                    index < currentStep ? "bg-primary" : "bg-border",
+                  )}
                 />
               )}
             </div>
-          );
-        })}
-      </div>
+            <span
+              className={cn(
+                "text-sm pt-1.5 font-medium",
+                isCurrent ? "text-foreground" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/60",
+              )}
+            >
+              {stepLabels[index]}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

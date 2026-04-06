@@ -17,7 +17,7 @@ export async function CTASection() {
             {t("subtitle")}
           </p>
           <Button size="lg" asChild className="gap-2">
-            <Link href="/pricing">
+            <Link href="/pricing/register?plan=starter">
               {t("button")}
               <ArrowRight className="h-4 w-4" />
             </Link>

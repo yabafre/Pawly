@@ -52,26 +52,26 @@ export const CallbackClient = ({ token }: CallbackClientProps) => {
     }, [router, token, validateMagicLink]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD] relative overflow-hidden px-6">
-            <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-[#009588]/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
+        <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden px-6">
+            <div className="absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-primary/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
 
-            <Card className="w-full max-w-md text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-neutral-100 bg-white/90 backdrop-blur-sm">
+            <Card className="w-full max-w-md text-center shadow-[0_8px_30px_rgba(0,0,0,0.04)] border-border bg-card/90 backdrop-blur-sm">
                 {status === "error" ? (
                     <CardHeader className="space-y-3">
                         <div className="mx-auto w-12 h-12 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center">
                             <AlertTriangle className="w-6 h-6 text-orange-500" />
                         </div>
-                        <CardTitle className="text-xl font-bold text-neutral-900">
+                        <CardTitle className="text-xl font-bold text-foreground">
                             {t("invalidLink")}
                         </CardTitle>
-                        <CardDescription className="text-neutral-500">
+                        <CardDescription className="text-muted-foreground">
                             {t("linkExpiredMessage")}
                         </CardDescription>
                         <Button
                             type="button"
                             onClick={() => router.replace("/login")}
-                            className="bg-neutral-900 hover:bg-black text-white font-semibold h-11"
+                            className="bg-foreground hover:bg-black text-white font-semibold h-11"
                         >
                             {tCommon("backToLogin")}
                         </Button>
@@ -85,10 +85,10 @@ export const CallbackClient = ({ token }: CallbackClientProps) => {
                                 <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
                             )}
                         </div>
-                        <CardTitle className="text-xl font-bold text-neutral-900">
+                        <CardTitle className="text-xl font-bold text-foreground">
                             {status === "success" ? t("connectionValidated") : t("validationInProgress")}
                         </CardTitle>
-                        <CardDescription className="text-neutral-500">
+                        <CardDescription className="text-muted-foreground">
                             {status === "success"
                                 ? t("redirecting")
                                 : (isPending ? t("verifyingLink") : t("preparingSession"))}

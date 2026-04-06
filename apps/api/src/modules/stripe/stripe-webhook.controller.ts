@@ -15,6 +15,7 @@ import { Public } from '@/common/decorators/public.decorator';
 import { generateSlug } from '@/common/utils/slug';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
+import { RedisService } from '@/redis';
 import { StripeService } from './stripe.service';
 import { deriveEntitlementTier } from './stripe.utils';
 import { stripeWebhookDuration, stripeWebhookCounter } from '@/common/metrics';
@@ -65,6 +66,7 @@ export class StripeWebhookController {
     private readonly stripeService: StripeService,
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly redis: RedisService,
   ) {}
 
   @Public()
@@ -194,7 +196,43 @@ export class StripeWebhookController {
       session.id,
     );
 
-    // Atomic: create Clinic + Admin User + Subscription in a single transaction
+    // Check if user already exists (account-first registration flow → upgrade)
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: adminEmail },
+      select: { id: true, clinicId: true },
+    });
+
+    if (existingUser) {
+      // Upgrade path: user registered via /pricing/register, now upgrading to Pro
+      this.logger.log(
+        `checkout.session.completed: ${session.id} — upgrading existing account for ${adminEmail}`,
+      );
+
+      const firstItem = subscription.items.data[0];
+      if (!firstItem) {
+        this.logger.error(
+          `checkout.session.completed: ${session.id} — subscription has no items, skipping upgrade`,
+        );
+        return;
+      }
+
+      await this.prisma.subscription.update({
+        where: { clinicId: existingUser.clinicId },
+        data: {
+          stripeCustomerId,
+          stripeSubscriptionId,
+          status: mapSubscriptionStatus(subscription.status),
+          planKey: firstItem.price.lookup_key ?? 'default',
+          entitlementTier: deriveEntitlementTier(subscription),
+          currentPeriodEnd: new Date(firstItem.current_period_end * 1000),
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          ...promotionData,
+        },
+      });
+      return;
+    }
+
+    // Legacy path: create Clinic + Admin User + Subscription (backward compat)
     await this.prisma.$transaction(async (tx) => {
       const clinic = await tx.clinic.create({
         data: {
@@ -231,8 +269,7 @@ export class StripeWebhookController {
       });
     });
 
-    // Send activation email (outside transaction — email is non-reversible)
-    // Admin must set their password to activate their account (Architecture: hybrid auth for admins)
+    // Send activation email (legacy path only — account-first users already have password)
     await this.authService.createActivationToken(adminEmail, adminName || undefined);
   }
 
@@ -258,7 +295,7 @@ export class StripeWebhookController {
       const promotionData =
         await this.getPromotionDataFromSubscription(latestSubscription);
 
-      await this.prisma.subscription.update({
+      const updated = await this.prisma.subscription.update({
         where: { stripeSubscriptionId },
         data: {
           status: mapSubscriptionStatus(latestSubscription.status),
@@ -270,7 +307,9 @@ export class StripeWebhookController {
           cancelAtPeriodEnd: latestSubscription.cancel_at_period_end,
           ...promotionData,
         },
+        select: { clinicId: true },
       });
+      await this.redis.del(`sub:${updated.clinicId}`);
     } catch (err) {
       if (
         err &&

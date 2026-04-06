@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import {
   AlertCircle,
   AlertTriangle,
@@ -117,7 +118,7 @@ export function PlanningRulesPanel() {
   const hasRules = (rules as PlanningRuleRecord[]).length > 0;
 
   return (
-    <>
+    <SubscriptionGate requiredTier="professional">
       {/* Add button */}
       <div className="flex justify-end mb-6">
         <Button
@@ -275,6 +276,6 @@ export function PlanningRulesPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </SubscriptionGate>
   );
 }

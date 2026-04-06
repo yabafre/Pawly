@@ -55,7 +55,7 @@ describe('varianceRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: adminUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       varianceService: mockVarianceService as any,
     } as any);
   };
@@ -64,7 +64,7 @@ describe('varianceRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: staffUser,
-      prisma: mockPrisma as any,
+      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       varianceService: mockVarianceService as any,
     } as any);
   };
@@ -109,7 +109,7 @@ describe('varianceRouter', () => {
     it('should reject unauthenticated users', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any,
+        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
         varianceService: mockVarianceService as any,
       } as any);
 

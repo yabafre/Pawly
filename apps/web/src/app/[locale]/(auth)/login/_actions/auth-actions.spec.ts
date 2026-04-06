@@ -133,7 +133,7 @@ describe('auth-actions', () => {
         'jwt-token-abc',
         expect.objectContaining({
           httpOnly: true,
-          sameSite: 'strict',
+          sameSite: 'lax',
           maxAge: 86400,
           path: '/',
         }),
@@ -354,7 +354,7 @@ describe('auth-actions', () => {
         'jwt-token-abc',
         expect.objectContaining({
           httpOnly: true,
-          sameSite: 'strict',
+          sameSite: 'lax',
           maxAge: 86400,
           path: '/',
         }),

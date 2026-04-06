@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -62,6 +63,7 @@ export function EquityCountersClient() {
   };
 
   return (
+    <SubscriptionGate requiredTier="professional">
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <EquityPeriodSelector
@@ -147,6 +149,7 @@ export function EquityCountersClient() {
         <EquityDistributionChart counters={counters} />
       )}
     </div>
+    </SubscriptionGate>
   );
 }
 

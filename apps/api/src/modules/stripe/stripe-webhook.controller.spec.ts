@@ -4,6 +4,7 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeService } from './stripe.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AuthService } from '@/modules/auth/auth.service';
+import { RedisService } from '@/redis';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -33,6 +34,9 @@ describe('StripeWebhookController', () => {
   const mockTransaction = jest.fn();
   const mockPrismaService = {
     $transaction: mockTransaction,
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     subscription: {
       update: jest.fn(),
       findUnique: jest.fn(),
@@ -51,6 +55,7 @@ describe('StripeWebhookController', () => {
         { provide: StripeService, useValue: mockStripeService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AuthService, useValue: mockAuthService },
+        { provide: RedisService, useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn() } },
       ],
     }).compile();
 
@@ -449,7 +454,7 @@ describe('StripeWebhookController', () => {
             items: {
               data: [
                 {
-                  price: { lookup_key: 'pro_monthly' },
+                  price: { lookup_key: 'professional_monthly' },
                   current_period_end: 1738368000,
                 },
               ],
@@ -462,7 +467,7 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         event.data.object,
       );
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       const result = await controller.handleWebhook(req, validSignature);
 
@@ -478,11 +483,12 @@ describe('StripeWebhookController', () => {
         ],
       });
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        select: { clinicId: true },
         where: { stripeSubscriptionId: 'sub_test_456' },
         data: {
           status: 'past_due',
-          planKey: 'pro_monthly',
-          entitlementTier: 'pro',
+          planKey: 'professional_monthly',
+          entitlementTier: 'professional',
           currentPeriodEnd: new Date(1738368000 * 1000),
           cancelAtPeriodEnd: true,
           promotionCodeId: null,
@@ -520,11 +526,12 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         event.data.object,
       );
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       await controller.handleWebhook(req, validSignature);
 
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        select: { clinicId: true },
         where: { stripeSubscriptionId: 'sub_test_inc' },
         data: expect.objectContaining({
           status: 'unpaid',
@@ -551,7 +558,7 @@ describe('StripeWebhookController', () => {
             items: {
               data: [
                 {
-                  price: { lookup_key: 'pro_monthly' },
+                  price: { lookup_key: 'professional_monthly' },
                   current_period_end: 1738368000,
                 },
               ],
@@ -582,11 +589,12 @@ describe('StripeWebhookController', () => {
       mockStripeService.stripe.subscriptions.retrieve.mockResolvedValue(
         latestSubscription,
       );
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       await controller.handleWebhook(req, validSignature);
 
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        select: { clinicId: true },
         where: { stripeSubscriptionId: 'sub_test_promo_sync' },
         data: expect.objectContaining({
           promotionCodeId: 'promo_partner_125',
@@ -626,11 +634,12 @@ describe('StripeWebhookController', () => {
         ...event.data.object,
         discounts: [],
       });
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       await controller.handleWebhook(req, validSignature);
 
       expect(mockPrismaService.subscription.update).toHaveBeenCalledWith({
+        select: { clinicId: true },
         where: { stripeSubscriptionId: 'sub_test_clear_promo' },
         data: expect.objectContaining({
           promotionCodeId: null,
@@ -700,7 +709,7 @@ describe('StripeWebhookController', () => {
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       const result = await controller.handleWebhook(req, validSignature);
 
@@ -761,7 +770,7 @@ describe('StripeWebhookController', () => {
       };
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
       mockStripeService.markEventProcessed.mockResolvedValue(undefined);
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       const result = await controller.handleWebhook(req, validSignature);
 
@@ -848,7 +857,7 @@ describe('StripeWebhookController', () => {
       mockPrismaService.subscription.findUnique.mockResolvedValue({
         status: 'past_due',
       });
-      mockPrismaService.subscription.update.mockResolvedValue({});
+      mockPrismaService.subscription.update.mockResolvedValue({ clinicId: "clinic-123" });
 
       const result = await controller.handleWebhook(req, validSignature);
 
@@ -1279,7 +1288,7 @@ describe('StripeWebhookController', () => {
       });
     });
 
-    it('should derive dynamic entitlementTier from pro_monthly lookup_key', async () => {
+    it('should derive dynamic entitlementTier from professional_monthly lookup_key', async () => {
       const req = createMockRequest(Buffer.from('payload'));
       const event = createCheckoutEventForPromo();
       mockStripeService.constructWebhookEvent.mockReturnValue(event);
@@ -1289,7 +1298,7 @@ describe('StripeWebhookController', () => {
         items: {
           data: [
             {
-              price: { lookup_key: 'pro_monthly' },
+              price: { lookup_key: 'professional_monthly' },
               current_period_end: 1735689600,
             },
           ],
@@ -1322,7 +1331,7 @@ describe('StripeWebhookController', () => {
 
       expect(mockTx.subscription.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          entitlementTier: 'pro',
+          entitlementTier: 'professional',
         }),
       });
     });

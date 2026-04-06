@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { createServerAction, ZSAError } from "zsa";
 import { trpc } from "@/lib/trpc/client";
+import { z } from "@pawly/zod";
 import {
     authResponseSchema,
     loginSchema,
@@ -14,6 +15,10 @@ import {
     requestPasswordResetSchema,
     resetPasswordInputSchema,
 } from "@pawly/validators";
+import { verifyTurnstileToken } from "@/lib/turnstile-verify";
+
+const withTurnstile = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) =>
+    schema.extend({ turnstileToken: z.string().optional() });
 
 const AUTH_COOKIE_NAME = "auth-token";
 const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24; // 24 hours
@@ -53,11 +58,14 @@ async function setAuthCookie(token: string) {
 }
 
 export const loginAction = createServerAction()
-    .input(loginSchema)
+    .input(withTurnstile(loginSchema))
     .output(authResponseSchema)
     .experimental_shapeError(({ err }) => shapeError(err))
     .handler(async ({ input }) => {
-        const result = await trpc.auth.login.mutate(input);
+        const { turnstileToken, ...loginInput } = input;
+        const valid = await verifyTurnstileToken(turnstileToken);
+        if (!valid) throw new ZSAError("FORBIDDEN", "Turnstile verification failed");
+        const result = await trpc.auth.login.mutate(loginInput);
         const parsed = authResponseSchema.parse(result);
         await setAuthCookie(parsed.access_token);
         return parsed;
@@ -84,11 +92,14 @@ export const requestMagicLinkAction = createServerAction()
     });
 
 export const requestOtpAction = createServerAction()
-    .input(requestOtpSchema)
+    .input(withTurnstile(requestOtpSchema))
     .output(otpRequestResponseSchema)
     .experimental_shapeError(({ err }) => shapeError(err))
     .handler(async ({ input }) => {
-        const result = await trpc.auth.requestOtp.mutate(input);
+        const { turnstileToken, ...otpInput } = input;
+        const valid = await verifyTurnstileToken(turnstileToken);
+        if (!valid) throw new ZSAError("FORBIDDEN", "Turnstile verification failed");
+        const result = await trpc.auth.requestOtp.mutate(otpInput);
         return otpRequestResponseSchema.parse(result);
     });
 

@@ -29,7 +29,7 @@ date: '2026-02-02'
 ### Requirements Overview
 
 **Functional Requirements:**
-18 FRs identified covering access management (FR1-FR3), planning generation (FR4-FR8), employee validation (FR9-FR10), internationalization (FR11), landing page (FR12), subscription/billing (FR13-FR16), webhook-driven registration (FR17), and post-checkout onboarding (FR18). Architecturally, this requires a clear separation between the planning engine (server-side generation), the interactive grid (client-side refinement), and the acquisition/billing layer (Stripe-delegated). Registration is exclusively via Stripe Checkout webhook — no self-registration endpoint exists.
+18 FRs identified covering access management (FR1-FR3), planning generation (FR4-FR8), employee validation (FR9-FR10), internationalization (FR11), landing page (FR12), subscription/billing (FR13-FR16), webhook-driven registration (FR17), and post-checkout onboarding (FR18). Architecturally, this requires a clear separation between the planning engine (server-side generation), the interactive grid (client-side refinement), and the acquisition/billing layer (Stripe-delegated). Registration is via a self-service `register` endpoint (creates Clinic + Admin + Subscription on Starter tier). Professional upgrade is via Stripe Checkout webhook.
 
 **Non-Functional Requirements:**
 22 NFRs covering responsiveness (NFR1: <100ms), reliability (NFR3: zero silent failures), PWA capabilities (NFR4: offline cache), payment security (NFR18-NFR19), i18n performance (NFR20), and landing page performance (NFR21-NFR22). This drives a need for robust state management, "Optimistic UI" pattern, and strict Stripe webhook verification.
@@ -42,7 +42,7 @@ date: '2026-02-02'
 ### Technical Constraints & Dependencies
 - Multi-tenant isolation via `clinicId` (proper FK to `Clinic` model).
 - No medical patient data (GDPR focus on PII).
-- No self-registration endpoint — account creation via Stripe webhook only.
+- Self-service registration endpoint creates Clinic + Admin + Subscription (Starter tier). Professional upgrade via Stripe Checkout webhook.
 - Login resolves `clinicId` from DB (not from client input). `NEXT_PUBLIC_CLINIC_ID` eliminated.
 - Use of shadcn/ui and Tailwind v4 for the "Clinique Zen" aesthetic.
 
@@ -118,7 +118,7 @@ npx create-next-app@latest apps/web --typescript --tailwind --eslint --app --src
 - **ORM**: Prisma 7.2.0 using **Schema Folders** (`packages/database/prisma/schema/`).
 - **Validation**: Single source via Zod in `packages/validators`.
 - **Constraints Model**: Strict distinction between `Unavailability` (Blocking) and `Preference` (Scoring/Equity).
-- **Clinic Model** (`Clinic.prisma`): Central multi-tenant entity. Fields: `id` (cuid), `name`, `slug` (@unique), `onboardingCompleted` (Boolean, default false), `createdAt`, `updatedAt`. All business entities reference `Clinic.id` as FK (replaces orphaned string `clinicId`). Created exclusively via `checkout.session.completed` webhook.
+- **Clinic Model** (`Clinic.prisma`): Central multi-tenant entity. Fields: `id` (cuid), `name`, `slug` (@unique), `onboardingCompleted` (Boolean, default false), `createdAt`, `updatedAt`. All business entities reference `Clinic.id` as FK (replaces orphaned string `clinicId`). Created via `register` endpoint (Starter tier) or `checkout.session.completed` webhook (legacy/upgrade path).
 - **Subscription Model** (`Subscription.prisma`): 1:1 with `Clinic` (via `clinicId` FK, @unique). Fields: `stripeCustomerId`, `stripeSubscriptionId`, `status` (enum: `trialing`, `active`, `past_due`, `canceled`, `unpaid`), `planKey` (internal: `starter`, `pro`, etc.), `currentPeriodEnd`, `cancelAtPeriodEnd`, `trialEnd`.
 - **Entitlement Model**: `entitlementTier` field on Subscription to gate features. Required for safely adding paid features later without breaking 100% promo users.
 - **Stripe Event Deduplication** (`StripeEvent.prisma`): Store `event.id` to ensure webhook idempotency. Reject duplicate events before processing.
@@ -128,8 +128,8 @@ npx create-next-app@latest apps/web --typescript --tailwind --eslint --app --src
 - **Employee**: Magic Link (TTL 15min, single use, hashed). Long session adapted for mobile.
 - **Admin**: Password + JWT by default.
 - **Login Flow**: Email-only login. `clinicId` resolved from `User` record via `findUnique({ email })`. No `clinicId` in login schemas. No `NEXT_PUBLIC_CLINIC_ID` environment variable. JWT payload includes resolved `clinicId`.
-- **No Self-Registration**: No `register()` endpoint. Account creation happens exclusively via `checkout.session.completed` Stripe webhook (creates Clinic + Admin + Subscription, sends Magic Link).
-- **Onboarding Guard**: After first login, admin routes check `Clinic.onboardingCompleted`. If `false`, redirect to `/admin/onboarding`.
+- **Registration**: `register` endpoint creates Clinic + Admin User (bcrypt password) + Subscription (Starter tier, no Stripe IDs) atomically. JWT issued immediately (auto-login). Turnstile CAPTCHA + rate limiting protect against abuse. For Professional upgrades, `checkout.session.completed` webhook updates the existing Subscription.
+- **Onboarding Guard**: After registration, admin routes check `Clinic.onboardingCompleted`. If `false`, redirect to `/admin/onboarding`. Wizard: 3 steps (work days, hours, shift types).
 - **Pattern**: Systematic Zod validation at Server Actions level (Zsa).
 - **Subscription Guard**: Admin routes require both auth AND active subscription AND completed onboarding. Check performed in `admin/layout.tsx` server-side. Source of truth = Stripe subscription status in DB (synced via webhooks).
 - **Stripe Webhook Security**: HMAC signature verification via `stripe.webhooks.constructEvent()`. Raw body parser applied ONLY to `/api/stripe/webhook` route (not global). Idempotency enforced via `StripeEvent` table.
@@ -213,23 +213,29 @@ Every REST API endpoint MUST have Swagger decorators. This is **not optional**.
 - Onboarding wizard depends on Clinic model (Story 1.4) and i18n routing (Story 2.1).
 - Auth refactor (Story 1.5) depends on Clinic model (Story 1.4).
 
-**Subscription Flow (Registration = Stripe Checkout):**
+**Registration Flow (Account-First):**
 ```
-Pricing Page → Pre-checkout form (clinic name, admin name, admin email)
-  → API creates Checkout Session (metadata: clinic info)
-  → Redirect to Stripe hosted Checkout
-  → Payment OK → Webhook `checkout.session.completed`
-  → Create Clinic + Admin User + Subscription
-  → Send Magic Link email to new admin
-  → Admin clicks link → Authenticated → Onboarding wizard
-  → Configure clinic (hours, days, shifts) → Dashboard ready
+Pricing Page → Select plan (Starter or Professional)
+  → /pricing/register?plan=starter|professional
+  → Registration form (clinic name, admin name, email, password, Turnstile CAPTCHA)
+  → API register endpoint: $transaction → Clinic + Admin User + Subscription (Starter)
+  → Auto-login (JWT issued) → Onboarding wizard (work days, hours, shift types)
+  → Dashboard ready
+```
+
+**Professional Upgrade Flow:**
+```
+Dashboard → Upgrade modal (if Pro was selected at registration)
+  → Stripe Checkout → Payment OK → Webhook `checkout.session.completed`
+  → Update existing Subscription (add Stripe IDs, upgrade entitlementTier)
+  → Professional features unlocked
 ```
 
 **Promo 100% Flow:**
 ```
-Pricing Page → Enter promo code → Pre-checkout form → Checkout with coupon
-  → Webhook confirms $0 sub → Clinic created with entitlementTier matching plan
-  → Full access at $0 → Magic Link email sent → Onboarding wizard
+Pricing Page → Register as Starter → Dashboard → Upgrade via billing
+  → Enter promo code at Stripe Checkout → $0 payment
+  → Webhook upgrades Subscription with entitlementTier matching plan
   → Promo tracked via Stripe metadata (type=partner|internal|lifetime)
 ```
 
@@ -460,7 +466,7 @@ All 18 FRs and 22 NFRs are mapped to specific modules:
 - Raw body parser on `/api/stripe/webhook` ONLY. Never app-wide.
 - Subscription source of truth = Stripe (via webhooks), never frontend.
 - i18n proxy runs before auth guards. Auth/subscription checks in route layouts.
-- No `register()` endpoint. Registration = Stripe Checkout only.
+- `register` endpoint creates Clinic + Admin + Subscription (Starter). Stripe Checkout is for Professional upgrades only.
 - Login resolves `clinicId` from DB. No `NEXT_PUBLIC_CLINIC_ID`.
 - Admin routes check `Clinic.onboardingCompleted` and redirect to onboarding if needed.
 

@@ -31,6 +31,7 @@ const onboardingStatusSchema = z.object({
       color: z.string(),
     }),
   ),
+  onboardingDraft: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export const getOnboardingStatusAction = createServerAction()
@@ -61,4 +62,10 @@ export const completeOnboardingAction = createServerAction()
   .input(completeOnboardingSchema)
   .handler(async ({ input }) => {
     return trpc.clinic.completeOnboarding.mutate(input);
+  });
+
+export const saveOnboardingDraftAction = createServerAction()
+  .input(z.object({ step: z.number(), values: z.record(z.string(), z.unknown()) }))
+  .handler(async ({ input }) => {
+    return trpc.clinic.saveOnboardingDraft.mutate(input);
   });

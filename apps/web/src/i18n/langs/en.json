@@ -1362,9 +1362,23 @@
       },
       "fullDiscount": "100% — Free Access"
     },
+    "starter": {
+      "currentPlan": "Free plan — basic features",
+      "upgradeTitle": "Upgrade to Professional",
+      "upgradeDescription": "Unlock all features for your clinic.",
+      "upgradeButton": "Upgrade to Professional — €29/month",
+      "redirecting": "Redirecting to Stripe...",
+      "features": {
+        "unlimitedEmployees": "Unlimited employees",
+        "advancedRules": "Advanced planning rules",
+        "csvExport": "CSV data export",
+        "prioritySupport": "Priority support"
+      }
+    },
     "errors": {
       "loadFailed": "Unable to load billing information",
       "portalFailed": "Unable to open the management portal",
+      "upgradeFailed": "Unable to create payment session",
       "noSubscription": "No subscription found for your clinic",
       "retry": "Retry"
     },
@@ -1486,6 +1500,10 @@
       "searchPlaceholder": "Search employees...",
       "showInactive": "Show inactive",
       "allJobTypes": "All job types"
+    },
+    "limits": {
+      "count": "{current}/{max} active members",
+      "reached": "Upgrade to Pro to add more members"
     },
     "schoolDays": {
       "declared": "Declared",
@@ -1732,7 +1750,7 @@
       "subtitle": "Pawly streamlines scheduling, team management, and daily operations — so you can focus on what matters most: animal care.",
       "cta": "Start Free",
       "secondaryCta": "View Pricing",
-      "badge": "New: AI-powered Scheduling",
+      "badge": "New: Automated Scheduling",
       "trialNote": "Free trial · No credit card required",
       "trustTitle": "Trusted by leading clinics:",
       "trustBadges": [
@@ -1794,24 +1812,24 @@
         "description": "Ideal to discover Pawly and its essential features",
         "free": "Free",
         "features": [
-          "Up to 3 team members",
-          "Basic scheduling",
+          "Up to 10 team members",
+          "Scheduling & automatic generation",
           "Absence management",
-          "Community support"
+          "Custom shift types"
         ]
       },
       "professional": {
         "name": "Professional",
-        "price": "29",
+        "price": "29.99",
         "interval": "month",
         "description": "For growing clinics that need more",
         "popular": "Most Popular",
         "features": [
           "Up to 20 team members",
-          "Advanced scheduling algorithms",
           "Equity counters",
-          "Priority support",
-          "Custom shift types"
+          "Configurable scheduling rules",
+          "Schedule health alerts",
+          "Priority support"
         ]
       },
       "cta": "Get Started",
@@ -1846,6 +1864,7 @@
       "button": "Start Your Free Trial"
     },
     "footer": {
+      "tagline": "The intelligent planning platform for veterinary clinics.",
       "description": "The intelligent planning platform for veterinary clinics.",
       "product": "Product",
       "features": "Features",
@@ -1864,5 +1883,35 @@
   },
   "employeeSettings": {
     "title": "Settings"
+  },
+  "upgradeModal": {
+    "title": "Upgrade to Professional",
+    "subtitle": "Unlock all features for your clinic.",
+    "benefits": {
+      "unlimitedEmployees": "Unlimited employees",
+      "advancedRules": "Advanced planning rules",
+      "csvExport": "CSV data export",
+      "prioritySupport": "Priority support"
+    },
+    "ctaButton": "Upgrade to Professional — €29/month",
+    "dismissButton": "Maybe later"
+  },
+  "register": {
+    "pageTitle": "Create your clinic",
+    "title": "Create your clinic",
+    "subtitle": "Start free, no credit card required.",
+    "tagline": "Automated veterinary scheduling",
+    "clinicName": "Clinic name",
+    "clinicNamePlaceholder": "Veterinary Clinic of the Park",
+    "adminName": "Your name",
+    "adminNamePlaceholder": "Dr. Martin",
+    "email": "Email",
+    "emailPlaceholder": "admin@clinic.com",
+    "password": "Password",
+    "submitButton": "Create my account",
+    "submitting": "Creating...",
+    "backToPricing": "Back to pricing",
+    "alreadyHaveAccount": "Already have an account?",
+    "loginLink": "Log in"
   }
 }

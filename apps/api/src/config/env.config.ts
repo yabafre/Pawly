@@ -23,6 +23,7 @@ export const envSchema = z.object({
   TRIGGER_API_URL: z.string().url().optional(),
   TRIGGER_PROJECT_ID: z.string().min(1).optional(),
   TRIGGER_ACCESS_TOKEN: z.string().min(1).optional(),
+  REDIS_URL: z.string().url().optional(),
   CRON_ENABLED: z.enum(['true', 'false']).default('true'),
 });
 
