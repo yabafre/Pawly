@@ -424,6 +424,9 @@
         "requiredStaff": "Personnel requis",
         "requiredJobTypes": "Postes requis",
         "addSlot": "Ajouter un créneau",
+        "applyTo": "Appliquer à...",
+        "applyToTitle": "Appliquer ces créneaux à :",
+        "applyConfirm": "Appliquer ({count})",
         "removeSlot": "Supprimer",
         "staffCount": "{count} personnel"
       },

@@ -424,6 +424,9 @@
         "requiredStaff": "Required staff",
         "requiredJobTypes": "Required roles",
         "addSlot": "Add slot",
+        "applyTo": "Apply to...",
+        "applyToTitle": "Apply these slots to:",
+        "applyConfirm": "Apply ({count})",
         "removeSlot": "Remove",
         "staffCount": "{count} staff"
       },
