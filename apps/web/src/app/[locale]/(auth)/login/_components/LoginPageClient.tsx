@@ -150,7 +150,7 @@ export const LoginPageClient = () => {
                     validators={{
                         onBlur: ({ value }) => {
                             const r = requestOtpSchema.shape.email.safeParse(value);
-                            return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("invalidEmail");
+                            return r.success ? undefined : tErrors("invalidEmail");
                         },
                     }}
                     children={(field) => {
@@ -184,7 +184,7 @@ export const LoginPageClient = () => {
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden"
+                            className="overflow-hidden px-px"
                         >
                             <form.Field
                                 name="password"
@@ -192,7 +192,7 @@ export const LoginPageClient = () => {
                                     onBlur: ({ value }) => {
                                         if (!isAdmin) return undefined;
                                         const r = loginSchema.shape.password.safeParse(value);
-                                        return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("passwordRequired");
+                                        return r.success ? undefined : tErrors("passwordRequired");
                                     },
                                 }}
                                 children={(field) => {
