@@ -175,32 +175,17 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
           )}
         </form.Field>
 
-        <form.Field
-          name="phone"
-          validators={{
-            onChange: ({ value }) => {
-              if (!value || !value.trim()) return t("validation.phoneRequired");
-              return undefined;
-            },
-          }}
-        >
+        <form.Field name="phone">
           {(field: any) => (
             <div className="space-y-1.5">
-              <Label htmlFor="phone">{t("form.phone")} *</Label>
+              <Label htmlFor="phone">{t("form.phone")}</Label>
               <Input
                 id="phone"
                 type="tel"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value)}
                 onBlur={field.handleBlur}
-                aria-invalid={field.state.meta.errors.length > 0}
-                required
               />
-              {field.state.meta.errors.length > 0 && (
-                <p className="text-sm text-destructive" role="alert">
-                  {field.state.meta.errors[0]}
-                </p>
-              )}
             </div>
           )}
         </form.Field>
