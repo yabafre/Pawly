@@ -477,6 +477,7 @@
       "monthPlaceholder": "Sélectionner un mois",
       "templateLabel": "Modèle de semaine",
       "templatePlaceholder": "Sélectionner un modèle",
+      "noTemplates": "Créer un modèle",
       "generateButton": "Générer le planning",
       "generating": "Génération en cours...",
       "regenerateButton": "Regénérer",

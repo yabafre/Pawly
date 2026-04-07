@@ -477,6 +477,7 @@
       "monthPlaceholder": "Select month",
       "templateLabel": "Week Template",
       "templatePlaceholder": "Select a template",
+      "noTemplates": "Create a template",
       "generateButton": "Generate Planning",
       "generating": "Generating planning...",
       "regenerateButton": "Regenerate",
