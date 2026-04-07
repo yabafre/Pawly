@@ -1502,7 +1502,9 @@
     "validation": {
       "firstNameRequired": "First name is required",
       "lastNameRequired": "Last name is required",
+      "emailRequired": "Email is required",
       "invalidEmail": "Invalid email address",
+      "phoneRequired": "Phone number is required",
       "hoursRange": "Hours must be between 1 and 48",
       "endDateAfterHire": "End date must be after hire date"
     },
