@@ -314,6 +314,17 @@
         "categoryEquity": "Équité de rotation",
         "categoryContract": "Conformité contrat",
         "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}",
+        "days": {
+          "monday": "lundi", "tuesday": "mardi", "wednesday": "mercredi",
+          "thursday": "jeudi", "friday": "vendredi", "saturday": "samedi", "sunday": "dimanche"
+        },
+        "periods": {
+          "monthly": "mensuel", "quarterly": "trimestriel", "weekly": "hebdomadaire", "period": "période"
+        },
+        "terms": {
+          "shifts": "créneaux", "exceedsMax": "dépasse le maximum de",
+          "employeeTotal": "Total employé", "employeeHas": "L'employé a", "per": "par"
+        },
         "violations": {
           "rotationEquity": {
             "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"

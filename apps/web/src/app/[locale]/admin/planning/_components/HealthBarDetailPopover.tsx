@@ -34,6 +34,35 @@ const CATEGORY_KEYS: Record<string, string> = {
   CONTRACT_COMPLIANCE: "categoryContract",
 };
 
+/** Translate English terms in API violation messages to the current locale */
+function localizeMessage(msg: string, t: ReturnType<typeof useTranslations>): string {
+  const dayMap: Record<string, string> = {
+    monday: t("days.monday"), tuesday: t("days.tuesday"), wednesday: t("days.wednesday"),
+    thursday: t("days.thursday"), friday: t("days.friday"), saturday: t("days.saturday"), sunday: t("days.sunday"),
+  };
+  const periodMap: Record<string, string> = {
+    monthly: t("periods.monthly"), quarterly: t("periods.quarterly"),
+    weekly: t("periods.weekly"), period: t("periods.period"),
+  };
+
+  let result = msg;
+  for (const [en, loc] of Object.entries(dayMap)) {
+    result = result.replace(new RegExp(`\\b${en}\\b`, "gi"), loc);
+  }
+  for (const [en, loc] of Object.entries(periodMap)) {
+    result = result.replace(new RegExp(`\\b${en}\\b`, "gi"), loc);
+  }
+  // Translate common English fragments
+  result = result
+    .replace(/\bshifts\b/gi, t("terms.shifts"))
+    .replace(/\bexceeds maximum of\b/gi, t("terms.exceedsMax"))
+    .replace(/\bexceeds maximum\b/gi, t("terms.exceedsMax"))
+    .replace(/\bEmployee total\b/gi, t("terms.employeeTotal"))
+    .replace(/\bEmployee has\b/gi, t("terms.employeeHas"))
+    .replace(/\bper\b/gi, t("terms.per"));
+  return result;
+}
+
 function groupByCategory<T extends { category: string }>(
   items: T[],
 ): Record<string, T[]> {
@@ -130,7 +159,7 @@ export function HealthBarDetailPopover({
                   return (
                     <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
                       {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
-                      {v.message}
+                      {localizeMessage(v.message, t)}
                     </li>
                   );
                 })}
@@ -153,9 +182,12 @@ export function HealthBarDetailPopover({
                   return (
                     <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
                       {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
-                      {"messageKey" in v && v.messageKey
-                        ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
-                        : v.message}
+                      {localizeMessage(
+                        "messageKey" in v && v.messageKey
+                          ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
+                          : v.message,
+                        t,
+                      )}
                     </li>
                   );
                 })}

@@ -314,6 +314,17 @@
         "categoryEquity": "Rotation Equity",
         "categoryContract": "Contract Compliance",
         "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}",
+        "days": {
+          "monday": "Monday", "tuesday": "Tuesday", "wednesday": "Wednesday",
+          "thursday": "Thursday", "friday": "Friday", "saturday": "Saturday", "sunday": "Sunday"
+        },
+        "periods": {
+          "monthly": "monthly", "quarterly": "quarterly", "weekly": "weekly", "period": "period"
+        },
+        "terms": {
+          "shifts": "shifts", "exceedsMax": "exceeds maximum of",
+          "employeeTotal": "Employee total", "employeeHas": "Employee has", "per": "per"
+        },
         "violations": {
           "rotationEquity": {
             "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
