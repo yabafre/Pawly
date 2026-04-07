@@ -9,7 +9,6 @@ import {
   Users,
   Pencil,
   Trash2,
-  AlertTriangle,
   GraduationCap,
   LayoutTemplate,
 } from "lucide-react";
@@ -298,12 +297,6 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {totalWarnings > 0 && (
-                  <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 font-bold text-xs gap-1.5">
-                    <AlertTriangle size={12} />
-                    {totalWarnings} {tExisting("warnings")}
-                  </Badge>
-                )}
                 {generated.length > 0 && (
                   <Button
                     variant="outline"

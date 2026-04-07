@@ -153,13 +153,15 @@ export function PlanningHealthBar({
                     <HealthBarDetailPopover violations={violations} holes={holes} employees={employees}>
                       <button
                         type="button"
-                        className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors underline-offset-2 hover:underline text-left"
+                        className={`text-sm font-medium cursor-pointer hover:text-foreground transition-colors underline-offset-2 hover:underline text-left ${
+                          hasHardConflicts ? "text-rose-600" : hasSoftWarnings ? "text-orange-600" : hasHoles ? "text-muted-foreground" : "text-primary"
+                        }`}
                       >
                         {subtitleText}
                       </button>
                     </HealthBarDetailPopover>
                   ) : (
-                    <p className="text-xs text-muted-foreground">
+                    <p className={`text-sm font-medium ${isHealthy && !isEmpty ? "text-primary" : "text-muted-foreground"}`}>
                       {subtitleText}
                     </p>
                   )}
