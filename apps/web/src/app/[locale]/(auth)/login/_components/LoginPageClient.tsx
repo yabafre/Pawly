@@ -1,21 +1,27 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useForm } from "@tanstack/react-form";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PawlyLogo } from "@/components/pawly-logo";
 import { Mail, Lock, ArrowLeft, ArrowRight, RefreshCw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { FallingAnimals } from "@/components/ui/falling-animals";
-import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../_hooks/useAuth";
 import { requestOtpSchema, loginSchema } from "@pawly/validators";
 import { OtpInput, type OtpInputHandle } from "./OtpInput";
 import { TurnstileBox } from "@/components/turnstile";
+
+/** Map TanStack Form errors (strings) to FieldError-compatible format */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toFieldErrors = (errors: any[]): Array<{ message?: string } | undefined> =>
+    errors.map((e) => (typeof e === "string" ? { message: e } : e));
 
 const roles = ["employee", "admin"] as const;
 type Role = (typeof roles)[number];
@@ -24,13 +30,10 @@ type Stage = "form" | "otp" | "magic_link_fallback";
 export const LoginPageClient = () => {
     const [activeRole, setActiveRole] = useState<Role>("employee");
     const [stage, setStage] = useState<Stage>("form");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [emailError, setEmailError] = useState("");
-    const [passwordError, setPasswordError] = useState("");
     const [submittedEmail, setSubmittedEmail] = useState("");
     const [turnstileToken, setTurnstileToken] = useState("");
     const otpInputRef = useRef<OtpInputHandle>(null);
+    const router = useRouter();
 
     const t = useTranslations("auth.login");
     const tMagic = useTranslations("auth.magicLink");
@@ -48,34 +51,25 @@ export const LoginPageClient = () => {
     const isAdmin = activeRole === "admin";
     const isPending = isAdmin ? isLoginPending : isOtpRequestPending;
 
-    const validateEmail = (val: string) => {
-        const result = requestOtpSchema.shape.email.safeParse(val);
-        return result.success ? "" : (result.error.issues[0]?.message ?? tErrors("invalidEmail"));
-    };
+    const form = useForm({
+        defaultValues: { email: "", password: "" },
+        onSubmit: async ({ value }) => {
+            // Validate email
+            const emailResult = requestOtpSchema.shape.email.safeParse(value.email);
+            if (!emailResult.success) return;
 
-    const validatePassword = (val: string) => {
-        const result = loginSchema.shape.password.safeParse(val);
-        return result.success ? "" : (result.error.issues[0]?.message ?? tErrors("passwordRequired"));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const eErr = validateEmail(email);
-        setEmailError(eErr);
-        if (eErr) return;
-
-        if (isAdmin) {
-            const pErr = validatePassword(password);
-            setPasswordError(pErr);
-            if (pErr) return;
-            await login({ email, password, turnstileToken });
-        } else {
-            setSubmittedEmail(email);
-            const method = await requestOtp(email, turnstileToken);
-            if (method === "otp") setStage("otp");
-            else if (method === "magic_link") setStage("magic_link_fallback");
-        }
-    };
+            if (isAdmin) {
+                const pwResult = loginSchema.shape.password.safeParse(value.password);
+                if (!pwResult.success) return;
+                await login({ email: value.email, password: value.password, turnstileToken });
+            } else {
+                setSubmittedEmail(value.email);
+                const method = await requestOtp(value.email, turnstileToken);
+                if (method === "otp") setStage("otp");
+                else if (method === "magic_link") setStage("magic_link_fallback");
+            }
+        },
+    });
 
     const handleOtpComplete = async (code: string) => {
         const success = await verifyOtp(submittedEmail, code);
@@ -87,12 +81,12 @@ export const LoginPageClient = () => {
         setSubmittedEmail("");
     };
 
-    const clearErrors = () => { setEmailError(""); setPasswordError(""); };
+    const clearErrors = () => { form.reset(); };
 
     // OTP stage
     if (stage === "otp") {
         return (
-            <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors}>
+            <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors} onBack={() => router.push("/")}>
                 <div className="space-y-6 pt-4">
                     <div className="text-center space-y-2">
                         <p className="text-sm font-medium">{tOtp("enterCode")}</p>
@@ -122,7 +116,7 @@ export const LoginPageClient = () => {
     // Magic link fallback stage
     if (stage === "magic_link_fallback") {
         return (
-            <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors}>
+            <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors} onBack={() => router.push("/")}>
                 <div className="bg-primary/5 border border-primary/10 p-4 rounded-2xl text-center space-y-3 py-8 mt-4">
                     <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto">
                         <Check className="w-6 h-6 text-white" />
@@ -144,24 +138,42 @@ export const LoginPageClient = () => {
 
     // Default: form stage
     return (
-        <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors}>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4" noValidate>
-                {/* Email - always visible */}
-                <div className="space-y-2">
-                    <Label htmlFor="email" className="font-medium">{t("emailLabel")}</Label>
-                    <Input
-                        id="email"
-                        type="email"
-                        placeholder={t("emailPlaceholder")}
-                        required
-                        aria-invalid={!!emailError}
-                        value={email}
-                        onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
-                        className="h-10"
-                    />
-                    {emailError && <p className="text-[11px] text-destructive">{emailError}</p>}
-                    {!isAdmin && <p className="text-[11px] text-muted-foreground">{tMagic("helper")}</p>}
-                </div>
+        <LoginShell activeRole={activeRole} setActiveRole={setActiveRole} roleIndex={roleIndex} t={t} tBrand={tBrand} onTabSwitch={clearErrors} onBack={() => router.push("/")}>
+            <form
+                onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}
+                className="space-y-4 pt-4"
+                noValidate
+            >
+                {/* Email field */}
+                <form.Field
+                    name="email"
+                    validators={{
+                        onBlur: ({ value }) => {
+                            const r = requestOtpSchema.shape.email.safeParse(value);
+                            return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("invalidEmail");
+                        },
+                    }}
+                    children={(field) => {
+                        const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                        return (
+                            <Field data-invalid={isInvalid}>
+                                <FieldLabel htmlFor={field.name} className="font-medium">{t("emailLabel")}</FieldLabel>
+                                <Input
+                                    id={field.name}
+                                    type="email"
+                                    placeholder={t("emailPlaceholder")}
+                                    value={field.state.value}
+                                    onBlur={field.handleBlur}
+                                    onChange={(e) => field.handleChange(e.target.value)}
+                                    aria-invalid={isInvalid}
+                                    className="h-10"
+                                />
+                                {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                                {!isAdmin && <p className="text-[11px] text-muted-foreground">{tMagic("helper")}</p>}
+                            </Field>
+                        );
+                    }}
+                />
 
                 {/* Password - animated reveal for admin */}
                 <AnimatePresence initial={false}>
@@ -174,25 +186,40 @@ export const LoginPageClient = () => {
                             transition={{ duration: 0.25, ease: "easeInOut" }}
                             className="overflow-hidden"
                         >
-                            <div className="space-y-2 pb-1">
-                                <Label htmlFor="password" className="font-medium">{t("passwordLabel")}</Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    required
-                                    aria-invalid={!!passwordError}
-                                    value={password}
-                                    onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }}
-                                    className="h-10"
-                                />
-                                {passwordError && <p className="text-[11px] text-destructive">{passwordError}</p>}
-                                <Link
-                                    href="/forgot-password"
-                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                    {t("forgotPassword")}
-                                </Link>
-                            </div>
+                            <form.Field
+                                name="password"
+                                validators={{
+                                    onBlur: ({ value }) => {
+                                        if (!isAdmin) return undefined;
+                                        const r = loginSchema.shape.password.safeParse(value);
+                                        return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("passwordRequired");
+                                    },
+                                }}
+                                children={(field) => {
+                                    const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                                    return (
+                                        <Field data-invalid={isInvalid}>
+                                            <FieldLabel htmlFor={field.name} className="font-medium">{t("passwordLabel")}</FieldLabel>
+                                            <Input
+                                                id={field.name}
+                                                type="password"
+                                                value={field.state.value}
+                                                onBlur={field.handleBlur}
+                                                onChange={(e) => field.handleChange(e.target.value)}
+                                                aria-invalid={isInvalid}
+                                                className="h-10"
+                                            />
+                                            {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                                            <a
+                                                href="/forgot-password"
+                                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                            >
+                                                {t("forgotPassword")}
+                                            </a>
+                                        </Field>
+                                    );
+                                }}
+                            />
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -211,7 +238,7 @@ export const LoginPageClient = () => {
 
 // Shared layout shell
 function LoginShell({
-    activeRole, setActiveRole, roleIndex, t, tBrand, children, onTabSwitch,
+    activeRole, setActiveRole, roleIndex, t, tBrand, children, onTabSwitch, onBack,
 }: {
     activeRole: Role;
     setActiveRole: (r: Role) => void;
@@ -220,6 +247,7 @@ function LoginShell({
     tBrand: ReturnType<typeof useTranslations>;
     children: React.ReactNode;
     onTabSwitch?: () => void;
+    onBack?: () => void;
 }) {
     return (
         <div className="min-h-dvh flex bg-background">
@@ -230,10 +258,8 @@ function LoginShell({
                     </div>
 
                     <div className="relative flex flex-col items-center gap-1.5 mb-8">
-                        <Button variant="outline" size="icon" asChild className="rounded-full absolute left-0 top-0">
-                            <Link href="/" aria-label="Retour à l'accueil">
-                                <ArrowLeft className="h-4 w-4" />
-                            </Link>
+                        <Button variant="outline" size="icon" className="rounded-full absolute left-0 top-0" onClick={onBack} aria-label="Retour">
+                            <ArrowLeft className="h-4 w-4" />
                         </Button>
                         <PawlyLogo />
                         <p className="text-xs text-muted-foreground">{t("tagline")}</p>

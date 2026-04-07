@@ -115,14 +115,15 @@ describe('PricingCheckout', () => {
     expect(form).toHaveAttribute('data-priceid', TEST_PRICE_STARTER);
   });
 
-  it('renders enterprise plan when plan=enterprise', async () => {
+  it('defaults to professional for enterprise plan param (no longer valid)', async () => {
     mockPlanParam = 'enterprise';
     const { PricingCheckout } = await import('../_components/PricingCheckout');
     renderWithProviders(<PricingCheckout />);
 
-    expect(screen.getByText('enterprise.name')).toBeInTheDocument();
+    // enterprise is no longer a valid plan, defaults to professional
+    expect(screen.getByText('professional.name')).toBeInTheDocument();
     const form = screen.getByTestId('pre-checkout-form');
-    expect(form).toHaveAttribute('data-priceid', TEST_PRICE_ENTERPRISE);
+    expect(form).toHaveAttribute('data-priceid', TEST_PRICE_PROFESSIONAL);
   });
 
   it('renders error when priceId env var is missing', async () => {

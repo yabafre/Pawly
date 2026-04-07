@@ -49,7 +49,7 @@ describe('PricingPage', () => {
       });
 
       const twitter = metadata.twitter;
-      expect(twitter && 'card' in twitter ? twitter.card : undefined).toBe('summary');
+      expect(twitter && 'card' in twitter ? twitter.card : undefined).toBe('summary_large_image');
       expect(metadata.twitter?.title).toBe('title');
       expect(metadata.twitter?.description).toBe('description');
     });

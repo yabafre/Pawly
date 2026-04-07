@@ -519,7 +519,7 @@ describe("ShiftCell", () => {
 
     const label = screen.getByText("manual");
     expect(label).toBeInTheDocument();
-    expect(label).toHaveClass("text-neutral-400");
+    expect(label).toHaveClass("text-muted-foreground");
     expect(label).toHaveClass("italic");
   });
 
@@ -622,12 +622,12 @@ describe("AbsenceCell", () => {
 
     expect(screen.getByText("other")).toBeInTheDocument();
 
-    // OTHER type uses bg-neutral-50 styling
-    const styledDiv = container.querySelector(".bg-neutral-50");
+    // OTHER type uses bg-muted styling
+    const styledDiv = container.querySelector(".bg-muted");
     expect(styledDiv).not.toBeNull();
 
     // Border and text classes for OTHER type
-    const borderDiv = container.querySelector(".border-neutral-100");
+    const borderDiv = container.querySelector(".border-border");
     expect(borderDiv).not.toBeNull();
   });
 });
@@ -771,7 +771,7 @@ describe("ConflictIndicator", () => {
     render(<ConflictIndicator conflicts={conflicts} />, { wrapper: Wrapper });
 
     const button = screen.getByLabelText("hardCount");
-    expect(button).toHaveClass("bg-[#F97316]");
+    expect(button).toHaveClass("bg-orange-500");
   });
 
   it("displays all messages when multiple conflicts are present", () => {

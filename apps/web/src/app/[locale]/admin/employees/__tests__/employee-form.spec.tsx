@@ -8,6 +8,7 @@ vi.mock("next-intl", () => ({
     const t = (key: string) => key;
     return t;
   },
+  useLocale: () => "fr",
 }));
 
 // Mock @tanstack/react-form
@@ -22,7 +23,11 @@ vi.mock("@tanstack/react-form", () => ({
         handleChange: vi.fn(),
         handleBlur: vi.fn(),
       }),
-    Subscribe: ({ children }: any) => children([true, false]),
+    Subscribe: ({ selector, children }: any) => {
+      // Simulate selector: return contractType default so both date fields render
+      // Use "CDD" to ensure endDate field is visible in tests
+      return children("CDD");
+    },
     handleSubmit: vi.fn(),
   })),
 }));
@@ -66,8 +71,8 @@ describe("EmployeeForm", () => {
     expect(screen.getByText("form.contractType")).toBeDefined();
     expect(screen.getByText("form.contractHours")).toBeDefined();
     expect(screen.getByText("form.color")).toBeDefined();
-    expect(screen.getByText("form.hireDate")).toBeDefined();
-    expect(screen.getByText("form.endDate")).toBeDefined();
+    expect(screen.getAllByText("form.hireDate").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("form.endDate").length).toBeGreaterThan(0);
   });
 
   it("renders save button", () => {

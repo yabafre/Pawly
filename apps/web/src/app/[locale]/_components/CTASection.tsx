@@ -7,7 +7,7 @@ export async function CTASection() {
   const t = await getTranslations("landing.cta");
 
   return (
-    <section className="py-20 px-6">
+    <section className="py-20 px-6" data-floating-boundary>
       <div className="max-w-6xl mx-auto">
         <div className="rounded-2xl border bg-primary/[0.03] px-6 py-16 sm:px-12 sm:py-20 text-center">
           <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-4">

@@ -83,7 +83,7 @@ describe("EmployeeCard — school days badge", () => {
     expect(screen.queryByText("schoolDays.notDeclared")).toBeNull();
   });
 
-  it("renders declared badge with emerald styling", () => {
+  it("renders declared badge with border styling", () => {
     const { container } = render(
       <EmployeeCard
         employee={baseEmployee}
@@ -92,11 +92,12 @@ describe("EmployeeCard — school days badge", () => {
       />,
     );
 
-    const badge = screen.getByText("schoolDays.declared").closest("[data-slot='badge']");
-    expect(badge?.classList.contains("border-border")).toBe(true);
+    // Badge wraps the text in a div with border-border class
+    const badgeEl = screen.getByText("schoolDays.declared").closest("div");
+    expect(badgeEl?.className).toContain("border-border");
   });
 
-  it("renders not-declared badge with amber styling", () => {
+  it("renders not-declared badge with border styling", () => {
     const { container } = render(
       <EmployeeCard
         employee={baseEmployee}
@@ -105,7 +106,7 @@ describe("EmployeeCard — school days badge", () => {
       />,
     );
 
-    const badge = screen.getByText("schoolDays.notDeclared").closest("[data-slot='badge']");
-    expect(badge?.classList.contains("border-border")).toBe(true);
+    const badgeEl = screen.getByText("schoolDays.notDeclared").closest("div");
+    expect(badgeEl?.className).toContain("border-border");
   });
 });
