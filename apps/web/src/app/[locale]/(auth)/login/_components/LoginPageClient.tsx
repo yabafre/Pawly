@@ -184,7 +184,7 @@ export const LoginPageClient = () => {
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden px-px"
+                            className="overflow-hidden p-1 -m-1"
                         >
                             <form.Field
                                 name="password"
