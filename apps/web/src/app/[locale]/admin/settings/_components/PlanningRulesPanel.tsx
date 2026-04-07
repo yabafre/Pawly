@@ -246,6 +246,7 @@ export function PlanningRulesPanel() {
       )}
 
       <PlanningRuleFormSheet
+        key={editingRule?.id ?? "new"}
         open={formOpen}
         onClose={handleFormClose}
         editingRule={editingRule}

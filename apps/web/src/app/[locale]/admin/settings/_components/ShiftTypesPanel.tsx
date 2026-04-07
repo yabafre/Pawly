@@ -208,6 +208,7 @@ export function ShiftTypesPanel() {
       )}
 
       <ShiftTypeFormSheet
+        key={editingShiftType?.id ?? "new"}
         open={formOpen}
         onClose={handleFormClose}
         editingShiftType={editingShiftType}
