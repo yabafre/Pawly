@@ -33,10 +33,12 @@ const registerWithLocaleSchema = z.object({
 export const registerAction = createServerAction()
   .input(registerWithLocaleSchema)
   .output(authResponseSchema)
-  .experimental_shapeError(({ err }) => ({
-    code: err instanceof ZSAError ? err.code : "SERVER_ERROR",
-    message: err instanceof Error ? err.message : "An error occurred",
-  }))
+  .experimental_shapeError(({ err }) => {
+    if (err instanceof ZSAError) return { code: err.code, message: err.message };
+    // Preserve the API error message (e.g. EMAIL_ALREADY_EXISTS) for client-side translation
+    const message = err instanceof Error ? err.message : "An error occurred";
+    return { code: "SERVER_ERROR", message };
+  })
   .handler(async ({ input }) => {
     const { turnstileToken, locale, ...registerInput } = input;
 

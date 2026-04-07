@@ -27,13 +27,13 @@ describe("SchoolDayReminderBanner", () => {
     ).toBeDefined();
   });
 
-  it("renders with amber warning styling", () => {
+  it("renders with card styling", () => {
     const { container } = render(
       <SchoolDayReminderBanner month="avril 2026" />,
     );
 
     const banner = container.firstElementChild;
-    expect(banner?.classList.contains("bg-amber-50")).toBe(true);
-    expect(banner?.classList.contains("border-amber-200")).toBe(true);
+    expect(banner?.classList.contains("bg-card")).toBe(true);
+    expect(banner?.classList.contains("border")).toBe(true);
   });
 });

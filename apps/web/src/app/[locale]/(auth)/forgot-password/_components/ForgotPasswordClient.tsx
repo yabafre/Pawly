@@ -92,9 +92,9 @@ export function ForgotPasswordClient() {
               <div className="text-center">
                 <Link
                   href="/login"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center"
                 >
-                  <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
+                  <ArrowLeft className="mr-1 h-3.5 w-3.5" />
                   {t("backToLogin")}
                 </Link>
               </div>

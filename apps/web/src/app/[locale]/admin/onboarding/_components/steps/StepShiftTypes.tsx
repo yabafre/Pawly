@@ -45,9 +45,9 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
       >
         {(field: any) => (
           <div className="space-y-3">
-            {field.state.value.map((item: any, index: number) => (
+            {field.state.value.map((_item: any, index: number) => (
               <div
-                key={item.code || `shift-${index}`}
+                key={index}
                 className="p-4 rounded-xl border border-border bg-card space-y-3"
               >
                 <div className="flex items-center justify-between">

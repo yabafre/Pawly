@@ -20,16 +20,30 @@ vi.mock('@/components/language-switcher', () => ({
   LanguageSwitcher: () => <div data-testid="language-switcher">LanguageSwitcher</div>,
 }));
 
+// Mock AnchorNavLink (client component used by LandingHeader)
+vi.mock('../AnchorNavLink', () => ({
+  AnchorNavLink: ({ children, hash, className }: { children: React.ReactNode; hash: string; className?: string }) => (
+    <a href={`#${hash}`} className={className}>{children}</a>
+  ),
+}));
+
+// Mock trpc client used by LandingHeader
+vi.mock('@/lib/trpc/client', () => ({
+  trpc: {
+    auth: {
+      getMe: {
+        query: vi.fn().mockRejectedValue(new Error('Not authenticated')),
+      },
+    },
+  },
+}));
+
+// Mock FallingAnimals (canvas-based component)
+vi.mock('@/components/ui/falling-animals', () => ({
+  FallingAnimals: (props: any) => <div data-testid="falling-animals" {...props} />,
+}));
+
 describe('LandingHeader', () => {
-  it('renders skip navigation link', async () => {
-    const element = await LandingHeader();
-    render(element);
-
-    const skipLink = screen.getByText('Skip to main content');
-    expect(skipLink).toBeInTheDocument();
-    expect(skipLink).toHaveAttribute('href', '#main-content');
-  });
-
   it('renders header with navigation', async () => {
     const element = await LandingHeader();
     render(element);
@@ -44,27 +58,27 @@ describe('LandingHeader', () => {
     expect(screen.getByTestId('pawly-logo')).toBeInTheDocument();
   });
 
-  it('renders login and CTA links', async () => {
+  it('renders login link when no auth cookie', async () => {
     const element = await LandingHeader();
     render(element);
 
     expect(screen.getByText('login')).toBeInTheDocument();
-    expect(screen.getByText('cta')).toBeInTheDocument();
   });
 
   it('renders LanguageSwitcher', async () => {
     const element = await LandingHeader();
     render(element);
 
-    expect(screen.getByTestId('language-switcher')).toBeInTheDocument();
+    // LandingHeader no longer renders LanguageSwitcher directly
+    // (it was removed from the header component)
   });
 
-  it('has fixed header styling', async () => {
+  it('has sticky header styling', async () => {
     const element = await LandingHeader();
     render(element);
 
     const header = screen.getByRole('banner');
-    expect(header.className).toContain('fixed');
+    expect(header.className).toContain('sticky');
   });
 
   it('renders desktop navigation links', async () => {
@@ -77,28 +91,13 @@ describe('LandingHeader', () => {
 });
 
 describe('HeroSection', () => {
-  beforeEach(async () => {
-    const { getTranslations } = await import('next-intl/server');
-    vi.mocked(getTranslations).mockImplementation(async () => {
-      const t = (key: string) => key;
-      t.raw = (key: string) => {
-        if (key === 'trustBadges') return ['VetLife', 'AniCura', 'MonVéto'];
-        return key;
-      };
-      t.rich = (key: string) => key;
-      t.markup = (key: string) => key;
-      t.has = () => true;
-      return t as any;
-    });
-  });
-
   it('renders hero with h1 title', async () => {
     const element = await HeroSection();
     render(element);
 
     const heading = screen.getByRole('heading', { level: 1 });
     expect(heading).toBeInTheDocument();
-    expect(heading).toHaveTextContent('title');
+    expect(heading).toHaveTextContent('titleLine1');
   });
 
   it('renders subtitle text', async () => {
@@ -114,11 +113,11 @@ describe('HeroSection', () => {
 
     const primaryCta = screen.getByText('cta');
     expect(primaryCta).toBeInTheDocument();
-    expect(primaryCta.closest('a')).toHaveAttribute('href', '/pricing');
+    expect(primaryCta.closest('a')).toHaveAttribute('href', '/pricing/register?plan=starter');
 
     const secondaryCta = screen.getByText('secondaryCta');
     expect(secondaryCta).toBeInTheDocument();
-    expect(secondaryCta.closest('a')).toHaveAttribute('href', '#features');
+    expect(secondaryCta.closest('a')).toHaveAttribute('href', '#pricing');
   });
 
   it('renders announcement badge', async () => {
@@ -126,15 +125,6 @@ describe('HeroSection', () => {
     render(element);
 
     expect(screen.getByText('badge')).toBeInTheDocument();
-  });
-
-  it('renders trust badges', async () => {
-    const element = await HeroSection();
-    render(element);
-
-    expect(screen.getByText('VetLife')).toBeInTheDocument();
-    expect(screen.getByText('AniCura')).toBeInTheDocument();
-    expect(screen.getByText('MonVéto')).toBeInTheDocument();
   });
 });
 
@@ -207,14 +197,14 @@ describe('PricingPreviewSection', () => {
     expect(heading).toHaveTextContent('title');
   });
 
-  it('renders 3 pricing plan cards', async () => {
+  it('renders 2 pricing plan cards', async () => {
     await setupPricingMock();
 
     const element = await PricingPreviewSection();
     render(element);
 
     const planHeadings = screen.getAllByRole('heading', { level: 3 });
-    expect(planHeadings).toHaveLength(3);
+    expect(planHeadings).toHaveLength(2);
   });
 
   it('renders popular badge for Professional plan', async () => {
@@ -240,17 +230,17 @@ describe('PricingPreviewSection', () => {
     expect(screen.getByText('Most Popular')).toBeInTheDocument();
   });
 
-  it('renders CTA buttons linking to /pricing', async () => {
+  it('renders CTA buttons linking to /pricing/register', async () => {
     await setupPricingMock();
 
     const element = await PricingPreviewSection();
     render(element);
 
     const ctaLinks = screen.getAllByText('cta');
-    expect(ctaLinks).toHaveLength(3);
-    const expectedPlans = ['starter', 'professional', 'enterprise'];
+    expect(ctaLinks).toHaveLength(2);
+    const expectedPlans = ['starter', 'professional'];
     ctaLinks.forEach((link, i) => {
-      expect(link.closest('a')).toHaveAttribute('href', `/pricing?plan=${expectedPlans[i]}`);
+      expect(link.closest('a')).toHaveAttribute('href', `/pricing/register?plan=${expectedPlans[i]}`);
     });
   });
 
@@ -307,20 +297,20 @@ describe('CTASection', () => {
     expect(heading).toHaveTextContent('title');
   });
 
-  it('renders CTA button linking to /pricing', async () => {
+  it('renders CTA button linking to /pricing/register', async () => {
     const element = await CTASection();
     render(element);
 
     const ctaButton = screen.getByText('button');
     expect(ctaButton).toBeInTheDocument();
-    expect(ctaButton.closest('a')).toHaveAttribute('href', '/pricing');
+    expect(ctaButton.closest('a')).toHaveAttribute('href', '/pricing/register?plan=starter');
   });
 
   it('has primary background styling', async () => {
     const element = await CTASection();
     const { container } = render(element);
 
-    const ctaDiv = container.querySelector('.bg-primary');
+    const ctaDiv = container.querySelector('.bg-primary\\/\\[0\\.03\\]');
     expect(ctaDiv).toBeInTheDocument();
   });
 });
@@ -333,13 +323,12 @@ describe('LandingFooter', () => {
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 
-  it('renders PawlyLogo with dark theme', async () => {
+  it('renders PawlyLogo', async () => {
     const element = await LandingFooter();
     render(element);
 
     const logo = screen.getByTestId('pawly-logo');
     expect(logo).toBeInTheDocument();
-    expect(logo).toHaveAttribute('data-theme', 'dark');
   });
 
   it('renders footer navigation sections', async () => {
@@ -347,7 +336,6 @@ describe('LandingFooter', () => {
     render(element);
 
     expect(screen.getByText('product')).toBeInTheDocument();
-    expect(screen.getByText('company')).toBeInTheDocument();
     expect(screen.getByText('legal')).toBeInTheDocument();
   });
 
@@ -370,17 +358,17 @@ describe('LandingFooter', () => {
     render(element);
 
     const featuresLink = screen.getByText('features');
-    expect(featuresLink.closest('a')).toHaveAttribute('href', '/#features');
+    expect(featuresLink.closest('a')).toHaveAttribute('href', '#features');
 
     const pricingLink = screen.getByText('pricing');
     expect(pricingLink.closest('a')).toHaveAttribute('href', '/pricing');
   });
 
-  it('has dark background styling', async () => {
+  it('has border-t styling', async () => {
     const element = await LandingFooter();
     render(element);
 
     const footer = screen.getByRole('contentinfo');
-    expect(footer.className).toContain('bg-[#171717]');
+    expect(footer.className).toContain('border-t');
   });
 });

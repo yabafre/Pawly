@@ -78,7 +78,7 @@ export class AuthService {
 
         if (existingUser) {
             await this.delayToMinimumResponse(startTime);
-            throw new UnauthorizedException('Registration failed');
+            throw new UnauthorizedException('EMAIL_ALREADY_EXISTS');
         }
 
         const hashedPassword = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -267,6 +267,12 @@ export class AuthService {
         if (!user) {
             await this.delayToMinimumResponse(startTime);
             return { method: 'otp' as const, message: 'If account exists, code sent' };
+        }
+
+        // Admin accounts must use password login, not OTP
+        if (user.role === 'ADMIN') {
+            await this.delayToMinimumResponse(startTime);
+            throw new UnauthorizedException('ADMIN_USE_PASSWORD');
         }
 
         // Check if user is in Magic Link fallback mode

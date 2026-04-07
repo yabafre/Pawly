@@ -1,20 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { PawlyLogo } from "@/components/pawly-logo";
 import { FallingAnimals } from "@/components/ui/falling-animals";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { TurnstileBox } from "@/components/turnstile";
-import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { useRegister } from "../_hooks/useRegister";
 import { registerAdminInputSchema } from "@pawly/validators";
+
+/** Map TanStack Form errors (strings) to FieldError-compatible format */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toFieldErrors = (errors: any[]): Array<{ message?: string } | undefined> =>
+    errors.map((e) => (typeof e === "string" ? { message: e } : e));
 
 interface RegisterPageClientProps {
   selectedPlan: "starter" | "professional";
@@ -25,62 +31,33 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
   const tPwd = useTranslations("auth.resetPassword");
   const locale = useLocale() as "fr" | "en";
 
-  const [clinicName, setClinicName] = useState("");
-  const [adminName, setAdminName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { register, isPending } = useRegister(selectedPlan);
+  const { register, isPending, serverError, clearServerError } = useRegister(selectedPlan);
 
-  const validate = () => {
-    const result = registerAdminInputSchema.safeParse({
-      clinicName,
-      adminName,
-      email,
-      password,
-      turnstileToken: turnstileToken || "pending",
-    });
-
-    if (result.success) {
-      setErrors({});
-      return true;
-    }
-
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of result.error.issues) {
-      const field = issue.path[0] as string;
-      if (!fieldErrors[field]) {
-        fieldErrors[field] = issue.message;
-      }
-    }
-    setErrors(fieldErrors);
-    return false;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    register({
-      clinicName: clinicName.trim(),
-      adminName: adminName.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      turnstileToken,
-      locale,
-    });
-  };
-
-  const clearError = (field: string) => {
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  };
+  const form = useForm({
+    defaultValues: {
+      clinicName: "",
+      adminName: "",
+      email: "",
+      password: "",
+    },
+    validators: {
+      onSubmit: registerAdminInputSchema.omit({ turnstileToken: true }),
+    },
+    onSubmit: async ({ value }) => {
+      clearServerError();
+      register({
+        clinicName: value.clinicName.trim(),
+        adminName: value.adminName.trim(),
+        email: value.email.trim().toLowerCase(),
+        password: value.password,
+        turnstileToken,
+        locale,
+      });
+    },
+  });
 
   const passwordTranslations = {
     hint: tPwd("passwordHint"),
@@ -107,7 +84,7 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
           <Card className="border bg-card">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3 mb-1">
-                <Button variant="outline" size="icon" asChild className="rounded-full shrink-0 h-8 w-8">
+                <Button variant="outline" size="icon" className="rounded-full shrink-0 h-8 w-8" asChild>
                   <Link href="/pricing" aria-label={t("backToPricing")}>
                     <ArrowLeft className="h-3.5 w-3.5" />
                   </Link>
@@ -119,74 +96,122 @@ export function RegisterPageClient({ selectedPlan }: RegisterPageClientProps) {
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-                <div className="space-y-1.5">
-                  <Label htmlFor="clinicName" className="text-sm">{t("clinicName")}</Label>
-                  <Input
-                    id="clinicName"
-                    type="text"
-                    placeholder={t("clinicNamePlaceholder")}
-                    value={clinicName}
-                    onChange={(e) => { setClinicName(e.target.value); clearError("clinicName"); }}
-                    aria-invalid={!!errors.clinicName}
-                    className="h-9"
-                  />
-                  {errors.clinicName && <p className="text-[11px] text-destructive">{errors.clinicName}</p>}
+              {/* Server error banner */}
+              {serverError && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 mb-4 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{serverError}</span>
                 </div>
+              )}
+
+              <form
+                onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}
+                className="space-y-3"
+                noValidate
+              >
+                <form.Field
+                  name="clinicName"
+                  children={(field) => {
+                    const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                    return (
+                      <Field data-invalid={isInvalid}>
+                        <FieldLabel htmlFor={field.name} className="text-sm">{t("clinicName")}</FieldLabel>
+                        <Input
+                          id={field.name}
+                          type="text"
+                          placeholder={t("clinicNamePlaceholder")}
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          aria-invalid={isInvalid}
+                          className="h-9"
+                        />
+                        {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                      </Field>
+                    );
+                  }}
+                />
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="adminName" className="text-sm">{t("adminName")}</Label>
-                    <Input
-                      id="adminName"
-                      type="text"
-                      placeholder={t("adminNamePlaceholder")}
-                      value={adminName}
-                      onChange={(e) => { setAdminName(e.target.value); clearError("adminName"); }}
-                      aria-invalid={!!errors.adminName}
-                      className="h-9"
-                    />
-                    {errors.adminName && <p className="text-[11px] text-destructive">{errors.adminName}</p>}
-                  </div>
+                  <form.Field
+                    name="adminName"
+                    children={(field) => {
+                      const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                      return (
+                        <Field data-invalid={isInvalid}>
+                          <FieldLabel htmlFor={field.name} className="text-sm">{t("adminName")}</FieldLabel>
+                          <Input
+                            id={field.name}
+                            type="text"
+                            placeholder={t("adminNamePlaceholder")}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            aria-invalid={isInvalid}
+                            className="h-9"
+                          />
+                          {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                        </Field>
+                      );
+                    }}
+                  />
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-sm">{t("email")}</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder={t("emailPlaceholder")}
-                      value={email}
-                      onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
-                      aria-invalid={!!errors.email}
-                      className="h-9"
-                    />
-                    {errors.email && <p className="text-[11px] text-destructive">{errors.email}</p>}
-                  </div>
+                  <form.Field
+                    name="email"
+                    children={(field) => {
+                      const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                      return (
+                        <Field data-invalid={isInvalid}>
+                          <FieldLabel htmlFor={field.name} className="text-sm">{t("email")}</FieldLabel>
+                          <Input
+                            id={field.name}
+                            type="email"
+                            placeholder={t("emailPlaceholder")}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            aria-invalid={isInvalid}
+                            className="h-9"
+                          />
+                          {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                        </Field>
+                      );
+                    }}
+                  />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-sm">{t("password")}</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => { setPassword(e.target.value); clearError("password"); }}
-                      aria-invalid={!!errors.password}
-                      className="h-9 pr-9"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="text-[11px] text-destructive">{errors.password}</p>}
-                  <PasswordStrength password={password} translations={passwordTranslations} />
-                </div>
+                <form.Field
+                  name="password"
+                  children={(field) => {
+                    const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                    return (
+                      <Field data-invalid={isInvalid}>
+                        <FieldLabel htmlFor={field.name} className="text-sm">{t("password")}</FieldLabel>
+                        <div className="relative">
+                          <Input
+                            id={field.name}
+                            type={showPassword ? "text" : "password"}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            aria-invalid={isInvalid}
+                            className="h-9 pr-9"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
+                        <PasswordStrength password={field.state.value} translations={passwordTranslations} />
+                      </Field>
+                    );
+                  }}
+                />
 
                 <TurnstileBox onVerify={setTurnstileToken} />
 

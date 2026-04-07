@@ -65,6 +65,18 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@pawly/validators", () => ({
   JOB_TYPES: ["VET", "ASV", "APPRENTICE"],
   CONTRACT_TYPES: ["CDI", "CDD", "APPRENTICESHIP"],
+  TIER_LIMITS: {
+    starter: { maxEmployees: 10 },
+    professional: { maxEmployees: 50 },
+  },
+}));
+
+// Mock subscription context
+vi.mock("@/lib/contexts/subscription-context", () => ({
+  useSubscription: () => ({
+    entitlementTier: "professional",
+    canAccessFeature: () => true,
+  }),
 }));
 
 // Mock UI components used in EmployeeList

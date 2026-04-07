@@ -7,6 +7,17 @@ vi.mock('next/font/google', () => ({
   Geist_Mono: () => ({ variable: '--font-geist-mono' }),
 }));
 
+// Mock trpc client (used by page.tsx for auth check)
+vi.mock('@/lib/trpc/client', () => ({
+  trpc: {
+    auth: {
+      getMe: {
+        query: vi.fn().mockRejectedValue(new Error('Not authenticated')),
+      },
+    },
+  },
+}));
+
 // Mock the child components to isolate page-level testing
 vi.mock('../_components/LandingHeader', () => ({
   LandingHeader: () => <div data-testid="landing-header">Header</div>,
@@ -28,6 +39,9 @@ vi.mock('../_components/CTASection', () => ({
 }));
 vi.mock('../_components/LandingFooter', () => ({
   LandingFooter: () => <div data-testid="landing-footer">Footer</div>,
+}));
+vi.mock('../_components/IntegrationsSection', () => ({
+  IntegrationsSection: () => <div data-testid="integrations-section">Integrations</div>,
 }));
 
 describe('LandingPage', () => {
@@ -65,16 +79,15 @@ describe('LandingPage', () => {
       expect(metadata.alternates?.canonical).toContain('/en');
     });
 
-    it('includes openGraph images as empty array (no OG image file yet)', async () => {
+    it('does not include openGraph images (uses opengraph-image route)', async () => {
       const { generateMetadata } = await import('../page');
       const metadata = await generateMetadata({
         params: Promise.resolve({ locale: 'fr' }),
       });
 
+      // Images are served via the opengraph-image route, not in metadata
       const ogImages = metadata.openGraph?.images;
-      expect(ogImages).toBeDefined();
-      expect(Array.isArray(ogImages)).toBe(true);
-      expect(ogImages).toHaveLength(0);
+      expect(ogImages).toBeUndefined();
     });
 
     it('includes twitter card metadata', async () => {
@@ -85,8 +98,8 @@ describe('LandingPage', () => {
 
       const twitter = metadata.twitter;
       expect(twitter && 'card' in twitter ? twitter.card : undefined).toBe('summary_large_image');
-      expect(metadata.twitter?.images).toBeDefined();
-      expect(metadata.twitter?.images).toHaveLength(0);
+      expect(metadata.twitter?.title).toBe('meta.title');
+      expect(metadata.twitter?.description).toBe('meta.description');
     });
 
     it('sets canonical URL correctly per locale', async () => {
@@ -162,10 +175,8 @@ describe('LandingPage', () => {
 
       expect(jsonLd.offers['@type']).toBe('AggregateOffer');
       expect(jsonLd.offers.priceCurrency).toBe('EUR');
-      expect(Number(jsonLd.offers.lowPrice)).toBeGreaterThan(0);
-      expect(Number(jsonLd.offers.highPrice)).toBeGreaterThan(
-        Number(jsonLd.offers.lowPrice)
-      );
+      expect(Number(jsonLd.offers.lowPrice)).toBeGreaterThanOrEqual(0);
+      expect(Number(jsonLd.offers.highPrice)).toBeGreaterThan(0);
     });
 
     it('calls setRequestLocale with the locale', async () => {

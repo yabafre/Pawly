@@ -3,22 +3,31 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 // ── Mocks ────────────────────────────────────────────────────────────────
 
-vi.mock("lucide-react", () => ({
-  Clock: (props: any) => <span data-testid="icon-clock" {...props} />,
-  AlertCircle: (props: any) => <span data-testid="icon-alert" {...props} />,
-  LogOut: (props: any) => <span data-testid="icon-logout" {...props} />,
-  Check: (props: any) => <span data-testid="icon-check" {...props} />,
-  X: (props: any) => <span data-testid="icon-x" {...props} />,
-  Download: (props: any) => <span data-testid="icon-download" {...props} />,
-  BarChart3: (props: any) => <span data-testid="icon-barchart" {...props} />,
-  AlertTriangle: (props: any) => <span data-testid="icon-triangle" {...props} />,
-  UserX: (props: any) => <span data-testid="icon-userx" {...props} />,
-}));
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    Clock: (props: any) => <span data-testid="icon-clock" {...props} />,
+    AlertCircle: (props: any) => <span data-testid="icon-alert" {...props} />,
+    LogOut: (props: any) => <span data-testid="icon-logout" {...props} />,
+    Check: (props: any) => <span data-testid="icon-check" {...props} />,
+    X: (props: any) => <span data-testid="icon-x" {...props} />,
+    Download: (props: any) => <span data-testid="icon-download" {...props} />,
+    BarChart3: (props: any) => <span data-testid="icon-barchart" {...props} />,
+    AlertTriangle: (props: any) => <span data-testid="icon-triangle" {...props} />,
+    UserX: (props: any) => <span data-testid="icon-userx" {...props} />,
+  };
+});
 
 vi.mock("motion/react", () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
+  m: {
+    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  },
+  LazyMotion: ({ children }: any) => children,
+  domAnimation: {},
 }));
 
 vi.mock("@/components/ui/button", () => ({

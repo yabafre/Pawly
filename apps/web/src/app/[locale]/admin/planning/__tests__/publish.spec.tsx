@@ -40,7 +40,37 @@ vi.mock("motion/react", () => ({
       </div>
     ),
   },
+  m: {
+    section: ({
+      children,
+      animate,
+      initial,
+      style,
+      ...props
+    }: Record<string, unknown>) => (
+      <section style={{ ...(style as object), ...(animate as object) }} {...props}>
+        {children as React.ReactNode}
+      </section>
+    ),
+    div: ({
+      children,
+      animate,
+      initial,
+      exit,
+      style,
+      ...props
+    }: Record<string, unknown>) => (
+      <div
+        style={{ ...(style as object), ...(animate as object) }}
+        {...props}
+      >
+        {children as React.ReactNode}
+      </div>
+    ),
+  },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+  LazyMotion: ({ children }: { children: React.ReactNode }) => children,
+  domAnimation: {},
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -368,8 +398,8 @@ describe("PlanningHealthBar", () => {
     );
 
     // hardWidth = 10%, softWidth = 20%, healthyWidth = 70%
-    const tealSegments = container.querySelectorAll(".bg-\\[\\#009588\\]");
-    const barSegment = Array.from(tealSegments).find(
+    const primarySegments = container.querySelectorAll(".bg-primary");
+    const barSegment = Array.from(primarySegments).find(
       (el) => el.getAttribute("style")?.includes("width"),
     );
     expect(barSegment).not.toBeUndefined();
@@ -381,7 +411,7 @@ describe("PlanningHealthBar", () => {
       <PlanningHealthBar {...defaultProps} />,
     );
 
-    const healthyBox = container.querySelector(".bg-neutral-100");
+    const healthyBox = container.querySelector(".bg-muted");
     expect(healthyBox).not.toBeNull();
   });
 
@@ -423,7 +453,7 @@ describe("PlanningHealthBar", () => {
     );
 
     // holeWidth = floor((2/12) * 100) = 16% (totalPositions = 10 + 2 = 12)
-    const holeSegment = container.querySelector(".bg-neutral-300");
+    const holeSegment = container.querySelector(".bg-muted-foreground");
     expect(holeSegment).not.toBeNull();
     expect(holeSegment).toHaveStyle({ width: "16%" });
   });
@@ -449,7 +479,7 @@ describe("PlanningHealthBar", () => {
     const orangeSegment = container.querySelector(".bg-orange-400");
     expect(orangeSegment).toHaveStyle({ width: "7%" });
 
-    const holeSegment = container.querySelector(".bg-neutral-300");
+    const holeSegment = container.querySelector(".bg-muted-foreground");
     expect(holeSegment).toHaveStyle({ width: "23%" });
   });
 
@@ -490,8 +520,8 @@ describe("PlanningHealthBar", () => {
       />,
     );
 
-    // Empty state shows neutral icon box
-    const neutralBox = container.querySelector(".bg-neutral-100");
+    // Empty state shows muted icon box
+    const neutralBox = container.querySelector(".bg-muted");
     expect(neutralBox).not.toBeNull();
   });
 

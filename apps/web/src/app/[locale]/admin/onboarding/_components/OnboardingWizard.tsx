@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -74,6 +74,7 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
   const draft = initialData.onboardingDraft as { step?: number; values?: Record<string, unknown> } | null;
   const [currentStep, setCurrentStep] = useState(draft?.step ?? 0);
+  const [maxStepReached, setMaxStepReached] = useState(draft?.step ?? 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -151,21 +152,18 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
     },
   });
 
-  // Debounced save to DB on step/values change
-  const saveDraft = useCallback(() => {
+  // Save draft on step change (not on every keystroke to avoid re-renders)
+  useEffect(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveOnboardingDraftAction({
         step: currentStep,
         values: form.state.values as Record<string, unknown>,
       }).catch(() => {});
-    }, 1000);
-  }, [currentStep, form.state.values]);
-
-  useEffect(() => {
-    saveDraft();
+    }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [saveDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
   const stepLabels = [
     t("steps.workDays.title"),
@@ -210,7 +208,9 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
   const handleNext = () => {
     if (validateCurrentStep()) {
-      setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS - 1));
+      const next = Math.min(currentStep + 1, TOTAL_STEPS - 1);
+      setCurrentStep(next);
+      setMaxStepReached((prev) => Math.max(prev, next));
     }
   };
 
@@ -229,8 +229,8 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
-      {/* Left: stepper + header */}
-      <div className="space-y-6">
+      {/* Left: stepper + header — sticky so it stays visible while content scrolls */}
+      <div className="space-y-6 lg:sticky lg:top-20 lg:self-start">
         <div className="space-y-1">
           <h1 className="text-xl font-bold tracking-tight">
             {t("title")}
@@ -240,8 +240,12 @@ function OnboardingWizardForm({ initialData }: { initialData: OnboardingInitialD
 
         <StepIndicator
           currentStep={currentStep}
+          maxStepReached={maxStepReached}
           totalSteps={TOTAL_STEPS}
           stepLabels={stepLabels}
+          onStepClick={(step) => {
+            if (step <= maxStepReached) setCurrentStep(step);
+          }}
         />
       </div>
 

@@ -58,8 +58,8 @@ describe("EquityPeriodSelector", () => {
       render(<EquityPeriodSelector {...defaultProps} view="monthly" />);
 
       const monthlyBtn = screen.getByText("monthly");
-      expect(monthlyBtn.className).toContain("bg-white");
-      expect(monthlyBtn.className).toContain("text-neutral-900");
+      expect(monthlyBtn.className).toContain("bg-card");
+      expect(monthlyBtn.className).toContain("text-foreground");
       expect(monthlyBtn.className).toContain("shadow-sm");
     });
 
@@ -67,8 +67,8 @@ describe("EquityPeriodSelector", () => {
       render(<EquityPeriodSelector {...defaultProps} view="quarterly" />);
 
       const quarterlyBtn = screen.getByText("quarterly");
-      expect(quarterlyBtn.className).toContain("bg-white");
-      expect(quarterlyBtn.className).toContain("text-neutral-900");
+      expect(quarterlyBtn.className).toContain("bg-card");
+      expect(quarterlyBtn.className).toContain("text-foreground");
       expect(quarterlyBtn.className).toContain("shadow-sm");
     });
 
@@ -153,16 +153,16 @@ describe("EquityPeriodSelector", () => {
       render(<EquityPeriodSelector {...defaultProps} view="quarterly" />);
 
       const monthlyBtn = screen.getByText("monthly");
-      expect(monthlyBtn.className).toContain("text-neutral-500");
-      expect(monthlyBtn.className).not.toContain("bg-neutral-900");
+      expect(monthlyBtn.className).toContain("text-muted-foreground");
+      expect(monthlyBtn.className).not.toContain("bg-card");
     });
 
     it("quarterly button has non-active style when monthly is selected", () => {
       render(<EquityPeriodSelector {...defaultProps} view="monthly" />);
 
       const quarterlyBtn = screen.getByText("quarterly");
-      expect(quarterlyBtn.className).toContain("text-neutral-500");
-      expect(quarterlyBtn.className).not.toContain("bg-neutral-900");
+      expect(quarterlyBtn.className).toContain("text-muted-foreground");
+      expect(quarterlyBtn.className).not.toContain("bg-card");
     });
   });
 });

@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { PawlyLogo } from "@/components/pawly-logo";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
+import { AnchorNavLink } from "./AnchorNavLink";
 
 export async function LandingHeader() {
   const t = await getTranslations("landing.header");
@@ -28,12 +29,12 @@ export async function LandingHeader() {
         </Link>
 
         <nav className="flex items-center gap-6" aria-label="Main navigation">
-          <a href="#features" className="hidden sm:inline text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+          <AnchorNavLink hash="features" className="hidden sm:inline text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
             {t("navFeatures")}
-          </a>
-          <a href="#pricing" className="hidden sm:inline text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+          </AnchorNavLink>
+          <AnchorNavLink hash="pricing" className="hidden sm:inline text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
             {t("navPricing")}
-          </a>
+          </AnchorNavLink>
           <Button size="sm" asChild>
             <Link href={accountHref ?? "/login"}>
               {accountHref ? t("account") : t("login")}

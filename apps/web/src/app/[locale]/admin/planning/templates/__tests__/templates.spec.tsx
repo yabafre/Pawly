@@ -207,10 +207,10 @@ describe("TemplateWeekPreview", () => {
       />,
     );
 
-    // Saturday and Sunday get bg-neutral-50/80 styling
+    // Saturday and Sunday get bg-muted/80 styling
     const dayColumns = container.querySelectorAll("[class*='grid-cols-7'] > div");
     const nonWorkDays = Array.from(dayColumns).filter(
-      (col) => col.className.includes("bg-neutral-50/80"),
+      (col) => col.className.includes("bg-muted/80"),
     );
     expect(nonWorkDays).toHaveLength(2);
   });

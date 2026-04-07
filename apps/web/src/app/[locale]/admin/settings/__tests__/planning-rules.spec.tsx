@@ -22,7 +22,13 @@ vi.mock("motion/react", () => ({
       <div style={{ ...(style as object), ...(animate as object) }} {...props}>{children as React.ReactNode}</div>
     ),
   },
+  m: {
+    section: ({ children, ...props }: Record<string, unknown>) => <section {...props}>{children as React.ReactNode}</section>,
+    div: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
+  },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+  LazyMotion: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  domAnimation: {},
 }));
 
 // Mock UI components used by PlanningHealthBar
@@ -146,6 +152,16 @@ vi.mock("@/components/ui/switch", () => ({
       switch
     </button>
   ),
+}));
+
+// Mock SubscriptionGate to always render children (professional tier)
+vi.mock("@/components/SubscriptionGate", () => ({
+  SubscriptionGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Mock HealthBarDetailPopover used by PlanningHealthBar
+vi.mock("../../planning/_components/HealthBarDetailPopover", () => ({
+  HealthBarDetailPopover: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -452,10 +468,14 @@ describe("PlanningHealthBar", () => {
         softViolationCount={1}
         holeCount={0}
         totalShifts={10}
+        onPublish={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("publishBlocked")).toBeDefined();
+    // Publish button is rendered but disabled; its title attr = "publishBlocked"
+    const publishBtn = screen.getByText("publish").closest("button");
+    expect(publishBtn?.disabled).toBe(true);
+    expect(publishBtn?.title).toBe("publishBlocked");
   });
 
   it("renders publish button when onPublish provided", () => {

@@ -5,7 +5,7 @@ describe('sitemap', () => {
   it('returns an array of sitemap entries', () => {
     const result = sitemap();
     expect(Array.isArray(result)).toBe(true);
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(3);
   });
 
   it('includes homepage entry with priority 1', () => {
@@ -26,6 +26,15 @@ describe('sitemap', () => {
     expect(pricing.changeFrequency).toBe('monthly');
   });
 
+  it('includes login page entry with priority 0.3', () => {
+    const result = sitemap();
+    const login = result[2];
+
+    expect(login.url).toBe('https://pawly.com/login');
+    expect(login.priority).toBe(0.3);
+    expect(login.changeFrequency).toBe('yearly');
+  });
+
   it('includes locale alternates for homepage', () => {
     const result = sitemap();
     const homepage = result[0];
@@ -43,6 +52,16 @@ describe('sitemap', () => {
     expect(pricing.alternates?.languages).toEqual({
       fr: 'https://pawly.com/pricing',
       en: 'https://pawly.com/en/pricing',
+    });
+  });
+
+  it('includes locale alternates for login page', () => {
+    const result = sitemap();
+    const login = result[2];
+
+    expect(login.alternates?.languages).toEqual({
+      fr: 'https://pawly.com/login',
+      en: 'https://pawly.com/en/login',
     });
   });
 
