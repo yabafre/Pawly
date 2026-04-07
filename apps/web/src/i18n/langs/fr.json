@@ -1506,6 +1506,8 @@
       "invalidEmail": "Adresse email invalide",
       "phoneRequired": "Le téléphone est requis",
       "hoursRange": "Les heures doivent être entre 1 et 48",
+      "hireDateRequired": "La date d'embauche est requise",
+      "endDateRequired": "La date de fin est requise",
       "endDateAfterHire": "La date de fin doit être après la date d'embauche"
     },
     "filters": {

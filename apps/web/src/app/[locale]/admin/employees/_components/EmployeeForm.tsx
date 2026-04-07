@@ -304,15 +304,28 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
       <form.Subscribe selector={(state: any) => state.values.contractType}>
         {(contractType: any) => (
           <div className={contractType === "CDI" ? "" : "grid grid-cols-2 gap-4"}>
-            <form.Field name="hireDate">
+            <form.Field
+              name="hireDate"
+              validators={{
+                onChange: ({ value }) => {
+                  if (!value || !String(value).trim()) return t("validation.hireDateRequired");
+                  return undefined;
+                },
+              }}
+            >
               {(field: any) => (
                 <div className="space-y-1.5">
-                  <Label>{t("form.hireDate")}</Label>
+                  <Label>{t("form.hireDate")} *</Label>
                   <DatePicker
                     value={field.state.value ? new Date(field.state.value) : null}
                     onChange={(date) => field.handleChange(date ? date.toISOString() : "")}
                     placeholder={t("form.hireDate")}
                   />
+                  {field.state.meta.errors.length > 0 && (
+                    <p className="text-sm text-destructive" role="alert">
+                      {field.state.meta.errors[0]}
+                    </p>
+                  )}
                 </div>
               )}
             </form.Field>
@@ -328,9 +341,9 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                     const endDate = typeof value === "string" ? value : "";
                     const normalizedHireDate = typeof hireDate === "string" ? hireDate : "";
 
-                    if (contractType === "CDI" || endDate === "" || normalizedHireDate === "") {
-                      return undefined;
-                    }
+                    if (contractType === "CDI") return undefined;
+                    if (!endDate.trim()) return t("validation.endDateRequired");
+                    if (!normalizedHireDate) return undefined;
 
                     return new Date(endDate) > new Date(normalizedHireDate)
                       ? undefined
@@ -340,7 +353,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
               >
                 {(field: any) => (
                   <div className="space-y-1.5">
-                    <Label>{t("form.endDate")}</Label>
+                    <Label>{t("form.endDate")} *</Label>
                     <DatePicker
                       value={field.state.value ? new Date(field.state.value) : null}
                       onChange={(date) => field.handleChange(date ? date.toISOString() : "")}
@@ -348,7 +361,7 @@ export function EmployeeForm({ defaultValues, onSubmit, isPending, mode }: Emplo
                     />
                     {field.state.meta.errors.length > 0 && (
                       <p className="text-sm text-destructive" role="alert">
-                        {t("validation.endDateAfterHire")}
+                        {field.state.meta.errors[0]}
                       </p>
                     )}
                   </div>
