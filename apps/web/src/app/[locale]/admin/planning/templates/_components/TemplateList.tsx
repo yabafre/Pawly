@@ -193,16 +193,16 @@ export function TemplateList({
           />
         ))}
 
-        <button
-          type="button"
+        <Button
+          variant="outline"
           onClick={onCreate}
-          className="group flex flex-col items-center justify-center px-6 pt-6 pb-3 rounded-2xl border-2 border-dashed border-border hover:border-primary bg-transparent hover:bg-primary/5 min-h-[220px]"
+          className="group h-auto flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 hover:border-primary hover:bg-primary/5"
         >
-          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:bg-card">
-            <Plus size={20} className="text-muted-foreground group-hover:text-primary" />
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-card">
+            <Plus className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
           </div>
           <span className="text-sm font-bold text-muted-foreground group-hover:text-primary">{t("form.createTitle")}</span>
-        </button>
+        </Button>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
