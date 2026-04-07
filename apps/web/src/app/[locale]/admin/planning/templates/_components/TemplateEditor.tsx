@@ -74,11 +74,11 @@ function ApplyToOtherDays({
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="rounded-xl gap-1.5 text-xs font-bold shrink-0 h-auto py-3"
+          size="icon"
+          className="rounded-xl shrink-0 h-10 w-10"
+          title={t("slot.applyTo")}
         >
-          <Copy className="h-3.5 w-3.5" />
-          {t("slot.applyTo")}
+          <Copy className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 p-3 space-y-2">
