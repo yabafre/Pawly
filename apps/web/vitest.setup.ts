@@ -20,6 +20,18 @@ if (typeof globalThis !== "undefined" && !("ResizeObserver" in globalThis)) {
   (globalThis as any).ResizeObserver = ResizeObserverMock;
 }
 
+// Mock next/headers (cookies, headers)
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    get: () => undefined,
+    set: () => {},
+    delete: () => {},
+    getAll: () => [],
+    has: () => false,
+  })),
+  headers: vi.fn(async () => new Map()),
+}));
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -28,6 +40,9 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
   }),
   notFound: vi.fn(),
+  redirect: vi.fn(),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/',
 }));
 
 // Mock @/i18n/navigation (next-intl navigation wrappers)
@@ -58,6 +73,29 @@ vi.mock('next-intl', async () => {
     hasLocale: (locales: string[], locale: string) => locales.includes(locale),
   };
 });
+
+// Mock motion/react (framer-motion successor)
+vi.mock('motion/react', () => ({
+  motion: new Proxy(
+    {},
+    {
+      get: (_target, tag: string) =>
+        ({ children, animate, initial, exit, style, ...props }: Record<string, unknown>) =>
+          createElement(tag, { style: { ...(style as object), ...(animate as object) }, ...props }, children as ReactNode),
+    },
+  ),
+  m: new Proxy(
+    {},
+    {
+      get: (_target, tag: string) =>
+        ({ children, animate, initial, exit, style, ...props }: Record<string, unknown>) =>
+          createElement(tag, { style: { ...(style as object), ...(animate as object) }, ...props }, children as ReactNode),
+    },
+  ),
+  AnimatePresence: ({ children }: { children: ReactNode }) => children,
+  LazyMotion: ({ children }: { children: ReactNode }) => children,
+  domAnimation: {},
+}));
 
 // Mock next-intl/server
 vi.mock('next-intl/server', () => ({

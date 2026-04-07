@@ -147,7 +147,13 @@
     "errors": {
       "generic": "Une erreur est survenue",
       "invalidEmail": "Email invalide",
-      "passwordRequired": "Mot de passe requis"
+      "passwordRequired": "Mot de passe requis",
+      "EMAIL_ALREADY_EXISTS": "Un compte existe déjà avec cet email.",
+      "INVALID_CREDENTIALS": "Email ou mot de passe incorrect.",
+      "ADMIN_USE_PASSWORD": "Ce compte est un compte administrateur. Utilisez l'onglet Admin avec votre mot de passe.",
+      "NO_EMPLOYEE": "Votre compte employé n'est pas encore configuré. Contactez votre administrateur.",
+      "TURNSTILE_FAILED": "La vérification de sécurité a échoué. Veuillez réessayer.",
+      "serverError": "Problème de connexion au serveur. Veuillez réessayer."
     }
   },
   "admin": {
@@ -1291,6 +1297,7 @@
       "toast": "Clinique configurée avec succès !"
     },
     "errors": {
+      "loadFailed": "Impossible de charger les données d'onboarding. Veuillez rafraîchir la page.",
       "saveFailed": "Impossible de sauvegarder la configuration",
       "duplicateCode": "Ce code de poste existe déjà"
     },
@@ -1719,6 +1726,88 @@
       "wrongPassword": "Mot de passe actuel incorrect"
     }
   },
+  "legal": {
+    "privacy": {
+      "metaTitle": "Politique de confidentialité — Pawly",
+      "metaDescription": "Politique de confidentialité de Pawly. Découvrez comment nous collectons, utilisons et protégeons vos données.",
+      "title": "Politique de confidentialité",
+      "lastUpdated": "Dernière mise à jour : 7 avril 2026",
+      "sections": {
+        "collection": {
+          "title": "Collecte des données",
+          "content": "Nous collectons les informations que vous fournissez lors de la création de votre compte (nom, email, nom de la clinique), ainsi que les données nécessaires au fonctionnement du service (plannings, données d'employés, configurations). Nous collectons également des données techniques (adresse IP, type de navigateur) via des cookies essentiels au fonctionnement du service."
+        },
+        "usage": {
+          "title": "Utilisation des données",
+          "content": "Vos données sont utilisées exclusivement pour fournir et améliorer le service Pawly : gestion des plannings, envoi de notifications, génération automatique des emplois du temps, et support client. Nous ne vendons jamais vos données à des tiers."
+        },
+        "storage": {
+          "title": "Stockage et sécurité",
+          "content": "Vos données sont hébergées sur des serveurs sécurisés en Europe. Toutes les communications sont chiffrées via TLS. Les mots de passe sont hashés avec bcrypt. Les tokens de session utilisent une rotation automatique pour prévenir les accès non autorisés."
+        },
+        "sharing": {
+          "title": "Partage des données",
+          "content": "Nous ne partageons vos données qu'avec les sous-traitants nécessaires au fonctionnement du service : Stripe pour le traitement des paiements, et notre fournisseur d'email transactionnel pour les notifications. Ces prestataires sont soumis à des obligations de confidentialité."
+        },
+        "rights": {
+          "title": "Vos droits",
+          "content": "Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, de suppression et de portabilité de vos données personnelles. Vous pouvez exercer ces droits en nous contactant à l'adresse indiquée ci-dessous. Nous répondons à toute demande dans un délai de 30 jours."
+        },
+        "cookies": {
+          "title": "Cookies",
+          "content": "Pawly utilise uniquement des cookies essentiels au fonctionnement du service (authentification, préférences de langue). Nous n'utilisons pas de cookies publicitaires ni de trackers tiers. Le cookie d'authentification est httpOnly et sécurisé."
+        },
+        "contact": {
+          "title": "Contact",
+          "content": "Pour toute question relative à la protection de vos données, contactez-nous à privacy@pawly.fr."
+        }
+      }
+    },
+    "terms": {
+      "metaTitle": "Conditions d'utilisation — Pawly",
+      "metaDescription": "Conditions générales d'utilisation de la plateforme Pawly pour la gestion de planning vétérinaire.",
+      "title": "Conditions d'utilisation",
+      "lastUpdated": "Dernière mise à jour : 7 avril 2026",
+      "sections": {
+        "acceptance": {
+          "title": "Acceptation des conditions",
+          "content": "En accédant à Pawly et en utilisant nos services, vous acceptez d'être lié par ces conditions d'utilisation. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser le service."
+        },
+        "service": {
+          "title": "Description du service",
+          "content": "Pawly est une plateforme SaaS de gestion de planning destinée aux cliniques vétérinaires. Le service comprend la génération automatique de plannings, la gestion des employés, le suivi des absences et des outils de configuration de la clinique."
+        },
+        "accounts": {
+          "title": "Comptes utilisateurs",
+          "content": "Vous êtes responsable de la confidentialité de vos identifiants de connexion. L'administrateur de la clinique est responsable de la gestion des accès des employés. Tout usage non autorisé de votre compte doit être signalé immédiatement."
+        },
+        "subscription": {
+          "title": "Abonnement et paiement",
+          "content": "Pawly propose un plan gratuit (Starter) et un plan payant (Professional). Les paiements sont gérés par Stripe. Les abonnements sont renouvelés automatiquement sauf résiliation. Vous pouvez résilier à tout moment depuis votre espace de facturation."
+        },
+        "ip": {
+          "title": "Propriété intellectuelle",
+          "content": "Pawly et son contenu (code, design, marque) sont protégés par le droit d'auteur. Vous conservez la propriété de toutes les données que vous saisissez dans le service. Vous nous accordez une licence limitée pour traiter ces données dans le cadre de la fourniture du service."
+        },
+        "limitation": {
+          "title": "Limitation de responsabilité",
+          "content": "Pawly est fourni « en l'état ». Nous ne garantissons pas un fonctionnement ininterrompu du service. Notre responsabilité est limitée au montant des frais d'abonnement payés au cours des 12 derniers mois. Nous ne sommes pas responsables des dommages indirects."
+        },
+        "termination": {
+          "title": "Résiliation",
+          "content": "Nous nous réservons le droit de suspendre ou de résilier votre accès en cas de violation de ces conditions. Vous pouvez supprimer votre compte à tout moment. Après suppression, vos données seront effacées sous 30 jours conformément à notre politique de confidentialité."
+        },
+        "law": {
+          "title": "Droit applicable",
+          "content": "Ces conditions sont régies par le droit français. Tout litige sera soumis à la compétence exclusive des tribunaux de Paris, France."
+        },
+        "contact": {
+          "title": "Contact",
+          "content": "Pour toute question concernant ces conditions, contactez-nous à legal@pawly.fr."
+        }
+      }
+    }
+  },
   "errors": {
     "generic": "Une erreur est survenue",
     "network": "Erreur de connexion au serveur",
@@ -1861,7 +1950,8 @@
     "cta": {
       "title": "Prêt à simplifier la gestion de votre clinique ?",
       "subtitle": "Rejoignez les professionnels vétérinaires qui font confiance à Pawly au quotidien.",
-      "button": "Démarrer votre essai gratuit"
+      "button": "Démarrer votre essai gratuit",
+      "floatingButton": "Commencer gratuitement"
     },
     "footer": {
       "tagline": "La plateforme de planning intelligent pour cliniques vétérinaires.",

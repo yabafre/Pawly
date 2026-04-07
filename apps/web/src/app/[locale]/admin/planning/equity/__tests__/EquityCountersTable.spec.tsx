@@ -225,29 +225,30 @@ describe("EquityCountersTable", () => {
       expect(screen.getByText("ASV")).toBeDefined();
     });
 
-    it("applies green color for values under 75% threshold", () => {
+    it("applies muted color for values under 75% threshold", () => {
       render(
         <EquityCountersTable counters={sampleCounters} isPending={false} thresholds={defaultThresholds} />,
       );
 
-      // Bob: SATURDAY_WORKED=2 / max=4 = 50% → green
+      // Bob: SATURDAY_WORKED=2 / max=4 = 50% → muted (under 75%)
       const badge = screen.getByText("2/4");
-      expect(badge.className).toContain("bg-emerald-50");
-      expect(badge.className).toContain("text-emerald-700");
+      expect(badge.className).toContain("bg-muted");
+      expect(badge.className).toContain("text-muted-foreground");
     });
 
-    it("applies amber color for values between 75% and 100% threshold", () => {
+    it("applies bold style for values between 75% and 100% threshold", () => {
       render(
         <EquityCountersTable counters={sampleCounters} isPending={false} thresholds={defaultThresholds} />,
       );
 
-      // Alice: SATURDAY_WORKED=3 / max=4 = 75% → amber
+      // Alice: SATURDAY_WORKED=3 / max=4 = 75% → bold foreground
       const badge = screen.getByText("3/4");
-      expect(badge.className).toContain("bg-amber-50");
-      expect(badge.className).toContain("text-amber-700");
+      expect(badge.className).toContain("bg-muted");
+      expect(badge.className).toContain("text-foreground");
+      expect(badge.className).toContain("font-extrabold");
     });
 
-    it("applies rose color for values at or above 100% threshold", () => {
+    it("applies primary color for values at or above 100% threshold", () => {
       const overThresholdCounters = [
         makeCounter({
           id: "c1",
@@ -268,20 +269,20 @@ describe("EquityCountersTable", () => {
       );
 
       const badge = screen.getByText("5/4");
-      expect(badge.className).toContain("bg-rose-50");
-      expect(badge.className).toContain("text-rose-700");
+      expect(badge.className).toContain("bg-primary/10");
+      expect(badge.className).toContain("text-primary");
     });
 
-    it("applies neutral styles for zero counter values", () => {
+    it("applies muted styles for zero counter values", () => {
       render(
         <EquityCountersTable counters={sampleCounters} isPending={false} thresholds={defaultThresholds} />,
       );
 
-      // Find the zero values - they should have neutral color classes
+      // Find the zero values - they should have muted color classes
       const zeros = screen.getAllByText("0");
       for (const zero of zeros) {
-        expect(zero.className).toContain("bg-neutral-50");
-        expect(zero.className).toContain("text-neutral-300");
+        expect(zero.className).toContain("bg-muted");
+        expect(zero.className).toContain("text-muted-foreground");
       }
     });
 

@@ -2,54 +2,72 @@
 
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface StepIndicatorProps {
   currentStep: number;
+  maxStepReached: number;
   totalSteps: number;
   stepLabels: string[];
+  onStepClick?: (step: number) => void;
 }
 
 export function StepIndicator({
   currentStep,
+  maxStepReached,
   totalSteps,
   stepLabels,
+  onStepClick,
 }: StepIndicatorProps) {
   return (
     <div className="flex flex-col gap-1">
       {Array.from({ length: totalSteps }).map((_, index) => {
-        const isCompleted = index < currentStep;
         const isCurrent = index === currentStep;
+        // A step is "visited" if it was reached before but isn't the current one
+        const isVisited = index <= maxStepReached && !isCurrent;
+        const isClickable = onStepClick && index <= maxStepReached;
 
         return (
           <div key={index} className="flex items-start gap-3">
             <div className="flex flex-col items-center">
-              <div
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={!isClickable}
+                onClick={() => isClickable && onStepClick(index)}
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all",
-                  isCompleted && "bg-primary text-primary-foreground",
-                  isCurrent && "border-2 border-primary text-primary bg-card",
-                  !isCompleted && !isCurrent && "border-2 border-border text-muted-foreground bg-card",
+                  "w-8 h-8 rounded-full text-xs font-bold transition-all",
+                  isVisited && "bg-primary text-primary-foreground hover:bg-primary/90",
+                  isCurrent && "border-2 border-primary text-primary bg-card hover:bg-card",
+                  !isVisited && !isCurrent && "border-2 border-border text-muted-foreground bg-card hover:bg-card",
+                  isClickable && "!cursor-pointer hover:ring-2 hover:ring-primary/30",
                 )}
               >
-                {isCompleted ? <Check className="w-4 h-4" /> : index + 1}
-              </div>
+                {isVisited ? <Check className="w-4 h-4" /> : index + 1}
+              </Button>
               {index < totalSteps - 1 && (
                 <div
                   className={cn(
                     "w-0.5 h-6 transition-all",
-                    index < currentStep ? "bg-primary" : "bg-border",
+                    index < maxStepReached ? "bg-primary" : "bg-border",
                   )}
                 />
               )}
             </div>
-            <span
+            <Button
+              type="button"
+              variant="link"
+              disabled={!isClickable}
+              onClick={() => isClickable && onStepClick(index)}
               className={cn(
-                "text-sm pt-1.5 font-medium",
-                isCurrent ? "text-foreground" : isCompleted ? "text-muted-foreground" : "text-muted-foreground/60",
+                "h-auto p-0 pt-1.5 text-sm font-medium text-left justify-start no-underline hover:no-underline",
+                isCurrent ? "text-foreground" : isVisited ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/60",
+                isClickable && "!cursor-pointer",
               )}
             >
               {stepLabels[index]}
-            </span>
+            </Button>
           </div>
         );
       })}

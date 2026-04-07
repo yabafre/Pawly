@@ -35,7 +35,7 @@ vi.mock("lucide-react", () => ({
   Thermometer: (props: any) => <span data-testid="icon-thermometer" {...props} />,
   GraduationCap: (props: any) => <span data-testid="icon-graduation" {...props} />,
   CalendarOff: (props: any) => <span data-testid="icon-calendar-off" {...props} />,
-  Check: (props: any) => <span data-testid="icon-check" {...props} />,
+  Check: ({ className, ...props }: any) => <span data-testid="icon-check" className={className} {...props} />,
   Loader2: (props: any) => <span data-testid="icon-loader" {...props} />,
   ArrowRight: (props: any) => <span data-testid="icon-arrow-right" {...props} />,
 }));
@@ -174,7 +174,7 @@ describe("SchedulePageClient", () => {
     // PublicationBadge for PUBLISHED renders publishedAt or published key
     const badge = screen.getByText(/publishedAt|published/);
     expect(badge).toBeDefined();
-    expect(badge.className).toContain("bg-emerald-100");
+    expect(badge.className).toContain("text-muted-foreground");
   });
 
   it("renders PublicationBadge for DRAFT status", () => {
@@ -190,7 +190,7 @@ describe("SchedulePageClient", () => {
 
     const badge = screen.getByText("draft");
     expect(badge).toBeDefined();
-    expect(badge.className).toContain("bg-amber-100");
+    expect(badge.className).toContain("text-muted-foreground");
   });
 
   it("renders EmptyState when no shifts and no unavailabilities", () => {
@@ -213,7 +213,8 @@ describe("SchedulePageClient", () => {
     render(<SchedulePageClient />);
 
     expect(screen.getByText("Chirurgie")).toBeDefined();
-    expect(screen.getByText("08:30 — 18:30")).toBeDefined();
+    // Time range is rendered inline with break info
+    expect(screen.getByText(/08:30 — 18:30/)).toBeDefined();
   });
 
   it("renders absence cards when unavailabilities exist", () => {
@@ -320,7 +321,8 @@ describe("ShiftDayCard", () => {
     render(<ShiftDayCard shift={baseShift} shiftType={shiftType} {...defaultProps} />);
 
     expect(screen.getByText("Chirurgie")).toBeDefined();
-    expect(screen.getByText("08:30 — 18:30")).toBeDefined();
+    // Time range rendered inline (may include break info)
+    expect(screen.getByText(/08:30 — 18:30/)).toBeDefined();
   });
 
   it("falls back to shiftTypeCode when shiftType is undefined", () => {
@@ -329,7 +331,7 @@ describe("ShiftDayCard", () => {
     expect(screen.getByText("CHIR")).toBeDefined();
   });
 
-  it("shows ConfirmationSlider for past shifts when PUBLISHED", () => {
+  it("shows confirmed badge for confirmed past shifts when PUBLISHED", () => {
     vi.mocked(dateFns.isPast).mockReturnValue(true);
 
     render(
@@ -341,9 +343,8 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    // ConfirmationSlider renders confirmed state with role=status
-    expect(screen.getByRole("status")).toBeDefined();
-    expect(screen.getByText("confirmed")).toBeDefined();
+    // Confirmed shift shows confirmed text inline (not ConfirmationSlider)
+    expect(screen.getByText("confirmation.confirmed")).toBeDefined();
   });
 
   it("shows ConfirmationSlider with action button for unconfirmed past shifts", () => {
@@ -358,8 +359,8 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    // ConfirmationSlider renders idle state with role=switch
-    expect(screen.getByRole("switch")).toBeDefined();
+    // ConfirmationSlider renders idle state as a Button
+    expect(screen.getByRole("button")).toBeDefined();
     expect(screen.getByText("slideToConfirm")).toBeDefined();
   });
 
@@ -375,8 +376,7 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("slideToConfirm")).toBeNull();
   });
 
   it("does not show ConfirmationSlider for future shifts", () => {
@@ -392,7 +392,7 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText("slideToConfirm")).toBeNull();
   });
 
   it("calls confirmShift when slider is clicked", () => {
@@ -407,11 +407,11 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button"));
     expect(mockConfirmShift).toHaveBeenCalledWith({ shiftId: "shift-42" });
   });
 
-  it("shows break minutes when breakMinutes > 0", () => {
+  it("shows break info inline when breakMinutes > 0", () => {
     render(
       <ShiftDayCard
         shift={{ ...baseShift, breakMinutes: 60 }}
@@ -420,7 +420,8 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    expect(screen.getByText("timeline.break")).toBeDefined();
+    // Break info is rendered inline in the time range text
+    expect(screen.getByText(/timeline\.break/)).toBeDefined();
   });
 
   it("does not show break info when breakMinutes is 0", () => {
@@ -432,49 +433,47 @@ describe("ShiftDayCard", () => {
       />,
     );
 
-    expect(screen.queryByText("timeline.break")).toBeNull();
+    expect(screen.queryByText(/timeline\.break/)).toBeNull();
   });
 });
 
 // ── AbsenceDayCard ──────────────────────────────────────────────────────
 
 describe("AbsenceDayCard", () => {
-  it("renders VACATION with emerald colors", () => {
+  it("renders VACATION with card styling", () => {
     const { container } = render(
       <AbsenceDayCard unavailability={{ date: "2026-03-05", type: "VACATION" }} />,
     );
 
     expect(screen.getByText("vacation")).toBeDefined();
-    expect(screen.getByTestId("icon-plane")).toBeDefined();
+    expect(screen.getByTestId("icon-calendar-off")).toBeDefined();
 
     const card = container.firstElementChild as HTMLElement;
-    expect(card.className).toContain("bg-emerald-50");
-    expect(card.className).toContain("border-emerald-100");
+    expect(card.className).toContain("bg-card");
   });
 
-  it("renders SICK with rose colors", () => {
+  it("renders SICK with card styling", () => {
     const { container } = render(
       <AbsenceDayCard unavailability={{ date: "2026-03-06", type: "SICK" }} />,
     );
 
     expect(screen.getByText("sick")).toBeDefined();
-    expect(screen.getByTestId("icon-thermometer")).toBeDefined();
+    expect(screen.getByTestId("icon-calendar-off")).toBeDefined();
 
     const card = container.firstElementChild as HTMLElement;
-    expect(card.className).toContain("bg-rose-50");
-    expect(card.className).toContain("border-rose-100");
+    expect(card.className).toContain("bg-card");
   });
 
-  it("renders SCHOOL with purple colors", () => {
+  it("renders SCHOOL with card styling", () => {
     const { container } = render(
       <AbsenceDayCard unavailability={{ date: "2026-03-07", type: "SCHOOL" }} />,
     );
 
     expect(screen.getByText("school")).toBeDefined();
-    expect(screen.getByTestId("icon-graduation")).toBeDefined();
+    expect(screen.getByTestId("icon-calendar-off")).toBeDefined();
 
     const card = container.firstElementChild as HTMLElement;
-    expect(card.className).toContain("bg-purple-50");
+    expect(card.className).toContain("bg-card");
   });
 
   it("renders reason text when provided", () => {

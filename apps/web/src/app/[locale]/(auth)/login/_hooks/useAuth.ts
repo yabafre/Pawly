@@ -11,10 +11,31 @@ import { useTranslations } from "next-intl";
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+/** Map API error codes to translated messages.
+ * Known codes (e.g. ADMIN_USE_PASSWORD) → translated string.
+ * Unknown messages → kept as-is (API already returns human text).
+ * No message → fallback key from toast translations. */
+function resolveErrorMessage(
+    message: string | undefined,
+    tErrors: ReturnType<typeof useTranslations>,
+    fallback: string,
+): string {
+    if (!message) return fallback;
+    const knownKeys = [
+        "EMAIL_ALREADY_EXISTS", "INVALID_CREDENTIALS", "ADMIN_USE_PASSWORD",
+        "NO_EMPLOYEE", "TURNSTILE_FAILED",
+    ] as const;
+    for (const key of knownKeys) {
+        if (message.includes(key)) return tErrors(key);
+    }
+    return message;
+}
+
 export const useAuth = () => {
     const router = useRouter();
     const queryClient = useQueryClient();
     const t = useTranslations("auth.toast");
+    const tErrors = useTranslations("auth.errors");
 
     const invalidateAuthQueries = async () => {
         await queryClient.invalidateQueries({ queryKey: QueryKeyFactory.auth() });
@@ -42,7 +63,7 @@ export const useAuth = () => {
             const [data, err] = await loginMutation.mutateAsync(values);
 
             if (err) {
-                toast.error(err.message || t("loginError"));
+                toast.error(resolveErrorMessage(err.message, tErrors, t("loginError")));
                 return;
             }
 
@@ -90,7 +111,7 @@ export const useAuth = () => {
             const [data, err] = await otpRequestMutation.mutateAsync({ email, turnstileToken });
 
             if (err) {
-                toast.error(err.message || t("otpError"));
+                toast.error(resolveErrorMessage(err.message, tErrors, t("otpError")));
                 return null;
             }
 
@@ -113,7 +134,7 @@ export const useAuth = () => {
             const [data, err] = await otpVerifyMutation.mutateAsync({ email, code });
 
             if (err) {
-                toast.error(err.message || t("otpVerifyError"));
+                toast.error(resolveErrorMessage(err.message, tErrors, t("otpVerifyError")));
                 return false;
             }
 

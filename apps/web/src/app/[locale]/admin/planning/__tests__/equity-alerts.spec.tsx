@@ -83,7 +83,7 @@ describe("EmployeeEquityBadge", () => {
     const { container } = render(<EmployeeEquityBadge entry={mockEntryAverage} />);
 
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("text-neutral-400");
+    expect(button).toHaveClass("text-muted-foreground");
 
     const svg = button.querySelector("svg");
     expect(svg).not.toBeNull();
@@ -167,7 +167,7 @@ describe("EmployeeEquityBadge", () => {
 
     // SATURDAY_WORKED: count=2, maxPerPeriod=4, displayMax=4 -> "2 / 4" (2 <= 4, neutral)
     const atAvgSpan = screen.getByText("2 / 4");
-    expect(atAvgSpan).toHaveClass("text-neutral-500");
+    expect(atAvgSpan).toHaveClass("text-muted-foreground");
     expect(atAvgSpan).not.toHaveClass("font-bold");
   });
 });

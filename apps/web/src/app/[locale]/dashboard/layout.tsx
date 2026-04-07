@@ -45,7 +45,11 @@ export default async function DashboardLayout({ children, params }: Props) {
     }
 
     if (!me.employeeId || !me.jobType) {
-        redirect(`/${locale}/login`);
+        // Clear auth cookie to prevent infinite redirect loop
+        // (employee user without linked employee record)
+        const cs = await cookies();
+        cs.delete("auth-token");
+        redirect(`/${locale}/login?error=no_employee`);
     }
 
     // Subscription guard: employee's clinic must have active subscription

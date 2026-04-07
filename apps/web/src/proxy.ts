@@ -16,6 +16,21 @@ const intlMiddleware = createMiddleware(routing);
 export default function middleware(request: NextRequest) {
     const response = intlMiddleware(request);
     response.headers.set('x-pathname', request.nextUrl.pathname);
+
+    // Prevent Cloudflare/CDN caching on auth routes (login, register, auth callbacks)
+    const pathname = request.nextUrl.pathname;
+    if (
+        pathname.includes('/login') ||
+        pathname.includes('/register') ||
+        pathname.includes('/auth/') ||
+        pathname.includes('/forgot-password') ||
+        pathname.includes('/reset-password') ||
+        pathname.includes('/onboarding')
+    ) {
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        response.headers.set('Pragma', 'no-cache');
+    }
+
     return response;
 }
 

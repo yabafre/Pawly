@@ -11,6 +11,7 @@ import { TestimonialsSection } from "./_components/TestimonialsSection";
 import { CTASection } from "./_components/CTASection";
 import { LandingFooter } from "./_components/LandingFooter";
 import { IntegrationsSection } from "./_components/IntegrationsSection";
+import { FloatingCTA } from "./_components/FloatingCTA";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -132,6 +133,7 @@ export default async function LandingPage({ params }: Props) {
         <TestimonialsSection />
         <CTASection />
       </main>
+      <FloatingCTA />
       <LandingFooter />
     </div>
   );

@@ -218,7 +218,7 @@ describe("EquitySummaryCards", () => {
       expect(screen.getByText("50%")).toBeDefined();
     });
 
-    it("applies emerald styling when fairness >= 80%", () => {
+    it("renders fairness score with foreground styling when fairness >= 80%", () => {
       const counters = [
         makeCounter({
           id: "c1",
@@ -242,10 +242,10 @@ describe("EquitySummaryCards", () => {
 
       // max=10, min=9, score = 100 - round(((10-9)/10)*100) = 100 - 10 = 90
       const scoreElement = screen.getByText("90%");
-      expect(scoreElement.className).toContain("text-emerald-600");
+      expect(scoreElement.className).toContain("text-foreground");
     });
 
-    it("applies rose styling when fairness < 50%", () => {
+    it("renders fairness score with foreground styling when fairness < 50%", () => {
       const counters = [
         makeCounter({
           id: "c1",
@@ -269,7 +269,7 @@ describe("EquitySummaryCards", () => {
 
       // max=10, min=1, score = 100 - round(((10-1)/10)*100) = 100 - 90 = 10
       const scoreElement = screen.getByText("10%");
-      expect(scoreElement.className).toContain("text-rose-600");
+      expect(scoreElement.className).toContain("text-foreground");
     });
   });
 

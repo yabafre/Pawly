@@ -12,14 +12,13 @@ import { ConfirmationSlider } from "../_components/ConfirmationSlider";
 describe("ConfirmationSlider", () => {
   // ── Confirmed state ──────────────────────────────────────────────────
 
-  it("renders green confirmed badge when isConfirmed is true", () => {
+  it("renders confirmed text with primary color in confirmed state", () => {
     const { container } = render(
       <ConfirmationSlider isConfirmed={true} isPending={false} onConfirm={vi.fn()} />,
     );
 
     const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.className).toContain("bg-emerald-100");
-    expect(wrapper.className).toContain("text-emerald-700");
+    expect(wrapper.className).toContain("text-primary");
   });
 
   it("renders check icon and confirmed text in confirmed state", () => {
@@ -47,7 +46,6 @@ describe("ConfirmationSlider", () => {
     );
 
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   // ── Pending state ────────────────────────────────────────────────────
@@ -71,13 +69,13 @@ describe("ConfirmationSlider", () => {
     expect(el.getAttribute("aria-live")).toBe("polite");
   });
 
-  it("has pulse animation class in pending state", () => {
+  it("renders muted text in pending state", () => {
     const { container } = render(
       <ConfirmationSlider isConfirmed={false} isPending={true} onConfirm={vi.fn()} />,
     );
 
     const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.className).toContain("motion-safe:animate-pulse");
+    expect(wrapper.className).toContain("text-muted-foreground");
   });
 
   it("is non-interactive in pending state (no button)", () => {
@@ -95,28 +93,25 @@ describe("ConfirmationSlider", () => {
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={vi.fn()} />,
     );
 
-    const button = screen.getByRole("switch");
+    const button = screen.getByRole("button");
     expect(button.tagName).toBe("BUTTON");
   });
 
-  it("renders arrow icon and slideToConfirm text in idle state", () => {
+  it("renders slideToConfirm text in idle state", () => {
     render(
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={vi.fn()} />,
     );
 
-    expect(screen.getByTestId("icon-arrow-right")).toBeDefined();
     expect(screen.getByText("slideToConfirm")).toBeDefined();
   });
 
-  it("has orange styling in idle state", () => {
+  it("renders as a Button component in idle state", () => {
     render(
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={vi.fn()} />,
     );
 
-    const button = screen.getByRole("switch");
-    expect(button.className).toContain("border-orange-300");
-    expect(button.className).toContain("bg-orange-50");
-    expect(button.className).toContain("text-orange-700");
+    const button = screen.getByRole("button");
+    expect(button).toBeDefined();
   });
 
   it("calls onConfirm when clicked", () => {
@@ -125,46 +120,25 @@ describe("ConfirmationSlider", () => {
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={onConfirm} />,
     );
 
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onConfirm on Enter keypress", () => {
-    const onConfirm = vi.fn();
-    render(
-      <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={onConfirm} />,
-    );
-
-    fireEvent.keyDown(screen.getByRole("switch"), { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onConfirm on Space keypress", () => {
-    const onConfirm = vi.fn();
-    render(
-      <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={onConfirm} />,
-    );
-
-    fireEvent.keyDown(screen.getByRole("switch"), { key: " " });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("has 48px minimum height (h-12)", () => {
+  it("has aria-label with slideToConfirm text", () => {
     render(
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={vi.fn()} />,
     );
 
-    const button = screen.getByRole("switch");
-    expect(button.className).toContain("h-12");
+    const button = screen.getByRole("button");
+    expect(button.getAttribute("aria-label")).toBe("slideToConfirm");
   });
 
-  it("has focus-visible ring styles for accessibility", () => {
+  it("renders full-width button", () => {
     render(
       <ConfirmationSlider isConfirmed={false} isPending={false} onConfirm={vi.fn()} />,
     );
 
-    const button = screen.getByRole("switch");
-    expect(button.className).toContain("focus-visible:ring-2");
-    expect(button.className).toContain("focus-visible:ring-orange-400");
+    const button = screen.getByRole("button");
+    expect(button.className).toContain("w-full");
   });
 });

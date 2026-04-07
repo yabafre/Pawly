@@ -10,6 +10,9 @@ import { TRPCError } from '@trpc/server';
 import { stripeRouter } from './stripe.router';
 import { createCallerFactory } from '../trpc';
 
+// Set WEB_APP_URL so origin validation accepts test URLs
+process.env.WEB_APP_URL = 'https://example.com';
+
 const createCaller = createCallerFactory(stripeRouter);
 
 describe('stripeRouter — getBillingOverview', () => {
@@ -106,7 +109,7 @@ describe('stripeRouter — getBillingOverview', () => {
     });
   });
 
-  it('should throw PRECONDITION_FAILED when stripeSubscriptionId is null', async () => {
+  it('should return default billing overview when stripeSubscriptionId is null', async () => {
     mockPrisma.subscription.findUnique.mockResolvedValue({
       ...mockSubscription,
       stripeSubscriptionId: null,
@@ -118,10 +121,9 @@ describe('stripeRouter — getBillingOverview', () => {
       stripeService: mockStripeService as any,
     } as any);
 
-    await expect(caller.getBillingOverview()).rejects.toThrow(TRPCError);
-    await expect(caller.getBillingOverview()).rejects.toMatchObject({
-      code: 'PRECONDITION_FAILED',
-    });
+    const result = await caller.getBillingOverview();
+    expect(result.subscription.priceAmount).toBe(0);
+    expect(result.invoices).toEqual([]);
   });
 
   it('should return billing overview with subscription details and invoices', async () => {

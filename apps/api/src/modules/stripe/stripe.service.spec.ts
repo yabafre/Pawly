@@ -281,11 +281,13 @@ describe('StripeService', () => {
         'fr',
       );
 
-      expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith({
-        customer: 'cus_test_123',
-        return_url: 'https://example.com/admin/billing',
-        locale: 'fr',
-      });
+      expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: 'cus_test_123',
+          return_url: 'https://example.com/admin/billing',
+          locale: 'fr',
+        }),
+      );
       expect(result).toEqual({
         url: 'https://billing.stripe.com/session/test_portal',
       });
@@ -301,11 +303,13 @@ describe('StripeService', () => {
         'https://example.com/admin/billing',
       );
 
-      expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith({
-        customer: 'cus_test_123',
-        return_url: 'https://example.com/admin/billing',
-        locale: 'fr',
-      });
+      expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: 'cus_test_123',
+          return_url: 'https://example.com/admin/billing',
+          locale: 'fr',
+        }),
+      );
     });
 
     it('should throw when Stripe API fails', async () => {

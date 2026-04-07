@@ -4,6 +4,20 @@ import { ClinicOperationalConfigPanel } from "../_components/ClinicOperationalCo
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "fr",
+}));
+
+// Mock Checkbox so onCheckedChange fires correctly in jsdom
+vi.mock("@/components/ui/checkbox", () => ({
+  Checkbox: ({ id, checked, onCheckedChange }: any) => (
+    <input
+      type="checkbox"
+      role="checkbox"
+      id={id}
+      checked={!!checked}
+      onChange={(e) => onCheckedChange?.(e.target.checked)}
+    />
+  ),
 }));
 
 const mockUpdateOperationalConfig = vi.fn();

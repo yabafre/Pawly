@@ -21,6 +21,9 @@ vi.mock("lucide-react", () => ({
   AlertTriangle: (props: any) => (
     <span data-testid="icon-alert-triangle" {...props} />
   ),
+  CalendarOff: (props: any) => (
+    <span data-testid="icon-calendar-off" {...props} />
+  ),
 }));
 
 // Mock date-fns
@@ -192,8 +195,8 @@ describe("AbsenceTypeSelector", () => {
     const paidLeaveButton = screen.getByRole("button", {
       name: "PAID_LEAVE",
     });
-    expect(paidLeaveButton.className).toContain("bg-emerald-50");
-    expect(paidLeaveButton.className).toContain("border-emerald-300");
+    expect(paidLeaveButton.className).toContain("border-primary");
+    expect(paidLeaveButton.className).toContain("bg-primary/5");
   });
 });
 
@@ -213,32 +216,28 @@ describe("AbsenceStatusBadge", () => {
     expect(screen.getByText("REJECTED")).toBeDefined();
   });
 
-  it("applies orange styling for PENDING", () => {
+  it("applies muted styling for PENDING", () => {
     render(<AbsenceStatusBadge status="PENDING" />);
-    const badge = screen.getByText("PENDING");
-    expect(badge.className).toContain("bg-orange-100");
-    expect(badge.className).toContain("text-orange-700");
+    const badge = screen.getByText("PENDING").closest("span");
+    expect(badge!.className).toContain("text-muted-foreground");
   });
 
-  it("applies emerald styling for APPROVED", () => {
+  it("applies muted styling for APPROVED", () => {
     render(<AbsenceStatusBadge status="APPROVED" />);
-    const badge = screen.getByText("APPROVED");
-    expect(badge.className).toContain("bg-emerald-100");
-    expect(badge.className).toContain("text-emerald-700");
+    const badge = screen.getByText("APPROVED").closest("span");
+    expect(badge!.className).toContain("text-muted-foreground");
   });
 
-  it("applies rose styling for REJECTED", () => {
+  it("applies muted styling for REJECTED", () => {
     render(<AbsenceStatusBadge status="REJECTED" />);
-    const badge = screen.getByText("REJECTED");
-    expect(badge.className).toContain("bg-rose-100");
-    expect(badge.className).toContain("text-rose-700");
+    const badge = screen.getByText("REJECTED").closest("span");
+    expect(badge!.className).toContain("text-muted-foreground");
   });
 
-  it("applies fallback neutral styling for unknown status", () => {
+  it("applies muted styling for unknown status", () => {
     render(<AbsenceStatusBadge status="UNKNOWN" />);
-    const badge = screen.getByText("UNKNOWN");
-    expect(badge.className).toContain("bg-neutral-100");
-    expect(badge.className).toContain("text-neutral-600");
+    const badge = screen.getByText("UNKNOWN").closest("span");
+    expect(badge!.className).toContain("text-muted-foreground");
   });
 
   it("renders as a span element", () => {
@@ -375,7 +374,6 @@ describe("AbsenceRequestList", () => {
     });
 
     render(<AbsenceRequestList employeeId="emp-1" />);
-    expect(screen.getByText("list.rejectionReason")).toBeDefined();
     expect(screen.getByText("Not enough staff coverage")).toBeDefined();
   });
 
@@ -396,7 +394,8 @@ describe("AbsenceRequestList", () => {
     });
 
     render(<AbsenceRequestList employeeId="emp-1" />);
-    expect(screen.queryByText("list.rejectionReason")).toBeNull();
+    // Rejection reason should not appear for non-rejected absences
+    expect(screen.queryByText("Not enough staff coverage")).toBeNull();
   });
 
   it("passes employeeId to the useMyAbsences hook", () => {

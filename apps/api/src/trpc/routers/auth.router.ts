@@ -16,6 +16,16 @@ import {
   registerAdminInputSchema,
 } from '@pawly/validators';
 import { TRPCError } from '@trpc/server';
+import { UnauthorizedException } from '@nestjs/common';
+
+/** Convert NestJS UnauthorizedException to TRPCError for proper client propagation */
+function rethrowAsTRPC(error: unknown): never {
+  if (error instanceof TRPCError) throw error;
+  if (error instanceof UnauthorizedException) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: (error as Error).message });
+  }
+  throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' });
+}
 
 const protectedProcedure = publicProcedure.use(isAuthed);
 
@@ -39,13 +49,17 @@ export const authRouter = router({
   register: publicProcedure
     .input(registerAdminInputSchema.omit({ turnstileToken: true }).extend({ locale: z.enum(['fr', 'en']).optional() }))
     .mutation(async ({ input, ctx }) => {
-      return ctx.authService.registerAdmin(input);
+      try {
+        return await ctx.authService.registerAdmin(input);
+      } catch (error) { rethrowAsTRPC(error); }
     }),
 
   login: publicProcedure
     .input(loginSchema)
     .mutation(async ({ input, ctx }) => {
-      return ctx.authService.login(input);
+      try {
+        return await ctx.authService.login(input);
+      } catch (error) { rethrowAsTRPC(error); }
     }),
   requestMagicLink: publicProcedure
     .input(requestMagicLinkSchema)
@@ -66,13 +80,17 @@ export const authRouter = router({
     .input(requestOtpSchema)
     .output(otpRequestResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      return ctx.authService.requestOtp(input.email);
+      try {
+        return await ctx.authService.requestOtp(input.email);
+      } catch (error) { rethrowAsTRPC(error); }
     }),
   verifyOtp: publicProcedure
     .input(verifyOtpSchema)
     .output(authResponseSchema)
     .mutation(async ({ input, ctx }) => {
-      return ctx.authService.verifyOtp(input.email, input.code);
+      try {
+        return await ctx.authService.verifyOtp(input.email, input.code);
+      } catch (error) { rethrowAsTRPC(error); }
     }),
   requestPasswordReset: publicProcedure
     .input(requestPasswordResetSchema)

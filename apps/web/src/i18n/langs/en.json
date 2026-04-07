@@ -147,7 +147,13 @@
     "errors": {
       "generic": "An error occurred",
       "invalidEmail": "Invalid email",
-      "passwordRequired": "Password required"
+      "passwordRequired": "Password required",
+      "EMAIL_ALREADY_EXISTS": "An account already exists with this email.",
+      "INVALID_CREDENTIALS": "Invalid email or password.",
+      "ADMIN_USE_PASSWORD": "This is an admin account. Use the Admin tab with your password.",
+      "NO_EMPLOYEE": "Your employee account is not yet configured. Contact your administrator.",
+      "TURNSTILE_FAILED": "Security verification failed. Please try again.",
+      "serverError": "Server connection issue. Please try again."
     }
   },
   "admin": {
@@ -1291,6 +1297,7 @@
       "toast": "Clinic configured successfully!"
     },
     "errors": {
+      "loadFailed": "Unable to load onboarding data. Please refresh the page.",
       "saveFailed": "Unable to save configuration",
       "duplicateCode": "This shift code already exists"
     },
@@ -1719,6 +1726,88 @@
       "wrongPassword": "Current password is incorrect"
     }
   },
+  "legal": {
+    "privacy": {
+      "metaTitle": "Privacy Policy — Pawly",
+      "metaDescription": "Pawly's privacy policy. Learn how we collect, use, and protect your data.",
+      "title": "Privacy Policy",
+      "lastUpdated": "Last updated: April 7, 2026",
+      "sections": {
+        "collection": {
+          "title": "Data Collection",
+          "content": "We collect information you provide when creating your account (name, email, clinic name), as well as data necessary for the operation of the service (schedules, employee data, configurations). We also collect technical data (IP address, browser type) through cookies essential to the service."
+        },
+        "usage": {
+          "title": "Data Usage",
+          "content": "Your data is used exclusively to provide and improve the Pawly service: schedule management, notifications, automatic schedule generation, and customer support. We never sell your data to third parties."
+        },
+        "storage": {
+          "title": "Storage and Security",
+          "content": "Your data is hosted on secure servers in Europe. All communications are encrypted via TLS. Passwords are hashed with bcrypt. Session tokens use automatic rotation to prevent unauthorized access."
+        },
+        "sharing": {
+          "title": "Data Sharing",
+          "content": "We only share your data with subprocessors necessary for the service: Stripe for payment processing, and our transactional email provider for notifications. These providers are bound by confidentiality obligations."
+        },
+        "rights": {
+          "title": "Your Rights",
+          "content": "Under the GDPR, you have the right to access, rectify, delete, and port your personal data. You can exercise these rights by contacting us at the address below. We respond to all requests within 30 days."
+        },
+        "cookies": {
+          "title": "Cookies",
+          "content": "Pawly only uses cookies essential to the service (authentication, language preferences). We do not use advertising cookies or third-party trackers. The authentication cookie is httpOnly and secure."
+        },
+        "contact": {
+          "title": "Contact",
+          "content": "For any questions about data protection, contact us at privacy@pawly.fr."
+        }
+      }
+    },
+    "terms": {
+      "metaTitle": "Terms of Service — Pawly",
+      "metaDescription": "Terms of service for the Pawly veterinary scheduling platform.",
+      "title": "Terms of Service",
+      "lastUpdated": "Last updated: April 7, 2026",
+      "sections": {
+        "acceptance": {
+          "title": "Acceptance of Terms",
+          "content": "By accessing Pawly and using our services, you agree to be bound by these terms of service. If you do not accept these terms, please do not use the service."
+        },
+        "service": {
+          "title": "Service Description",
+          "content": "Pawly is a SaaS scheduling platform designed for veterinary clinics. The service includes automatic schedule generation, employee management, absence tracking, and clinic configuration tools."
+        },
+        "accounts": {
+          "title": "User Accounts",
+          "content": "You are responsible for the confidentiality of your login credentials. The clinic administrator is responsible for managing employee access. Any unauthorized use of your account must be reported immediately."
+        },
+        "subscription": {
+          "title": "Subscription and Payment",
+          "content": "Pawly offers a free plan (Starter) and a paid plan (Professional). Payments are processed by Stripe. Subscriptions are automatically renewed unless cancelled. You can cancel at any time from your billing dashboard."
+        },
+        "ip": {
+          "title": "Intellectual Property",
+          "content": "Pawly and its content (code, design, brand) are protected by copyright. You retain ownership of all data you enter into the service. You grant us a limited license to process this data for the purpose of providing the service."
+        },
+        "limitation": {
+          "title": "Limitation of Liability",
+          "content": "Pawly is provided \"as is\". We do not guarantee uninterrupted operation of the service. Our liability is limited to the amount of subscription fees paid in the last 12 months. We are not liable for indirect damages."
+        },
+        "termination": {
+          "title": "Termination",
+          "content": "We reserve the right to suspend or terminate your access in case of violation of these terms. You can delete your account at any time. After deletion, your data will be erased within 30 days in accordance with our privacy policy."
+        },
+        "law": {
+          "title": "Governing Law",
+          "content": "These terms are governed by French law. Any dispute shall be subject to the exclusive jurisdiction of the courts of Paris, France."
+        },
+        "contact": {
+          "title": "Contact",
+          "content": "For any questions about these terms, contact us at legal@pawly.fr."
+        }
+      }
+    }
+  },
   "errors": {
     "generic": "An error occurred",
     "network": "Server connection error",
@@ -1861,7 +1950,8 @@
     "cta": {
       "title": "Ready to simplify your clinic management?",
       "subtitle": "Join veterinary professionals who trust Pawly for their daily operations.",
-      "button": "Start Your Free Trial"
+      "button": "Start Your Free Trial",
+      "floatingButton": "Start for free"
     },
     "footer": {
       "tagline": "The intelligent planning platform for veterinary clinics.",
