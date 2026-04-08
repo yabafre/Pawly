@@ -141,37 +141,37 @@ async function bootstrap() {
 
     // Swagger/OpenAPI Setup (disabled in production)
     if (configService.get('NODE_ENV') !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('Pawly API')
-      .setDescription(
-        'Pawly - Open-source multi-tenant SaaS e-commerce platform API. ' +
-        'Built with NestJS, featuring JWT authentication, multi-tenancy, and the Profit Engine.'
-      )
-      .setVersion('1.0')
-      .addBearerAuth(
-        {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Enter your JWT access token',
-        },
-        'JWT-auth'
-      )
-      .addTag('auth', 'Authentication endpoints (login, logout, refresh)')
-      .addTag('health', 'Health check endpoints')
-      .build();
+      const config = new DocumentBuilder()
+        .setTitle('Pawly API')
+        .setDescription(
+          'Pawly - Open-source multi-tenant SaaS e-commerce platform API. ' +
+          'Built with NestJS, featuring JWT authentication, multi-tenancy, and the Profit Engine.'
+        )
+        .setVersion('1.0')
+        .addBearerAuth(
+          {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'Enter your JWT access token',
+          },
+          'JWT-auth'
+        )
+        .addTag('auth', 'Authentication endpoints (login, logout, refresh)')
+        .addTag('health', 'Health check endpoints')
+        .build();
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('docs', app, document, {
-      customSiteTitle: 'Pawly API Documentation',
-      swaggerOptions: {
-        persistAuthorization: true,
-        docExpansion: 'list',
-        filter: true,
-        showRequestDuration: true,
-      },
-    });
-    logger.log('Swagger docs available at: /docs');
+      const document = SwaggerModule.createDocument(app, config);
+      SwaggerModule.setup('docs', app, document, {
+        customSiteTitle: 'Pawly API Documentation',
+        swaggerOptions: {
+          persistAuthorization: true,
+          docExpansion: 'list',
+          filter: true,
+          showRequestDuration: true,
+        },
+      });
+      logger.log('Swagger docs available at: /docs');
     }
 
     await app.listen(port);
