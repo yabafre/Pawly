@@ -146,7 +146,11 @@ git push origin vX.Y.0
 
 ### Current Tags
 
+- `v0.11.3` - APED docs migration + planning/UI hardening (latest)
+- `v0.11.2`, `v0.11.0`, `v0.10.x` - prior releases
 - `v0.3.0` - Epic 3: Product Catalog Management complete
+
+Full history: `git tag -l 'v*' | sort -V`.
 
 ### Protected Branches
 
