@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3020",
     "build": "NODE_ENV=production next build",
-    "start": "next start",
+    "start": "next start --port 3020",
     "lint": "eslint",
     "test": "vitest run",
     "i18n:check": "tsx scripts/check-translations.ts"

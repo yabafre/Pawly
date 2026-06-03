@@ -314,6 +314,17 @@
         "categoryEquity": "Équité de rotation",
         "categoryContract": "Conformité contrat",
         "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}",
+        "days": {
+          "monday": "lundi", "tuesday": "mardi", "wednesday": "mercredi",
+          "thursday": "jeudi", "friday": "vendredi", "saturday": "samedi", "sunday": "dimanche"
+        },
+        "periods": {
+          "monthly": "mensuel", "quarterly": "trimestriel", "weekly": "hebdomadaire", "period": "période"
+        },
+        "terms": {
+          "shifts": "créneaux", "exceedsMax": "dépasse le maximum de",
+          "employeeTotal": "Total employé", "employeeHas": "L'employé a", "per": "par"
+        },
         "violations": {
           "rotationEquity": {
             "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
@@ -424,6 +435,9 @@
         "requiredStaff": "Personnel requis",
         "requiredJobTypes": "Postes requis",
         "addSlot": "Ajouter un créneau",
+        "applyTo": "Appliquer à...",
+        "applyToTitle": "Appliquer ces créneaux à :",
+        "applyConfirm": "Appliquer ({count})",
         "removeSlot": "Supprimer",
         "staffCount": "{count} personnel"
       },
@@ -474,6 +488,7 @@
       "monthPlaceholder": "Sélectionner un mois",
       "templateLabel": "Modèle de semaine",
       "templatePlaceholder": "Sélectionner un modèle",
+      "noTemplates": "Créer un modèle",
       "generateButton": "Générer le planning",
       "generating": "Génération en cours...",
       "regenerateButton": "Regénérer",
@@ -1499,8 +1514,12 @@
     "validation": {
       "firstNameRequired": "Le prénom est requis",
       "lastNameRequired": "Le nom est requis",
+      "emailRequired": "L'email est requis",
       "invalidEmail": "Adresse email invalide",
+      "phoneRequired": "Le téléphone est requis",
       "hoursRange": "Les heures doivent être entre 1 et 48",
+      "hireDateRequired": "La date d'embauche est requise",
+      "endDateRequired": "La date de fin est requise",
       "endDateAfterHire": "La date de fin doit être après la date d'embauche"
     },
     "filters": {

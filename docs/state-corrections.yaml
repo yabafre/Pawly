@@ -1,0 +1,21 @@
+# APED state corrections — append-only log of mid-sprint scope changes
+# (PRD edits, FR descopes, story descopes, decision amendments, etc.).
+# Schema v2 split this out of state.yaml in 4.1.0 to bound the latter's
+# growth on long-running projects.
+#
+# Writer: `bash {{APED_DIR}}/scripts/sync-state.sh <<< "append-correction <json>"`.
+# The helper validates required keys, appends to the array atomically,
+# and updates `corrections_count` in state.yaml in the same call.
+#
+# Required keys per entry:
+#   date                ISO 8601 date (YYYY-MM-DD)
+#   type                "major" | "minor" | "bug"
+#   reason              one-liner — why this correction was made
+#   artifacts_updated   list of file paths touched
+#   affected_stories    list of story keys impacted
+#
+# Additional project-specific keys are preserved as-is (forward-compat).
+# Reader skills (aped-retro, aped-status) read this file via
+# `corrections_pointer` in state.yaml; they fall back to top-level
+# `corrections:` in state.yaml when running against an unmigrated v1 scaffold.
+corrections: []

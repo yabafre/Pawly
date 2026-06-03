@@ -2,7 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Calendar, Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
+import { Calendar, Check, ChevronDown, Copy, Loader2, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -35,28 +38,108 @@ const DAY_KEYS = [
   "sunday",
 ] as const;
 
+function ApplyToOtherDays({
+  currentDayKey,
+  allDayKeys,
+  allDayLabels,
+  onApply,
+  t,
+}: {
+  currentDayKey: string;
+  allDayKeys: readonly string[];
+  allDayLabels: string[];
+  onApply: (targetDayKeys: string[]) => void;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  const toggle = (key: string) => {
+    setSelected((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
+
+  const handleApply = () => {
+    if (selected.length > 0) {
+      onApply(selected);
+      setSelected([]);
+      setPopoverOpen(false);
+    }
+  };
+
+  return (
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="rounded-xl shrink-0 h-10 w-10"
+          title={t("slot.applyTo")}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-3 space-y-2">
+        <p className="text-xs font-semibold text-foreground mb-2">{t("slot.applyToTitle")}</p>
+        {allDayKeys.map((key, idx) => {
+          if (key === currentDayKey) return null;
+          return (
+            <label key={key} className="flex items-center gap-2.5 py-1 cursor-pointer">
+              <Checkbox
+                checked={selected.includes(key)}
+                onCheckedChange={() => toggle(key)}
+              />
+              <span className="text-sm">{allDayLabels[idx]}</span>
+            </label>
+          );
+        })}
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleApply}
+          disabled={selected.length === 0}
+          className="w-full mt-2 rounded-lg text-xs"
+        >
+          <Check className="h-3.5 w-3.5 mr-1.5" />
+          {t("slot.applyConfirm", { count: selected.length })}
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 type DayEditorProps = {
+  dayKey: string;
   dayLabel: string;
   isOpen: boolean;
   isNonWorkDay: boolean;
   slots: TemplateSlot[];
   shiftTypes: ShiftTypeRecord[];
+  allDayKeys: readonly string[];
+  allDayLabels: string[];
   onToggle: () => void;
   onAddSlot: () => void;
   onUpdateSlot: (slotIdx: number, updatedSlot: TemplateSlot) => void;
   onRemoveSlot: (slotIdx: number) => void;
+  onApplyToOtherDays: (targetDayKeys: string[]) => void;
 };
 
 function DayEditor({
+  dayKey,
   dayLabel,
   isOpen,
   isNonWorkDay,
   slots,
   shiftTypes,
+  allDayKeys,
+  allDayLabels,
   onToggle,
   onAddSlot,
   onUpdateSlot,
   onRemoveSlot,
+  onApplyToOtherDays,
 }: DayEditorProps) {
   const t = useTranslations("admin.planningTemplates");
   const isWorked = slots.length > 0;
@@ -153,14 +236,26 @@ function DayEditor({
                 );
               })}
 
-              <button
-                type="button"
-                onClick={onAddSlot}
-                className="w-full py-3 border border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group mt-4"
-              >
-                <Plus size={16} className="group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-bold">{t("slot.addSlot")}</span>
-              </button>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={onAddSlot}
+                  className="flex-1 py-3 border border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all group"
+                >
+                  <Plus size={16} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">{t("slot.addSlot")}</span>
+                </button>
+
+                {slots.length > 0 && (
+                  <ApplyToOtherDays
+                    currentDayKey={dayKey}
+                    allDayKeys={allDayKeys}
+                    allDayLabels={allDayLabels}
+                    onApply={onApplyToOtherDays}
+                    t={t}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -247,6 +342,19 @@ export function TemplateEditor({
     }
   };
 
+  const applyToOtherDays = (sourceDayOfWeek: number, targetDayKeys: string[]) => {
+    const sourceSlots = getDaySlots(sourceDayOfWeek);
+    if (sourceSlots.length === 0) return;
+    for (const targetKey of targetDayKeys) {
+      const targetDayOfWeek = DAY_KEYS.indexOf(targetKey as typeof DAY_KEYS[number]) + 1;
+      if (targetDayOfWeek > 0) {
+        updateDaySlots(targetDayOfWeek, sourceSlots.map((s) => ({ ...s })));
+      }
+    }
+  };
+
+  const dayLabels = DAY_KEYS.map((dk) => t(`days.${dk}`));
+
   const isNonWorkDay = (dayOfWeek: number) => {
     if (!workDays) return false;
     return !workDays.includes(dayOfWeek);
@@ -323,15 +431,19 @@ export function TemplateEditor({
               return (
                 <DayEditor
                   key={dayKey}
+                  dayKey={dayKey}
                   dayLabel={t(`days.${dayKey}`)}
                   isOpen={expandedDay === dayKey}
                   isNonWorkDay={isNonWorkDay(dayOfWeek)}
                   slots={slots}
+                  allDayKeys={DAY_KEYS}
+                  allDayLabels={dayLabels}
                   shiftTypes={shiftTypes}
                   onToggle={() => setExpandedDay(expandedDay === dayKey ? null : dayKey)}
                   onAddSlot={() => addSlot(dayOfWeek)}
                   onUpdateSlot={(slotIdx, updatedSlot) => updateSlot(dayOfWeek, slotIdx, updatedSlot)}
                   onRemoveSlot={(slotIdx) => removeSlot(dayOfWeek, slotIdx)}
+                  onApplyToOtherDays={(targetKeys) => applyToOtherDays(dayOfWeek, targetKeys)}
                 />
               );
             })}

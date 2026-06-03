@@ -314,6 +314,17 @@
         "categoryEquity": "Rotation Equity",
         "categoryContract": "Contract Compliance",
         "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}",
+        "days": {
+          "monday": "Monday", "tuesday": "Tuesday", "wednesday": "Wednesday",
+          "thursday": "Thursday", "friday": "Friday", "saturday": "Saturday", "sunday": "Sunday"
+        },
+        "periods": {
+          "monthly": "monthly", "quarterly": "quarterly", "weekly": "weekly", "period": "period"
+        },
+        "terms": {
+          "shifts": "shifts", "exceedsMax": "exceeds maximum of",
+          "employeeTotal": "Employee total", "employeeHas": "Employee has", "per": "per"
+        },
         "violations": {
           "rotationEquity": {
             "exceeded": "{currentCount} {targetDay} shifts, exceeds maximum of {maxPerPeriod} per {trackingPeriod}"
@@ -424,6 +435,9 @@
         "requiredStaff": "Required staff",
         "requiredJobTypes": "Required roles",
         "addSlot": "Add slot",
+        "applyTo": "Apply to...",
+        "applyToTitle": "Apply these slots to:",
+        "applyConfirm": "Apply ({count})",
         "removeSlot": "Remove",
         "staffCount": "{count} staff"
       },
@@ -474,6 +488,7 @@
       "monthPlaceholder": "Select month",
       "templateLabel": "Week Template",
       "templatePlaceholder": "Select a template",
+      "noTemplates": "Create a template",
       "generateButton": "Generate Planning",
       "generating": "Generating planning...",
       "regenerateButton": "Regenerate",
@@ -1499,8 +1514,12 @@
     "validation": {
       "firstNameRequired": "First name is required",
       "lastNameRequired": "Last name is required",
+      "emailRequired": "Email is required",
       "invalidEmail": "Invalid email address",
+      "phoneRequired": "Phone number is required",
       "hoursRange": "Hours must be between 1 and 48",
+      "hireDateRequired": "Hire date is required",
+      "endDateRequired": "End date is required",
       "endDateAfterHire": "End date must be after hire date"
     },
     "filters": {

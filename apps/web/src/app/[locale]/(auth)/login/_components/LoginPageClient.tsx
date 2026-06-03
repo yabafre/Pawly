@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PawlyLogo } from "@/components/pawly-logo";
-import { Mail, Lock, ArrowLeft, ArrowRight, RefreshCw, Check } from "lucide-react";
+import { Mail, Lock, ArrowLeft, ArrowRight, RefreshCw, Check, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -30,6 +30,7 @@ type Stage = "form" | "otp" | "magic_link_fallback";
 export const LoginPageClient = () => {
     const [activeRole, setActiveRole] = useState<Role>("employee");
     const [stage, setStage] = useState<Stage>("form");
+    const [showPassword, setShowPassword] = useState(false);
     const [submittedEmail, setSubmittedEmail] = useState("");
     const [turnstileToken, setTurnstileToken] = useState("");
     const otpInputRef = useRef<OtpInputHandle>(null);
@@ -150,7 +151,7 @@ export const LoginPageClient = () => {
                     validators={{
                         onBlur: ({ value }) => {
                             const r = requestOtpSchema.shape.email.safeParse(value);
-                            return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("invalidEmail");
+                            return r.success ? undefined : tErrors("invalidEmail");
                         },
                     }}
                     children={(field) => {
@@ -184,7 +185,7 @@ export const LoginPageClient = () => {
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden"
+                            className="overflow-hidden p-1 -m-1"
                         >
                             <form.Field
                                 name="password"
@@ -192,7 +193,7 @@ export const LoginPageClient = () => {
                                     onBlur: ({ value }) => {
                                         if (!isAdmin) return undefined;
                                         const r = loginSchema.shape.password.safeParse(value);
-                                        return r.success ? undefined : r.error.issues[0]?.message ?? tErrors("passwordRequired");
+                                        return r.success ? undefined : tErrors("passwordRequired");
                                     },
                                 }}
                                 children={(field) => {
@@ -200,15 +201,27 @@ export const LoginPageClient = () => {
                                     return (
                                         <Field data-invalid={isInvalid}>
                                             <FieldLabel htmlFor={field.name} className="font-medium">{t("passwordLabel")}</FieldLabel>
-                                            <Input
-                                                id={field.name}
-                                                type="password"
-                                                value={field.state.value}
-                                                onBlur={field.handleBlur}
-                                                onChange={(e) => field.handleChange(e.target.value)}
-                                                aria-invalid={isInvalid}
-                                                className="h-10"
-                                            />
+                                            <div className="relative">
+                                                <Input
+                                                    id={field.name}
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={field.state.value}
+                                                    onBlur={field.handleBlur}
+                                                    onChange={(e) => field.handleChange(e.target.value)}
+                                                    aria-invalid={isInvalid}
+                                                    className="h-10 pr-10"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => setShowPassword((v) => !v)}
+                                                    className="absolute right-0 top-0 h-10 w-10 text-muted-foreground hover:text-foreground"
+                                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                                >
+                                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </Button>
+                                            </div>
                                             {isInvalid && <FieldError errors={toFieldErrors(field.state.meta.errors)} className="text-[11px]" />}
                                             <a
                                                 href="/forgot-password"

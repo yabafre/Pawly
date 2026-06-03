@@ -9,11 +9,12 @@ import {
   Users,
   Pencil,
   Trash2,
-  AlertTriangle,
   GraduationCap,
+  LayoutTemplate,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "@/i18n/navigation";
 import {
   Select,
   SelectContent,
@@ -230,24 +231,33 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
             <label id="template-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
               {t("templateLabel")}
             </label>
-            <Select
-              value={selectedTemplateId}
-              onValueChange={setSelectedTemplateId}
-              disabled={isLoadingTemplates}
-            >
-              <SelectTrigger aria-labelledby="template-label">
-                <SelectValue placeholder={t("templatePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map(
-                  (tpl: { id: string; name: string }) => (
-                    <SelectItem key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                    </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
+            {!isLoadingTemplates && templates.length === 0 ? (
+              <Button variant="outline" asChild className="w-full justify-start gap-2 text-muted-foreground">
+                <Link href="/admin/planning/templates">
+                  <LayoutTemplate className="h-4 w-4" />
+                  {t("noTemplates")}
+                </Link>
+              </Button>
+            ) : (
+              <Select
+                value={selectedTemplateId}
+                onValueChange={setSelectedTemplateId}
+                disabled={isLoadingTemplates}
+              >
+                <SelectTrigger aria-labelledby="template-label">
+                  <SelectValue placeholder={t("templatePlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map(
+                    (tpl: { id: string; name: string }) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <Button
@@ -287,12 +297,6 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {totalWarnings > 0 && (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-orange-600">
-                    <AlertTriangle size={12} />
-                    {totalWarnings} {tExisting("warnings")}
-                  </span>
-                )}
                 {generated.length > 0 && (
                   <Button
                     variant="outline"

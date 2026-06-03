@@ -17,7 +17,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, ChevronRight, Copy, Edit2, Layout, Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Copy, EllipsisVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
 import type { TemplateSlot, TemplateDay, TemplateData, TemplateRecord } from "@pawly/types";
@@ -65,14 +66,15 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
       <div className="absolute top-4 right-4 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               aria-label={t("actions.menu")}
               onClick={(event) => event.stopPropagation()}
-              className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+              className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
             >
-              <Layout size={16} className="rotate-90" />
-            </button>
+              <EllipsisVertical className="h-4 w-4" />
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="rounded-xl border-border shadow-xl p-1 w-40">
             <DropdownMenuItem
@@ -82,7 +84,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
               }}
               className="rounded-lg focus:bg-muted cursor-pointer font-medium text-xs p-2"
             >
-              <Edit2 className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+              <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
               {t("actions.edit")}
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -111,7 +113,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
 
       <div className="flex items-center gap-3 mb-5">
         <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center group-hover:bg-primary/5 transition-colors">
-          <Layout className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+          <Calendar className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
         <div>
           <h3 className="font-bold text-foreground leading-tight">{template.name}</h3>
@@ -138,12 +140,6 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-        <span className="text-xs font-bold text-primary">{t("actions.edit")}</span>
-        <div className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center shadow-sm">
-          <ChevronRight size={14} className="text-muted-foreground" />
-        </div>
-      </div>
     </div>
   );
 }
@@ -168,14 +164,10 @@ export function TemplateList({
         </div>
         <h3 className="text-lg font-bold text-foreground">{t("emptyState.title")}</h3>
         <p className="mt-2 text-sm text-muted-foreground">{t("emptyState.description")}</p>
-        <button
-          type="button"
-          onClick={onCreate}
-          className="mt-6 inline-flex h-11 items-center gap-2 px-5 bg-foreground text-background rounded-xl font-bold text-sm hover:bg-foreground/90 cursor-pointer"
-        >
-          <Plus size={16} />
+        <Button onClick={onCreate} className="mt-6 rounded-xl">
+          <Plus className="mr-2 h-4 w-4" />
           {t("emptyState.cta")}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -183,14 +175,10 @@ export function TemplateList({
   return (
     <>
       <div className="flex justify-end mb-8">
-        <button
-          type="button"
-          onClick={onCreate}
-          className="h-11 px-5 bg-foreground text-background rounded-xl font-bold text-sm hover:bg-foreground/90 flex items-center gap-2 cursor-pointer"
-        >
-          <Plus size={16} />
+        <Button onClick={onCreate} className="rounded-xl">
+          <Plus className="mr-2 h-4 w-4" />
           {t("emptyState.cta")}
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
@@ -205,16 +193,16 @@ export function TemplateList({
           />
         ))}
 
-        <button
-          type="button"
+        <Button
+          variant="outline"
           onClick={onCreate}
-          className="group flex flex-col items-center justify-center px-6 pt-6 pb-3 rounded-2xl border-2 border-dashed border-border hover:border-primary bg-transparent hover:bg-primary/5 min-h-[220px]"
+          className="group h-auto flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 hover:border-primary hover:bg-primary/5"
         >
-          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:bg-card">
-            <Plus size={20} className="text-muted-foreground group-hover:text-primary" />
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-card">
+            <Plus className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
           </div>
           <span className="text-sm font-bold text-muted-foreground group-hover:text-primary">{t("form.createTitle")}</span>
-        </button>
+        </Button>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
