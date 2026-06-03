@@ -66,6 +66,7 @@ temp/
 .gemini/
 .windsurf/
 _bmad/
+.aped/
 
 # CLAUDE.md context files (keep only root CLAUDE.md)
 **/CLAUDE.md
