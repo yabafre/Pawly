@@ -123,6 +123,12 @@ export const Scene04Declaration: React.FC = () => {
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
+  // Fade the cursor out before the crossfade to scene 5, so the two scenes
+  // never show two cursors at once during the transition overlap.
+  const cursorOut = interpolate(f, [214, 228], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <AbsoluteFill style={{ background: C.warmLinen, fontFamily: FONT }}>
@@ -325,7 +331,11 @@ export const Scene04Declaration: React.FC = () => {
       />
 
       {/* Cursor only glides in once the panel is present; no click in scene 4. */}
-      {f >= 186 ? <FauxCursor x={cx} y={cy} clicking={false} /> : null}
+      {f >= 186 ? (
+        <div style={{ opacity: cursorOut }}>
+          <FauxCursor x={cx} y={cy} clicking={false} />
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 };

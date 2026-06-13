@@ -29,8 +29,10 @@ type Row = {
   hours: string;
 };
 
+// Same 6-person team as scene 5 — continuity with the generation beat.
 const ROWS: Row[] = [
   { name: "Dr. Camille Roussel", role: "Vétérinaire", hours: "35h" },
+  { name: "Dr. Hugo Mercier", role: "Vétérinaire", hours: "35h" },
   {
     name: "Léa Martin",
     role: "ASV en alternance",
@@ -39,35 +41,43 @@ const ROWS: Row[] = [
   },
   { name: "Sofiane Benali", role: "ASV", hours: "35h" },
   { name: "Inès Kaczmarek", role: "ASV", hours: "30h" },
+  { name: "Tom Delaunay", role: "ASV", hours: "32h" },
 ];
-const LEA = 1;
+const LEA = 2;
 
 // Deterministic per-cell shift code, varied by index (never random).
 const SHIFTS = ["08–14", "14–20", "09–17", "13–19", "10–16", "08–14"];
 const SHIFT_COLORS = ["#E0F2F1", "#FDECEC", "#EAF3FF", "#F0ECFB", "#FDF3E6"];
 
 // The single remaining hole + the single conflict badge.
-const HOLE_R = 2;
+const HOLE_R = 3;
 const HOLE_C = 4;
 const HOLE_SHIFT = "14–20";
 const CONFLICT_R = 0;
 const CONFLICT_C = 3;
+const CONFLICT_SHIFT_FIXED = "10–16"; // what the conflicting cell becomes once swapped
 
 const GRID_COLS = "230px repeat(6, 1fr) 96px";
 
-// Timeline.
-const DROP_START = 120;
-const DROP_END = 170;
+// Timeline — TWO gestures, matching the caption "en deux gestes":
+// gesture 1 drags a shift into the hole, gesture 2 swaps the conflicting cell.
+const DROP_START = 100;
+const DROP_END = 145;
+const FIX_START = 165;
+const FIX_END = 200;
 
-// A single static (already-filled) cell.
-const FilledCell: React.FC<{ r: number; c: number; filled: boolean }> = ({
-  r,
-  c,
-  filled,
-}) => {
+// A single static (already-filled) cell. `conflictFix` (0→1) drives gesture 2:
+// the conflicting cell swaps its shift and the orange badge pops away.
+const FilledCell: React.FC<{
+  r: number;
+  c: number;
+  filled: boolean;
+  conflictFix?: number;
+}> = ({ r, c, filled, conflictFix = 0 }) => {
   const shift = SHIFTS[(r + c) % SHIFTS.length];
   const bg = SHIFT_COLORS[(r * 2 + c) % SHIFT_COLORS.length];
   const isConflict = r === CONFLICT_R && c === CONFLICT_C;
+  const swapped = isConflict && conflictFix > 0.5;
   return (
     <div
       style={{
@@ -83,10 +93,11 @@ const FilledCell: React.FC<{ r: number; c: number; filled: boolean }> = ({
           width: "100%",
           minHeight: 56,
           borderRadius: 10,
-          background: filled ? C.tealWash : bg,
-          border: filled
-            ? `1.5px solid ${C.vetTeal}`
-            : "1px solid rgba(0,0,0,0.05)",
+          background: filled || swapped ? C.tealWash : bg,
+          border:
+            filled || swapped
+              ? `1.5px solid ${C.vetTeal}`
+              : "1px solid rgba(0,0,0,0.05)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -95,8 +106,8 @@ const FilledCell: React.FC<{ r: number; c: number; filled: boolean }> = ({
           fontSize: 16,
         }}
       >
-        {filled ? HOLE_SHIFT : shift}
-        {isConflict && (
+        {filled ? HOLE_SHIFT : swapped ? CONFLICT_SHIFT_FIXED : shift}
+        {isConflict && conflictFix < 1 && (
           <div
             style={{
               position: "absolute",
@@ -111,6 +122,8 @@ const FilledCell: React.FC<{ r: number; c: number; filled: boolean }> = ({
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "0 2px 6px rgba(251,146,60,0.5)",
+              transform: `scale(${1 - conflictFix})`,
+              opacity: 1 - conflictFix,
             }}
           >
             <AlertTriangle size={13} color="#ffffff" strokeWidth={2.6} />
@@ -229,7 +242,7 @@ export const Scene06GreedyHonesty: React.FC = () => {
     config: { damping: 18, mass: 0.7 },
   });
 
-  // Drop progress: the dragged card lands and the hole is filled.
+  // Gesture 1 — drop progress: the dragged card lands and the hole is filled.
   const drop = interpolate(f, [DROP_START, DROP_END], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -237,30 +250,43 @@ export const Scene06GreedyHonesty: React.FC = () => {
   });
   const filled = f >= DROP_END;
 
+  // Gesture 2 — the conflicting cell is swapped; conflict AND warning clear.
+  // Without this, scene 7's "100% prêt / aucune violation" would be incoherent:
+  // a hard conflict blocks publication in the real product.
+  const fix = interpolate(f, [FIX_START, FIX_END], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.inOut(Easing.cubic),
+  });
+  const fixed = f >= FIX_END;
+
   // Health-bar segment widths — ALWAYS sum to 100%.
   // Honest "before": conflict + warning + hole are visible.
   const ROSE = 8; // 1 conflit (hard)
   const ORANGE = 14; // 1 avertissement (soft)
   const HOLE_FULL = 14; // 1 trou
-  // On drop the hole transfers into healthy teal (hole → 0, teal grows).
+  const rose = ROSE * (1 - fix);
+  const orange = ORANGE * (1 - fix);
   const hole = HOLE_FULL * (1 - drop);
-  const teal = 100 - ROSE - ORANGE - hole;
+  const teal = 100 - rose - orange - hole;
 
-  // Readiness % climbs 78 → 92 as the hole closes (still honest: conflict/warning remain).
-  const ready = Math.round(interpolate(drop, [0, 1], [78, 92]));
+  // Readiness climbs 78 → 86 (hole closed) → 96 (conflict fixed);
+  // the final 100% stays scene 7's payoff.
+  const ready = Math.round(78 + 8 * drop + 10 * fix);
   const holeCount = filled ? 0 : 1;
-  const subtitle = `1 conflit · 1 avertissement · ${holeCount} trou · ${ready}% prêt`;
+  const conflictCount = fixed ? 0 : 1;
+  const subtitle = `${conflictCount} conflit · ${conflictCount} avertissement · ${holeCount} trou · ${ready}% prêt`;
 
   // Dragged shift card: glides from a staging spot into the hole cell, then snaps.
   // Coordinates are in absolute composition space (1920×1080).
   const HOLE_X = 1268;
-  const HOLE_Y = 470;
+  const HOLE_Y = 536; // hole row is 4th of 6 (Sofiane)
   const dragX = interpolate(f, [DROP_START, DROP_END], [1540, HOLE_X], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.inOut(Easing.cubic),
   });
-  const dragY = interpolate(f, [DROP_START, DROP_END], [688, HOLE_Y], {
+  const dragY = interpolate(f, [DROP_START, DROP_END], [750, HOLE_Y], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.inOut(Easing.cubic),
@@ -282,6 +308,40 @@ export const Scene06GreedyHonesty: React.FC = () => {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     },
+  );
+
+  // Cursor path — gesture 1 follows the drag, then travels up to the
+  // conflicting cell (Camille · Jeu) and clicks to swap it (gesture 2).
+  const CONFLICT_X = 1190;
+  const CONFLICT_Y = 300;
+  const cur2x = interpolate(
+    f,
+    [DROP_END, FIX_START],
+    [HOLE_X + 96, CONFLICT_X],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.inOut(Easing.cubic),
+    },
+  );
+  const cur2y = interpolate(
+    f,
+    [DROP_END, FIX_START],
+    [HOLE_Y + 40, CONFLICT_Y],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.inOut(Easing.cubic),
+    },
+  );
+  const curX = f <= DROP_END ? dragX + 96 : cur2x;
+  const curY = f <= DROP_END ? dragY + 40 : cur2y;
+  const clicking2 = f >= FIX_START + 4 && f <= FIX_START + 16;
+  const cursorOpacity = interpolate(
+    f,
+    [DROP_START - 4, DROP_START + 2, FIX_END + 8, FIX_END + 20],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
   );
 
   return (
@@ -422,7 +482,15 @@ export const Scene06GreedyHonesty: React.FC = () => {
                       />
                     );
                   }
-                  return <FilledCell key={c} r={r} c={c} filled={false} />;
+                  return (
+                    <FilledCell
+                      key={c}
+                      r={r}
+                      c={c}
+                      filled={false}
+                      conflictFix={fix}
+                    />
+                  );
                 })}
 
                 <div
@@ -492,8 +560,8 @@ export const Scene06GreedyHonesty: React.FC = () => {
                     overflow: "hidden",
                   }}
                 >
-                  <Seg width={ROSE} color={C.rose} />
-                  <Seg width={ORANGE} color={C.orange} />
+                  <Seg width={rose} color={C.rose} />
+                  <Seg width={orange} color={C.orange} />
                   <Seg width={hole} color={C.muted} dashed />
                   <Seg width={teal} color={C.vetTeal} />
                 </div>
@@ -549,12 +617,9 @@ export const Scene06GreedyHonesty: React.FC = () => {
         text="Le moteur laisse les trous impossibles. À vous d’ajuster en deux gestes."
       />
 
-      <FauxCursor
-        x={dragX + 96}
-        y={dragY + 40}
-        clicking={clicking}
-        scale={dragVisible ? 1 : 0}
-      />
+      <div style={{ opacity: cursorOpacity }}>
+        <FauxCursor x={curX} y={curY} clicking={clicking || clicking2} />
+      </div>
     </AbsoluteFill>
   );
 };

@@ -421,7 +421,8 @@ export const Scene09Bookend: React.FC = () => {
         </div>
       </div>
 
-      {/* FR ⇄ EN subtitle flash — lower third, single bilingual proof switch. */}
+      {/* FR ⇄ EN proof — styled as a real language-switcher UI element, not a
+          caption pill: an FR/EN segmented chip flips and the line follows. */}
       <div
         style={{
           position: "absolute",
@@ -434,40 +435,76 @@ export const Scene09Bookend: React.FC = () => {
       >
         <div
           style={{
-            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
             transform: `translateY(${subRise}px)`,
-            background: "rgba(26,26,26,0.9)",
-            color: "white",
-            padding: "12px 26px",
+            background: "#ffffff",
+            border: `1px solid ${C.border}`,
+            padding: "10px 18px",
             borderRadius: 999,
-            fontSize: 23,
-            fontWeight: 600,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-            // keep both strings on one baseline by stacking them absolutely
-            display: "grid",
+            boxShadow: "0 10px 30px rgba(26,26,26,0.12)",
           }}
         >
-          {/* FR */}
-          <span
+          {/* Segmented FR/EN chip — the knob is the teal-filled active segment */}
+          <div
             style={{
-              gridArea: "1 / 1",
-              opacity: 1 - enT,
-              whiteSpace: "nowrap",
+              display: "flex",
+              borderRadius: 999,
+              border: `1px solid ${C.border}`,
+              overflow: "hidden",
+              fontSize: 14,
+              fontWeight: 700,
             }}
           >
-            le planning qui sait déjà
-          </span>
-          {/* EN — proves the instant bilingual switch */}
-          <span
+            <span
+              style={{
+                padding: "5px 12px",
+                background: enT < 0.5 ? C.vetTeal : "#ffffff",
+                color: enT < 0.5 ? "#ffffff" : C.subtle,
+              }}
+            >
+              FR
+            </span>
+            <span
+              style={{
+                padding: "5px 12px",
+                background: enT >= 0.5 ? C.vetTeal : "#ffffff",
+                color: enT >= 0.5 ? "#ffffff" : C.subtle,
+              }}
+            >
+              EN
+            </span>
+          </div>
+          {/* The line itself crossfades with the switch */}
+          <div
             style={{
-              gridArea: "1 / 1",
-              opacity: enT,
-              whiteSpace: "nowrap",
-              justifySelf: "center",
+              display: "grid",
+              fontSize: 21,
+              fontWeight: 600,
+              color: C.softBlack,
             }}
           >
-            the schedule that already knows
-          </span>
+            <span
+              style={{
+                gridArea: "1 / 1",
+                opacity: 1 - enT,
+                whiteSpace: "nowrap",
+              }}
+            >
+              le planning qui sait déjà
+            </span>
+            <span
+              style={{
+                gridArea: "1 / 1",
+                opacity: enT,
+                whiteSpace: "nowrap",
+                justifySelf: "center",
+              }}
+            >
+              the schedule that already knows
+            </span>
+          </div>
         </div>
       </div>
     </AbsoluteFill>

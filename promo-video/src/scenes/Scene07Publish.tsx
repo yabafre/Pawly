@@ -189,7 +189,7 @@ const PublishDialog: React.FC<{ local: number; fps: number }> = ({
               Publier le planning
             </div>
             <div style={{ fontSize: 16, color: C.subtle }}>
-              24 emails envoyés
+              6 emails envoyés
             </div>
           </div>
         </div>

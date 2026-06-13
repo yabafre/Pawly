@@ -20,19 +20,25 @@ export const Scene05Differentiator: React.FC = () => {
   });
   const winScale = 0.96 + 0.04 * intro;
 
-  // Faux cursor glides to the Generate button and clicks.
-  const cx = interpolate(f, [0, 26], [1640, 1500], {
+  // Faux cursor glides to the Generate button and clicks. It only appears
+  // AFTER the crossfade from scene 4 (whose own cursor fades out), so the
+  // transition never shows two cursors at once.
+  const cursorIn = interpolate(f, [12, 20], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const cx = interpolate(f, [12, 30], [1640, 1500], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
-  const cy = interpolate(f, [0, 26], [470, 168], {
+  const cy = interpolate(f, [12, 30], [470, 168], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
-  const clicking = f >= 29 && f <= 41;
-  const loading = f >= 33;
+  const clicking = f >= 33 && f <= 45;
+  const loading = f >= 37;
   const spin = f * 14;
 
   return (
@@ -82,7 +88,11 @@ export const Scene05Differentiator: React.FC = () => {
       </AbsoluteFill>
 
       {f < 120 ? (
-        <Caption frame={f} appearAt={34} text="Génération en cours…" />
+        <Caption
+          frame={f}
+          appearAt={38}
+          text="Un clic. Le moteur place chaque équipe…"
+        />
       ) : (
         <Caption
           frame={f}
@@ -91,7 +101,9 @@ export const Scene05Differentiator: React.FC = () => {
         />
       )}
 
-      <FauxCursor x={cx} y={cy} clicking={clicking} />
+      <div style={{ opacity: cursorIn }}>
+        <FauxCursor x={cx} y={cy} clicking={clicking} />
+      </div>
     </AbsoluteFill>
   );
 };

@@ -301,8 +301,13 @@ const PostItNote: React.FC<{ note: PostIt; frame: number }> = ({
 // Beat B — split panels (school calendar + clinic grid)
 // ---------------------------------------------------------------------------
 
+// Real June 2026 layout: the month starts on a Monday and has 30 days, so a
+// Lun–Dim grid puts every Tuesday at column 1 → 2, 9, 16, 23, 30.
+const CAL_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const JUNE_DAYS = 30;
+
 const SchoolPanel: React.FC<{ frame: number }> = ({ frame }) => {
-  // Mini month calendar; Tuesdays carry a GraduationCap. 5 weeks x 6 cols (Lun–Sam).
+  // Mini month calendar; Tuesdays carry a GraduationCap. 5 weeks x 7 cols (Lun–Dim).
   const weeks = 5;
   return (
     <div
@@ -332,7 +337,7 @@ const SchoolPanel: React.FC<{ frame: number }> = ({ frame }) => {
         Calendrier — École de Léa
       </div>
       <div style={{ display: "flex" }}>
-        {DAYS.map((d, i) => (
+        {CAL_DAYS.map((d, i) => (
           <div
             key={d}
             style={{
@@ -350,9 +355,10 @@ const SchoolPanel: React.FC<{ frame: number }> = ({ frame }) => {
       </div>
       {Array.from({ length: weeks }).map((_, w) => (
         <div key={w} style={{ display: "flex" }}>
-          {DAYS.map((d, col) => {
-            const tuesday = col === TUESDAY_COL;
-            const dayNum = w * 6 + col + 1;
+          {CAL_DAYS.map((d, col) => {
+            const dayNum = w * 7 + col + 1;
+            const inMonth = dayNum <= JUNE_DAYS;
+            const tuesday = col === TUESDAY_COL && inMonth;
             // Tuesdays pulse gently to draw the eye.
             const pulse = 0.5 + 0.5 * Math.sin((frame + w * 8) / 7);
             return (
@@ -376,7 +382,7 @@ const SchoolPanel: React.FC<{ frame: number }> = ({ frame }) => {
                   fontWeight: 600,
                 }}
               >
-                <span>{dayNum}</span>
+                <span>{inMonth ? dayNum : ""}</span>
                 {tuesday ? (
                   <GraduationCap size={18} color={C.schoolText} />
                 ) : null}
