@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  AbsoluteFill,
-  interpolate,
-  Easing,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
+import { AbsoluteFill, interpolate, Easing, useCurrentFrame } from "remotion";
 import { C, FONT, MONO } from "../theme";
 import { BreathingGradient } from "../components/BreathingGradient";
 import { AppWindow } from "../components/AppWindow";
@@ -14,75 +7,66 @@ import { StaffGrid } from "../components/StaffGrid";
 import { Caption } from "../components/Caption";
 
 // Scene 3 "Le pourquoi" (7–12s, 150 frames). The FILLED grid holds dead still.
-// We explain the constraints with ONE beam group: three Geist-Mono labels to the
-// LEFT draw a fine teal beam each toward the grid, then fade out so they never
-// linger. Léa's "+7h école" badge scales in with the ONE spring. Two elements
-// animate per the restraint rule: the beam group, then the badge.
+// A compact left rail of three Geist-Mono constraint labels draws one fine teal
+// beam each, converging into the grid, then the whole rail retires so it never
+// lingers. Léa's "+7h école" badge (StaffGrid native) reads on her row.
+// Layout is a CENTERED flex [rail | window] group so nothing leaves the frame.
 
-// The three constraints, top→bottom. Each owns a beam staggered 6 frames apart.
 const LABELS = ["Repos légal", "Disponibilités", "Jours d’école"] as const;
+const LABEL_Y = [150, 234, 318]; // beam origins (rail-local)
 
-// Beam-draw timing (one shared length so stroke-dashoffset reads L→0 cleanly).
-const BEAM_LEN = 220;
-const BEAM_START = 44; // first beam begins to draw
-const BEAM_STAGGER = 6; // 6 frames between beams
-const BEAM_DRAW = 18; // each beam draws over ~18 frames
-const BEAM_FADE = 95; // the whole group fades out around here
+const BEAM_LEN = 320;
+const BEAM_START = 40;
+const BEAM_STAGGER = 6;
+const BEAM_DRAW = 18;
+const BEAM_FADE = 95;
 
-// Léa's badge spring kicks in ~frame 80.
-const BADGE_START = 80;
-
-// One fine SVG beam, drawn left→right via stroke-dashoffset, eased like the film.
-const ConstraintBeam: React.FC<{
-  frame: number;
-  index: number;
-  gradientId: string;
-}> = ({ frame, index, gradientId }) => {
-  const start = BEAM_START + index * BEAM_STAGGER;
-  const draw = interpolate(frame, [start, start + BEAM_DRAW], [BEAM_LEN, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-  });
-  // Group fade-out: the beams retire so they never linger over the grid.
-  const fade = interpolate(frame, [BEAM_FADE, BEAM_FADE + 12], [1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.in(Easing.cubic),
-  });
-  // A gentle downward bow toward the grid row the label points at.
-  const dy = (index - 1) * 26;
-  return (
-    <svg
-      width={BEAM_LEN}
-      height={120}
-      viewBox={`0 0 ${BEAM_LEN} 120`}
-      style={{ position: "absolute", left: 0, top: 60 - dy, opacity: fade }}
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={C.vetTeal} stopOpacity={0.15} />
-          <stop offset="100%" stopColor={C.vetTeal} stopOpacity={0.9} />
-        </linearGradient>
-      </defs>
-      <path
-        d={`M 0 60 C ${BEAM_LEN * 0.45} 60, ${BEAM_LEN * 0.6} ${60 + dy}, ${BEAM_LEN} ${60 + dy}`}
-        fill="none"
-        stroke={`url(#${gradientId})`}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeDasharray={BEAM_LEN}
-        strokeDashoffset={draw}
-      />
-    </svg>
-  );
-};
+// Three fine beams in one overflow-visible svg, converging from the labels into
+// the grid. Drawn left→right via stroke-dashoffset, eased like the rest of the film.
+const ConstraintBeams: React.FC<{ frame: number }> = ({ frame }) => (
+  <svg
+    width={340}
+    height={460}
+    viewBox="0 0 340 460"
+    style={{ position: "absolute", inset: 0, overflow: "visible" }}
+  >
+    <defs>
+      <linearGradient id="beam-grad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stopColor={C.vetTeal} stopOpacity={0.12} />
+        <stop offset="100%" stopColor={C.vetTeal} stopOpacity={0.85} />
+      </linearGradient>
+    </defs>
+    {LABEL_Y.map((y, i) => {
+      const start = BEAM_START + i * BEAM_STAGGER;
+      const draw = interpolate(
+        frame,
+        [start, start + BEAM_DRAW],
+        [BEAM_LEN, 0],
+        {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+        },
+      );
+      return (
+        <path
+          key={i}
+          d={`M 214 ${y} C 300 ${y}, 380 234, 474 234`}
+          fill="none"
+          stroke="url(#beam-grad)"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={BEAM_LEN}
+          strokeDashoffset={draw}
+        />
+      );
+    })}
+  </svg>
+);
 
 export const SceneWhy: React.FC = () => {
   const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
-  // Window settles once, then holds. Subtle, single, ease-out entrance.
   const intro = interpolate(f, [0, 16], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -90,14 +74,13 @@ export const SceneWhy: React.FC = () => {
   });
   const winScale = 0.97 + 0.03 * intro;
 
-  // Focus animates 0→1 over ~frames 40–70 to settle on Léa's row.
+  // Focus settles on Léa's row over frames 40–70.
   const focusValue = interpolate(f, [40, 70], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),
   });
 
-  // The labels fade in just before their beams draw, in the same stagger.
   const labelOpacity = (i: number) =>
     interpolate(
       f,
@@ -105,123 +88,63 @@ export const SceneWhy: React.FC = () => {
       [0, 1],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
-  // The whole left rail retires with its beams.
   const railFade = interpolate(f, [BEAM_FADE, BEAM_FADE + 12], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.in(Easing.cubic),
   });
 
-  // Element 2: the "+7h école" badge scales in on Léa's hours with the ONE spring.
-  const badge = spring({
-    frame: f - BADGE_START,
-    fps,
-    config: { stiffness: 300, damping: 30 },
-    durationInFrames: 18,
-  });
-
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
       <BreathingGradient />
 
-      <AbsoluteFill
-        style={{
-          alignItems: "center",
-          justifyContent: "center",
-          paddingLeft: 120,
-        }}
-      >
-        {/* Stage: left constraint rail + the still grid window. */}
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
         <div
           style={{
-            position: "relative",
+            display: "flex",
+            alignItems: "center",
             transform: `scale(${winScale})`,
             opacity: intro,
-            width: 1500,
           }}
         >
-          {/* Left rail — three Geist-Mono labels, each firing one fine beam. */}
+          {/* Left rail — labels + converging beams, all inside the frame. */}
           <div
             style={{
-              position: "absolute",
-              left: -300,
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: 280,
+              position: "relative",
+              width: 340,
+              height: 460,
+              flexShrink: 0,
               opacity: railFade,
             }}
           >
             {LABELS.map((label, i) => (
-              <div
+              <span
                 key={label}
                 style={{
-                  position: "relative",
-                  height: 96,
-                  display: "flex",
-                  alignItems: "center",
+                  position: "absolute",
+                  right: 150,
+                  top: LABEL_Y[i] - 13,
+                  fontFamily: MONO,
+                  fontSize: 18,
+                  fontWeight: 500,
+                  color: C.mutedFg,
+                  whiteSpace: "nowrap",
+                  textAlign: "right",
+                  opacity: labelOpacity(i),
                 }}
               >
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 17,
-                    fontWeight: 500,
-                    color: C.mutedFg,
-                    whiteSpace: "nowrap",
-                    opacity: labelOpacity(i),
-                  }}
-                >
-                  {`« ${label} »`}
-                </span>
-                {/* Beam anchored just right of the label, reaching to the grid. */}
-                <div style={{ position: "absolute", left: 200, top: -36 }}>
-                  <ConstraintBeam
-                    frame={f}
-                    index={i}
-                    gradientId={`beam-grad-${i}`}
-                  />
-                </div>
-              </div>
+                {`« ${label} »`}
+              </span>
             ))}
+            <ConstraintBeams frame={f} />
           </div>
 
-          <AppWindow title="Pawly · Planning — juin 2026">
-            <StaffGrid
-              frame={f}
-              mode="static"
-              focus={focusValue}
-              showBadge={false}
-            />
-
-            {/* Element 2 overlay: Léa's "+7h école" badge, spring scale-in.
-                Positioned over the Heures column on Léa's row (row 1). */}
-            <div
-              style={{
-                position: "absolute",
-                right: 28 + 60,
-                top: 196,
-                transform: `translateX(50%) scale(${badge})`,
-                opacity: badge,
-                pointerEvents: "none",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: C.schoolText,
-                  background: C.schoolBg,
-                  border: `1px solid ${C.schoolBorder}`,
-                  borderRadius: 999,
-                  padding: "3px 10px",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                +7h école
-              </span>
-            </div>
-          </AppWindow>
+          {/* The still grid window. */}
+          <div style={{ width: 1280, flexShrink: 0 }}>
+            <AppWindow title="Pawly · Planning — juin 2026">
+              <StaffGrid frame={f} mode="static" focus={focusValue} showBadge />
+            </AppWindow>
+          </div>
         </div>
       </AbsoluteFill>
 
