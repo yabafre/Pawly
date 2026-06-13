@@ -1,125 +1,72 @@
-# 🎬 Narratif vidéo démo Pawly — « Mardi, il est à l'école. »
+# 🎬 Script vidéo Pawly — « Le calme retrouvé »
 
-> **Le planning qui le sait déjà.** Vidéo design-partner, **74 s**, VO française.
-> Concept gagnant à l'**unanimité du jury** (angle *alternance-héros*). Produit avec le skill `remotion-best-practices`.
-> 100% ancré sur le code réel (audit 2026-06-03) : strings verbatim `fr.json`, couleurs et composants exacts.
-
-**Logline** — Un dimanche soir, l'enfer du planning Excel d'une clinique véto — surtout le jour d'école d'une apprentie ASV qui percute les besoins de la clinique — se dissout en un clic : Pawly absorbe automatiquement le jour d'école dans le planning généré, la barre de Santé passe au teal 100% prêt, et le fondateur invite 3 à 5 cliniques d'Île-de-France à co-construire l'outil, gratuitement, 3 mois.
-
-**Format** — 1920×1080, 30 fps, 2220 frames. Variante verticale 1080×1920 (mobile/LinkedIn) = mêmes composants en wrapper responsive.
-**Ton musical** — Sobre, fondateur-authentique, PAS triomphal SaaS. Cold open : tic-tac d'horloge seul → **coupure nette au silence** au pivot douleur→soulagement (~17s) → nappe chaude basse. Un seul chime discret au 100% teal. Sound design léger (clic Générer, tick par cellule, swoosh sur le verrou « École »).
+> **v2 — réécriture hook-first, orientée conversion.** Design-partner. **52 s**, VO française (voix fondateur).
+> Direction gagnante d'une compétition créative (4 directions → panel de 4 juges dont un gardien de marque) — `le-calme-retrouvé` + hook proof-first greffé de `la-preuve-en-un-geste`.
+> Ancré sur le **vrai DS** (tokens exacts, Inter + Geist Mono), le **brand board « Clinique Zen »** (Hygiène · Précision · Douceur) et le **langage motion réel** de l'app (framer-motion, AnimatedBeam, AnimatedGradientBackground, count-ups).
 
 ---
 
-## Découpage scène par scène
+## 🎯 Direction créative — « Clinique Zen par la retenue »
 
-### Scène 1 — Cold open : Dimanche soir, le fichier de la honte · `0–4s`
-- **À l'écran** : Quasi-noir chaud. Horloge digitale `21:47`, « DIMANCHE » en petites capitales. En bas, un nom de fichier se tape lettre par lettre : `planning_semaine_FINAL_v7_vraiment_final.xlsx` — le `_v7` clignote rouge une fois. Seul son : tic-tac.
-- **VO** : « Dimanche. 21h47. Et je refais encore le planning à la main. »
-- **Motion** : Fade-in du noir. Typewriter via `Math.floor(frame/2)`. `_v7` flash `#EF4444` ~frame 90. Palette froide, vignette lourde.
-- **Remotion** : `<Sequence from={0} durationInFrames={120}>` · `<DigitalClock/>` · `<TypewriterFilename/>` · `<Audio src=ticktock.mp3 />` · `<Vignette/>`.
+Le film se comporte **comme le produit** : hygiénique, ordonné, confiance tranquille. Le diagnostic de la v1 : elle faisait « template AI » et **contredisait la marque** (Excel qui tremble, collisions, vacuum, cartes pastel). Ici, **la retenue EST le geste pro**.
 
-### Scène 2 — Le casse-tête Excel : collision École vs Clinique · `4–11s`
-- **À l'écran** : Grille Excel pleine, mardis surlignés feutre jaune sale, flèches rouges contradictoires, cellule clignotante `Léa — école ??`. Un wipe diagonal SCINDE l'écran : à GAUCHE un calendrier d'école (mardis = GraduationCap), à DROITE la grille clinique qui réclame du monde le mardi. Les deux panneaux glissent et **ENTRENT EN COLLISION** sur la colonne « mardi » — shake + flash rouge.
-- **VO** : « Chaque mois, le même casse-tête. Léa est en alternance. Le mardi, elle est à l'école. » / **Caption feutre** : « L'école d'un côté. La clinique de l'autre. Le mardi, les deux en même temps. »
-- **Données** : Le différenciateur posé comme **douleur**. Motif feutre-jaune « alternance/mardi » planté pour la boucle finale.
-- **Remotion** : `<Sequence from={120} durationInFrames={210}>` · `<FakeExcelGrid seed=42/>` (cellules en conflit pulsent en boucle sinus) · `<SplitCollision/>` (clip-path + spring translateX) · particules à l'impact.
+**Palette — strictement on-token, zéro couleur hors-DS sauf 2 signaux volontaires :**
+- Surface : Warm Linen `#FAF9F7` · cartes `#FCFCFC` · Soft Black `#1A1A1A` · muted-fg `#6B6B6B` · border `#E8E5E0`
+- Structure & chrome produit : **Vet Teal `#009588` uniquement** (bouton générer, HealthBar saine, check publié, confirmer)
+- **Signal 1 (le wedge)** : la vraie cellule École `#FAF5FF`/`#E9D5FF`/`#7E22CE` + GraduationCap — **uniquement** sur le mardi de Léa, jamais ailleurs → ça reste un signal, pas une déco. Un seul halo doré `#F5B400` pulse une fois au verrouillage.
+- **Signal 2 (humanise)** : Vital Orange `#F97316` **uniquement** sur le beat humain/invitation (un mot souligné). Jamais sur la structure produit.
+- HealthBar honnête : rose `#F43F5E` (conflit) · orange `#FB923C` (avertissement) · muted rayé (trou) · teal (sain).
+- Fonts : **Inter** (400/600/700) pour la voix et l'UI · **Geist Mono** strictement pour la donnée (compteur, % prêt, +7h, heures).
 
-### Scène 3 — L'aspiration : le chaos s'efface dans le silence · `11–17s`
-- **À l'écran** : Tout le chaos désaturé se fige, se contracte et s'aspire vers un point central en spirale. Le tic-tac **COUPE au silence**. La palette se réchauffe vers le Warm Linen `#FAF9F7`. Un écran Pawly calme commence à se composer.
-- **VO (posée)** : « Et si la semaine se construisait toute seule ? »
-- **Motion** : Vacuum (chaque élément `scale→0` + rotation spirale, motion blur). Audio HARD CUT au silence sur la frame d'aspiration totale → ~0,8s de silence pur → nappe chaude qui monte.
-- **Remotion** : `<Sequence from={330} durationInFrames={180}>` · `<VacuumTransition/>` · `<Audio endAt=...>` cut · overlay filtre hue/saturate interpolé.
+**4 signatures motion (le motion réel de l'app, répliqué en Remotion) :**
+1. **UNE** respiration : un seul radial teal-wash (`#E0F2F1`→`#FAF9F7`) qui inspire/expire 3-5% sur ~6-8s, présent en fond de **chaque** scène à faible opacité. Le film respire comme une seule surface.
+2. **UN** spring partout : `stiffness 300 / damping 30`, stagger 40 ms/item, ease-out à l'entrée / ease-in court (~65%) à la sortie, scale 0.97-1.03 au press, crossfade pour remplacer un contenu. Le film = un seul instrument, pas un montage.
+3. **UN** count-up : le même `Math.round(interpolate(frame))` porte **tous** les chiffres (compteur de coût → +7h → % prêt → 100%). Pas de 2e montage de stats.
+4. **UN** beam qui a du sens : un seul tracé SVG (easeOutExpo `[0.16,1,0.3,1]`) qui dessine la cause→effet du jour d'école au créneau contourné.
 
-### Scène 4 — La déclaration AVANT de générer : le geste produit réel · `17–25s`
-- **À l'écran** : UI admin Pawly sur Warm Linen. Le **vrai** `ApprenticeDeclarationPanel` s'assemble : titre « Déclarations jours d'école des apprentis », ligne « Léa Martin ». Sa puce de statut bascule de « Déclaration manquante » (rose) → « Jours d'école fournis » (vert) avec coche dessinée. Puis le `GenerationPanel` : « Mois cible : juin 2026 », « Modèle de semaine », et le bouton teal « Générer le planning » (icône Sparkles).
-- **VO** : « Avec Pawly, l'apprenti déclare ses jours d'école une fois. » / **Captions exactes** : « Déclaration manquante » → « Jours d'école fournis » · bandeau « Confirmez le statut des jours d'école pour chaque apprenti avant de générer le planning ».
-- **Données** : Le gate produit RÉEL — la déclaration se fait AVANT la génération. Strings verbatim de `fr.json`.
-- **Motion** : Reveal clip-path montant + fade. Puce rose→vert (crossfade + path-draw). Faux curseur en Bézier vers le bouton. Spring `stiffness 300 / damping 30` (valeurs réelles `motion/react`).
-- **Remotion** : `<Sequence from={510} durationInFrames={240}>` · recréer `<ApprenticeDeclarationPanel/>` & `<GenerationPanel/>` en composants Remotion à props mockées figées (pas de tRPC) · `<StatusChipFlip/>` · `<FauxCursor/>`.
+**Philosophie de retenue :** **1-2 éléments animés par beat, le reste figé.** C'est l'immobilité du décor qui rend le mouvement clinique et crédible. Le motion est **toujours** cause→effet. **Rien de décoratif ne survit** : pas de shake, pas de collision, pas de vacuum, pas de pastel, pas de hors-palette. La tension est montrée **une fois**, brièvement, comme un segment rose bien rangé — **de la donnée, jamais du chaos** — et se résout assez vite pour que le **soulagement** soit le souvenir dominant.
 
-### Scène 5 — ⭐ LE BATTEMENT DIFFÉRENCIATEUR : le mardi de Léa verrouillé · `25–36s`
-- **À l'écran** : Clic « Générer le planning » → `Loader2` + « Génération en cours... ». Une onde de calcul balaie la `StaffGrid` (employés × jours), cellules qui poppent. **ZOOM** sur la ligne de Léa (badge `APPRENTICE`) : sa cellule MARDI ne reçoit AUCUN shift — elle se **verrouille en AbsenceCell VIOLETTE** (GraduationCap, label « École »), cerclée d'un halo doré, PENDANT que tous les autres jours se garnissent autour. Son total hebdo affiche « +7h école ».
-- **VO** : « Un clic. Le moteur place chaque équipe… et garde le mardi de Léa libre. Automatiquement. C'est exactement ce que les cliniques font à la main dans Excel aujourd'hui. » / **Caption** : « Génération en cours... » → cellule « École ».
-- **Données** : LE différenciateur matérialisé. Comportement moteur réel : jour d'école = indispo SCHOOL (`SCHOOL_DAY_MINUTES = 420 = 7h`), jamais planifié par-dessus. Couleur **VIOLETTE** réelle (`bg-purple-50 / text-purple-700`), PAS bleu.
-- **Motion** : **MOMENT CLÉ — ralenti** (time-remap ~25,5s→31s). Vague de remplissage `delay = colIndex*4 frames`. La cellule VIOLETTE « École » se verrouille EN PREMIER (contour pointillé animé + halo doré + swoosh descendant), PUIS les autres se peuplent autour → on voit littéralement l'algo contourner l'école.
-- **Remotion** : `<Sequence from={750} durationInFrames={330}>` · `<Composition>` imbriquée pour le slow-mo · `<StaffGrid/>`/`<StaffGridRow/>` mockés · `<AbsenceCell type='SCHOOL'/>` (violet réel) · remplissage `spring(frame - col*4)` · `<GoldHalo/>`.
+## ⚡ Le hook (< 6s) — pourquoi un gérant ne scrolle pas
 
-### Scène 6 — Honnêteté greedy : un trou, un conflit, le drag-and-drop · `36–44s`
-- **À l'écran** : Pull-back sur la `StaffGrid` pleine — dense mais **honnêtement imparfaite** : une `HoleCell` subsiste (bordure pointillée + icône Plus), un `ConflictIndicator` orange en haut-droite d'une cellule. La `PlanningHealthBar` apparaît et se remplit : segments rose (conflit) + orange (avertissement) + pointillé (trou) + teal (sain). Une main fantôme drag un shift dans le trou ; le segment pointillé rétrécit en direct.
-- **VO** : « Le moteur n'est pas magique : il respecte les règles, et laisse les trous impossibles. À vous d'ajuster en deux gestes. » / **Captions exactes** : « Santé du planning » · « 1 conflit, 1 avertissement, 1 trou, 78% prêt ».
-- **Données** : Beat d'**honnêteté produit** — le moteur greedy laisse des trous ; une grille parfaitement remplie serait un mensonge qu'un gérant averti détecte. Maths HealthBar réelle.
-- **Remotion** : `<Sequence from={1080} durationInFrames={240}>` · `<PlanningHealthBar/>` piloté `useCurrentFrame→spring` largeurs · `<HoleCell/>`, `<ConflictIndicator/>` · `<GhostHandDrag/>`.
-
-### Scène 7 — 100% prêt : déverrouillage de Publier · `44–51s`
-- **À l'écran** : Après l'ajustement, la HealthBar passe **entièrement teal**. Icône `CheckCircle2` ; sous-titre « Tout est bon — aucune violation détectée » ; le compteur grimpe et se pose sur « 100% prêt ». Le bouton « Publier » passe de grisé/désactivé à actif et pulse. Clic → `PublishConfirmDialog` « Publier le planning » avec « X emails envoyés », puis badge « Publié ».
-- **VO** : « Repos légal, disponibilités, équité, jours d'école : tout est respecté en même temps. Planning prêt. » / **Captions exactes** : « Tout est bon — aucune violation détectée » · « 100% prêt » · « Publier » → « Publié ».
-- **Données** : Sommet émotionnel ancré dans les vraies règles. Publier est **réellement bloqué** tant que `hardViolationCount > 0` (« Publication impossible — résolvez les conflits d'abord »). Notif par EMAIL.
-- **Remotion** : `<Sequence from={1320} durationInFrames={210}>` · `<CountUp/>` (Math.round interpolate, overshoot léger) · `<PublishButtonUnlock/>` · `<Audio src=chime.mp3/>` (chime discret unique).
-
-### Scène 8 — Côté équipe : PWA, notif email, confirmation 3-états · `51–59s`
-- **À l'écran** : Cut sur un mockup téléphone (PWA installée, icône « Pawly » teal). Une notif glisse du haut : « Votre planning de la semaine est disponible ». Léa ouvre l'app — sa semaine, MARDI clairement en **VIOLET « École »**. Bandeau offline « Mode hors ligne — Données en cache affichées » pulse. Elle tape le **vrai** `ConfirmationSlider` BOUTON : « Confirmer ma présence » → « Confirmation en cours… » → « Confirmé » (check teal).
-- **VO** : « Toute l'équipe est prévenue par email et notification. Chacun confirme sa présence en un geste, depuis son mobile — même hors-ligne. »
-- **⚠️ Fidélité critique** : `ConfirmationSlider` est un **BOUTON 3-ÉTATS**, PAS un thumb à glisser. Reproduire les 3 états exacts. PAS d'animation de poignée qui glisse.
-- **Remotion** : `<Sequence from={1530} durationInFrames={240}>` · `<PhoneMockup/>` (perspective CSS) · `<PushNotification/>` (spring translateY) · `<ConfirmationSlider/>` 3-états par seuils de frame · `<OfflineBanner/>`.
-
-### Scène 9 — Bookend : avant/après & double boucle · `59–66s`
-- **À l'écran** : Split-screen calme. À GAUCHE, petit et froid : « DIMANCHE 21:47 / Excel ». À DROITE, grand et chaud (Warm Linen + teal) : « DIMANCHE 18:30 / Pawly — Publié ». Ligne kinetic : « Récupérez vos dimanches soir. » Puis le payoff avec « alternance » surligné dans le **même feutre jaune** que l'intro. Bascule rapide FR⇄EN du sous-titre (prouve le bilingue instantané réel).
-- **VO** : « Pawly — la planification et les RH pensées pour les cliniques qui forment des apprentis. » / **Captions** : « Récupérez vos dimanches soir. » · « Pawly — le planning qui sait déjà que, le mardi, il est à l'école. » + bascule FR⇄EN.
-- **Remotion** : `<Sequence from={1770} durationInFrames={210}>` · `<BeforeAfterSplit/>` · `<KineticText/>` · `<LangToggle/>` (crossfade) · `<FeltUnderline/>` (réutilisé scène 2).
-
-### Scène 10 — CTA design-partner : co-construire, gratuit, 3 à 5 cliniques · `66–74s`
-- **À l'écran** : End card Warm Linen. Logo Pawly (teal). Ligne co-build première personne, puis **3 slots de rareté honnête** : 5 silhouettes de clinique, 2 déjà cochées teal, 3 vides qui clignotent doucement. 3 lignes CTA avec icônes : « 3 à 5 cliniques pilotes en Île-de-France » · « Gratuit pendant 3 mois de co-design » · « Vous décidez des prochaines fonctionnalités ». Contact : « Alex — fondateur · alex@pawly.fr » + curseur clignotant, et un petit lien « Réserver 20 min ».
-- **VO** : « Pawly existe déjà. Mais je veux le finir AVEC vous — pas pour vous. Je cherche 3 à 5 cliniques d'Île-de-France, gratuit pendant 3 mois. Écrivez-moi, on en parle 20 minutes, sans engagement. »
-- **⚠️** : rareté **honnête** (pas « offre limitée » agressive). Remplacer `alex@pawly.fr` par la vraie adresse avant diffusion.
-- **Remotion** : `<Sequence from={1980} durationInFrames={240}>` · `<EndCard/>` · `<ScarcityCounter slots={5} filled={2}/>` · `<CtaLine/>` icon path-draw · `<BlinkingCursor/>`.
+**Hook en 2 temps :**
+- **0-2s — le coût.** Un compteur Geist-Mono `03:47:12` qui monte sur Warm Linen, label « temps passé sur le planning cette semaine », puis il **gèle** et la ligne s'incruste : « Encore un dimanche soir sur Excel ? ». Le timer, ce sont *ses propres heures perdues*, nommées dans ses mots — avant tout logo.
+- **2-6s — la preuve.** Un clic, et la cellule MARDI de **Léa Martin · APPRENTIE** se **verrouille en premier** en violet « École » pendant que la grille se remplit autour. En 6 secondes : sa douleur nommée **ET** le truc exact qu'il bricole à la main, résolu automatiquement, avec un vrai prénom et un vrai jour. **De la preuve, pas de la promesse.**
 
 ---
 
-## 🎯 Le battement différenciateur (scène 5, 25–36s)
+## Découpage scène par scène (52 s)
 
-Cœur tenu du film, après que la scène 4 pose le gate produit réel (« Confirmez le statut des jours d'école… avant de générer » → « Déclaration manquante » → « Jours d'école fournis »). Au clic « Générer le planning », la StaffGrid se remplit en vague — mais la caméra tient la ligne APPRENTICE de Léa : sa cellule MARDI ne reçoit jamais de shift. Elle se verrouille EN PREMIER en **AbsenceCell VIOLETTE** (`bg-purple-50 / text-purple-700`, GraduationCap, « École »), halo doré + swoosh, PENDANT que les autres jours se peuplent autour → on **voit l'algo greedy contourner le jour d'école**. Total hebdo « +7h école » (`SCHOOL_DAY_MINUTES = 420`). Instant ralenti pour qu'on ne le rate pas. **C'est la seule chose qu'aucun concurrent dossiers/factu/stock ne fait** — et le casse-tête exact que ces cliniques IDF font à la main dans Excel aujourd'hui.
+| # | t | Scène | À l'écran | VO (français) | Motion (1-2 éléments) |
+|---|---|-------|-----------|---------------|------------------------|
+| 1 | 0–2 | **Le coût** | Compteur `03:47:12` Geist-Mono qui monte, label « temps passé sur le planning cette semaine » ; gèle à ~1,4s, la ligne « Encore un dimanche soir sur Excel ? » se crossfade | « Combien d'heures, cette semaine, sur le planning de l'équipe ? » | Count-up → freeze ; 1 crossfade ligne. Rien d'autre ne bouge |
+| 2 | 2–7 | **Un clic — la preuve** | StaffGrid calme (`juin 2026`), curseur presse le bouton teal « Générer le planning » ; la grille se peuple en vague **sauf** le MARDI de **Léa · APPRENTIE** qui se verrouille **en 1er** en violet « École » (GraduationCap + halo doré) | « Avec Pawly, un clic. Et le mardi de Léa reste à l'école. » | Press scale 0.97 ; cellule École verrouillée **avant** la vague (spring qui démarre 8 frames plus tôt) + 1 pulse de halo |
+| 3 | 7–12 | **Le pourquoi** | 3 libellés Geist-Mono à gauche (« Repos légal · Disponibilités · Jours d'école ») → 3 beams fins se dessinent vers la grille puis s'estompent ; zoom doux sur Léa, badge `+7h école` | « Pas une grille au hasard : repos légal, disponibilités, équité — et les jours d'école des apprentis en alternance. » | 3 beams (stroke-dashoffset, easeOutExpo, stagger 40ms) puis fade ; badge +7h scale-in |
+| 4 | 12–17 | **Déclaré une fois** | Le vrai `ApprenticeDeclarationPanel` : chip de statut « Déclaration manquante » (rose) → « Jours d'école fournis » (teal), check qui se dessine | « Parce que l'apprentie déclare ses jours d'école une seule fois. Ensuite, Pawly s'en souvient. » | **Un seul** élément animé : le chip (crossfade rose→teal + check path-draw) |
+| 5 | 17–24 | **La vérité** | `PlanningHealthBar` qui monte : segment rose (conflit) + orange (avertissement) + trou rayé + teal ; `78% prêt` ; bouton « Publier » grisé + « Publication impossible — résolvez les conflits d'abord » | « Et Pawly ne vous ment pas. S'il reste un trou, il le montre. Tant qu'un conflit demeure, on ne publie pas. » | Card slide-up (spring) ; segments spring-fill ; count-up `% prêt`. Le rose est **immobile et net** — tension = donnée |
+| 6 | 24–30 | **Le calme retrouvé** | Un geste comble le trou, le segment rose **spring vers le teal**, barre 100% teal, `100% prêt`, « Tout est bon — aucune violation détectée » ; « Publier » grisé→teal + 1 pulse → badge « Publié » | « Vous ajustez en deux gestes. Tout est vert : vous publiez. Et l'équipe est prévenue — e-mail et notification. » | **Le spring le plus important du film** : rose→teal ; count-up qui se pose (léger overshoot). Ne pas compresser — le soulagement doit atterrir |
+| 7 | 30–36 | **Côté équipe (PWA)** | Un téléphone : carte de shift publié + bouton « Confirmer ma présence » qui passe en 3 états → « Présence confirmée » (check teal). Ligne : « Équipe prévenue par e-mail et notification. » | « Chacun confirme sa présence d'un geste. Plus d'allers-retours. » | **Fix fidélité** : bouton 3 états par seuils de frame (PAS un slider à glisser). 1 device |
+| 8 | 36–42 | **La promesse** | Linen calme. Logo Pawly **plat** (jamais de dégradé). Lignes display : « Le planning intelligent. Pour votre clinique. » + « …pour vous concentrer sur l'essentiel : le soin animal. » + caption `~3 h chaque dimanche → un clic` | « Le planning intelligent. Pour votre clinique. Pour vous concentrer sur l'essentiel : le soin animal. » | 2 lignes spring-stagger (50ms) ; le stat garde le `~` (estimation du gérant, pas un benchmark). Logo figé |
+| 9 | 42–52 | **L'invitation (CTA unique)** | UNE CTA : « Devenez clinique partenaire — pilote gratuit 3 mois ». Rareté honnête : 5 silhouettes, 2 cochées teal, 3 qui pulsent. « On co-construit Pawly avec 3 à 5 cliniques d'Île-de-France. » « Alex — fondateur ». Bouton « Réserver 20 min ». 1 accent **orange** souligne « ensemble » | « Pawly existe déjà ; je veux le finir avec vous, pas pour vous. 3 à 5 cliniques d'Île-de-France, gratuit 3 mois. Ce n'est pas une vente — c'est une invitation. Parlons-en 20 minutes, sans engagement. » | CTA spring-reveal ; 3 silhouettes vides pulsent ; soulignage orange ease-out ; bouton scale-in en dernier. Puis **tout se fige** — le calme tient jusqu'à la fin |
 
-## 🧱 End card (FR)
+## 🎯 Le différenciateur = la colonne vertébrale (payé 3 fois)
 
-```
-Pawly — le planning qui sait déjà que, le mardi, il est à l'école.
+Pas un beat isolé : **le wedge ouvre la preuve et est confirmé 3 fois.**
+1. **Scène 2 (preuve)** — le mardi de Léa se verrouille **en premier**, on voit l'algo greedy **contourner** le jour d'école avant tout argument.
+2. **Scène 3 (donnée)** — le badge `+7h école` = vrai `SCHOOL_DAY_MINUTES = 420 = 7h` (donnée produit réelle, pas un chiffre marketing).
+3. **Scène 4 (plausibilité)** — le flip réel « Déclaration manquante » → « Jours d'école fournis » explique **pourquoi** Pawly connaît les jours d'école : déclarés une fois.
 
-Je veux le finir AVEC vous, pas pour vous.
-· 3 à 5 cliniques pilotes en Île-de-France
-· Gratuit pendant 3 mois de co-design
-· Vous décidez des prochaines fonctionnalités
+C'est la seule chose qu'aucun concurrent dossiers/factu/stock ne fait — et exactement le casse-tête alternance que les cliniques IDF bricolent à la main dans Excel.
 
-Alex — fondateur · alex@pawly.fr
-Réserver 20 min — sans engagement.
-```
+## ✂️ Ce qui change vs v1 (et ce qu'on coupe)
 
----
+- **74s/10 scènes → 52s/9 beats** — chaque seconde gagne sa place vers la conversion.
+- **Wedge déplacé de la scène 4 à l'ouverture** (greffe #1 de tous les juges) → le différenciateur atterrit à la seconde 6, plus à la 16.
+- **Coupé** : le cold-open horloge de 4s (→ compteur de coût 1,4s) · l'Excel qui tremble + la collision (→ tension = un segment rose net) · le vacuum (déco pure) · les cartes pastel + toute couleur hors-palette · les fonds multi-gradient (→ **une** respiration teal) · les montages de stats redondants (→ **un** count-up) · la 2e CTA / liste de features (→ **une** invitation).
+- **Fix fidélité** : la confirmation est un **bouton 3 états**, pas un slider à glisser.
 
-## 🎨 Notes de production — VÉRITÉ PRODUIT (code-vérifié 2026-06-03)
+## ⚙️ Réutilisable du projet existant
+`promo-video/src/components/` : `StaffGrid`, `GenerationButton`, `FauxCursor`, `Caption` — à reprendre. Composants à créer : `BreathingGradient` (fond partagé), `CountUp` (Geist-Mono), `ConstraintBeams` (SVG), `HealthBar`, `PhoneConfirm`. Tokens à corriger dans `theme.ts` : ajouter Geist-Mono, Electric Indigo `#4F46E5`, Vital Orange `#F97316`, border exact `#E8E5E0`.
 
-**Marque** — Nom **Pawly** (pas « Pavly »). PWA « Pawly » / « Gestion intelligente des plannings vétérinaires ».
-**Couleurs** — Primaire **Vet Teal `#009588`** (segment « sain » de la HealthBar, bouton Générer, check publié, theme PWA). **JAMAIS vert/bleu comme couleur de succès — c'est le teal.** Fond Warm Linen `#FAF9F7` ; card `#FCFCFC` ; foreground `#1A1A1A` ; accent Teal Wash `#E0F2F1` ; muted `#F3F1EE` ; destructive `#EF4444`. Radius `0.75rem` (rounded-xl). Police **Inter**.
-
-**Les vrais composants à maquetter** (recréer en composants Remotion à props mockées figées — NE PAS monter les versions Next/tRPC live) : `ApprenticeDeclarationPanel`, `GenerationPanel` (Sparkles + « Générer le planning » / Loader2 + « Génération en cours... »), `StaffGrid`/`StaffGridRow` (col nom sticky, col heures hebdo « +7h école »), `HoleCell` (`border-2 border-dashed` + Plus), `AbsenceCell` (**SCHOOL = violet** `bg-purple-50/text-purple-700/GraduationCap` — **le correctif de fidélité le plus cité**), `ConflictIndicator` (badge rond orange-500), `PlanningHealthBar`, `ConfirmationSlider`, `PublishConfirmDialog` (icône Mail).
-
-**Maths HealthBar (à répliquer exactement)** : `hardWidth/softWidth/holeWidth = floor(count/totalPositions*100)` ; `healthyWidth = 100 - others` ; `readyPercent = round(healthyShifts/totalPositions*100)`. Segments : hard=rose-500, soft=orange-400, trous=pointillé muted (repeating-linear-gradient), sain=teal primary. Bouton Publier désactivé tant que `hardViolationCount > 0` (« Publication impossible — résolvez les conflits d'abord »).
-
-**ConfirmationSlider = BOUTON 3-ÉTATS** (signalé par les 2 jurys), pas un thumb à glisser : « Confirmer ma présence » → « Confirmation en cours… » (Loader2) → « Confirmé » (Check teal).
-
-**Toutes les captions = verbatim de `apps/web/src/i18n/langs/fr.json`** — zéro copie inventée. Strings clés : `healthBar.title` « Santé du planning », `healthBar.healthy` « Tout est bon — aucune violation détectée », `healthBar.ready` « {percent}% prêt », `publish` « Publier », `published` « Publié » ; `apprenticeDeclarations.subtitle` « Confirmez le statut des jours d'école pour chaque apprenti avant de générer le planning », status `MISSING` « Déclaration manquante » / `SCHOOL_DAYS_PROVIDED` « Jours d'école fournis » ; `generation.generateButton` « Générer le planning » / `generating` « Génération en cours... » ; offline « Mode hors ligne — Données en cache affichées ».
-
-**Contraintes de fond** : `SCHOOL_DAY_MINUTES = 420` (7h) — « +7h école » / « École » littéralement vrais. Moteur **GREEDY** : respecte les règles dures (repos légal, dispos, absences dont SCHOOL), optimise l'équité, intègre les jours d'école, et **laisse honnêtement des HoleCell** quand insoluble (scène 6 garde ≥1 trou + 1 conflit avant 100%). **NE JAMAIS montrer** dossiers médicaux, facturation, stock — Pawly = planning + RH/équipe uniquement. Ton fondateur-crédible, sobre, première personne ; l'app est local-only/MVP → le CTA = invitation à co-construire, pas pitch commercial léché.
-
-## ⚙️ Structure Remotion
-
-`<Composition id="pawly-design-partner" fps={30} width={1920} height={1080} durationInFrames={2220}>` (74s). Variante verticale 1080×1920 = mêmes composants en wrapper responsive. Timeline = 10 `<Sequence>` par scène : S1 0–120, S2 120–330, S3 330–510, S4 510–750, **S5 750–1080**, S6 1080–1320, S7 1320–1530, S8 1530–1770, S9 1770–1980, S10 1980–2220. Tout le motion via `useCurrentFrame() + interpolate()/spring()` (remplacer les springs `motion/react` par Remotion `spring` à `stiffness=300/damping=30`). Primitives réutilisables : `<FauxCursor/>` (Bézier), `<KineticText/>` (stagger par mot), `<FakeExcelGrid/>` (seedé déterministe), `<StaffGridMock/>`+`<StaffGridRowMock/>` (`spring(frame - col*4)`), `<PlanningHealthBarMock/>` (largeurs via formule réelle), `<PhoneMockup/>`, `<ScarcityCounter/>`. Slow-mo S5 = `<Composition>` imbriquée + ré-étalement des frames. Audio via `<Audio>` : tic-tac S1–S3 coupé net à l'aspiration, puis nappe chaude jusqu'à la fin + 1 chime au 100% teal. Copie/couleurs en props (FR défaut ; EN trivial).
-
-## 🔀 Journal des greffes & corrections de fidélité
-
-- **Gagnant (unanime, totaux 64 & 63)** : alternance-héros — colonne vertébrale conservée (collision mardi école/clinique, génération qui contourne, trous honnêtes, publish email, confirmation mobile, tagline alternance).
-- **Greffé de founder-cobuild** : le gate « déclaration AVANT génération » (scène 4) + le CTA première personne « AVEC vous, pas pour vous » + rareté honnête 5 silhouettes (scène 10, remonte le ton co-build).
-- **Greffé de pain-relief** : cold-open fichier Excel nommé + horloge (scène 1, durcit le hook 0–5s) + transition vacuum avec coupure tic-tac→silence (scène 3) + boucle « Récupérez vos dimanches soir » (scène 9).
-- **Greffé de day-in-the-life** : split-screen avant/après + flash bascule FR⇄EN (scène 9).
-- **Corrections de fidélité imposées contre le code** : (1) jour d'école = **VIOLET** (pas bleu) ; (2) ConfirmationSlider = **bouton 3-états** (pas thumb) ; (3) garder ≥1 HoleCell + 1 ConflictIndicator avant 100% (honnêteté greedy) ; (4) « Pavly »→« Pawly » ; (5) `SCHOOL_DAY_MINUTES = 420` ; (6) Vet Teal comme couleur de succès + captions verbatim `fr.json`.
-- **Non greffé** : le monologue première personne complet de founder-cobuild (trop long) ; le bloc école bleu + le geste de glisse de day-in-the-life (faux selon le code) ; la phase douleur trop longue de pain-relief (compressée à ~17s).
+## 🔓 À ta main avant prod
+- L'adresse de contact réelle (placeholder `alex@pawly.fr`).
+- Le compteur `03:47:12` : ordre de grandeur crédible — à ajuster si tu veux une autre estimation.
