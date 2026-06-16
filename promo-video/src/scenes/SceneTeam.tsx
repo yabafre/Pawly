@@ -153,8 +153,8 @@ const ConfirmButton: React.FC<{ frame: number; fps: number }> = ({
   frame,
   fps,
 }) => {
-  const TAP = 90;
-  const CONFIRMING_UNTIL = TAP + 16; // ~0.5s spinner
+  const TAP = 132; // tap later — give time to read the week (incl. Mardi École)
+  const CONFIRMING_UNTIL = TAP + 18; // ~0.6s spinner
   const confirming = frame >= TAP && frame < CONFIRMING_UNTIL;
   const confirmed = frame >= CONFIRMING_UNTIL;
 
@@ -236,7 +236,7 @@ export const SceneTeam: React.FC = () => {
 
   // The confirmation-line under the button reveals (crossfade) once the presence is
   // confirmed — a quiet effect that is a direct consequence of the one button press.
-  const noticeReveal = interpolate(frame, [108, 120], [0, 1], {
+  const noticeReveal = interpolate(frame, [150, 164], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),

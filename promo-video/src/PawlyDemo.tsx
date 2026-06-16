@@ -24,7 +24,7 @@ const SCENES: { dur: number; Comp: React.FC }[] = [
   { dur: 150, Comp: SceneDeclare }, // 4 · Déclaré une fois
   { dur: 210, Comp: SceneTruth }, // 5 · La vérité
   { dur: 180, Comp: SceneCalm }, // 6 · Le calme retrouvé
-  { dur: 180, Comp: SceneTeam }, // 7 · Côté équipe
+  { dur: 240, Comp: SceneTeam }, // 7 · Côté équipe (held longer)
   { dur: 180, Comp: ScenePromise }, // 8 · La promesse
   { dur: 300, Comp: SceneInvite }, // 9 · L'invitation
 ];
