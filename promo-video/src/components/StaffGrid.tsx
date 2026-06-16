@@ -51,19 +51,19 @@ export const StaffGrid: React.FC<{
           frame: frame - delay,
           fps,
           config: SPRING,
-          durationInFrames: 16,
+          durationInFrames: 22,
         });
 
   // Halo: one triangular pulse around haloFrame.
   const halo =
     mode === "static"
       ? 0
-      : Math.max(0, 1 - Math.abs(frame - (fillStart + haloFrame)) / 8);
+      : Math.max(0, 1 - Math.abs(frame - (fillStart + haloFrame)) / 11);
 
   const cell = (r: number, c: number) => {
     const isSchool = r === LEA && c === SCHOOL_COL;
     // School locks ~8 frames BEFORE the wave reaches it.
-    const delay = isSchool ? fillStart - 8 : fillStart + c * 4 + r * 2;
+    const delay = isSchool ? fillStart - 14 : fillStart + c * 6 + r * 3;
     const p = cellIn(delay);
     const lift = (1 - p) * (isSchool ? -10 : 7);
 

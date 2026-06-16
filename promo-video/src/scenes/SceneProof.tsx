@@ -60,39 +60,39 @@ export const SceneProof: React.FC = () => {
   const f = useCurrentFrame();
 
   // The window itself is calm — one tiny settle-in, then dead still.
-  const intro = interpolate(f, [0, 14], [0, 1], {
+  const intro = interpolate(f, [0, 16], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.out(Easing.cubic),
   });
   const winScale = 0.985 + 0.015 * intro;
 
-  // FauxCursor glides on a Bézier toward the "Générer le planning" button.
-  // Button center sits near the top-right of the window header.
+  // FauxCursor glides UNHURRIED on a Bézier toward the "Générer le planning"
+  // button — the slow approach gives the press weight.
   const BTN_X = 1545;
   const BTN_Y = 236;
-  const cx = interpolate(f, [4, 24], [1360, BTN_X], {
+  const cx = interpolate(f, [16, 52], [1360, BTN_X], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
-  const cy = interpolate(f, [4, 24], [560, BTN_Y], {
+  const cy = interpolate(f, [16, 52], [560, BTN_Y], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.bezier(0.16, 1, 0.3, 1),
   });
 
-  // The press: clicking pulse ~f24–34; button "pressed" while the cursor is down.
-  const clicking = f >= 24 && f <= 34;
-  const pressed = f >= 24 && f <= 30;
+  // The press: clicking pulse ~f52–64; button "pressed" while the cursor is down.
+  const clicking = f >= 52 && f <= 64;
+  const pressed = f >= 52 && f <= 60;
 
-  // Cause → effect: the spinner appears AFTER the press lands (~f30).
-  const loading = f >= 30;
-  const spin = (f - 30) * 9; // deterministic rotation for the Loader2 icon
+  // Cause → effect: the spinner appears AFTER the press lands (~f60).
+  const loading = f >= 60;
+  const spin = (f - 60) * 9; // deterministic rotation for the Loader2 icon
 
   // Cursor lifts away once the grid wave is underway, so Léa's locked cell is
-  // the sole remaining focal point.
-  const cursorOut = interpolate(f, [40, 52], [1, 0], {
+  // the sole remaining focal point — then the frame HOLDS on it.
+  const cursorOut = interpolate(f, [66, 82], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
     easing: Easing.in(Easing.cubic),
@@ -125,9 +125,9 @@ export const SceneProof: React.FC = () => {
             <StaffGrid
               frame={f}
               mode="generate"
-              fillStart={28}
+              fillStart={72}
               showBadge={false}
-              haloFrame={6}
+              haloFrame={-6}
             />
           </AppWindow>
         </div>
@@ -135,11 +135,11 @@ export const SceneProof: React.FC = () => {
 
       <Caption
         frame={f}
-        appearAt={60}
+        appearAt={96}
         text="Un clic. Le mardi de Léa reste à l'école."
       />
 
-      {f <= 52 ? (
+      {f <= 84 ? (
         <div style={{ opacity: cursorOut }}>
           <FauxCursor x={cx} y={cy} clicking={clicking} />
         </div>

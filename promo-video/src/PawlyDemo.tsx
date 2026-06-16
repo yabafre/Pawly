@@ -19,7 +19,7 @@ import { SceneInvite } from "./scenes/SceneInvite";
 // so the crossfades keep the film feeling like one continuous surface.
 const SCENES: { dur: number; Comp: React.FC }[] = [
   { dur: 60, Comp: SceneCost }, // 1 · Le coût
-  { dur: 150, Comp: SceneProof }, // 2 · Un clic — la preuve
+  { dur: 230, Comp: SceneProof }, // 2 · Un clic — la preuve (held longer)
   { dur: 150, Comp: SceneWhy }, // 3 · Le pourquoi
   { dur: 150, Comp: SceneDeclare }, // 4 · Déclaré une fois
   { dur: 210, Comp: SceneTruth }, // 5 · La vérité
