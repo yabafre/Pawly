@@ -25,3 +25,9 @@ _Append-only. Each entry captures a durable rule, the mistake that motivated it,
 - **Rule:** Reference Context7 and relevant skills/plugins for every story; record the sources consulted in the story's Dev Notes.
 - **Mistake:** Coding "from memory" surfaced outdated SDK patterns — Stripe SDK v20 breaking changes (`current_period_end`, `Invoice.subscription`, `subscription.discounts[]`) hit three stories.
 - **Scope:** Implementation phase, all stories using third-party SDKs.
+
+## L5 — SWC builds emit no `.d.ts`; cross-package type exports need a tsc declaration pass
+
+- **Rule:** The NestJS SWC builder (`nest-cli.json` → `builder.type: "swc"`) only transpiles JS and strips `src/` (output is `dist/<file>.js`, not `dist/src/<file>.js`). Any consumer that imports a *type* from `@pawly/api` (e.g. `@pawly/api/trpc-types`) requires a `tsc --emitDeclarationOnly` pass to produce the `.d.ts`, and the `package.json` `exports` paths must match the SWC layout (`dist/…`, not `dist/src/…`). The `tsc -p tsconfig.types.json` step in `apps/api` build is load-bearing — do not remove it as "redundant".
+- **Mistake:** Migrating `nest build` from tsc to SWC (commit 8bfc413) silently stopped emitting `dist/src/trpc-types.d.ts`. `pnpm dev` never type-checks the whole graph, so it passed locally; the first clean `turbo run build` (Dokploy/Nixpacks deploy) crashed with `Cannot find module '@pawly/api/trpc-types' or its corresponding type declarations`.
+- **Scope:** Monorepo build — any SWC-compiled package that exports types to another app. Also: no CI job runs `turbo run build`, so deploy was the first build gate (process gap — candidate for a CI build check).
