@@ -7,13 +7,13 @@
   "license": "UNLICENSED",
   "exports": {
     "./trpc-types": {
-      "types": "./dist/src/trpc-types.d.ts",
-      "default": "./dist/src/trpc-types.js"
+      "types": "./dist/trpc-types.d.ts",
+      "default": "./dist/trpc-types.js"
     }
   },
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "nest build && tsc -p tsconfig.types.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
