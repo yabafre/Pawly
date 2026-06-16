@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "incremental": false,
+    "sourceMap": false,
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/trpc-types.ts"],
+  "exclude": ["node_modules", "test", "dist", "**/*.spec.ts"]
+}
