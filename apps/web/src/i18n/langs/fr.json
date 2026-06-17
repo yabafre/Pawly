@@ -2022,5 +2022,48 @@
     "backToPricing": "Retour aux tarifs",
     "alreadyHaveAccount": "Déjà un compte ?",
     "loginLink": "Se connecter"
+  },
+  "tour": {
+    "replayGuide": "Revoir le guide",
+    "employee": {
+      "greeting": {
+        "title": "Bienvenue sur Pawly",
+        "body": "Voici votre espace personnel. Laissez-vous guider en quelques étapes."
+      },
+      "today": {
+        "title": "Votre planning",
+        "body": "Votre journée et vos prochains créneaux s'affichent ici."
+      },
+      "confirm": {
+        "title": "Confirmer votre présence",
+        "body": "Glissez pour confirmer que vous étiez bien présent·e."
+      },
+      "settings": {
+        "title": "Vos réglages",
+        "body": "Changez votre langue ou rejouez ce guide quand vous voulez."
+      }
+    },
+    "admin": {
+      "dashboard": {
+        "title": "Votre tableau de bord",
+        "body": "Vue d'ensemble de votre clinique."
+      },
+      "employeesNav": {
+        "title": "Vos employés",
+        "body": "Commencez par ajouter votre équipe ici."
+      },
+      "addEmployee": {
+        "title": "Ajouter un employé",
+        "body": "Créez votre premier employé pour pouvoir planifier."
+      },
+      "planningNav": {
+        "title": "Le planning",
+        "body": "C'est ici que vous générez et ajustez les plannings."
+      },
+      "generate": {
+        "title": "Générer un planning",
+        "body": "Cliquez pour générer votre premier planning automatiquement."
+      }
+    }
   }
 }

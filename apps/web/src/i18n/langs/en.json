@@ -2022,5 +2022,48 @@
     "backToPricing": "Back to pricing",
     "alreadyHaveAccount": "Already have an account?",
     "loginLink": "Log in"
+  },
+  "tour": {
+    "replayGuide": "Replay the guide",
+    "employee": {
+      "greeting": {
+        "title": "Welcome to Pawly",
+        "body": "This is your personal space. Let us walk you through it."
+      },
+      "today": {
+        "title": "Your schedule",
+        "body": "Your day and upcoming shifts appear here."
+      },
+      "confirm": {
+        "title": "Confirm your presence",
+        "body": "Swipe to confirm you were present."
+      },
+      "settings": {
+        "title": "Your settings",
+        "body": "Change your language or replay this guide anytime."
+      }
+    },
+    "admin": {
+      "dashboard": {
+        "title": "Your dashboard",
+        "body": "An overview of your clinic."
+      },
+      "employeesNav": {
+        "title": "Your employees",
+        "body": "Start by adding your team here."
+      },
+      "addEmployee": {
+        "title": "Add an employee",
+        "body": "Create your first employee so you can schedule."
+      },
+      "planningNav": {
+        "title": "Planning",
+        "body": "This is where you generate and adjust schedules."
+      },
+      "generate": {
+        "title": "Generate a schedule",
+        "body": "Click to auto-generate your first schedule."
+      }
+    }
   }
 }
