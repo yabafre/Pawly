@@ -1,29 +1,24 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import { useQueryState, parseAsString, parseAsBoolean } from "nuqs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { useQueryState, parseAsString, parseAsBoolean } from 'nuqs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
-import { AlertTriangle, Plus, Search, Users } from "lucide-react";
-import { JOB_TYPES, TIER_LIMITS, type EntitlementTier } from "@pawly/validators";
-import { useSubscription } from "@/lib/contexts/subscription-context";
-import type { Employee } from "@pawly/types";
+} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+import { AlertTriangle, Plus, Search, Users } from 'lucide-react';
+import { JOB_TYPES, TIER_LIMITS, type EntitlementTier } from '@pawly/validators';
+import { useSubscription } from '@/lib/contexts/subscription-context';
+import type { Employee } from '@pawly/types';
 import {
   useEmployees,
   useCreateEmployee,
@@ -31,39 +26,39 @@ import {
   useToggleEmployeeActive,
   useResendInvitation,
   useUndeclaredApprentices,
-} from "../_hooks/useEmployees";
-import { EmployeeCard } from "./EmployeeCard";
-import { EmployeeDialog } from "./EmployeeDialog";
-import { EmployeeConstraintsPanel } from "./EmployeeConstraintsPanel";
-import { EmployeeListSkeleton } from "./EmployeeListSkeleton";
+} from '../_hooks/useEmployees';
+import { EmployeeCard } from './EmployeeCard';
+import { EmployeeDialog } from './EmployeeDialog';
+import { EmployeeConstraintsPanel } from './EmployeeConstraintsPanel';
+import { EmployeeListSkeleton } from './EmployeeListSkeleton';
 
 export function EmployeeList() {
-  const t = useTranslations("employees");
+  const t = useTranslations('employees');
   const { entitlementTier } = useSubscription();
-  const tier = (entitlementTier || "starter") as EntitlementTier;
+  const tier = (entitlementTier || 'starter') as EntitlementTier;
   const maxEmployees = TIER_LIMITS[tier]?.maxEmployees ?? TIER_LIMITS.starter.maxEmployees;
 
   // URL-synced filters via nuqs — no focus loss on keystroke
   const [search, setSearch] = useQueryState(
-    "search",
-    parseAsString.withDefault("").withOptions({
-      shallow: true,       // don't trigger SSR
-      history: "replace",  // don't pollute browser history
-    }),
+    'search',
+    parseAsString.withDefault('').withOptions({
+      shallow: true, // don't trigger SSR
+      history: 'replace', // don't pollute browser history
+    })
   );
   const [jobTypeFilter, setJobTypeFilter] = useQueryState(
-    "jobType",
-    parseAsString.withDefault("ALL").withOptions({
+    'jobType',
+    parseAsString.withDefault('ALL').withOptions({
       shallow: true,
-      history: "replace",
-    }),
+      history: 'replace',
+    })
   );
   const [showInactive, setShowInactive] = useQueryState(
-    "inactive",
+    'inactive',
     parseAsBoolean.withDefault(false).withOptions({
       shallow: true,
-      history: "replace",
-    }),
+      history: 'replace',
+    })
   );
 
   // Local UI state (not URL-worthy)
@@ -74,7 +69,7 @@ export function EmployeeList() {
 
   const { employees, isPending } = useEmployees({
     includeInactive: showInactive,
-    jobType: jobTypeFilter !== "ALL" ? (jobTypeFilter as "VET" | "ASV" | "APPRENTICE") : undefined,
+    jobType: jobTypeFilter !== 'ALL' ? (jobTypeFilter as 'VET' | 'ASV' | 'APPRENTICE') : undefined,
     search: search || undefined,
   });
 
@@ -95,22 +90,26 @@ export function EmployeeList() {
 
   const handleCreate = useCallback(
     (data: Record<string, unknown>) => {
-      createEmployee(
-        data,
-        { onSuccess: () => { setDialogOpen(false); setEditingEmployee(null); } },
-      );
+      createEmployee(data, {
+        onSuccess: () => {
+          setDialogOpen(false);
+          setEditingEmployee(null);
+        },
+      });
     },
-    [createEmployee],
+    [createEmployee]
   );
 
   const handleUpdate = useCallback(
     (data: Record<string, unknown>) => {
-      updateEmployee(
-        data,
-        { onSuccess: () => { setDialogOpen(false); setEditingEmployee(null); } },
-      );
+      updateEmployee(data, {
+        onSuccess: () => {
+          setDialogOpen(false);
+          setEditingEmployee(null);
+        },
+      });
     },
-    [updateEmployee],
+    [updateEmployee]
   );
 
   const handleEdit = useCallback((employee: Employee) => {
@@ -130,7 +129,7 @@ export function EmployeeList() {
     (employee: Employee) => {
       resendInvitation({ id: employee.id });
     },
-    [resendInvitation],
+    [resendInvitation]
   );
 
   const confirmToggle = useCallback(() => {
@@ -156,22 +155,24 @@ export function EmployeeList() {
   return (
     <>
       {/* Employee count indicator */}
-      <div className={cn(
-        "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm",
-        limitReached
-          ? "border-rose-200 bg-rose-50 text-rose-700"
-          : nearLimit
-            ? "border-orange-200 bg-orange-50 text-orange-700"
-            : "border-border bg-muted/50 text-muted-foreground",
-      )}>
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm',
+          limitReached
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : nearLimit
+              ? 'border-orange-200 bg-orange-50 text-orange-700'
+              : 'border-border bg-muted/50 text-muted-foreground'
+        )}
+      >
         {limitReached ? (
           <AlertTriangle className="h-4 w-4 shrink-0" />
         ) : (
           <Users className="h-4 w-4 shrink-0" />
         )}
         <span className="font-medium">
-          {t("limits.count", { current: activeCount, max: maxEmployees })}
-          {limitReached && ` — ${t("limits.reached")}`}
+          {t('limits.count', { current: activeCount, max: maxEmployees })}
+          {limitReached && ` — ${t('limits.reached')}`}
         </span>
       </div>
 
@@ -181,18 +182,21 @@ export function EmployeeList() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-10 pl-9 focus-visible:ring-ring/20"
-            placeholder={t("filters.searchPlaceholder")}
+            placeholder={t('filters.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value || null)}
           />
         </div>
 
-        <Select value={jobTypeFilter} onValueChange={(v) => setJobTypeFilter(v === "ALL" ? null : v)}>
+        <Select
+          value={jobTypeFilter}
+          onValueChange={(v) => setJobTypeFilter(v === 'ALL' ? null : v)}
+        >
           <SelectTrigger className="w-[180px] h-10">
-            <SelectValue placeholder={t("filters.allJobTypes")} />
+            <SelectValue placeholder={t('filters.allJobTypes')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{t("filters.allJobTypes")}</SelectItem>
+            <SelectItem value="ALL">{t('filters.allJobTypes')}</SelectItem>
             {JOB_TYPES.map((jt) => (
               <SelectItem key={jt} value={jt}>
                 {t(`jobTypes.${jt}` as Parameters<typeof t>[0])}
@@ -206,17 +210,18 @@ export function EmployeeList() {
             checked={showInactive}
             onCheckedChange={(checked) => setShowInactive(checked === true || null)}
           />
-          {t("filters.showInactive")}
+          {t('filters.showInactive')}
         </label>
 
         <Button
+          data-tour="admin-add-employee"
           onClick={handleOpenCreate}
           disabled={limitReached}
           className="bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90 h-10"
-          title={limitReached ? t("limits.reached") : undefined}
+          title={limitReached ? t('limits.reached') : undefined}
         >
           <Plus className="h-4 w-4 mr-2" />
-          {t("actions.add")}
+          {t('actions.add')}
         </Button>
       </div>
 
@@ -226,16 +231,14 @@ export function EmployeeList() {
           <div className="rounded-full bg-muted p-4 mb-4">
             <Users className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h2 className="text-lg font-semibold text-foreground">{t("empty.title")}</h2>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            {t("empty.description")}
-          </p>
+          <h2 className="text-lg font-semibold text-foreground">{t('empty.title')}</h2>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm">{t('empty.description')}</p>
           <Button
             onClick={handleOpenCreate}
             className="mt-4 bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90"
           >
             <Plus className="h-4 w-4 mr-2" />
-            {t("empty.cta")}
+            {t('empty.cta')}
           </Button>
         </div>
       ) : (
@@ -250,9 +253,7 @@ export function EmployeeList() {
               onResendInvitation={handleResendInvitation}
               isResendingInvitation={isResending}
               schoolDaysDeclared={
-                employee.jobType === "APPRENTICE"
-                  ? !undeclaredIds.has(employee.id)
-                  : undefined
+                employee.jobType === 'APPRENTICE' ? !undeclaredIds.has(employee.id) : undefined
               }
             />
           ))}
@@ -274,15 +275,13 @@ export function EmployeeList() {
           <DialogContent className="sm:max-w-[400px] rounded-2xl">
             <DialogHeader>
               <DialogTitle>
-                {confirmDialog.isActive
-                  ? t("confirm.deactivateTitle")
-                  : t("confirm.activateTitle")}
+                {confirmDialog.isActive ? t('confirm.deactivateTitle') : t('confirm.activateTitle')}
               </DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               {confirmDialog.isActive
-                ? t("confirm.deactivateMessage")
-                : t("confirm.activateMessage")}
+                ? t('confirm.deactivateMessage')
+                : t('confirm.activateMessage')}
             </p>
             <div className="flex justify-end gap-3 pt-4">
               <Button
@@ -290,16 +289,14 @@ export function EmployeeList() {
                 onClick={() => setConfirmDialog(null)}
                 className="rounded-xl"
               >
-                {t("actions.cancel")}
+                {t('actions.cancel')}
               </Button>
               <Button
                 onClick={confirmToggle}
                 disabled={isToggling}
                 className="bg-foreground text-background rounded-xl font-bold hover:bg-foreground/90"
               >
-                {confirmDialog.isActive
-                  ? t("actions.deactivate")
-                  : t("actions.activate")}
+                {confirmDialog.isActive ? t('actions.deactivate') : t('actions.activate')}
               </Button>
             </div>
           </DialogContent>
