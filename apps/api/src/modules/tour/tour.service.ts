@@ -32,8 +32,10 @@ export class TourService {
       step,
       updatedAt: new Date().toISOString(),
     };
-    await this.prisma.user.update({
-      where: { id: userId },
+    // Guard on tourCompletedAt: null so a late/racing save cannot resurrect a
+    // tour the user already finished (completed ⟹ tourState stays null).
+    await this.prisma.user.updateMany({
+      where: { id: userId, tourCompletedAt: null },
       data: { tourState: tourState as Prisma.InputJsonValue },
     });
     return { ok: true };

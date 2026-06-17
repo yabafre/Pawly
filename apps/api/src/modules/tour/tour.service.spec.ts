@@ -14,6 +14,7 @@ describe('TourService', () => {
     user: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -49,11 +50,11 @@ describe('TourService', () => {
     });
   });
 
-  it('saveProgress writes tourState with tourKey + step', async () => {
-    prisma.user.update.mockResolvedValue({});
+  it('saveProgress writes tourState with tourKey + step (only while not completed)', async () => {
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
     await service.saveProgress('u1', 'employee-onboarding', 3);
-    const arg = prisma.user.update.mock.calls[0][0];
-    expect(arg.where).toEqual({ id: 'u1' });
+    const arg = prisma.user.updateMany.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 'u1', tourCompletedAt: null });
     expect(arg.data.tourState.tourKey).toBe('employee-onboarding');
     expect(arg.data.tourState.step).toBe(3);
   });
