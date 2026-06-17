@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
-import { tours, tourForRole, type TourRole } from '@/lib/tours/registry';
+import { tours, resolveTourStart, type TourRole } from '@/lib/tours/registry';
 import { useTourStore } from '@/lib/tours/store';
 import { useTour } from '@/lib/tours/useTour';
 import { highlightStep, destroyTour } from '@/lib/tours/driver-adapter';
@@ -23,16 +23,17 @@ export function TourProvider({ role, initialCompleted, initialState }: Props) {
   const { saveProgress, complete } = useTour();
   const booted = useRef(false);
 
-  // Boot once: auto-start the role's tour if not completed.
+  // Auto-start the role's tour once the user is on the (resume) step's route.
+  // Gating on pathname avoids hijacking navigation: an admin landing on
+  // /admin/billing with an uncompleted tour must not be redirected to the
+  // dashboard. The effect re-checks on pathname change until it starts once.
   useEffect(() => {
     if (booted.current) return;
+    const next = resolveTourStart(role, initialCompleted, initialState, pathname);
+    if (!next) return;
     booted.current = true;
-    if (initialCompleted) return;
-    const key = tourForRole(role);
-    if (!key) return;
-    const startStep = initialState && initialState.tourKey === key ? initialState.step : 0;
-    start(key, startStep);
-  }, [initialCompleted, initialState, role, start]);
+    start(next.key, next.step);
+  }, [initialCompleted, initialState, role, start, pathname]);
 
   // Drive the current step (re-runs on step or route change).
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tours, tourForRole, type TourKey } from './registry';
+import { tours, tourForRole, resolveTourStart, type TourKey } from './registry';
 
 // AC-3 (verbatim from story 10-4-onboarding-tour-engine:19):
 //   Generic engine — Given a registry mapping TourKey → { role, steps[] },
@@ -28,5 +28,46 @@ describe('tour registry', () => {
   it('tourForRole maps roles to the right tour', () => {
     expect(tourForRole('EMPLOYEE')).toBe('employee-onboarding');
     expect(tourForRole('ADMIN')).toBe('admin-onboarding');
+  });
+});
+
+// AC-6 (admin multi-page) + navigation safety: an uncompleted tour must only
+// auto-start on the route its (resume) step lives on — never hijack navigation.
+describe('resolveTourStart', () => {
+  it('returns null when the tour is already completed', () => {
+    expect(resolveTourStart('ADMIN', true, null, '/admin/dashboard')).toBeNull();
+  });
+
+  it('auto-starts at step 0 when on the entry route', () => {
+    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard')).toEqual({
+      key: 'employee-onboarding',
+      step: 0,
+    });
+    expect(resolveTourStart('ADMIN', false, null, '/admin/dashboard')).toEqual({
+      key: 'admin-onboarding',
+      step: 0,
+    });
+  });
+
+  it('does NOT start when the user is on a different route (no navigation hijack)', () => {
+    expect(resolveTourStart('ADMIN', false, null, '/admin/billing')).toBeNull();
+    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard/settings')).toBeNull();
+  });
+
+  it('resumes at the persisted step only on its route', () => {
+    const state = { tourKey: 'admin-onboarding', step: 2 }; // add-employee → /admin/employees
+    expect(resolveTourStart('ADMIN', false, state, '/admin/employees')).toEqual({
+      key: 'admin-onboarding',
+      step: 2,
+    });
+    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard')).toBeNull();
+  });
+
+  it('ignores a persisted step from a different tour (starts at 0)', () => {
+    const state = { tourKey: 'employee-onboarding', step: 3 };
+    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard')).toEqual({
+      key: 'admin-onboarding',
+      step: 0,
+    });
   });
 });

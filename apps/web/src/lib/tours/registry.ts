@@ -103,3 +103,23 @@ export function tourForRole(role: TourRole): TourKey | null {
   if (role === 'ADMIN') return 'admin-onboarding';
   return null;
 }
+
+/**
+ * Decides whether (and where) a tour should auto-start on mount. Returns the
+ * tour + resume step ONLY when the user is already on that step's route — so an
+ * uncompleted tour never yanks the user away from a page they navigated to
+ * themselves (e.g. landing on /admin/billing must not redirect to the tour).
+ */
+export function resolveTourStart(
+  role: TourRole,
+  initialCompleted: boolean,
+  initialState: { tourKey: string; step: number } | null,
+  pathname: string
+): { key: TourKey; step: number } | null {
+  if (initialCompleted) return null;
+  const key = tourForRole(role);
+  if (!key) return null;
+  const step = initialState && initialState.tourKey === key ? initialState.step : 0;
+  if (tours[key].steps[step]?.route !== pathname) return null;
+  return { key, step };
+}
