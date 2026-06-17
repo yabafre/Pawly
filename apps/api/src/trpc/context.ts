@@ -14,6 +14,7 @@ import type { PresenceConfirmationService } from '@/modules/planning/presence-co
 import type { DashboardService } from '@/modules/dashboard/dashboard.service';
 import type { PushNotificationService } from '@/modules/notification/push-notification.service';
 import type { MailService } from '@/modules/mail/mail.service';
+import type { TourService } from '@/modules/tour/tour.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { RedisService } from '@/redis';
@@ -35,6 +36,7 @@ export interface TRPCServices {
   dashboardService: DashboardService;
   pushNotificationService: PushNotificationService;
   mailService: MailService;
+  tourService: TourService;
   jwtService: JwtService;
   prisma: PrismaService;
   redis: RedisService;
@@ -55,18 +57,34 @@ export async function createContext(
 
       // Try cache first, then DB
       const cacheKey = `user:${payload.sub}`;
-      const cached = await services.redis.get<{ id: string; clinicId: string }>(cacheKey);
+      const cached = await services.redis.get<{ id: string; clinicId: string }>(
+        cacheKey,
+      );
 
       if (cached) {
-        user = { sub: payload.sub, email: payload.email, role: payload.role, clinicId: cached.clinicId };
+        user = {
+          sub: payload.sub,
+          email: payload.email,
+          role: payload.role,
+          clinicId: cached.clinicId,
+        };
       } else {
         const dbUser = await services.prisma.user.findUnique({
           where: { id: payload.sub },
           select: { id: true, clinicId: true },
         });
         if (dbUser) {
-          await services.redis.set(cacheKey, { id: dbUser.id, clinicId: dbUser.clinicId }, 300);
-          user = { sub: payload.sub, email: payload.email, role: payload.role, clinicId: dbUser.clinicId };
+          await services.redis.set(
+            cacheKey,
+            { id: dbUser.id, clinicId: dbUser.clinicId },
+            300,
+          );
+          user = {
+            sub: payload.sub,
+            email: payload.email,
+            role: payload.role,
+            clinicId: dbUser.clinicId,
+          };
         }
       }
     } catch {
