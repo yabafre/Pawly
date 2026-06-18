@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { QueryKeyFactory } from "@/lib/hooks/server-action-hooks";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { QueryKeyFactory } from '@/lib/hooks/server-action-hooks';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   Calendar,
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   CreditCard,
   GitCompareArrows,
+  HelpCircle,
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
@@ -19,16 +20,19 @@ import {
   Settings2,
   ShieldCheck,
   Users,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { logoutAction } from "@/app/[locale]/(auth)/login/_actions/auth-actions";
-import { updateAdminProfileAction } from "@/app/[locale]/admin/settings/_actions/settings-actions";
-import { useTranslations } from "next-intl";
-import { LanguageSwitcher } from "@/components/language-switcher";
-import { useServerActionMutation } from "@/lib/hooks/server-action-hooks";
-import { useSubscription } from "@/lib/contexts/subscription-context";
-import { useEffect, useState, useRef, useCallback } from "react";
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
+import { logoutAction } from '@/app/[locale]/(auth)/login/_actions/auth-actions';
+import { updateAdminProfileAction } from '@/app/[locale]/admin/settings/_actions/settings-actions';
+import { useTranslations } from 'next-intl';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { useServerActionMutation } from '@/lib/hooks/server-action-hooks';
+import { useSubscription } from '@/lib/contexts/subscription-context';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { TourProvider } from '@/components/tour/TourProvider';
+import { useReplayTour } from '@/lib/tours/useTour';
+import type { TourState } from '@pawly/validators';
 
 // ── Navigation types ──────────────────────────────────────────────
 
@@ -59,38 +63,43 @@ type NavGroup = NavGroupWithChildren | NavGroupDirect;
 
 const navGroups: NavGroup[] = [
   {
-    labelKey: "dashboard",
+    labelKey: 'dashboard',
     icon: LayoutDashboard,
-    href: "/admin/dashboard",
+    href: '/admin/dashboard',
   },
   {
-    labelKey: "team",
+    labelKey: 'team',
     icon: Users,
     children: [
-      { href: "/admin/employees", icon: Users, labelKey: "employees" },
-      { href: "/admin/employees/absences", icon: CalendarOff, labelKey: "absences" },
+      { href: '/admin/employees', icon: Users, labelKey: 'employees' },
+      { href: '/admin/employees/absences', icon: CalendarOff, labelKey: 'absences' },
     ],
   },
   {
-    labelKey: "planning",
+    labelKey: 'planning',
     icon: Calendar,
     children: [
-      { href: "/admin/planning", icon: Calendar, labelKey: "planningView" },
-      { href: "/admin/planning/templates", icon: LayoutTemplate, labelKey: "templates" },
-      { href: "/admin/planning/equity", icon: Scale, labelKey: "equityCounters", proOnly: true },
-      { href: "/admin/planning/variance", icon: GitCompareArrows, labelKey: "variance" },
-      { href: "/admin/planning/rules", icon: ShieldCheck, labelKey: "planningRules", proOnly: true },
+      { href: '/admin/planning', icon: Calendar, labelKey: 'planningView' },
+      { href: '/admin/planning/templates', icon: LayoutTemplate, labelKey: 'templates' },
+      { href: '/admin/planning/equity', icon: Scale, labelKey: 'equityCounters', proOnly: true },
+      { href: '/admin/planning/variance', icon: GitCompareArrows, labelKey: 'variance' },
+      {
+        href: '/admin/planning/rules',
+        icon: ShieldCheck,
+        labelKey: 'planningRules',
+        proOnly: true,
+      },
     ],
   },
   {
-    labelKey: "billing",
+    labelKey: 'billing',
     icon: CreditCard,
-    href: "/admin/billing",
+    href: '/admin/billing',
   },
   {
-    labelKey: "settings",
+    labelKey: 'settings',
     icon: Settings2,
-    href: "/admin/settings",
+    href: '/admin/settings',
   },
 ];
 
@@ -110,9 +119,18 @@ function isChildActive(child: NavChild, siblings: NavChild[], pathname: string):
       (other) =>
         other.href !== child.href &&
         other.href.startsWith(child.href) &&
-        pathname.startsWith(other.href),
+        pathname.startsWith(other.href)
     )
   );
+}
+
+// Maps a nav group to its tour anchor (group dropdowns are the visible nav
+// triggers the admin tour points at).
+function navGroupTourAnchor(group: NavGroup): string | undefined {
+  if (group.labelKey === 'team') return 'admin-nav-employees';
+  if (group.labelKey === 'planning') return 'admin-nav-planning';
+  if (group.href === '/admin/dashboard') return 'admin-dashboard';
+  return undefined;
 }
 
 // ── GroupDropdown component ───────────────────────────────────────
@@ -122,11 +140,13 @@ function GroupDropdown({
   pathname,
   t,
   isPro,
+  dataTour,
 }: {
   group: NavGroupWithChildren;
   pathname: string;
   t: (key: string) => string;
   isPro: boolean;
+  dataTour?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -138,34 +158,32 @@ function GroupDropdown({
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
     <div ref={ref} className="relative">
       <button
+        data-tour={dataTour}
         onClick={() => setOpen((prev) => !prev)}
         onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
+          if (e.key === 'Escape') setOpen(false);
         }}
         aria-expanded={open}
         aria-haspopup="true"
         className={cn(
-          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
+          'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap',
           active
-            ? "bg-foreground text-background shadow-sm"
-            : "text-muted-foreground hover:bg-muted",
+            ? 'bg-foreground text-background shadow-sm'
+            : 'text-muted-foreground hover:bg-muted'
         )}
       >
         <group.icon size={16} />
         {t(group.labelKey)}
         <ChevronDown
           size={14}
-          className={cn(
-            "transition-transform duration-200",
-            open && "rotate-180",
-          )}
+          className={cn('transition-transform duration-200', open && 'rotate-180')}
         />
       </button>
 
@@ -179,10 +197,10 @@ function GroupDropdown({
                 href={child.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all",
+                  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all',
                   childActive
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
                 <child.icon size={15} />
@@ -203,25 +221,40 @@ function GroupDropdown({
 
 // ── Main layout ───────────────────────────────────────────────────
 
-export function AdminLayoutClient({ children, clinicName }: { children: React.ReactNode; clinicName: string }) {
+export function AdminLayoutClient({
+  children,
+  clinicName,
+  tourCompletedAt,
+  tourState,
+}: {
+  children: React.ReactNode;
+  clinicName: string;
+  tourCompletedAt: string | null;
+  tourState: TourState | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const t = useTranslations("admin.nav");
-  const tCommon = useTranslations("common");
+  const t = useTranslations('admin.nav');
+  const tCommon = useTranslations('common');
+  const tTour = useTranslations('tour');
+  const replayTour = useReplayTour();
   const { canAccessFeature } = useSubscription();
-  const isPro = canAccessFeature("professional");
+  const isPro = canAccessFeature('professional');
 
   const { mutate: persistLocale } = useServerActionMutation(updateAdminProfileAction);
-  const handleLocaleChange = useCallback((newLocale: string) => {
-    persistLocale({ locale: newLocale as "fr" | "en" });
-  }, [persistLocale]);
+  const handleLocaleChange = useCallback(
+    (newLocale: string) => {
+      persistLocale({ locale: newLocale as 'fr' | 'en' });
+    },
+    [persistLocale]
+  );
 
   const prevSettingsPathRef = useRef(pathname);
 
   if (prevSettingsPathRef.current !== pathname) {
-    const wasInSettings = prevSettingsPathRef.current.startsWith("/admin/settings");
-    const isInSettings = pathname.startsWith("/admin/settings");
+    const wasInSettings = prevSettingsPathRef.current.startsWith('/admin/settings');
+    const isInSettings = pathname.startsWith('/admin/settings');
     prevSettingsPathRef.current = pathname;
     if (isInSettings && !wasInSettings) {
       queryClient.invalidateQueries({
@@ -232,13 +265,19 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
 
   const handleLogout = async () => {
     await logoutAction();
-    router.push("/login");
+    router.push('/login');
   };
 
-  const isOnboarding = pathname.startsWith("/admin/onboarding");
+  const isOnboarding = pathname.startsWith('/admin/onboarding');
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
+      <TourProvider
+        role="ADMIN"
+        initialCompleted={tourCompletedAt !== null}
+        initialState={tourState}
+        isPro={isPro}
+      />
       <nav className="sticky top-0 z-50 w-full bg-background/90 backdrop-blur-md border-b border-border/40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -252,12 +291,25 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
             <LanguageSwitcher onLocaleChange={handleLocaleChange} />
             {!isOnboarding && (
               <>
+                <button
+                  type="button"
+                  onClick={() => replayTour('ADMIN')}
+                  className="p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={tTour('replayGuide')}
+                  title={tTour('replayGuide')}
+                >
+                  <HelpCircle size={20} />
+                </button>
                 <button className="relative p-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
                   <Bell size={20} />
                 </button>
-                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={handleLogout}
+                >
                   <LogOut className="w-4 h-4 mr-2" />
-                  {tCommon("logout")}
+                  {tCommon('logout')}
                 </Button>
               </>
             )}
@@ -277,6 +329,7 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
                     pathname={pathname}
                     t={t}
                     isPro={isPro}
+                    dataTour={navGroupTourAnchor(group)}
                   />
                 );
               }
@@ -286,11 +339,12 @@ export function AdminLayoutClient({ children, clinicName }: { children: React.Re
                 <Link
                   key={group.href}
                   href={group.href}
+                  data-tour={navGroupTourAnchor(group)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap",
+                    'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-all whitespace-nowrap',
                     active
-                      ? "bg-foreground text-background shadow-sm"
-                      : "text-muted-foreground hover:bg-muted",
+                      ? 'bg-foreground text-background shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <group.icon size={16} />

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { createContext, useContext } from "react";
-import type { ReactNode } from "react";
-import { ACTIVE_SUBSCRIPTION_STATUSES, TIER_HIERARCHY } from "@pawly/validators";
+import { createContext, useContext, useCallback, useMemo } from 'react';
+import type { ReactNode } from 'react';
+import { ACTIVE_SUBSCRIPTION_STATUSES, TIER_HIERARCHY } from '@pawly/validators';
 
 interface SubscriptionContextValue {
   status: string | null;
@@ -13,7 +13,7 @@ interface SubscriptionContextValue {
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({
   status: null,
-  entitlementTier: "starter",
+  entitlementTier: 'starter',
   isActive: false,
   canAccessFeature: () => false,
 });
@@ -29,27 +29,29 @@ export function SubscriptionProvider({
   entitlementTier,
   children,
 }: SubscriptionProviderProps) {
-  const isActive = (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(status ?? "");
+  const isActive = (ACTIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(status ?? '');
 
-  const canAccessFeature = (requiredTier: string): boolean => {
-    if (!isActive) return false;
-    const currentIndex = TIER_HIERARCHY.indexOf(
-      entitlementTier as (typeof TIER_HIERARCHY)[number],
-    );
-    const requiredIndex = TIER_HIERARCHY.indexOf(
-      requiredTier as (typeof TIER_HIERARCHY)[number],
-    );
-    if (currentIndex === -1 || requiredIndex === -1) return false;
-    return currentIndex >= requiredIndex;
-  };
-
-  return (
-    <SubscriptionContext.Provider
-      value={{ status, entitlementTier, isActive, canAccessFeature }}
-    >
-      {children}
-    </SubscriptionContext.Provider>
+  const canAccessFeature = useCallback(
+    (requiredTier: string): boolean => {
+      if (!isActive) return false;
+      const currentIndex = TIER_HIERARCHY.indexOf(
+        entitlementTier as (typeof TIER_HIERARCHY)[number]
+      );
+      const requiredIndex = TIER_HIERARCHY.indexOf(requiredTier as (typeof TIER_HIERARCHY)[number]);
+      if (currentIndex === -1 || requiredIndex === -1) return false;
+      return currentIndex >= requiredIndex;
+    },
+    [isActive, entitlementTier]
   );
+
+  // Memoize the context value so consumers don't re-render (and refetch) on
+  // every parent render — the unstable value previously drove billing refetches.
+  const value = useMemo(
+    () => ({ status, entitlementTier, isActive, canAccessFeature }),
+    [status, entitlementTier, isActive, canAccessFeature]
+  );
+
+  return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 
 export function useSubscription() {
