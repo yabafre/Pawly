@@ -27,7 +27,11 @@ export function highlightStep(params: {
   // Supplying these hooks overrides driver.js' default navigation/close — the
   // TourProvider drives step transitions itself by re-calling highlightStep.
   instance.setConfig({
-    animate: true,
+    // animate:false — the overlay's first-time entrance animation delays
+    // driver.js wiring the popover buttons, so the very first "Next" felt laggy
+    // while later steps (just moving the spotlight) responded instantly. No
+    // animation makes every step respond on the first click, uniformly.
+    animate: false,
     allowClose: true,
     showProgress: false,
     overlayColor: 'rgba(0,0,0,0.55)',
