@@ -70,9 +70,11 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
           router.push(s.route);
           return; // effect re-runs after navigation
         }
-        // A just-navigated page needs time to load its anchor; same-route steps
-        // are present-or-genuinely-absent right now, so skip them fast.
-        const timeout = justNavigated && firstPoll ? 3000 : 450;
+        // A just-navigated page needs time to load its anchor; a same-route step
+        // is present-or-genuinely-absent in the DOM right now (the effect runs
+        // after the render commits), so a single synchronous check skips it with
+        // no perceptible delay.
+        const timeout = justNavigated && firstPoll ? 3000 : 0;
         firstPoll = false;
         const el = await waitForElement(s.selector, timeout);
         if (cancelled) return;
