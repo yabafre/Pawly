@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useTranslations } from "next-intl";
-import { Lock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useSubscription } from "@/lib/contexts/subscription-context";
-import Link from "next/link";
+import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
+import { Lock } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useSubscription } from '@/lib/contexts/subscription-context';
+import Link from 'next/link';
 
 interface SubscriptionGateProps {
   requiredTier: string;
@@ -14,12 +14,8 @@ interface SubscriptionGateProps {
   locale?: string;
 }
 
-export function SubscriptionGate({
-  requiredTier,
-  children,
-  locale = "fr",
-}: SubscriptionGateProps) {
-  const t = useTranslations("billing.guard");
+export function SubscriptionGate({ requiredTier, children, locale = 'fr' }: SubscriptionGateProps) {
+  const t = useTranslations('billing.guard');
   const { canAccessFeature } = useSubscription();
 
   if (canAccessFeature(requiredTier)) {
@@ -33,17 +29,11 @@ export function SubscriptionGate({
           <Lock className="w-6 h-6 text-[#009588]" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-[#171717]">
-            {t("upgrade.title")}
-          </h3>
-          <p className="text-sm text-[#737373] mt-1">
-            {t("upgrade.description")}
-          </p>
+          <h3 className="text-lg font-bold text-[#171717]">{t('upgrade.title')}</h3>
+          <p className="text-sm text-[#737373] mt-1">{t('upgrade.description')}</p>
         </div>
         <Button asChild className="bg-[#009588] hover:bg-[#00796B] text-white rounded-xl px-6">
-          <Link href={`/${locale}/admin/billing`}>
-            {t("upgrade.action")}
-          </Link>
+          <Link href={`/${locale}/admin/settings?tab=billing`}>{t('upgrade.action')}</Link>
         </Button>
       </CardContent>
     </Card>

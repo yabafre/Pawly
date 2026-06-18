@@ -66,6 +66,32 @@ Account-level settings is where users expect it.
   `prevSettingsPathRef` block (lines I did NOT touch) — confirmed identical on `develop` via stash,
   so PRE-EXISTING and out of scope. Candidate for a separate fix (ref mutated during render).
 
-**Note:** `/admin/billing` route kept intact — the subscription guard (`layout.tsx:102`) still
-redirects there and the post-checkout flow is unaffected. Billing is now reachable via
-Settings → Billing tab (normal access) and `/admin/billing` directly (guard/checkout).
+**Note:** Initial QS-2 kept the `/admin/billing` route; on Alex's request (option 2) it was then
+fully removed — see follow-up below.
+
+## Follow-up — standalone `/admin/billing` route removed (option 2)
+
+The route is gone; billing lives only as the Settings → Billing tab.
+
+**Deleted (3):** `billing/page.tsx`, `error.tsx`, `loading.tsx`. The `_components` / `_hooks` /
+`_actions` private folders stay (still imported by SettingsTabs, OnboardingWizard, pricing/register).
+
+**Rewired (route → `/admin/settings?tab=billing`):**
+- `layout.tsx` — subscription-guard redirect + `isSettingsPage` (was `isBillingPage`). ⚠️ Behaviour
+  change: a no-subscription account now lands on Settings (other tabs reachable) instead of an
+  isolated paywall.
+- `settings/page.tsx` + `SettingsTabs.tsx` — `?tab=` query opens the right tab (server `searchParams`
+  → `initialTab` → `defaultValue`).
+- `UpgradeModal.tsx`, `SubscriptionGate.tsx` — upgrade links.
+- `useBilling.ts` — Stripe Billing Portal `return_url`.
+- `stripe.router.ts` (API) — Checkout `success_url` + `cancel_url`.
+- `TourProvider.tsx` + `registry.ts` — obsolete comments.
+
+**Tests updated:** `registry.test.ts`, `SubscriptionGate.spec.tsx`, `stripe.service.spec.ts`.
+
+**Verification:** tsc web clean (stale `.next/types` regenerated), vitest web 720 passed (2 pre-existing
+fails), jest api `stripe.service` 19/19, i18n 1477 keys, eslint clean on changed files (1 pre-existing
+`react-hooks/refs` error in `TourProvider`, untouched — confirmed on develop).
+
+⚠️ Stripe return URLs changed → verify the real checkout / billing-portal round-trip in staging
+before prod.
