@@ -33,7 +33,7 @@ describe('SubscriptionGate', () => {
     render(
       <SubscriptionGate requiredTier="starter">
         <div data-testid="protected-content">Protected Content</div>
-      </SubscriptionGate>,
+      </SubscriptionGate>
     );
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
@@ -46,13 +46,13 @@ describe('SubscriptionGate', () => {
     render(
       <SubscriptionGate requiredTier="professional">
         <div data-testid="protected-content">Protected Content</div>
-      </SubscriptionGate>,
+      </SubscriptionGate>
     );
 
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
     expect(screen.getByText('Feature Unavailable')).toBeInTheDocument();
     expect(
-      screen.getByText('This feature requires a higher subscription tier.'),
+      screen.getByText('This feature requires a higher subscription tier.')
     ).toBeInTheDocument();
   });
 
@@ -62,11 +62,11 @@ describe('SubscriptionGate', () => {
     render(
       <SubscriptionGate requiredTier="professional" locale="en">
         <div>Hidden</div>
-      </SubscriptionGate>,
+      </SubscriptionGate>
     );
 
     const link = screen.getByRole('link', { name: /upgrade plan/i });
-    expect(link).toHaveAttribute('href', '/en/admin/billing');
+    expect(link).toHaveAttribute('href', '/en/admin/settings?tab=billing');
   });
 
   it('uses default locale "fr" for billing link', () => {
@@ -75,11 +75,11 @@ describe('SubscriptionGate', () => {
     render(
       <SubscriptionGate requiredTier="enterprise">
         <div>Hidden</div>
-      </SubscriptionGate>,
+      </SubscriptionGate>
     );
 
     const link = screen.getByRole('link', { name: /upgrade plan/i });
-    expect(link).toHaveAttribute('href', '/fr/admin/billing');
+    expect(link).toHaveAttribute('href', '/fr/admin/settings?tab=billing');
   });
 
   it('calls canAccessFeature with requiredTier', () => {
@@ -88,7 +88,7 @@ describe('SubscriptionGate', () => {
     render(
       <SubscriptionGate requiredTier="professional">
         <div>Content</div>
-      </SubscriptionGate>,
+      </SubscriptionGate>
     );
 
     expect(mockCanAccessFeature).toHaveBeenCalledWith('professional');

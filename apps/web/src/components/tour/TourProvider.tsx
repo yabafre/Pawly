@@ -34,7 +34,7 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
 
   // Auto-start the role's tour once the user is on the (resume) step's route.
   // Gating on pathname avoids hijacking navigation: an admin landing on
-  // /admin/billing with an uncompleted tour must not be redirected to the
+  // /admin/settings with an uncompleted tour must not be redirected to the
   // dashboard. The effect re-checks on pathname change until it starts once.
   useEffect(() => {
     if (booted.current) return;

@@ -57,10 +57,10 @@ export const stripeRouter = router({
       const webAppUrl = process.env.WEB_APP_URL ?? 'http://localhost:3000';
       const successUrl = input.successPath
         ? `${webAppUrl}/${locale}${input.successPath}`
-        : `${webAppUrl}/${locale}/admin/billing?upgraded=true`;
+        : `${webAppUrl}/${locale}/admin/settings?tab=billing`;
       const cancelUrl = input.successPath
         ? `${webAppUrl}/${locale}/pricing`
-        : `${webAppUrl}/${locale}/admin/billing`;
+        : `${webAppUrl}/${locale}/admin/settings?tab=billing`;
       const session = await ctx.stripeService.stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_collection: 'if_required',

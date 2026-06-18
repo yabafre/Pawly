@@ -9,7 +9,6 @@ import {
   Calendar,
   CalendarOff,
   ChevronDown,
-  CreditCard,
   GitCompareArrows,
   HelpCircle,
   LayoutDashboard,
@@ -90,11 +89,6 @@ const navGroups: NavGroup[] = [
         proOnly: true,
       },
     ],
-  },
-  {
-    labelKey: 'billing',
-    icon: CreditCard,
-    href: '/admin/billing',
   },
   {
     labelKey: 'settings',

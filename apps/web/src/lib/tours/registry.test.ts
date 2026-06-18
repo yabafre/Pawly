@@ -50,7 +50,7 @@ describe('resolveTourStart', () => {
   });
 
   it('does NOT start when the user is on a different route (no navigation hijack)', () => {
-    expect(resolveTourStart('ADMIN', false, null, '/admin/billing', true)).toBeNull();
+    expect(resolveTourStart('ADMIN', false, null, '/admin/settings', true)).toBeNull();
     expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard/settings', true)).toBeNull();
   });
 
