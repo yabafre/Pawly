@@ -1603,7 +1603,8 @@
       "operational": "Général",
       "shiftTypes": "Types de quarts",
       "clinic": "Clinique",
-      "account": "Mon compte"
+      "account": "Mon compte",
+      "billing": "Facturation"
     },
     "shiftTypes": {
       "title": "Types de quarts",

@@ -1603,7 +1603,8 @@
       "operational": "General",
       "shiftTypes": "Shift Types",
       "clinic": "Clinic",
-      "account": "My account"
+      "account": "My account",
+      "billing": "Billing"
     },
     "shiftTypes": {
       "title": "Shift Types",

@@ -1,18 +1,20 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { Building2, Clock, Layers, User } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Building2, Clock, CreditCard, Layers, User } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClinicProfilePanel } from './ClinicProfilePanel';
 import { ClinicOperationalConfigPanel } from './ClinicOperationalConfigPanel';
 import { ShiftTypesPanel } from './ShiftTypesPanel';
 import { AdminAccountPanel } from './AdminAccountPanel';
+import { BillingOverview } from '../../billing/_components/BillingOverview';
 
 const triggerClass =
   'gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm';
 
 export function SettingsTabs() {
   const t = useTranslations('settings');
+  const locale = useLocale();
 
   return (
     <Tabs defaultValue="account" className="space-y-6">
@@ -33,6 +35,10 @@ export function SettingsTabs() {
           <Layers className="h-4 w-4" strokeWidth={1.5} />
           {t('tabs.shiftTypes')}
         </TabsTrigger>
+        <TabsTrigger value="billing" className={triggerClass}>
+          <CreditCard className="h-4 w-4" strokeWidth={1.5} />
+          {t('tabs.billing')}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="account">
@@ -49,6 +55,10 @@ export function SettingsTabs() {
 
       <TabsContent value="shiftTypes">
         <ShiftTypesPanel />
+      </TabsContent>
+
+      <TabsContent value="billing">
+        <BillingOverview locale={locale} />
       </TabsContent>
     </Tabs>
   );
