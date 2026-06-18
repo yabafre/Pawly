@@ -1281,23 +1281,23 @@
         "description": "Set the default hours for your clinic",
         "startTime": "Opening time",
         "endTime": "Closing time",
-        "help": "These hours serve as the baseline for planning"
+        "help": "These hours serve as the baseline for planning",
+        "invalidFormat": "Use the HH:MM format"
       },
       "shiftTypes": {
         "title": "Shift types",
         "description": "Define the different shift types at your clinic",
         "name": "Shift name",
         "namePlaceholder": "Surgery",
-        "code": "Code",
-        "codePlaceholder": "SURG",
         "startTime": "Start",
         "endTime": "End",
         "breakMinutes": "Break (min)",
         "color": "Color",
         "addShiftType": "Add shift type",
         "removeShiftType": "Remove",
-        "help": "Each shift must have a unique code",
-        "minRequired": "At least one shift type is required"
+        "help": "Define the shifts worked at your clinic",
+        "minRequired": "At least one shift type is required",
+        "incompleteShiftType": "Please fill in every shift type's name and hours"
       }
     },
     "navigation": {
@@ -1314,7 +1314,8 @@
     "errors": {
       "loadFailed": "Unable to load onboarding data. Please refresh the page.",
       "saveFailed": "Unable to save configuration",
-      "duplicateCode": "This shift code already exists"
+      "duplicateCode": "This shift code already exists",
+      "incompleteStep": "Please complete the required fields before continuing"
     },
     "days": {
       "MONDAY": "Monday",
