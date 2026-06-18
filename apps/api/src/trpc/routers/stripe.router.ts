@@ -1,9 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router, isAuthed } from '../trpc';
-import {
-  createCheckoutSessionSchema,
-  createBillingPortalSessionSchema,
-} from '@pawly/validators';
+import { createBillingPortalSessionSchema } from '@pawly/validators';
 import { z } from '@pawly/zod';
 import { deriveEntitlementTier } from '@/modules/stripe/stripe.utils';
 
@@ -36,12 +33,6 @@ export const stripeRouter = router({
         : null,
     };
   }),
-
-  createCheckoutSession: publicProcedure
-    .input(createCheckoutSessionSchema)
-    .mutation(async ({ input, ctx }) => {
-      return ctx.stripeService.createCheckoutSession(input);
-    }),
 
   createUpgradeSession: protectedProcedure
     .input(
