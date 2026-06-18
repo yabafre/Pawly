@@ -24,6 +24,13 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
   const { saveProgress, complete } = useTour();
   const booted = useRef(false);
 
+  // Keep the latest non-step values in a ref so the drive effect below depends
+  // ONLY on what changes which step to show. Otherwise a re-render from the
+  // debounced saveProgress mutation would re-run the effect and re-highlight the
+  // current step, swallowing the user's Next click (and then auto-skipping).
+  const latest = useRef({ t, router, setStep, saveProgress, complete, stop });
+  latest.current = { t, router, setStep, saveProgress, complete, stop };
+
   // Auto-start the role's tour once the user is on the (resume) step's route.
   // Gating on pathname avoids hijacking navigation: an admin landing on
   // /admin/billing with an uncompleted tour must not be redirected to the
@@ -36,7 +43,7 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
     start(next.key, next.step);
   }, [initialCompleted, initialState, role, start, pathname, isPro]);
 
-  // Drive the current step (re-runs on step or route change).
+  // Drive the current step. Re-runs ONLY on a real step / route / tour change.
   useEffect(() => {
     if (!isRunning || !activeTour) return;
     const steps = tourSteps(activeTour, isPro);
@@ -44,11 +51,12 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
 
     const finish = () => {
       destroyTour();
-      void complete(activeTour);
-      stop();
+      void latest.current.complete(activeTour);
+      latest.current.stop();
     };
 
     (async () => {
+      const { t, router, setStep } = latest.current;
       let idx = step;
       while (idx < steps.length) {
         const s = steps[idx];
@@ -57,7 +65,7 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
           router.push(s.route);
           return; // effect re-runs after navigation
         }
-        const el = await waitForElement(s.selector);
+        const el = await waitForElement(s.selector, 2500);
         if (cancelled) return;
         if (el) {
           if (idx !== step) setStep(idx);
@@ -77,14 +85,14 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
                   finish();
                 } else {
                   const n = currentIdx + 1;
-                  setStep(n);
-                  saveProgress(activeTour, n);
+                  latest.current.setStep(n);
+                  latest.current.saveProgress(activeTour, n);
                 }
               },
               onPrev: () => {
                 const p = Math.max(0, currentIdx - 1);
-                setStep(p);
-                saveProgress(activeTour, p);
+                latest.current.setStep(p);
+                latest.current.saveProgress(activeTour, p);
               },
               onClose: () => finish(),
             },
@@ -100,19 +108,7 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
     return () => {
       cancelled = true;
     };
-  }, [
-    isRunning,
-    activeTour,
-    step,
-    pathname,
-    isPro,
-    t,
-    router,
-    setStep,
-    saveProgress,
-    complete,
-    stop,
-  ]);
+  }, [isRunning, activeTour, step, pathname, isPro]);
 
   // Destroy any live tour on unmount.
   useEffect(() => () => destroyTour(), []);
