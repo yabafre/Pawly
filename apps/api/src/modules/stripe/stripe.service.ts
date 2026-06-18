@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { EnvConfig } from '@/config/index';
-import type { CreateCheckoutSessionInput } from '@pawly/validators';
 import type { SubscriptionDetails, Invoice } from '@pawly/validators';
 import { deriveEntitlementTier } from './stripe.utils';
 
@@ -26,43 +25,7 @@ export class StripeService {
     return this.stripeClient;
   }
 
-  async createCheckoutSession(input: CreateCheckoutSessionInput) {
-    const { clinicName, adminName, adminEmail, priceId, locale } = input;
-    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true });
-
-    const session = await this.stripeClient.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_collection: 'if_required',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${webAppUrl}/${locale}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${webAppUrl}/${locale}/pricing`,
-      customer_email: adminEmail,
-      allow_promotion_codes: true,
-      metadata: {
-        clinicName,
-        adminName,
-        adminEmail,
-      },
-      subscription_data: {
-        metadata: {
-          clinicName,
-          adminName,
-          adminEmail,
-        },
-      },
-    });
-
-    if (!session.url) {
-      throw new Error('Stripe Checkout Session created without a URL');
-    }
-
-    return { sessionId: session.id, url: session.url };
-  }
-
-  constructWebhookEvent(
-    rawBody: Buffer,
-    signature: string,
-  ): Stripe.Event {
+  constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {
     const webhookSecret = this.configService.get('STRIPE_WEBHOOK_SECRET', {
       infer: true,
     });
@@ -80,10 +43,7 @@ export class StripeService {
     return !!existing;
   }
 
-  async markEventProcessed(
-    stripeEventId: string,
-    type: string,
-  ): Promise<void> {
+  async markEventProcessed(stripeEventId: string, type: string): Promise<void> {
     await this.prisma.stripeEvent.create({
       data: { stripeEventId, type },
     });
@@ -107,7 +67,8 @@ export class StripeService {
     const session = await this.stripeClient.billingPortal.sessions.create({
       customer: stripeCustomerId,
       return_url: returnUrl,
-      locale: (locale as Stripe.BillingPortal.SessionCreateParams['locale']) || 'fr',
+      locale:
+        (locale as Stripe.BillingPortal.SessionCreateParams['locale']) || 'fr',
       ...(process.env.STRIPE_PORTAL_CONFIGURATION_ID && {
         configuration: process.env.STRIPE_PORTAL_CONFIGURATION_ID,
       }),
@@ -153,7 +114,8 @@ export class StripeService {
         promotionCodeName = promoCode.code;
       } else if (typeof promoCode === 'string') {
         try {
-          const promoObj = await this.stripeClient.promotionCodes.retrieve(promoCode);
+          const promoObj =
+            await this.stripeClient.promotionCodes.retrieve(promoCode);
           promotionCodeName = promoObj.code;
         } catch {
           this.logger.warn(`Failed to retrieve promotion code ${promoCode}`);
@@ -184,9 +146,7 @@ export class StripeService {
     stripeCustomerId: string,
     limit?: number,
   ): Promise<Invoice[]> {
-    this.logger.log(
-      `Listing invoices for customer ${stripeCustomerId}`,
-    );
+    this.logger.log(`Listing invoices for customer ${stripeCustomerId}`);
 
     const invoices = await this.stripeClient.invoices.list({
       customer: stripeCustomerId,
