@@ -1281,23 +1281,23 @@
         "description": "Définissez les horaires par défaut de votre clinique",
         "startTime": "Heure d'ouverture",
         "endTime": "Heure de fermeture",
-        "help": "Ces horaires servent de base pour la planification"
+        "help": "Ces horaires servent de base pour la planification",
+        "invalidFormat": "Utilisez le format HH:MM"
       },
       "shiftTypes": {
         "title": "Types de postes",
         "description": "Définissez les différents types de postes de votre clinique",
         "name": "Nom du poste",
         "namePlaceholder": "Chirurgie",
-        "code": "Code",
-        "codePlaceholder": "CHIR",
         "startTime": "Début",
         "endTime": "Fin",
         "breakMinutes": "Pause (min)",
         "color": "Couleur",
         "addShiftType": "Ajouter un type de poste",
         "removeShiftType": "Supprimer",
-        "help": "Chaque poste doit avoir un code unique",
-        "minRequired": "Au moins un type de poste est requis"
+        "help": "Définissez les postes de travail de votre clinique",
+        "minRequired": "Au moins un type de poste est requis",
+        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste"
       }
     },
     "navigation": {
@@ -1314,7 +1314,8 @@
     "errors": {
       "loadFailed": "Impossible de charger les données d'onboarding. Veuillez rafraîchir la page.",
       "saveFailed": "Impossible de sauvegarder la configuration",
-      "duplicateCode": "Ce code de poste existe déjà"
+      "duplicateCode": "Ce code de poste existe déjà",
+      "incompleteStep": "Veuillez compléter les champs requis avant de continuer"
     },
     "days": {
       "MONDAY": "Lundi",
