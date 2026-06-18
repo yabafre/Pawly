@@ -1,6 +1,7 @@
 'use client';
 import { driver, type Driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import './pawly-tour.css';
 
 let instance: Driver | null = null;
 
