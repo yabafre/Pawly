@@ -2041,6 +2041,18 @@
       "settings": {
         "title": "Your settings",
         "body": "Change your language or replay this guide anytime."
+      },
+      "schedule": {
+        "title": "Your monthly schedule",
+        "body": "Browse your schedule month by month — shifts, school days, and time off."
+      },
+      "weeklySummary": {
+        "title": "Your week at a glance",
+        "body": "Hours worked, number of shifts, and confirmations for the week."
+      },
+      "absence": {
+        "title": "Request time off",
+        "body": "Start an absence request in a few steps: type, dates, and reason."
       }
     },
     "admin": {
@@ -2063,6 +2075,42 @@
       "generate": {
         "title": "Generate a schedule",
         "body": "Click to auto-generate your first schedule."
+      },
+      "pendingRequests": {
+        "title": "Pending requests",
+        "body": "See absence and leave requests waiting for approval at a glance, and jump straight to them."
+      },
+      "todaysTeam": {
+        "title": "Today's team",
+        "body": "Who's working today, their hours, and their roles."
+      },
+      "clinicHours": {
+        "title": "Your clinic hours",
+        "body": "Set your working days and hours — the foundation for all scheduling."
+      },
+      "shiftTypes": {
+        "title": "Your shift types",
+        "body": "Create your clinic's roles (vet assistant, auxiliary…) with their hours."
+      },
+      "createTemplate": {
+        "title": "Create your first template",
+        "body": "Define the typical weekly shift slots. Required before you can generate a schedule."
+      },
+      "rules": {
+        "title": "Your planning rules",
+        "body": "Configure constraints (minimum staffing, equity, skills) that guide generation."
+      },
+      "healthBar": {
+        "title": "The health monitor",
+        "body": "Conflicts (red), warnings (orange), gaps (gray), healthy (green). You can publish once conflict-free."
+      },
+      "publish": {
+        "title": "Publish the schedule",
+        "body": "Once healthy, publish it — your employees see their schedule right away."
+      },
+      "equity": {
+        "title": "Shift equity",
+        "body": "Check the workload is fair: Saturdays, weekends, holidays, and overtime."
       }
     }
   }

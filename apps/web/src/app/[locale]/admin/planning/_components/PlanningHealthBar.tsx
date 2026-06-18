@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useTranslations, useLocale } from "next-intl";
-import { AlertCircle, AlertTriangle, CheckCircle2, Circle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { LazyMotion, m, AnimatePresence, domAnimation } from "motion/react";
-import { HealthBarDetailPopover } from "./HealthBarDetailPopover";
-import type { ScheduleViewData, ScheduleHole } from "@pawly/validators";
+import { useTranslations, useLocale } from 'next-intl';
+import { AlertCircle, AlertTriangle, CheckCircle2, Circle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { LazyMotion, m, AnimatePresence, domAnimation } from 'motion/react';
+import { HealthBarDetailPopover } from './HealthBarDetailPopover';
+import type { ScheduleViewData, ScheduleHole } from '@pawly/validators';
 
-type HardViolation = ScheduleViewData["violations"]["hard"][number];
-type SoftViolation = ScheduleViewData["violations"]["soft"][number];
+type HardViolation = ScheduleViewData['violations']['hard'][number];
+type SoftViolation = ScheduleViewData['violations']['soft'][number];
 
 type PublicationStatus = {
-  status: "DRAFT" | "PUBLISHED";
+  status: 'DRAFT' | 'PUBLISHED';
   publishedAt: string | null;
   publishedBy: string | null;
 };
@@ -32,7 +32,7 @@ type Props = {
   employees?: Array<{ id: string; firstName: string; lastName: string }>;
 };
 
-const springTransition = { type: "spring" as const, stiffness: 300, damping: 30 };
+const springTransition = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
 export function PlanningHealthBar({
   hardViolationCount,
@@ -45,19 +45,16 @@ export function PlanningHealthBar({
   holes,
   employees,
 }: Props) {
-  const t = useTranslations("admin.planningRules.healthBar");
+  const t = useTranslations('admin.planningRules.healthBar');
   const locale = useLocale();
 
   const isEmpty =
     totalShifts === 0 && hardViolationCount === 0 && softViolationCount === 0 && holeCount === 0;
-  const isPublished = publicationStatus?.status === "PUBLISHED";
+  const isPublished = publicationStatus?.status === 'PUBLISHED';
 
   // Segment calculation including holes
   const totalPositions = totalShifts + holeCount;
-  const healthyShifts = Math.max(
-    0,
-    totalShifts - hardViolationCount - softViolationCount,
-  );
+  const healthyShifts = Math.max(0, totalShifts - hardViolationCount - softViolationCount);
 
   const hardWidth =
     totalPositions > 0
@@ -73,22 +70,13 @@ export function PlanningHealthBar({
         ? 30
         : 0;
 
-  const holeWidth =
-    totalPositions > 0
-      ? Math.floor((holeCount / totalPositions) * 100)
-      : 0;
+  const holeWidth = totalPositions > 0 ? Math.floor((holeCount / totalPositions) * 100) : 0;
 
   const healthyWidth = Math.max(0, 100 - hardWidth - softWidth - holeWidth);
 
   const readyPercent =
     totalPositions > 0
-      ? Math.max(
-        0,
-        Math.min(
-          100,
-          Math.round((healthyShifts / totalPositions) * 100),
-        ),
-      )
+      ? Math.max(0, Math.min(100, Math.round((healthyShifts / totalPositions) * 100)))
       : 0;
 
   const hasHardConflicts = hardViolationCount > 0;
@@ -98,10 +86,10 @@ export function PlanningHealthBar({
 
   // Subtitle text
   const subtitleText = isEmpty
-    ? t("emptyState")
+    ? t('emptyState')
     : isHealthy
-      ? t("healthy")
-      : `${t("conflicts", { count: hardViolationCount })}, ${t("warnings", { count: softViolationCount })}, ${t("holes", { count: holeCount })}, ${t("ready", { percent: readyPercent })}`;
+      ? t('healthy')
+      : `${t('conflicts', { count: hardViolationCount })}, ${t('warnings', { count: softViolationCount })}, ${t('holes', { count: holeCount })}, ${t('ready', { percent: readyPercent })}`;
 
   // Detail popover availability
   const hasDetails =
@@ -115,9 +103,10 @@ export function PlanningHealthBar({
   return (
     <LazyMotion features={domAnimation}>
       <m.section
+        data-tour="admin-health-bar"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
         className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 md:p-6"
       >
         {/* Glow hover */}
@@ -145,23 +134,33 @@ export function PlanningHealthBar({
                 </div>
               )}
               <div>
-                <p className="text-sm font-bold text-foreground">
-                  {t("title")}
-                </p>
+                <p className="text-sm font-bold text-foreground">{t('title')}</p>
                 <div aria-live="polite" role="status">
                   {hasDetails ? (
-                    <HealthBarDetailPopover violations={violations} holes={holes} employees={employees}>
+                    <HealthBarDetailPopover
+                      violations={violations}
+                      holes={holes}
+                      employees={employees}
+                    >
                       <button
                         type="button"
                         className={`text-sm font-medium cursor-pointer hover:text-foreground transition-colors underline-offset-2 hover:underline text-left ${
-                          hasHardConflicts ? "text-rose-600" : hasSoftWarnings ? "text-orange-600" : hasHoles ? "text-muted-foreground" : "text-primary"
+                          hasHardConflicts
+                            ? 'text-rose-600'
+                            : hasSoftWarnings
+                              ? 'text-orange-600'
+                              : hasHoles
+                                ? 'text-muted-foreground'
+                                : 'text-primary'
                         }`}
                       >
                         {subtitleText}
                       </button>
                     </HealthBarDetailPopover>
                   ) : (
-                    <p className={`text-sm font-medium ${isHealthy && !isEmpty ? "text-primary" : "text-muted-foreground"}`}>
+                    <p
+                      className={`text-sm font-medium ${isHealthy && !isEmpty ? 'text-primary' : 'text-muted-foreground'}`}
+                    >
                       {subtitleText}
                     </p>
                   )}
@@ -175,22 +174,23 @@ export function PlanningHealthBar({
                 <Badge variant="secondary" className="gap-1.5">
                   <CheckCircle2 className="h-3 w-3 text-primary" />
                   {publicationStatus?.publishedAt
-                    ? t("publishedAt", {
-                      date: new Date(publicationStatus.publishedAt).toLocaleDateString(locale),
-                    })
-                    : t("published")}
+                    ? t('publishedAt', {
+                        date: new Date(publicationStatus.publishedAt).toLocaleDateString(locale),
+                      })
+                    : t('published')}
                 </Badge>
               )}
 
               {/* Publish button */}
               {showPublishButton && (
                 <Button
+                  data-tour="admin-publish"
                   onClick={onPublish}
                   disabled={hasHardConflicts}
-                  className={`rounded-xl bg-foreground font-bold text-background shadow-lg shadow-foreground/10 hover:bg-black disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none${isHealthy && !isEmpty ? " motion-safe:animate-pulse" : ""}`}
-                  title={hasHardConflicts ? t("publishBlocked") : undefined}
+                  className={`rounded-xl bg-foreground font-bold text-background shadow-lg shadow-foreground/10 hover:bg-black disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none${isHealthy && !isEmpty ? ' motion-safe:animate-pulse' : ''}`}
+                  title={hasHardConflicts ? t('publishBlocked') : undefined}
                 >
-                  {t("publish")}
+                  {t('publish')}
                 </Button>
               )}
             </div>
@@ -203,7 +203,7 @@ export function PlanningHealthBar({
             aria-valuenow={readyPercent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${t("title")}: ${subtitleText}`}
+            aria-label={`${t('title')}: ${subtitleText}`}
           >
             <AnimatePresence>
               {hardWidth > 0 && (
@@ -232,7 +232,7 @@ export function PlanningHealthBar({
                   className="bg-muted-foreground"
                   style={{
                     backgroundImage:
-                      "repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px)",
+                      'repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.5) 2px, rgba(255,255,255,0.5) 4px)',
                   }}
                   initial={{ width: 0 }}
                   animate={{ width: `${holeWidth}%` }}
@@ -254,9 +254,7 @@ export function PlanningHealthBar({
           </div>
 
           {hasHardConflicts && (
-            <p className="mt-2 text-xs font-medium text-rose-600">
-              {t("publishBlocked")}
-            </p>
+            <p className="mt-2 text-xs font-medium text-rose-600">{t('publishBlocked')}</p>
           )}
         </div>
       </m.section>

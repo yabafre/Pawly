@@ -276,6 +276,7 @@ export function AdminLayoutClient({
         role="ADMIN"
         initialCompleted={tourCompletedAt !== null}
         initialState={tourState}
+        isPro={isPro}
       />
       <nav className="sticky top-0 z-50 w-full bg-background/90 backdrop-blur-md border-b border-border/40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">

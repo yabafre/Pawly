@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Table,
@@ -7,12 +7,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
-import { useTranslations } from "next-intl";
-import type { CounterThreshold } from "../_hooks/useEquityCounters";
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card } from '@/components/ui/card';
+import { useTranslations } from 'next-intl';
+import type { CounterThreshold } from '../_hooks/useEquityCounters';
 
 type CounterRow = {
   employeeId: string;
@@ -46,10 +46,10 @@ type Props = {
 };
 
 const COUNTER_TYPES = [
-  "SATURDAY_WORKED",
-  "WEEKEND_TOTAL",
-  "HOLIDAY_WORKED",
-  "OVERTIME_HOURS",
+  'SATURDAY_WORKED',
+  'WEEKEND_TOTAL',
+  'HOLIDAY_WORKED',
+  'OVERTIME_HOURS',
 ] as const;
 
 function aggregateByEmployee(counters: EquityCounter[]): CounterRow[] {
@@ -69,36 +69,35 @@ function aggregateByEmployee(counters: EquityCounter[]): CounterRow[] {
     }
     const row = map.get(c.employeeId)!;
     if (c.counterType in row) {
-      row[c.counterType as keyof Omit<CounterRow, "employeeId" | "employeeName" | "jobType">] += c.count;
+      row[c.counterType as keyof Omit<CounterRow, 'employeeId' | 'employeeName' | 'jobType'>] +=
+        c.count;
     }
   }
 
-  return Array.from(map.values()).sort((a, b) =>
-    a.employeeName.localeCompare(b.employeeName),
-  );
+  return Array.from(map.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 }
 
 function getThresholdStyle(current: number, max: number | undefined): string {
   if (max === undefined || max <= 0) {
-    return "bg-muted text-muted-foreground border-border";
+    return 'bg-muted text-muted-foreground border-border';
   }
   const ratio = current / max;
-  if (ratio >= 1) return "bg-primary/10 text-primary border-primary/30 font-extrabold";
-  if (ratio >= 0.75) return "bg-muted text-foreground border-border font-extrabold";
-  if (current > 0) return "bg-muted text-muted-foreground border-border";
-  return "bg-muted text-muted-foreground border-border";
+  if (ratio >= 1) return 'bg-primary/10 text-primary border-primary/30 font-extrabold';
+  if (ratio >= 0.75) return 'bg-muted text-foreground border-border font-extrabold';
+  if (current > 0) return 'bg-muted text-muted-foreground border-border';
+  return 'bg-muted text-muted-foreground border-border';
 }
 
 function formatCounterValue(ct: string, value: number): string {
-  if (ct === "OVERTIME_HOURS") {
+  if (ct === 'OVERTIME_HOURS') {
     const hours = value / 60;
-    return hours === 0 ? "0" : `${hours.toFixed(1)}h`;
+    return hours === 0 ? '0' : `${hours.toFixed(1)}h`;
   }
   return String(value);
 }
 
 export function EquityCountersTable({ counters, isPending, thresholds }: Props) {
-  const t = useTranslations("admin.equityCounters");
+  const t = useTranslations('admin.equityCounters');
   const rows = aggregateByEmployee(counters);
 
   const thresholdMap = new Map<string, number>();
@@ -118,23 +117,26 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
 
   if (rows.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center border-dashed border-border bg-muted/50 py-16 text-center shadow-none">
-        <p className="text-sm font-bold text-muted-foreground">{t("table.noData")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("table.noDataDescription")}</p>
+      <Card
+        data-tour="admin-equity"
+        className="flex flex-col items-center justify-center border-dashed border-border bg-muted/50 py-16 text-center shadow-none"
+      >
+        <p className="text-sm font-bold text-muted-foreground">{t('table.noData')}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t('table.noDataDescription')}</p>
       </Card>
     );
   }
 
   return (
-    <Card className="overflow-hidden border-border shadow-none">
+    <Card data-tour="admin-equity" className="overflow-hidden border-border shadow-none">
       <Table>
         <TableHeader>
           <TableRow className="border-border bg-muted/60 hover:bg-muted/60">
             <TableHead className="pl-6 h-12 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {t("table.employee")}
+              {t('table.employee')}
             </TableHead>
             <TableHead className="h-12 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {t("table.jobType")}
+              {t('table.jobType')}
             </TableHead>
             {COUNTER_TYPES.map((ct) => (
               <TableHead
@@ -148,12 +150,18 @@ export function EquityCountersTable({ counters, isPending, thresholds }: Props) 
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.employeeId} className="border-border hover:bg-muted/50 transition-colors">
+            <TableRow
+              key={row.employeeId}
+              className="border-border hover:bg-muted/50 transition-colors"
+            >
               <TableCell className="pl-6 py-4 font-bold text-sm text-foreground">
                 {row.employeeName}
               </TableCell>
               <TableCell className="py-4">
-                <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-medium">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-border text-muted-foreground font-medium"
+                >
                   {row.jobType}
                 </Badge>
               </TableCell>

@@ -1,20 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useTranslations } from "next-intl";
-import { SubscriptionGate } from "@/components/SubscriptionGate";
-import {
-  AlertCircle,
-  AlertTriangle,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Scale,
-  Trash2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { SubscriptionGate } from '@/components/SubscriptionGate';
+import { AlertCircle, AlertTriangle, Pencil, Plus, RefreshCw, Scale, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,23 +16,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import {
   usePlanningRules,
   type PlanningRuleRecord,
-} from "../../planning/rules/_hooks/usePlanningRules";
-import { PlanningRuleFormSheet } from "./PlanningRuleFormSheet";
-import type { PlanningRuleCategory } from "@pawly/validators";
+} from '../../planning/rules/_hooks/usePlanningRules';
+import { PlanningRuleFormSheet } from './PlanningRuleFormSheet';
+import type { PlanningRuleCategory } from '@pawly/validators';
 
 const CATEGORIES: PlanningRuleCategory[] = [
-  "STAFFING_MINIMUM",
-  "ROTATION_EQUITY",
-  "SKILL_REQUIREMENT",
-  "CONTRACT_COMPLIANCE",
+  'STAFFING_MINIMUM',
+  'ROTATION_EQUITY',
+  'SKILL_REQUIREMENT',
+  'CONTRACT_COMPLIANCE',
 ];
 
 export function PlanningRulesPanel() {
-  const t = useTranslations("admin.planningRules");
+  const t = useTranslations('admin.planningRules');
   const { rules, isPending, error, refetch, deleteRule, isDeleting, toggleRule } =
     usePlanningRules();
 
@@ -74,10 +66,7 @@ export function PlanningRulesPanel() {
     return (
       <div className="space-y-4">
         {[1, 2].map((i) => (
-          <div
-            key={i}
-            className="h-32 animate-pulse rounded-2xl border border-border bg-muted"
-          />
+          <div key={i} className="h-32 animate-pulse rounded-2xl border border-border bg-muted" />
         ))}
       </div>
     );
@@ -90,17 +79,10 @@ export function PlanningRulesPanel() {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted">
             <AlertCircle className="h-5 w-5 text-destructive" strokeWidth={1.5} />
           </div>
-          <p className="text-sm font-medium text-destructive">
-            {t("errors.loadFailed")}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="mt-1 rounded-xl"
-          >
+          <p className="text-sm font-medium text-destructive">{t('errors.loadFailed')}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-1 rounded-xl">
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            {t("errors.retry")}
+            {t('errors.retry')}
           </Button>
         </div>
       </section>
@@ -112,7 +94,7 @@ export function PlanningRulesPanel() {
       acc[cat] = (rules as PlanningRuleRecord[]).filter((r) => r.category === cat);
       return acc;
     },
-    {} as Record<PlanningRuleCategory, PlanningRuleRecord[]>,
+    {} as Record<PlanningRuleCategory, PlanningRuleRecord[]>
   );
 
   const hasRules = (rules as PlanningRuleRecord[]).length > 0;
@@ -121,12 +103,9 @@ export function PlanningRulesPanel() {
     <SubscriptionGate requiredTier="professional">
       {/* Add button */}
       <div className="flex justify-end mb-6">
-        <Button
-          onClick={handleCreate}
-          className="rounded-xl"
-        >
+        <Button data-tour="admin-rules" onClick={handleCreate} className="rounded-xl">
           <Plus className="mr-2 h-4 w-4" />
-          {t("actions.add")}
+          {t('actions.add')}
         </Button>
       </div>
 
@@ -136,18 +115,11 @@ export function PlanningRulesPanel() {
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
               <Scale className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-foreground">
-              {t("empty.title")}
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("empty.description")}
-            </p>
-            <Button
-              onClick={handleCreate}
-              className="mt-6 rounded-xl"
-            >
+            <h3 className="mt-4 text-lg font-semibold text-foreground">{t('empty.title')}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t('empty.description')}</p>
+            <Button onClick={handleCreate} className="mt-6 rounded-xl">
               <Plus className="mr-2 h-4 w-4" />
-              {t("empty.cta")}
+              {t('empty.cta')}
             </Button>
           </div>
         </section>
@@ -172,7 +144,7 @@ export function PlanningRulesPanel() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                              {rule.ruleType === "HARD" ? (
+                              {rule.ruleType === 'HARD' ? (
                                 <AlertCircle
                                   className="h-4 w-4 text-muted-foreground"
                                   strokeWidth={1.5}
@@ -189,10 +161,10 @@ export function PlanningRulesPanel() {
                             </h3>
                             <span
                               className={cn(
-                                "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                                rule.ruleType === "HARD"
-                                  ? "border-destructive/20 bg-destructive/5 text-destructive"
-                                  : "border-amber-200/60 bg-amber-50/50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-400",
+                                'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                rule.ruleType === 'HARD'
+                                  ? 'border-destructive/20 bg-destructive/5 text-destructive'
+                                  : 'border-amber-200/60 bg-amber-50/50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-400'
                               )}
                             >
                               {t(`ruleTypes.${rule.ruleType}`)}
@@ -212,7 +184,7 @@ export function PlanningRulesPanel() {
                           onCheckedChange={(checked) =>
                             toggleRule({ id: rule.id, isActive: checked })
                           }
-                          aria-label={t("actions.toggle")}
+                          aria-label={t('actions.toggle')}
                         />
                       </div>
 
@@ -224,7 +196,7 @@ export function PlanningRulesPanel() {
                           className="h-7 rounded-lg px-2.5 text-xs font-medium"
                         >
                           <Pencil className="mr-1.5 h-3 w-3" />
-                          {t("actions.edit")}
+                          {t('actions.edit')}
                         </Button>
                         <Button
                           variant="ghost"
@@ -233,7 +205,7 @@ export function PlanningRulesPanel() {
                           className="h-7 rounded-lg px-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
                           <Trash2 className="mr-1.5 h-3 w-3" />
-                          {t("actions.delete")}
+                          {t('actions.delete')}
                         </Button>
                       </div>
                     </section>
@@ -246,33 +218,26 @@ export function PlanningRulesPanel() {
       )}
 
       <PlanningRuleFormSheet
-        key={editingRule?.id ?? "new"}
+        key={editingRule?.id ?? 'new'}
         open={formOpen}
         onClose={handleFormClose}
         editingRule={editingRule}
       />
 
-      <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("confirm.deleteMessage")}
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('confirm.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('confirm.deleteMessage')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">
-              {t("confirm.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl">{t('confirm.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
               className="rounded-xl bg-destructive text-white hover:bg-destructive/90"
             >
-              {t("confirm.confirm")}
+              {t('confirm.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

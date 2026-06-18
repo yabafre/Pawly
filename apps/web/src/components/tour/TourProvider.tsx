@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
-import { tours, resolveTourStart, type TourRole } from '@/lib/tours/registry';
+import { tourSteps, resolveTourStart, type TourRole } from '@/lib/tours/registry';
 import { useTourStore } from '@/lib/tours/store';
 import { useTour } from '@/lib/tours/useTour';
 import { highlightStep, destroyTour } from '@/lib/tours/driver-adapter';
@@ -13,9 +13,10 @@ type Props = {
   role: TourRole;
   initialCompleted: boolean;
   initialState: TourState | null;
+  isPro?: boolean;
 };
 
-export function TourProvider({ role, initialCompleted, initialState }: Props) {
+export function TourProvider({ role, initialCompleted, initialState, isPro = true }: Props) {
   const router = useRouter();
   const pathname = usePathname(); // locale-stripped pathname (e.g. "/dashboard")
   const t = useTranslations('tour');
@@ -29,16 +30,16 @@ export function TourProvider({ role, initialCompleted, initialState }: Props) {
   // dashboard. The effect re-checks on pathname change until it starts once.
   useEffect(() => {
     if (booted.current) return;
-    const next = resolveTourStart(role, initialCompleted, initialState, pathname);
+    const next = resolveTourStart(role, initialCompleted, initialState, pathname, isPro);
     if (!next) return;
     booted.current = true;
     start(next.key, next.step);
-  }, [initialCompleted, initialState, role, start, pathname]);
+  }, [initialCompleted, initialState, role, start, pathname, isPro]);
 
   // Drive the current step (re-runs on step or route change).
   useEffect(() => {
     if (!isRunning || !activeTour) return;
-    const def = tours[activeTour];
+    const steps = tourSteps(activeTour, isPro);
     let cancelled = false;
 
     const finish = () => {
@@ -49,8 +50,8 @@ export function TourProvider({ role, initialCompleted, initialState }: Props) {
 
     (async () => {
       let idx = step;
-      while (idx < def.steps.length) {
-        const s = def.steps[idx];
+      while (idx < steps.length) {
+        const s = steps[idx];
         if (s.route !== pathname) {
           if (idx !== step) setStep(idx);
           router.push(s.route);
@@ -62,7 +63,7 @@ export function TourProvider({ role, initialCompleted, initialState }: Props) {
           if (idx !== step) setStep(idx);
           const currentIdx = idx;
           const isFirst = currentIdx === 0;
-          const isLast = currentIdx === def.steps.length - 1;
+          const isLast = currentIdx === steps.length - 1;
           highlightStep({
             element: s.selector,
             title: t(s.titleKey),
@@ -99,7 +100,19 @@ export function TourProvider({ role, initialCompleted, initialState }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [isRunning, activeTour, step, pathname, t, router, setStep, saveProgress, complete, stop]);
+  }, [
+    isRunning,
+    activeTour,
+    step,
+    pathname,
+    isPro,
+    t,
+    router,
+    setStep,
+    saveProgress,
+    complete,
+    stop,
+  ]);
 
   // Destroy any live tour on unmount.
   useEffect(() => () => destroyTour(), []);

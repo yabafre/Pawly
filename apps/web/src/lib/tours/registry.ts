@@ -7,6 +7,7 @@ export type TourStep = {
   titleKey: string; // next-intl key under the "tour" namespace
   bodyKey: string;
   placement?: 'top' | 'bottom' | 'left' | 'right';
+  proOnly?: boolean; // only shown when the clinic has the professional tier
 };
 
 export type TourDef = { role: TourRole; steps: TourStep[] };
@@ -49,6 +50,30 @@ export const tours: Record<TourKey, TourDef> = {
         bodyKey: 'employee.settings.body',
         placement: 'bottom',
       },
+      {
+        id: 'schedule',
+        route: '/dashboard/schedule',
+        selector: '[data-tour="employee-schedule"]',
+        titleKey: 'employee.schedule.title',
+        bodyKey: 'employee.schedule.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'weekly-summary',
+        route: '/dashboard/schedule',
+        selector: '[data-tour="employee-weekly-summary"]',
+        titleKey: 'employee.weeklySummary.title',
+        bodyKey: 'employee.weeklySummary.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'absence',
+        route: '/dashboard/absences',
+        selector: '[data-tour="employee-absence-request"]',
+        titleKey: 'employee.absence.title',
+        bodyKey: 'employee.absence.body',
+        placement: 'bottom',
+      },
     ],
   },
   'admin-onboarding': {
@@ -63,11 +88,35 @@ export const tours: Record<TourKey, TourDef> = {
         placement: 'bottom',
       },
       {
-        id: 'employees-nav',
+        id: 'pending-requests',
         route: '/admin/dashboard',
-        selector: '[data-tour="admin-nav-employees"]',
-        titleKey: 'admin.employeesNav.title',
-        bodyKey: 'admin.employeesNav.body',
+        selector: '[data-tour="admin-pending-requests"]',
+        titleKey: 'admin.pendingRequests.title',
+        bodyKey: 'admin.pendingRequests.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'todays-team',
+        route: '/admin/dashboard',
+        selector: '[data-tour="admin-todays-team"]',
+        titleKey: 'admin.todaysTeam.title',
+        bodyKey: 'admin.todaysTeam.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'clinic-hours',
+        route: '/admin/settings',
+        selector: '[data-tour="admin-clinic-hours"]',
+        titleKey: 'admin.clinicHours.title',
+        bodyKey: 'admin.clinicHours.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'shift-types',
+        route: '/admin/settings',
+        selector: '[data-tour="admin-shift-types"]',
+        titleKey: 'admin.shiftTypes.title',
+        bodyKey: 'admin.shiftTypes.body',
         placement: 'bottom',
       },
       {
@@ -79,12 +128,21 @@ export const tours: Record<TourKey, TourDef> = {
         placement: 'bottom',
       },
       {
-        id: 'planning-nav',
-        route: '/admin/employees',
-        selector: '[data-tour="admin-nav-planning"]',
-        titleKey: 'admin.planningNav.title',
-        bodyKey: 'admin.planningNav.body',
+        id: 'create-template',
+        route: '/admin/planning/templates',
+        selector: '[data-tour="admin-create-template"]',
+        titleKey: 'admin.createTemplate.title',
+        bodyKey: 'admin.createTemplate.body',
         placement: 'bottom',
+      },
+      {
+        id: 'rules',
+        route: '/admin/planning/rules',
+        selector: '[data-tour="admin-rules"]',
+        titleKey: 'admin.rules.title',
+        bodyKey: 'admin.rules.body',
+        placement: 'bottom',
+        proOnly: true,
       },
       {
         id: 'generate',
@@ -93,6 +151,31 @@ export const tours: Record<TourKey, TourDef> = {
         titleKey: 'admin.generate.title',
         bodyKey: 'admin.generate.body',
         placement: 'bottom',
+      },
+      {
+        id: 'health-bar',
+        route: '/admin/planning',
+        selector: '[data-tour="admin-health-bar"]',
+        titleKey: 'admin.healthBar.title',
+        bodyKey: 'admin.healthBar.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'publish',
+        route: '/admin/planning',
+        selector: '[data-tour="admin-publish"]',
+        titleKey: 'admin.publish.title',
+        bodyKey: 'admin.publish.body',
+        placement: 'bottom',
+      },
+      {
+        id: 'equity',
+        route: '/admin/planning/equity',
+        selector: '[data-tour="admin-equity"]',
+        titleKey: 'admin.equity.title',
+        bodyKey: 'admin.equity.body',
+        placement: 'bottom',
+        proOnly: true,
       },
     ],
   },
@@ -105,21 +188,32 @@ export function tourForRole(role: TourRole): TourKey | null {
 }
 
 /**
+ * The effective steps for a tour given the clinic's tier. Professional-only
+ * steps (e.g. planning rules, equity counters) are dropped for Starter clinics
+ * so the tour never points at — or navigates to — features they can't access.
+ */
+export function tourSteps(key: TourKey, isPro: boolean): TourStep[] {
+  return tours[key].steps.filter((s) => !s.proOnly || isPro);
+}
+
+/**
  * Decides whether (and where) a tour should auto-start on mount. Returns the
  * tour + resume step ONLY when the user is already on that step's route — so an
  * uncompleted tour never yanks the user away from a page they navigated to
  * themselves (e.g. landing on /admin/billing must not redirect to the tour).
+ * Step indices are relative to the tier-filtered step list.
  */
 export function resolveTourStart(
   role: TourRole,
   initialCompleted: boolean,
   initialState: { tourKey: string; step: number } | null,
-  pathname: string
+  pathname: string,
+  isPro: boolean
 ): { key: TourKey; step: number } | null {
   if (initialCompleted) return null;
   const key = tourForRole(role);
   if (!key) return null;
   const step = initialState && initialState.tourKey === key ? initialState.step : 0;
-  if (tours[key].steps[step]?.route !== pathname) return null;
+  if (tourSteps(key, isPro)[step]?.route !== pathname) return null;
   return { key, step };
 }

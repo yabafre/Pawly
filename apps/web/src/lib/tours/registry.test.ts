@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tours, tourForRole, resolveTourStart, type TourKey } from './registry';
+import { tours, tourForRole, tourSteps, resolveTourStart, type TourKey } from './registry';
 
 // AC-3 (verbatim from story 10-4-onboarding-tour-engine:19):
 //   Generic engine — Given a registry mapping TourKey → { role, steps[] },
@@ -35,39 +35,58 @@ describe('tour registry', () => {
 // auto-start on the route its (resume) step lives on — never hijack navigation.
 describe('resolveTourStart', () => {
   it('returns null when the tour is already completed', () => {
-    expect(resolveTourStart('ADMIN', true, null, '/admin/dashboard')).toBeNull();
+    expect(resolveTourStart('ADMIN', true, null, '/admin/dashboard', true)).toBeNull();
   });
 
   it('auto-starts at step 0 when on the entry route', () => {
-    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard')).toEqual({
+    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard', true)).toEqual({
       key: 'employee-onboarding',
       step: 0,
     });
-    expect(resolveTourStart('ADMIN', false, null, '/admin/dashboard')).toEqual({
+    expect(resolveTourStart('ADMIN', false, null, '/admin/dashboard', true)).toEqual({
       key: 'admin-onboarding',
       step: 0,
     });
   });
 
   it('does NOT start when the user is on a different route (no navigation hijack)', () => {
-    expect(resolveTourStart('ADMIN', false, null, '/admin/billing')).toBeNull();
-    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard/settings')).toBeNull();
+    expect(resolveTourStart('ADMIN', false, null, '/admin/billing', true)).toBeNull();
+    expect(resolveTourStart('EMPLOYEE', false, null, '/dashboard/settings', true)).toBeNull();
   });
 
   it('resumes at the persisted step only on its route', () => {
-    const state = { tourKey: 'admin-onboarding', step: 2 }; // add-employee → /admin/employees
-    expect(resolveTourStart('ADMIN', false, state, '/admin/employees')).toEqual({
+    const state = { tourKey: 'admin-onboarding', step: 5 }; // add-employee → /admin/employees
+    expect(resolveTourStart('ADMIN', false, state, '/admin/employees', true)).toEqual({
       key: 'admin-onboarding',
-      step: 2,
+      step: 5,
     });
-    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard')).toBeNull();
+    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard', true)).toBeNull();
   });
 
   it('ignores a persisted step from a different tour (starts at 0)', () => {
     const state = { tourKey: 'employee-onboarding', step: 3 };
-    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard')).toEqual({
+    expect(resolveTourStart('ADMIN', false, state, '/admin/dashboard', true)).toEqual({
       key: 'admin-onboarding',
       step: 0,
     });
+  });
+});
+
+// Tier awareness: professional-only steps are dropped for Starter clinics so the
+// tour never points at — or navigates to — features they cannot access.
+describe('tourSteps tier filtering', () => {
+  it('drops proOnly admin steps for Starter (isPro=false)', () => {
+    const pro = tourSteps('admin-onboarding', true);
+    const starter = tourSteps('admin-onboarding', false);
+    expect(pro.length).toBeGreaterThan(starter.length);
+    expect(pro.some((s) => s.proOnly)).toBe(true);
+    expect(starter.some((s) => s.proOnly)).toBe(false);
+    expect(starter.map((s) => s.id)).not.toContain('rules');
+    expect(starter.map((s) => s.id)).not.toContain('equity');
+  });
+
+  it('keeps every step for Pro and leaves tier-agnostic tours unchanged', () => {
+    expect(tourSteps('admin-onboarding', true)).toEqual(tours['admin-onboarding'].steps);
+    expect(tourSteps('employee-onboarding', false)).toEqual(tourSteps('employee-onboarding', true));
   });
 });
