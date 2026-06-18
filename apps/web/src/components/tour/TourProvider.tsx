@@ -23,6 +23,7 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
   const { activeTour, step, isRunning, start, setStep, stop } = useTourStore();
   const { saveProgress, complete } = useTour();
   const booted = useRef(false);
+  const navPending = useRef(false);
 
   // Keep the latest non-step values in a ref so the drive effect below depends
   // ONLY on what changes which step to show. Otherwise a re-render from the
@@ -47,6 +48,8 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
   useEffect(() => {
     if (!isRunning || !activeTour) return;
     const steps = tourSteps(activeTour, isPro);
+    const justNavigated = navPending.current;
+    navPending.current = false;
     let cancelled = false;
 
     const finish = () => {
@@ -58,14 +61,20 @@ export function TourProvider({ role, initialCompleted, initialState, isPro = tru
     (async () => {
       const { t, router, setStep } = latest.current;
       let idx = step;
+      let firstPoll = true;
       while (idx < steps.length) {
         const s = steps[idx];
         if (s.route !== pathname) {
           if (idx !== step) setStep(idx);
+          navPending.current = true;
           router.push(s.route);
           return; // effect re-runs after navigation
         }
-        const el = await waitForElement(s.selector, 2500);
+        // A just-navigated page needs time to load its anchor; same-route steps
+        // are present-or-genuinely-absent right now, so skip them fast.
+        const timeout = justNavigated && firstPoll ? 3000 : 450;
+        firstPoll = false;
+        const el = await waitForElement(s.selector, timeout);
         if (cancelled) return;
         if (el) {
           if (idx !== step) setStep(idx);
