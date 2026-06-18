@@ -1,7 +1,7 @@
 # Story: 10-4-onboarding-tour-engine — First-Run Guided Tour Engine + Employee & Admin Tours
 
 **Epic:** Epic 10 — Polish & UX Hardening
-**Status:** review
+**Status:** done
 **Ticket:** none (new story — not synced to Linear; create an issue later if Linear sync is wanted)
 **Branch:** `feature/story-10-4-onboarding-tour-engine`
 **Commit prefix:** `feat:` (e.g. `feat: add tour engine persistence (Story 10.4)`)
