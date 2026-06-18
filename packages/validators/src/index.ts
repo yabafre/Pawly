@@ -5,9 +5,10 @@
  * All types, DTOs, and Zod schemas MUST be defined here for sharing between API and Dashboard.
  */
 
-export * from "./common";
-export * from "./auth";
-export * from "./stripe";
-export * from "./clinic";
-export * from "./employee";
-export * from "./planning";
+export * from './common';
+export * from './auth';
+export * from './stripe';
+export * from './clinic';
+export * from './employee';
+export * from './planning';
+export * from './tour';

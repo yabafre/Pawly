@@ -31,6 +31,8 @@ import { NotificationModule } from '@/modules/notification/notification.module';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
 import { MailModule } from '@/modules/mail/mail.module';
 import { MailService } from '@/modules/mail/mail.service';
+import { TourModule } from '@/modules/tour/tour.module';
+import { TourService } from '@/modules/tour/tour.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { RedisService } from '@/redis';
@@ -44,7 +46,9 @@ import { createContext, type TRPCServices } from './context';
  */
 @Injectable()
 export class TRPCMiddleware implements NestMiddleware {
-  private readonly middleware: ReturnType<typeof trpcExpress.createExpressMiddleware>;
+  private readonly middleware: ReturnType<
+    typeof trpcExpress.createExpressMiddleware
+  >;
 
   constructor(
     private readonly authService: AuthService,
@@ -62,6 +66,7 @@ export class TRPCMiddleware implements NestMiddleware {
     private readonly dashboardService: DashboardService,
     private readonly pushNotificationService: PushNotificationService,
     private readonly mailService: MailService,
+    private readonly tourService: TourService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
@@ -82,6 +87,7 @@ export class TRPCMiddleware implements NestMiddleware {
       dashboardService: this.dashboardService,
       pushNotificationService: this.pushNotificationService,
       mailService: this.mailService,
+      tourService: this.tourService,
       jwtService: this.jwtService,
       prisma: this.prisma,
       redis: this.redis,
@@ -119,10 +125,11 @@ export class TRPCService {
     private readonly dashboardService: DashboardService,
     private readonly pushNotificationService: PushNotificationService,
     private readonly mailService: MailService,
+    private readonly tourService: TourService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) { }
+  ) {}
 
   /**
    * Get the services to inject into tRPC context
@@ -144,6 +151,7 @@ export class TRPCService {
       dashboardService: this.dashboardService,
       pushNotificationService: this.pushNotificationService,
       mailService: this.mailService,
+      tourService: this.tourService,
       jwtService: this.jwtService,
       prisma: this.prisma,
       redis: this.redis,
@@ -173,9 +181,10 @@ export class TRPCService {
     DashboardModule,
     NotificationModule,
     MailModule,
+    TourModule,
     PrismaModule,
   ],
   providers: [TRPCService, TRPCMiddleware],
   exports: [TRPCService, TRPCMiddleware],
 })
-export class TRPCModule { }
+export class TRPCModule {}

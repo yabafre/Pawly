@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useState, useCallback } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Sparkles,
   Loader2,
@@ -11,42 +11,42 @@ import {
   Trash2,
   GraduationCap,
   LayoutTemplate,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Link } from "@/i18n/navigation";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Link } from '@/i18n/navigation';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { useGeneration } from "../_hooks/useGeneration";
-import { useTemplates } from "../templates/_hooks/useTemplates";
-import { useScheduleView } from "../_hooks/useScheduleView";
-import { useApprenticeDeclarations } from "../_hooks/useApprenticeDeclarations";
-import { ConfirmRegenerateDialog } from "./ConfirmRegenerateDialog";
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
-import type { GenerationResult } from "@pawly/validators";
-import type { ShiftData } from "@pawly/types";
+} from '@/components/ui/dialog';
+import { useGeneration } from '../_hooks/useGeneration';
+import { useTemplates } from '../templates/_hooks/useTemplates';
+import { useScheduleView } from '../_hooks/useScheduleView';
+import { useApprenticeDeclarations } from '../_hooks/useApprenticeDeclarations';
+import { ConfirmRegenerateDialog } from './ConfirmRegenerateDialog';
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
+import type { GenerationResult } from '@pawly/validators';
+import type { ShiftData } from '@pawly/types';
 
 function getMonthOptions(locale: string) {
   const options: { value: string; label: string }[] = [];
   const now = new Date();
   for (let i = 0; i < 6; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
-    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     const label = d.toLocaleDateString(locale, {
-      month: "long",
-      year: "numeric",
+      month: 'long',
+      year: 'numeric',
     });
     options.push({ value, label });
   }
@@ -59,29 +59,22 @@ type Props = {
 };
 
 export function GenerationPanel({ month, onMonthChange }: Props) {
-  const t = useTranslations("admin.planningGeneration");
-  const tExisting = useTranslations("admin.planningGeneration.existing");
-  const tApprentice = useTranslations("admin.apprenticeDeclarations");
+  const t = useTranslations('admin.planningGeneration');
+  const tExisting = useTranslations('admin.planningGeneration.existing');
+  const tApprentice = useTranslations('admin.apprenticeDeclarations');
   const locale = useLocale();
   const monthOptions = getMonthOptions(locale);
 
   const selectedMonth = month;
   const setSelectedMonth = onMonthChange;
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [generationResult, setGenerationResult] =
-    useState<GenerationResult | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { templates, isPending: isLoadingTemplates } = useTemplates();
-  const {
-    shifts,
-    isLoadingShifts,
-    generatePlan,
-    isGenerating,
-    deleteGenerated,
-    isDeleting,
-  } = useGeneration(selectedMonth);
+  const { shifts, isLoadingShifts, generatePlan, isGenerating, deleteGenerated, isDeleting } =
+    useGeneration(selectedMonth);
   const { scheduleData } = useScheduleView(selectedMonth);
   const {
     declarations,
@@ -91,12 +84,10 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   } = useApprenticeDeclarations(selectedMonth);
 
   const existingGeneratedCount = shifts.filter(
-    (s: { source?: string }) => s.source === "GENERATED",
+    (s: { source?: string }) => s.source === 'GENERATED'
   ).length;
 
-  const missingDeclarations = declarations.filter(
-    (d) => d.status === "MISSING",
-  );
+  const missingDeclarations = declarations.filter((d) => d.status === 'MISSING');
 
   const handleGenerate = useCallback(() => {
     if (!selectedTemplateId) return;
@@ -112,14 +103,9 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         onSuccess: (result: GenerationResult) => {
           setGenerationResult(result);
         },
-      },
+      }
     );
-  }, [
-    selectedMonth,
-    selectedTemplateId,
-    existingGeneratedCount,
-    generatePlan,
-  ]);
+  }, [selectedMonth, selectedTemplateId, existingGeneratedCount, generatePlan]);
 
   const handleConfirmRegenerate = useCallback(() => {
     setShowConfirm(false);
@@ -129,15 +115,15 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         onSuccess: (result: GenerationResult) => {
           setGenerationResult(result);
         },
-      },
+      }
     );
   }, [selectedMonth, selectedTemplateId, generatePlan]);
 
   // Stats
-  const generated = shifts.filter((s: ShiftData) => s.source === "GENERATED");
-  const manual = shifts.filter((s: ShiftData) => s.source === "MANUAL");
+  const generated = shifts.filter((s: ShiftData) => s.source === 'GENERATED');
+  const manual = shifts.filter((s: ShiftData) => s.source === 'MANUAL');
   const uniqueEmployees = new Set(
-    shifts.filter((s: ShiftData) => s.employee).map((s: ShiftData) => s.employee!.id),
+    shifts.filter((s: ShiftData) => s.employee).map((s: ShiftData) => s.employee!.id)
   );
   const typeMap = new Map<string, number>();
   for (const shift of shifts) {
@@ -147,10 +133,12 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   // Violations count — deduplicated (detail is shown in the HealthBar below the schedule)
   const hardViolations = generationResult?.violations?.hard ?? scheduleData?.violations?.hard ?? [];
   const softViolations = generationResult?.violations?.soft ?? scheduleData?.violations?.soft ?? [];
-  const dedupCount = (items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>) => {
+  const dedupCount = (
+    items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>
+  ) => {
     const seen = new Set<string>();
     return items.filter((v) => {
-      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ''}|${v.message}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -164,20 +152,24 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         {/* Title + apprentice warning */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-bold text-foreground">{t("title")}</h2>
-            <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+            <h2 className="text-lg font-bold text-foreground">{t('title')}</h2>
+            <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
           </div>
           {!isLoadingDeclarations && missingDeclarations.length > 0 && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs"
+                >
                   <GraduationCap size={12} className="mr-1.5" />
-                  {tApprentice("missingCount", { count: missingDeclarations.length })}
+                  {tApprentice('missingCount', { count: missingDeclarations.length })}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>{tApprentice("title")}</DialogTitle>
+                  <DialogTitle>{tApprentice('title')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-2 mt-2">
                   {missingDeclarations.map((row) => (
@@ -197,7 +189,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                         disabled={isConfirming}
                         className="text-xs"
                       >
-                        {tApprentice("actions.confirmNoSchool")}
+                        {tApprentice('actions.confirmNoSchool')}
                       </Button>
                     </div>
                   ))}
@@ -210,8 +202,11 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         {/* Controls row */}
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label id="month-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-              {t("monthLabel")}
+            <label
+              id="month-label"
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block"
+            >
+              {t('monthLabel')}
             </label>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
               <SelectTrigger aria-labelledby="month-label">
@@ -228,14 +223,21 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
           </div>
 
           <div className="flex-1 min-w-[220px]">
-            <label id="template-label" className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-              {t("templateLabel")}
+            <label
+              id="template-label"
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block"
+            >
+              {t('templateLabel')}
             </label>
             {!isLoadingTemplates && templates.length === 0 ? (
-              <Button variant="outline" asChild className="w-full justify-start gap-2 text-muted-foreground">
+              <Button
+                variant="outline"
+                asChild
+                className="w-full justify-start gap-2 text-muted-foreground"
+              >
                 <Link href="/admin/planning/templates">
                   <LayoutTemplate className="h-4 w-4" />
-                  {t("noTemplates")}
+                  {t('noTemplates')}
                 </Link>
               </Button>
             ) : (
@@ -245,22 +247,21 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                 disabled={isLoadingTemplates}
               >
                 <SelectTrigger aria-labelledby="template-label">
-                  <SelectValue placeholder={t("templatePlaceholder")} />
+                  <SelectValue placeholder={t('templatePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map(
-                    (tpl: { id: string; name: string }) => (
-                      <SelectItem key={tpl.id} value={tpl.id}>
-                        {tpl.name}
-                      </SelectItem>
-                    ),
-                  )}
+                  {templates.map((tpl: { id: string; name: string }) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
           </div>
 
           <Button
+            data-tour="admin-generate"
             onClick={handleGenerate}
             disabled={!selectedTemplateId || isGenerating}
             className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl"
@@ -270,7 +271,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
             ) : (
               <Sparkles size={16} className="mr-2" />
             )}
-            {isGenerating ? t("generating") : t("generateButton")}
+            {isGenerating ? t('generating') : t('generateButton')}
           </Button>
         </div>
 
@@ -281,19 +282,22 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
               <div className="flex items-center gap-4 text-sm">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Calendar size={13} />
-                  <strong className="text-foreground">{shifts.length}</strong> {tExisting("totalShifts")}
+                  <strong className="text-foreground">{shifts.length}</strong>{' '}
+                  {tExisting('totalShifts')}
                 </span>
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Sparkles size={13} />
-                  <strong className="text-foreground">{generated.length}</strong> {tExisting("generated")}
+                  <strong className="text-foreground">{generated.length}</strong>{' '}
+                  {tExisting('generated')}
                 </span>
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Pencil size={13} />
-                  <strong className="text-foreground">{manual.length}</strong> {tExisting("manual")}
+                  <strong className="text-foreground">{manual.length}</strong> {tExisting('manual')}
                 </span>
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Users size={13} />
-                  <strong className="text-foreground">{uniqueEmployees.size}</strong> {tExisting("employees")}
+                  <strong className="text-foreground">{uniqueEmployees.size}</strong>{' '}
+                  {tExisting('employees')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -306,7 +310,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                     className="text-destructive border-destructive/20 hover:bg-destructive/5 text-xs"
                   >
                     <Trash2 size={12} className="mr-1.5" />
-                    {tExisting("deleteGenerated")}
+                    {tExisting('deleteGenerated')}
                   </Button>
                 )}
               </div>
