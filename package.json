@@ -28,6 +28,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@types/qs": "6.15.1",
       "c12>pkg-types": "1.3.1",
       "handlebars": ">=4.7.8-fix",
       "hono": ">=4.7.6",
