@@ -29,14 +29,7 @@
                 "OTEL_SERVICE_NAME_FRONT"
             ]
         },
-        "start": {
-            "inputs": [
-                "$TURBO_DEFAULT$",
-                ".env.development.local",
-                ".env.local",
-                ".env.development",
-                ".env"
-            ],
+        "prod": {
             "cache": false,
             "persistent": true
         },

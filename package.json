@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "NODE_ENV=production dotenv -- turbo run build",
-    "start": "dotenv -- turbo run start",
     "dev": "dotenv -- turbo run dev trigger:dev",
+    "build": "NODE_ENV=production dotenv -- turbo run build",
+    "preview": "pnpm build && pnpm prod",
+    "prod": "NODE_ENV=production dotenv -- turbo run prod",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "db:generate": "dotenv -- pnpm --filter @pawly/api db:generate",

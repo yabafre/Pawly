@@ -1,0 +1,31 @@
+# Nixpacks — monorepo pnpm : apps/api (NestJS + Prisma) + apps/web (Next.js)
+# dans UN SEUL service Dokploy (build + start des deux apps).
+#
+# Tout passe par les scripts RACINE (package.json), qui utilisent `dotenv -- turbo`
+# → le .env racine est chargé (ou les vars process Dokploy) ET turbo orchestre les
+# apps dans le bon ordre/env. Convention des scripts : dev / build / preview / prod.
+#
+# Phase setup : laissée à l'auto-détection Nixpacks (nodejs_24, pnpm-9_x, openssl).
+#
+# install : pnpm via corepack, toutes les deps (dev INCLUSES, nécessaires au build).
+#           ⚠️ NE PAS mettre NODE_ENV=production ici, sinon pnpm saute les devDeps
+#           (nest CLI, turbo, prisma…) et le build casse.
+#
+# build   : `pnpm build` = NODE_ENV=production dotenv -- turbo run build
+#           - web dépend de @pawly/api (types tRPC) → turbo (^build) build l'API d'abord.
+#           - `prisma generate` déclenché automatiquement (turbo: build dependsOn db:generate).
+#
+# start   : `pnpm prod` = NODE_ENV=production dotenv -- turbo run prod
+#           - api → node dist/main
+#           - web → next start --port 3020
+#           turbo lance les 2 tâches persistantes en parallèle ; si l'une tombe,
+#           turbo sort en erreur → Dokploy redémarre le conteneur.
+
+[phases.install]
+cmds = ["corepack enable", "pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm build"]
+
+[start]
+cmd = "pnpm prod"
