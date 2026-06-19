@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   updateClinicNameSchema,
   updateWorkDaysSchema,
@@ -7,25 +7,25 @@ import {
   createShiftTypesSchema,
   completeOnboardingSchema,
   updateClinicConfigSchema,
-} from "./onboarding.schema";
+} from './onboarding.schema';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const validShiftType = {
-  name: "Morning",
-  code: "AM",
-  startTime: "08:00",
-  endTime: "12:00",
-  color: "#FF5733",
+  name: 'Morning',
+  code: 'AM',
+  startTime: '08:00',
+  endTime: '12:00',
+  color: '#FF5733',
 };
 
 const validCompleteOnboarding = {
-  clinicName: "Happy Paws Clinic",
-  workDays: ["MONDAY", "TUESDAY", "WEDNESDAY"] as const,
-  defaultStartTime: "08:30",
-  defaultEndTime: "18:30",
+  clinicName: 'Happy Paws Clinic',
+  workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY'] as const,
+  defaultStartTime: '08:30',
+  defaultEndTime: '18:30',
   shiftTypes: [validShiftType],
 };
 
@@ -33,40 +33,40 @@ const validCompleteOnboarding = {
 // updateClinicNameSchema
 // ---------------------------------------------------------------------------
 
-describe("updateClinicNameSchema", () => {
-  it("should reject an empty string", () => {
-    const result = updateClinicNameSchema.safeParse({ clinicName: "" });
+describe('updateClinicNameSchema', () => {
+  it('should reject an empty string', () => {
+    const result = updateClinicNameSchema.safeParse({ clinicName: '' });
     expect(result.success).toBe(false);
   });
 
-  it("should reject a name shorter than 2 characters", () => {
-    const result = updateClinicNameSchema.safeParse({ clinicName: "A" });
+  it('should reject a name shorter than 2 characters', () => {
+    const result = updateClinicNameSchema.safeParse({ clinicName: 'A' });
     expect(result.success).toBe(false);
   });
 
-  it("should reject a name longer than 100 characters", () => {
+  it('should reject a name longer than 100 characters', () => {
     const result = updateClinicNameSchema.safeParse({
-      clinicName: "X".repeat(101),
+      clinicName: 'X'.repeat(101),
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept a valid clinic name", () => {
+  it('should accept a valid clinic name', () => {
     const result = updateClinicNameSchema.safeParse({
-      clinicName: "Happy Paws Clinic",
+      clinicName: 'Happy Paws Clinic',
     });
     expect(result.success).toBe(true);
-    expect(result.data).toEqual({ clinicName: "Happy Paws Clinic" });
+    expect(result.data).toEqual({ clinicName: 'Happy Paws Clinic' });
   });
 
-  it("should accept a name with exactly 2 characters", () => {
-    const result = updateClinicNameSchema.safeParse({ clinicName: "AB" });
+  it('should accept a name with exactly 2 characters', () => {
+    const result = updateClinicNameSchema.safeParse({ clinicName: 'AB' });
     expect(result.success).toBe(true);
   });
 
-  it("should accept a name with exactly 100 characters", () => {
+  it('should accept a name with exactly 100 characters', () => {
     const result = updateClinicNameSchema.safeParse({
-      clinicName: "A".repeat(100),
+      clinicName: 'A'.repeat(100),
     });
     expect(result.success).toBe(true);
   });
@@ -76,58 +76,48 @@ describe("updateClinicNameSchema", () => {
 // updateWorkDaysSchema
 // ---------------------------------------------------------------------------
 
-describe("updateWorkDaysSchema", () => {
-  it("should reject an empty array", () => {
+describe('updateWorkDaysSchema', () => {
+  it('should reject an empty array', () => {
     const result = updateWorkDaysSchema.safeParse({ workDays: [] });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe(
-        "At least one work day is required",
-      );
+      expect(result.error.issues[0].message).toBe('At least one work day is required');
     }
   });
 
-  it("should reject invalid day names", () => {
+  it('should reject invalid day names', () => {
     const result = updateWorkDaysSchema.safeParse({
-      workDays: ["NOTADAY"],
+      workDays: ['NOTADAY'],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject lowercase day names", () => {
+  it('should reject lowercase day names', () => {
     const result = updateWorkDaysSchema.safeParse({
-      workDays: ["monday"],
+      workDays: ['monday'],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept a valid single-day array", () => {
+  it('should accept a valid single-day array', () => {
     const result = updateWorkDaysSchema.safeParse({
-      workDays: ["MONDAY"],
+      workDays: ['MONDAY'],
     });
     expect(result.success).toBe(true);
-    expect(result.data).toEqual({ workDays: ["MONDAY"] });
+    expect(result.data).toEqual({ workDays: ['MONDAY'] });
   });
 
-  it("should accept a valid multi-day array", () => {
+  it('should accept a valid multi-day array', () => {
     const result = updateWorkDaysSchema.safeParse({
-      workDays: ["MONDAY", "WEDNESDAY", "FRIDAY"],
+      workDays: ['MONDAY', 'WEDNESDAY', 'FRIDAY'],
     });
     expect(result.success).toBe(true);
     expect(result.data!.workDays).toHaveLength(3);
   });
 
-  it("should accept all seven days", () => {
+  it('should accept all seven days', () => {
     const result = updateWorkDaysSchema.safeParse({
-      workDays: [
-        "MONDAY",
-        "TUESDAY",
-        "WEDNESDAY",
-        "THURSDAY",
-        "FRIDAY",
-        "SATURDAY",
-        "SUNDAY",
-      ],
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'],
     });
     expect(result.success).toBe(true);
     expect(result.data!.workDays).toHaveLength(7);
@@ -138,61 +128,60 @@ describe("updateWorkDaysSchema", () => {
 // updateWorkHoursSchema
 // ---------------------------------------------------------------------------
 
-describe("updateWorkHoursSchema", () => {
-  it("should reject an invalid time format for start time", () => {
+describe('updateWorkHoursSchema', () => {
+  it('should reject an invalid time format for start time', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "8:30",
-      defaultEndTime: "18:30",
+      defaultStartTime: '8:30',
+      defaultEndTime: '18:30',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid time format for end time", () => {
+  it('should reject an invalid time format for end time', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "08:30",
-      defaultEndTime: "6pm",
+      defaultStartTime: '08:30',
+      defaultEndTime: '6pm',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject when end time equals start time", () => {
+  it('should reject when end time equals start time', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "09:00",
-      defaultEndTime: "09:00",
+      defaultStartTime: '09:00',
+      defaultEndTime: '09:00',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const endTimeIssue = result.error.issues.find(
-        (i) => i.path.includes("defaultEndTime"),
-      );
-      expect(endTimeIssue?.message).toBe("End time must be after start time");
+      const endTimeIssue = result.error.issues.find((i) => i.path.includes('defaultEndTime'));
+      expect(endTimeIssue?.message).toBe('End time must be after start time');
     }
   });
 
-  it("should reject when end time is before start time", () => {
+  it('should reject when end time is before start time', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "18:00",
-      defaultEndTime: "08:00",
+      defaultStartTime: '18:00',
+      defaultEndTime: '08:00',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept a valid time range", () => {
+  it('should accept a valid time range', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "08:30",
-      defaultEndTime: "18:30",
+      defaultStartTime: '08:30',
+      defaultEndTime: '18:30',
     });
     expect(result.success).toBe(true);
     expect(result.data).toEqual({
-      defaultStartTime: "08:30",
-      defaultEndTime: "18:30",
+      defaultStartTime: '08:30',
+      defaultEndTime: '18:30',
+      is24_7: false,
     });
   });
 
-  it("should accept a narrow valid time range", () => {
+  it('should accept a narrow valid time range', () => {
     const result = updateWorkHoursSchema.safeParse({
-      defaultStartTime: "09:00",
-      defaultEndTime: "09:01",
+      defaultStartTime: '09:00',
+      defaultEndTime: '09:01',
     });
     expect(result.success).toBe(true);
   });
@@ -202,32 +191,30 @@ describe("updateWorkHoursSchema", () => {
 // shiftTypeSchema (time ordering validation)
 // ---------------------------------------------------------------------------
 
-describe("shiftTypeSchema", () => {
-  it("should reject when endTime is before startTime", () => {
+describe('shiftTypeSchema', () => {
+  it('should reject when endTime is before startTime', () => {
     const result = shiftTypeSchema.safeParse({
       ...validShiftType,
-      startTime: "14:00",
-      endTime: "08:00",
+      startTime: '14:00',
+      endTime: '08:00',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const endTimeIssue = result.error.issues.find((i) =>
-        i.path.includes("endTime"),
-      );
-      expect(endTimeIssue?.message).toBe("End time must be after start time");
+      const endTimeIssue = result.error.issues.find((i) => i.path.includes('endTime'));
+      expect(endTimeIssue?.message).toBe('End time must be after start time');
     }
   });
 
-  it("should reject when endTime equals startTime", () => {
+  it('should reject when endTime equals startTime', () => {
     const result = shiftTypeSchema.safeParse({
       ...validShiftType,
-      startTime: "10:00",
-      endTime: "10:00",
+      startTime: '10:00',
+      endTime: '10:00',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept when endTime is after startTime", () => {
+  it('should accept when endTime is after startTime', () => {
     const result = shiftTypeSchema.safeParse(validShiftType);
     expect(result.success).toBe(true);
   });
@@ -237,18 +224,16 @@ describe("shiftTypeSchema", () => {
 // createShiftTypesSchema
 // ---------------------------------------------------------------------------
 
-describe("createShiftTypesSchema", () => {
-  it("should reject an empty shiftTypes array", () => {
+describe('createShiftTypesSchema', () => {
+  it('should reject an empty shiftTypes array', () => {
     const result = createShiftTypesSchema.safeParse({ shiftTypes: [] });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe(
-        "At least one shift type is required",
-      );
+      expect(result.error.issues[0].message).toBe('At least one shift type is required');
     }
   });
 
-  it("should reject a shift type with missing name", () => {
+  it('should reject a shift type with missing name', () => {
     const { name: _, ...noName } = validShiftType;
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [noName],
@@ -256,7 +241,7 @@ describe("createShiftTypesSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject a shift type with missing code", () => {
+  it('should reject a shift type with missing code', () => {
     const { code: _, ...noCode } = validShiftType;
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [noCode],
@@ -264,7 +249,7 @@ describe("createShiftTypesSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject a shift type with missing startTime", () => {
+  it('should reject a shift type with missing startTime', () => {
     const { startTime: _, ...noStart } = validShiftType;
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [noStart],
@@ -272,7 +257,7 @@ describe("createShiftTypesSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject a shift type with missing endTime", () => {
+  it('should reject a shift type with missing endTime', () => {
     const { endTime: _, ...noEnd } = validShiftType;
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [noEnd],
@@ -280,7 +265,7 @@ describe("createShiftTypesSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject a shift type with missing color", () => {
+  it('should reject a shift type with missing color', () => {
     const { color: _, ...noColor } = validShiftType;
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [noColor],
@@ -288,35 +273,35 @@ describe("createShiftTypesSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid hex color (no hash)", () => {
+  it('should reject an invalid hex color (no hash)', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, color: "FF5733" }],
+      shiftTypes: [{ ...validShiftType, color: 'FF5733' }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid hex color (short format)", () => {
+  it('should reject an invalid hex color (short format)', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, color: "#FFF" }],
+      shiftTypes: [{ ...validShiftType, color: '#FFF' }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid hex color (non-hex characters)", () => {
+  it('should reject an invalid hex color (non-hex characters)', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, color: "#ZZZZZZ" }],
+      shiftTypes: [{ ...validShiftType, color: '#ZZZZZZ' }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject a shift type with an invalid time format", () => {
+  it('should reject a shift type with an invalid time format', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, startTime: "8AM" }],
+      shiftTypes: [{ ...validShiftType, startTime: '8AM' }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept valid shift types", () => {
+  it('should accept valid shift types', () => {
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [validShiftType],
     });
@@ -324,16 +309,16 @@ describe("createShiftTypesSchema", () => {
     expect(result.data!.shiftTypes).toHaveLength(1);
   });
 
-  it("should accept multiple valid shift types", () => {
+  it('should accept multiple valid shift types', () => {
     const result = createShiftTypesSchema.safeParse({
       shiftTypes: [
         validShiftType,
         {
-          name: "Afternoon",
-          code: "PM",
-          startTime: "13:00",
-          endTime: "18:00",
-          color: "#33FF57",
+          name: 'Afternoon',
+          code: 'PM',
+          startTime: '13:00',
+          endTime: '18:00',
+          color: '#33FF57',
         },
       ],
     });
@@ -341,17 +326,17 @@ describe("createShiftTypesSchema", () => {
     expect(result.data!.shiftTypes).toHaveLength(2);
   });
 
-  it("should uppercase the code field", () => {
+  it('should uppercase the code field', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, code: "am" }],
+      shiftTypes: [{ ...validShiftType, code: 'am' }],
     });
     expect(result.success).toBe(true);
-    expect(result.data!.shiftTypes[0].code).toBe("AM");
+    expect(result.data!.shiftTypes[0].code).toBe('AM');
   });
 
-  it("should reject a shift type where endTime is before startTime", () => {
+  it('should reject a shift type where endTime is before startTime', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, startTime: "18:00", endTime: "08:00" }],
+      shiftTypes: [{ ...validShiftType, startTime: '18:00', endTime: '08:00' }],
     });
     expect(result.success).toBe(false);
   });
@@ -361,38 +346,38 @@ describe("createShiftTypesSchema", () => {
 // completeOnboardingSchema
 // ---------------------------------------------------------------------------
 
-describe("completeOnboardingSchema", () => {
-  it("should reject when clinicName is missing", () => {
+describe('completeOnboardingSchema', () => {
+  it('should reject when clinicName is missing', () => {
     const { clinicName: _, ...rest } = validCompleteOnboarding;
     const result = completeOnboardingSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when workDays is missing", () => {
+  it('should reject when workDays is missing', () => {
     const { workDays: _, ...rest } = validCompleteOnboarding;
     const result = completeOnboardingSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when defaultStartTime is missing", () => {
+  it('should reject when defaultStartTime is missing', () => {
     const { defaultStartTime: _, ...rest } = validCompleteOnboarding;
     const result = completeOnboardingSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when defaultEndTime is missing", () => {
+  it('should reject when defaultEndTime is missing', () => {
     const { defaultEndTime: _, ...rest } = validCompleteOnboarding;
     const result = completeOnboardingSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when shiftTypes is missing", () => {
+  it('should reject when shiftTypes is missing', () => {
     const { shiftTypes: _, ...rest } = validCompleteOnboarding;
     const result = completeOnboardingSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when workDays array is empty", () => {
+  it('should reject when workDays array is empty', () => {
     const result = completeOnboardingSchema.safeParse({
       ...validCompleteOnboarding,
       workDays: [],
@@ -400,7 +385,7 @@ describe("completeOnboardingSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject when shiftTypes array is empty", () => {
+  it('should reject when shiftTypes array is empty', () => {
     const result = completeOnboardingSchema.safeParse({
       ...validCompleteOnboarding,
       shiftTypes: [],
@@ -408,49 +393,46 @@ describe("completeOnboardingSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid clinicName within complete data", () => {
+  it('should reject an invalid clinicName within complete data', () => {
     const result = completeOnboardingSchema.safeParse({
       ...validCompleteOnboarding,
-      clinicName: "A",
+      clinicName: 'A',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject when end time is before start time", () => {
+  it('should reject when end time is before start time', () => {
     const result = completeOnboardingSchema.safeParse({
       ...validCompleteOnboarding,
-      defaultStartTime: "18:00",
-      defaultEndTime: "08:00",
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const endTimeIssue = result.error.issues.find((i) =>
-        i.path.includes("defaultEndTime"),
-      );
-      expect(endTimeIssue?.message).toBe("End time must be after start time");
-    }
-  });
-
-  it("should reject when end time equals start time", () => {
-    const result = completeOnboardingSchema.safeParse({
-      ...validCompleteOnboarding,
-      defaultStartTime: "09:00",
-      defaultEndTime: "09:00",
+      defaultStartTime: '18:00',
+      defaultEndTime: '08:00',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const endTimeIssue = result.error.issues.find((i) =>
-        i.path.includes("defaultEndTime"),
-      );
-      expect(endTimeIssue?.message).toBe("End time must be after start time");
+      const endTimeIssue = result.error.issues.find((i) => i.path.includes('defaultEndTime'));
+      expect(endTimeIssue?.message).toBe('End time must be after start time');
     }
   });
 
-  it("should accept valid complete onboarding data", () => {
+  it('should reject when end time equals start time', () => {
+    const result = completeOnboardingSchema.safeParse({
+      ...validCompleteOnboarding,
+      defaultStartTime: '09:00',
+      defaultEndTime: '09:00',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const endTimeIssue = result.error.issues.find((i) => i.path.includes('defaultEndTime'));
+      expect(endTimeIssue?.message).toBe('End time must be after start time');
+    }
+  });
+
+  it('should accept valid complete onboarding data', () => {
     const result = completeOnboardingSchema.safeParse(validCompleteOnboarding);
     expect(result.success).toBe(true);
     expect(result.data).toEqual({
       ...validCompleteOnboarding,
+      is24_7: false,
       // code gets uppercased by the transform
       shiftTypes: [
         {
@@ -462,7 +444,7 @@ describe("completeOnboardingSchema", () => {
     });
   });
 
-  it("should default breakMinutes to 0 in onboarding shift types", () => {
+  it('should default breakMinutes to 0 in onboarding shift types', () => {
     const result = completeOnboardingSchema.safeParse(validCompleteOnboarding);
     expect(result.success).toBe(true);
     if (result.success) {
@@ -470,7 +452,7 @@ describe("completeOnboardingSchema", () => {
     }
   });
 
-  it("should accept explicit breakMinutes in onboarding shift types", () => {
+  it('should accept explicit breakMinutes in onboarding shift types', () => {
     const result = completeOnboardingSchema.safeParse({
       ...validCompleteOnboarding,
       shiftTypes: [{ ...validShiftType, breakMinutes: 60 }],
@@ -486,32 +468,32 @@ describe("completeOnboardingSchema", () => {
 // updateClinicConfigSchema (combined workDays + workHours with refine)
 // ---------------------------------------------------------------------------
 
-describe("updateClinicConfigSchema", () => {
+describe('updateClinicConfigSchema', () => {
   const validConfig = {
-    workDays: ["MONDAY", "FRIDAY"] as const,
-    defaultStartTime: "08:00",
-    defaultEndTime: "17:00",
+    workDays: ['MONDAY', 'FRIDAY'] as const,
+    defaultStartTime: '08:00',
+    defaultEndTime: '17:00',
   };
 
-  it("should reject when workDays is missing", () => {
+  it('should reject when workDays is missing', () => {
     const { workDays: _, ...rest } = validConfig;
     const result = updateClinicConfigSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when defaultStartTime is missing", () => {
+  it('should reject when defaultStartTime is missing', () => {
     const { defaultStartTime: _, ...rest } = validConfig;
     const result = updateClinicConfigSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject when defaultEndTime is missing", () => {
+  it('should reject when defaultEndTime is missing', () => {
     const { defaultEndTime: _, ...rest } = validConfig;
     const result = updateClinicConfigSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("should reject an empty workDays array", () => {
+  it('should reject an empty workDays array', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
       workDays: [],
@@ -519,64 +501,54 @@ describe("updateClinicConfigSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid day names in workDays", () => {
+  it('should reject invalid day names in workDays', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
-      workDays: ["FUNDAY"],
+      workDays: ['FUNDAY'],
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject when end time equals start time", () => {
+  it('should reject when end time equals start time', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
-      defaultStartTime: "10:00",
-      defaultEndTime: "10:00",
+      defaultStartTime: '10:00',
+      defaultEndTime: '10:00',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const endTimeIssue = result.error.issues.find(
-        (i) => i.path.includes("defaultEndTime"),
-      );
-      expect(endTimeIssue?.message).toBe("End time must be after start time");
+      const endTimeIssue = result.error.issues.find((i) => i.path.includes('defaultEndTime'));
+      expect(endTimeIssue?.message).toBe('End time must be after start time');
     }
   });
 
-  it("should reject when end time is before start time", () => {
+  it('should reject when end time is before start time', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
-      defaultStartTime: "18:00",
-      defaultEndTime: "08:00",
+      defaultStartTime: '18:00',
+      defaultEndTime: '08:00',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject an invalid time format in the combined schema", () => {
+  it('should reject an invalid time format in the combined schema', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
-      defaultStartTime: "8:00",
+      defaultStartTime: '8:00',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should accept valid combined config data", () => {
+  it('should accept valid combined config data', () => {
     const result = updateClinicConfigSchema.safeParse(validConfig);
     expect(result.success).toBe(true);
-    expect(result.data).toEqual(validConfig);
+    expect(result.data).toEqual({ ...validConfig, is24_7: false });
   });
 
-  it("should accept valid config with all seven days", () => {
+  it('should accept valid config with all seven days', () => {
     const result = updateClinicConfigSchema.safeParse({
       ...validConfig,
-      workDays: [
-        "MONDAY",
-        "TUESDAY",
-        "WEDNESDAY",
-        "THURSDAY",
-        "FRIDAY",
-        "SATURDAY",
-        "SUNDAY",
-      ],
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'],
     });
     expect(result.success).toBe(true);
     expect(result.data!.workDays).toHaveLength(7);
