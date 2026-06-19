@@ -1,7 +1,7 @@
 # Story: 5-7-clinic-24-7-hours — Clinic open 24/7
 
 **Epic:** Epic 5 — Staff Management & Clinic Configuration
-**Status:** ready-for-dev
+**Status:** done
 **Branch:** feature/story-5-7-clinic-24-7-hours
 **Ticket:** none (derived from quick-fix triage — original request: image #1, onboarding "Work hours" step)
 **Commit prefix:** `feat: ...`
@@ -278,3 +278,61 @@ Fresh full run (`run-tests.sh`):
 - `@pawly/web` (vitest): **720 passed**; 2 pre-existing failures unrelated to this story (`landing-page.spec`, `employee-form.spec`) — confirmed identical on `develop`.
 - `tsc --noEmit` (web): clean on changed files (pre-existing `AppRouter`/trpc-types error only, per L5).
 - `i18n:check`: PASSED (EN/FR identical).
+
+## Review Record
+
+**Date:** 2026-06-19
+**Auditors:** Spec, Code, Edge & Hallucination, Aria
+**Verdict:** done
+
+Implementation was correct and complete end-to-end at review time; the gaps were
+in proof, not behaviour. The user elected to fix all actionable findings during
+review (commit `6f864bd`) rather than bounce the story back to dev.
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC-1 — no test asserted the time inputs grey out when "Open 24/7" is toggled on [apps/web/.../settings/__tests__/clinic-operational-config-panel.spec.tsx]
+  - Source: Spec + Code
+  - Resolution: `6f864bd` — +2 panel tests (toggle disables both `<Input type="time">`; equal start/end times submit with `is24_7: true`).
+- [MINOR] AC-2 — the is24_7 short-circuit was untested on the three onboarding schemas [packages/validators/src/clinic/onboarding.schema.test.ts]
+  - Source: Spec
+  - Resolution: `6f864bd` — +4 cases across `updateWorkHoursSchema`, `updateClinicConfigSchema`, `completeOnboardingSchema` (equal-times accepted when true; invalid format still rejected).
+- [MINOR] The `is24_7: true` write path was never asserted (only the `?? false` default branch) [apps/api/src/modules/clinic/clinic.service.spec.ts]
+  - Source: Code
+  - Resolution: `6f864bd` — upsert test asserting `is24_7: true` reaches both `create` and `update`.
+- [NIT] The older `getOperationalConfig` contract snapshot omitted `is24_7` [apps/api/src/modules/clinic/clinic.service.spec.ts:705]
+  - Source: Spec
+  - Resolution: `6f864bd` — `is24_7: false` added to both the mock config and the `toEqual` expectation.
+- [NIT] The 24/7 Checkbox relied on implicit label wrapping — a Radix button is not natively labelled that way, so screen readers missed the accessible name (WCAG 2.1 AA / NFR14) [apps/web/.../steps/StepWorkHours.tsx:26, apps/web/.../_components/ClinicOperationalConfigPanel.tsx:235]
+  - Source: Aria
+  - Resolution: `6f864bd` — Checkbox given `id="is24_7"` + explicit `<label/Label htmlFor>` in both surfaces (matches the existing workDays pattern).
+- [MINOR] An unrelated change to `apps/web/src/lib/tours/driver-adapter.ts` (re-enabling tour `animate`, reverting a documented lag fix) sat uncommitted in the working tree [apps/web/src/lib/tours/driver-adapter.ts:30]
+  - Source: Code + Edge
+  - Resolution: reverted (`git checkout --`); excluded from this PR.
+
+#### Dismissed
+- [NIT] The time-format regex `^\d{2}:\d{2}$` accepts impossible times (`99:99`, `25:00`) [packages/validators/src/clinic/onboarding.schema.ts:27, operational-config.schema.ts:4]
+  - Source: Edge
+  - Rationale: pre-existing — byte-identical at base `b27f711`, independent of 5-7. AC-3 is not violated (the format check still runs when `is24_7=true`, proven by runtime probe). Tracked for a separate hardening ticket (`^([01]\d|2[0-3]):[0-5]\d$`).
+- [NIT] Prettier single-quote reformat inflates the diff (~80% of churn in the touched validators/spec files)
+  - Source: Code
+  - Rationale: conforms to repo `.prettierrc`; no assertions weakened (verified — `it()` counts and `toEqual` strictness preserved). Advice for future commits only.
+- [NIT] `react-hooks/refs` errors + 2 unused-var warnings in `ClinicOperationalConfigPanel.tsx` (lines 3, 76, 118-119)
+  - Source: Lead (lint gate)
+  - Rationale: proven identical at base `b27f711` (originated in story 5-3); the ref-during-render is an intentional derived-state pattern. Not introduced by 5-7 or by the review fix; out of scope.
+
+### Verification
+- Test commands (fresh run at review):
+  - `pnpm --filter @pawly/validators test` → **767 passed** (27 files).
+  - `pnpm --filter @pawly/api test` → **828 passed** (30 suites).
+  - `pnpm --filter @pawly/web test` → **722 passed**, 2 failed.
+- Web failures are the known pre-existing pair `landing-page.spec.tsx` + `employee-form.spec.tsx` (unchanged vs `develop`) — zero new regressions.
+- `tsc --noEmit` (web): clean apart from the known L5 `@pawly/api/trpc-types` artefact.
+- `i18n:check`: PASSED (1480 keys, EN/FR identical).
+- Lint: 4 problems, all proven pre-existing at base `b27f711`; zero introduced.
+- Visual verification: **waived by user** — React Grab MCP unavailable this session; the input-greying behaviour is now covered by an automated test and was confirmed by static review (Edge ran the compiled validators; Aria read both components).
+
+### Ticket sync
+- Ticket: none (story derived from quick-fix triage).
+- PR: #91 (https://github.com/yabafre/Pawly/pull/91, base `develop`) — pre-existing; fix commit `6f864bd` not yet pushed at finalize.
