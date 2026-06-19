@@ -160,6 +160,7 @@ sprint:
     10-2-admin-settings-clinic-profile-management: { status: done }
     10-3-onboarding-flow-revamp: { status: done }
     10-4-onboarding-tour-engine: { status: done, started_at: '2026-06-17', completed_at: '2026-06-18' }
+    5-7-clinic-24-7-hours: { status: in-progress, started_at: '2026-06-18' }
 
 # Optional top-level blocks (Tier 6, 3.12.0). Skills populate these as
 # needed — they are NOT scaffolded with an empty value to keep greenfield
