@@ -1,14 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ClinicOperationalConfigPanel } from "../_components/ClinicOperationalConfigPanel";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ClinicOperationalConfigPanel } from '../_components/ClinicOperationalConfigPanel';
 
-vi.mock("next-intl", () => ({
+vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
-  useLocale: () => "fr",
+  useLocale: () => 'fr',
 }));
 
 // Mock Checkbox so onCheckedChange fires correctly in jsdom
-vi.mock("@/components/ui/checkbox", () => ({
+vi.mock('@/components/ui/checkbox', () => ({
   Checkbox: ({ id, checked, onCheckedChange }: any) => (
     <input
       type="checkbox"
@@ -23,9 +23,9 @@ vi.mock("@/components/ui/checkbox", () => ({
 const mockUpdateOperationalConfig = vi.fn();
 const mockUseClinicOperationalConfig = vi.fn().mockReturnValue({
   config: {
-    workDays: ["MONDAY", "TUESDAY"],
-    defaultStartTime: "08:00",
-    defaultEndTime: "18:00",
+    workDays: ['MONDAY', 'TUESDAY'],
+    defaultStartTime: '08:00',
+    defaultEndTime: '18:00',
     closedDays: [],
     specialDays: [],
   },
@@ -35,19 +35,18 @@ const mockUseClinicOperationalConfig = vi.fn().mockReturnValue({
   isUpdating: false,
 });
 
-vi.mock("../_hooks/useClinicOperationalConfig", () => ({
-  useClinicOperationalConfig: (...args: any[]) =>
-    mockUseClinicOperationalConfig(...args),
+vi.mock('../_hooks/useClinicOperationalConfig', () => ({
+  useClinicOperationalConfig: (...args: any[]) => mockUseClinicOperationalConfig(...args),
 }));
 
-describe("ClinicOperationalConfigPanel", () => {
+describe('ClinicOperationalConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseClinicOperationalConfig.mockReturnValue({
       config: {
-        workDays: ["MONDAY", "TUESDAY"],
-        defaultStartTime: "08:00",
-        defaultEndTime: "18:00",
+        workDays: ['MONDAY', 'TUESDAY'],
+        defaultStartTime: '08:00',
+        defaultEndTime: '18:00',
         closedDays: [],
         specialDays: [],
       },
@@ -58,7 +57,7 @@ describe("ClinicOperationalConfigPanel", () => {
     });
   });
 
-  it("renders loading skeleton when pending and no config", () => {
+  it('renders loading skeleton when pending and no config', () => {
     mockUseClinicOperationalConfig.mockReturnValue({
       config: null,
       isPending: true,
@@ -73,65 +72,59 @@ describe("ClinicOperationalConfigPanel", () => {
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it("renders form values from operational config", async () => {
+  it('renders form values from operational config', async () => {
     render(<ClinicOperationalConfigPanel />);
 
     await waitFor(() => {
-      expect(
-        screen.getByLabelText("fields.defaultStartTime"),
-      ).toHaveValue("08:00");
-      expect(
-        screen.getByLabelText("fields.defaultEndTime"),
-      ).toHaveValue("18:00");
+      expect(screen.getByLabelText('fields.defaultStartTime')).toHaveValue('08:00');
+      expect(screen.getByLabelText('fields.defaultEndTime')).toHaveValue('18:00');
     });
   });
 
-  it("submits valid payload via hook mutation", async () => {
+  it('submits valid payload via hook mutation', async () => {
     render(<ClinicOperationalConfigPanel />);
 
-    fireEvent.click(screen.getByText("actions.save"));
+    fireEvent.click(screen.getByText('actions.save'));
 
     await waitFor(() => {
       expect(mockUpdateOperationalConfig).toHaveBeenCalledTimes(1);
       expect(mockUpdateOperationalConfig).toHaveBeenCalledWith({
-        workDays: ["MONDAY", "TUESDAY"],
-        defaultStartTime: "08:00",
-        defaultEndTime: "18:00",
+        workDays: ['MONDAY', 'TUESDAY'],
+        defaultStartTime: '08:00',
+        defaultEndTime: '18:00',
+        is24_7: false,
         closedDays: [],
         specialDays: [],
       });
     });
   });
 
-  it("shows inline validation and blocks submit for invalid values", async () => {
+  it('shows inline validation and blocks submit for invalid values', async () => {
     render(<ClinicOperationalConfigPanel />);
 
-    fireEvent.change(
-      screen.getByLabelText("fields.defaultEndTime"),
-      {
-        target: { value: "" },
-      },
-    );
-    fireEvent.click(screen.getByText("actions.save"));
+    fireEvent.change(screen.getByLabelText('fields.defaultEndTime'), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByText('actions.save'));
 
     await waitFor(() => {
-      expect(screen.getByText("validation.invalidTimeFormat")).toBeDefined();
+      expect(screen.getByText('validation.invalidTimeFormat')).toBeDefined();
       expect(mockUpdateOperationalConfig).not.toHaveBeenCalled();
     });
   });
 
-  it("toggles work day checkbox without duplicate updates", async () => {
+  it('toggles work day checkbox without duplicate updates', async () => {
     render(<ClinicOperationalConfigPanel />);
 
-    fireEvent.click(screen.getByLabelText("days.WEDNESDAY"));
-    fireEvent.click(screen.getByText("actions.save"));
+    fireEvent.click(screen.getByLabelText('days.WEDNESDAY'));
+    fireEvent.click(screen.getByText('actions.save'));
 
     await waitFor(() => {
       expect(mockUpdateOperationalConfig).toHaveBeenCalledTimes(1);
       expect(mockUpdateOperationalConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          workDays: ["MONDAY", "TUESDAY", "WEDNESDAY"],
-        }),
+          workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY'],
+        })
       );
     });
   });

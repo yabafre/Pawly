@@ -1,31 +1,25 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm } from "@tanstack/react-form";
-import {
-  updateClinicOperationalConfigSchema,
-  WORK_DAYS,
-} from "@pawly/validators";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import {
-  CalendarClock,
-  Clock,
-  Loader2,
-} from "lucide-react";
-import { useTranslations } from "next-intl";
-import { useClinicOperationalConfig } from "../_hooks/useClinicOperationalConfig";
-import { ClosedDaysFieldArray } from "./ClosedDaysFieldArray";
-import { SpecialDaysFieldArray } from "./SpecialDaysFieldArray";
-import { SettingsSkeleton } from "./SettingsSkeleton";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { updateClinicOperationalConfigSchema, WORK_DAYS } from '@pawly/validators';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { CalendarClock, Clock, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useClinicOperationalConfig } from '../_hooks/useClinicOperationalConfig';
+import { ClosedDaysFieldArray } from './ClosedDaysFieldArray';
+import { SpecialDaysFieldArray } from './SpecialDaysFieldArray';
+import { SettingsSkeleton } from './SettingsSkeleton';
 
 type FormValues = {
   workDays: string[];
   defaultStartTime: string;
   defaultEndTime: string;
+  is24_7: boolean;
   closedDays: Array<{ date: string; reason: string }>;
   specialDays: Array<{
     date: string;
@@ -37,10 +31,10 @@ type FormValues = {
 
 const toErrorMap = (
   issues: Array<{ path: PropertyKey[]; message: string }>,
-  mapMessage: (message: string) => string,
+  mapMessage: (message: string) => string
 ) =>
   issues.reduce<Record<string, string>>((acc, issue) => {
-    const key = issue.path.map((segment) => String(segment)).join(".");
+    const key = issue.path.map((segment) => String(segment)).join('.');
     if (!acc[key]) {
       acc[key] = mapMessage(issue.message);
     }
@@ -51,6 +45,7 @@ function configToFormValues(config: {
   workDays: string[];
   defaultStartTime: string;
   defaultEndTime: string;
+  is24_7?: boolean;
   closedDays: Array<{ date: string; reason?: string | null }>;
   specialDays: Array<{
     date: string;
@@ -63,27 +58,23 @@ function configToFormValues(config: {
     workDays: config.workDays,
     defaultStartTime: config.defaultStartTime,
     defaultEndTime: config.defaultEndTime,
+    is24_7: config.is24_7 ?? false,
     closedDays: config.closedDays.map((item) => ({
       date: item.date,
-      reason: item.reason ?? "",
+      reason: item.reason ?? '',
     })),
     specialDays: config.specialDays.map((item) => ({
       date: item.date,
       startTime: item.startTime,
       endTime: item.endTime,
-      label: item.label ?? "",
+      label: item.label ?? '',
     })),
   };
 }
 
 export function ClinicOperationalConfigPanel() {
-  const t = useTranslations("settings.operationalConfig");
-  const {
-    config,
-    isPending,
-    updateOperationalConfig,
-    isUpdating,
-  } = useClinicOperationalConfig();
+  const t = useTranslations('settings.operationalConfig');
+  const { config, isPending, updateOperationalConfig, isUpdating } = useClinicOperationalConfig();
 
   if (isPending || !config) {
     return <SettingsSkeleton />;
@@ -119,7 +110,7 @@ function ClinicOperationalConfigForm({
   updateOperationalConfig: (data: unknown) => void;
   isUpdating: boolean;
 }) {
-  const t = useTranslations("settings.operationalConfig");
+  const t = useTranslations('settings.operationalConfig');
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
   const prevConfigRef = useRef(config);
 
@@ -133,16 +124,14 @@ function ClinicOperationalConfigForm({
 
   const mapErrorMessage = (message: string) => {
     const dictionary: Record<string, string> = {
-      "At least one work day is required": t("validation.workDaysRequired"),
-      "Invalid time format (HH:MM)": t("validation.invalidTimeFormat"),
-      "End time must be after start time": t("validation.endTimeAfterStartTime"),
-      "Invalid date format (YYYY-MM-DD)": t("validation.invalidDateFormat"),
-      "Invalid date value": t("validation.invalidDateValue"),
-      "Duplicate closed day date": t("validation.duplicateClosedDay"),
-      "Duplicate special day date": t("validation.duplicateSpecialDay"),
-      "A date cannot be both closed and special": t(
-        "validation.closedAndSpecialConflict",
-      ),
+      'At least one work day is required': t('validation.workDaysRequired'),
+      'Invalid time format (HH:MM)': t('validation.invalidTimeFormat'),
+      'End time must be after start time': t('validation.endTimeAfterStartTime'),
+      'Invalid date format (YYYY-MM-DD)': t('validation.invalidDateFormat'),
+      'Invalid date value': t('validation.invalidDateValue'),
+      'Duplicate closed day date': t('validation.duplicateClosedDay'),
+      'Duplicate special day date': t('validation.duplicateSpecialDay'),
+      'A date cannot be both closed and special': t('validation.closedAndSpecialConflict'),
     };
 
     return dictionary[message] ?? message;
@@ -168,7 +157,7 @@ function ClinicOperationalConfigForm({
         value: day,
         label: t(`days.${day}`),
       })),
-    [t],
+    [t]
   );
 
   return (
@@ -185,16 +174,14 @@ function ClinicOperationalConfigForm({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted">
               <Clock className="h-4 w-4 text-primary" strokeWidth={1.5} />
             </div>
-            <h3 className="text-sm font-bold text-foreground">
-              {t("sections.weekly")}
-            </h3>
+            <h3 className="text-sm font-bold text-foreground">{t('sections.weekly')}</h3>
           </div>
 
           <form.Field name="workDays" mode="array">
             {(field: any) => (
               <fieldset className="space-y-3">
                 <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {t("fields.workDays")}
+                  {t('fields.workDays')}
                 </Label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {dayOptions.map((day) => {
@@ -203,10 +190,10 @@ function ClinicOperationalConfigForm({
                       <div
                         key={day.value}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all select-none cursor-pointer",
+                          'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-all select-none cursor-pointer',
                           isChecked
-                            ? "border-primary/30 bg-primary/8 shadow-sm"
-                            : "border-border bg-muted hover:bg-card hover:border-border",
+                            ? 'border-primary/30 bg-primary/8 shadow-sm'
+                            : 'border-border bg-muted hover:bg-card hover:border-border'
                         )}
                       >
                         <Checkbox
@@ -219,15 +206,15 @@ function ClinicOperationalConfigForm({
                               return;
                             }
                             field.handleChange(
-                              field.state.value.filter((value: string) => value !== day.value),
+                              field.state.value.filter((value: string) => value !== day.value)
                             );
                           }}
                         />
                         <Label
                           htmlFor={`workday-${day.value}`}
                           className={cn(
-                            "cursor-pointer text-sm font-medium",
-                            isChecked ? "text-primary/80" : "text-muted-foreground",
+                            'cursor-pointer text-sm font-medium',
+                            isChecked ? 'text-primary/80' : 'text-muted-foreground'
                           )}
                         >
                           {day.label}
@@ -245,53 +232,77 @@ function ClinicOperationalConfigForm({
             )}
           </form.Field>
 
-          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <form.Field name="defaultStartTime">
-              {(field: any) => (
-                <div className="space-y-2">
-                  <Label htmlFor="defaultStartTime" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {t("fields.defaultStartTime")}
-                  </Label>
-                  <Input
-                    id="defaultStartTime"
-                    type="time"
-                    value={field.state.value}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!!submitErrors.defaultStartTime}
-                    className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
-                  />
-                  {submitErrors.defaultStartTime && (
-                    <p className="text-xs text-red-600" role="alert">
-                      {submitErrors.defaultStartTime}
-                    </p>
-                  )}
-                </div>
-              )}
-            </form.Field>
+          <form.Field name="is24_7">
+            {(field: any) => (
+              <label className="mt-4 flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <Checkbox
+                  checked={field.state.value}
+                  onCheckedChange={(checked) => field.handleChange(checked === true)}
+                />
+                {t('fields.is24_7')}
+              </label>
+            )}
+          </form.Field>
 
-            <form.Field name="defaultEndTime">
-              {(field: any) => (
-                <div className="space-y-2">
-                  <Label htmlFor="defaultEndTime" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {t("fields.defaultEndTime")}
-                  </Label>
-                  <Input
-                    id="defaultEndTime"
-                    type="time"
-                    value={field.state.value}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    aria-invalid={!!submitErrors.defaultEndTime}
-                    className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
-                  />
-                  {submitErrors.defaultEndTime && (
-                    <p className="text-xs text-red-600" role="alert">
-                      {submitErrors.defaultEndTime}
-                    </p>
+          <form.Subscribe selector={(state: any) => state.values.is24_7}>
+            {(is24_7: boolean) => (
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <form.Field name="defaultStartTime">
+                  {(field: any) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="defaultStartTime"
+                        className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        {t('fields.defaultStartTime')}
+                      </Label>
+                      <Input
+                        id="defaultStartTime"
+                        type="time"
+                        value={field.state.value}
+                        onChange={(event) => field.handleChange(event.target.value)}
+                        aria-invalid={!!submitErrors.defaultStartTime}
+                        disabled={is24_7}
+                        className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
+                      />
+                      {submitErrors.defaultStartTime && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {submitErrors.defaultStartTime}
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </form.Field>
-          </div>
+                </form.Field>
+
+                <form.Field name="defaultEndTime">
+                  {(field: any) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="defaultEndTime"
+                        className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        {t('fields.defaultEndTime')}
+                      </Label>
+                      <Input
+                        id="defaultEndTime"
+                        type="time"
+                        value={field.state.value}
+                        onChange={(event) => field.handleChange(event.target.value)}
+                        aria-invalid={!!submitErrors.defaultEndTime}
+                        disabled={is24_7}
+                        className="rounded-xl border-border bg-muted focus:border-primary focus:bg-card focus:ring-1 focus:ring-primary/20 transition-all"
+                      />
+                      {submitErrors.defaultEndTime && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {submitErrors.defaultEndTime}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            )}
+          </form.Subscribe>
         </div>
       </section>
 
@@ -321,17 +332,13 @@ function ClinicOperationalConfigForm({
 
       {/* ── Save ── */}
       <div className="flex justify-end pt-2">
-        <Button
-          type="submit"
-          disabled={isUpdating}
-          className="rounded-xl"
-        >
+        <Button type="submit" disabled={isUpdating} className="rounded-xl">
           {isUpdating ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <CalendarClock className="mr-2 h-4 w-4 text-primary" strokeWidth={1.5} />
           )}
-          {isUpdating ? t("actions.saving") : t("actions.save")}
+          {isUpdating ? t('actions.saving') : t('actions.save')}
         </Button>
       </div>
     </form>

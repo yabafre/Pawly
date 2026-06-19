@@ -31,6 +31,7 @@ interface OnboardingFormValues {
   workDays: WorkDay[];
   defaultStartTime: string;
   defaultEndTime: string;
+  is24_7: boolean;
   shiftTypes: Array<{
     name: string;
     code: string;
@@ -99,6 +100,7 @@ function OnboardingWizardForm({
     ],
     defaultStartTime: initialData.config?.defaultStartTime ?? '08:30',
     defaultEndTime: initialData.config?.defaultEndTime ?? '18:30',
+    is24_7: initialData.config?.is24_7 ?? false,
     shiftTypes:
       initialData.shiftTypes.length > 0
         ? initialData.shiftTypes.map((st) => ({
@@ -194,7 +196,7 @@ function OnboardingWizardForm({
         return (
           /^\d{2}:\d{2}$/.test(values.defaultStartTime) &&
           /^\d{2}:\d{2}$/.test(values.defaultEndTime) &&
-          values.defaultEndTime > values.defaultStartTime
+          (values.is24_7 || values.defaultEndTime > values.defaultStartTime)
         );
       case 2:
         return (
