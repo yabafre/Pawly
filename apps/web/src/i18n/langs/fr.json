@@ -1282,7 +1282,8 @@
         "startTime": "Heure d'ouverture",
         "endTime": "Heure de fermeture",
         "help": "Ces horaires servent de base pour la planification",
-        "invalidFormat": "Utilisez le format HH:MM"
+        "invalidFormat": "Utilisez le format HH:MM",
+        "is24_7": "Ouvert 24h/24"
       },
       "shiftTypes": {
         "title": "Types de postes",
@@ -1670,6 +1671,7 @@
         "workDays": "Jours de travail",
         "defaultStartTime": "Heure de début par défaut",
         "defaultEndTime": "Heure de fin par défaut",
+        "is24_7": "Ouvert 24h/24",
         "date": "Date",
         "reason": "Motif",
         "reasonPlaceholder": "ex : jour férié, fermeture annuelle",

@@ -5,7 +5,9 @@ import { PrismaService } from '@/prisma/prisma.service';
 import type { WorkDay } from '@pawly/validators';
 
 jest.mock('@/common/utils/slug', () => ({
-  generateSlug: jest.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}-abcd1234`),
+  generateSlug: jest.fn(
+    (name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}-abcd1234`,
+  ),
 }));
 
 import { generateSlug } from '@/common/utils/slug';
@@ -79,7 +81,14 @@ describe('ClinicService', () => {
           defaultEndTime: '18:00',
         },
         shiftTypes: [
-          { id: 'st-1', name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
+          {
+            id: 'st-1',
+            name: 'Morning',
+            code: 'AM',
+            startTime: '08:00',
+            endTime: '12:00',
+            color: '#00FF00',
+          },
         ],
       };
 
@@ -114,7 +123,11 @@ describe('ClinicService', () => {
     const input = { clinicName: 'New Clinic Name' };
 
     it('should update the name and regenerate the slug', async () => {
-      const existingClinic = { id: clinicId, name: 'Old Name', slug: 'old-name-0000ffff' };
+      const existingClinic = {
+        id: clinicId,
+        name: 'Old Name',
+        slug: 'old-name-0000ffff',
+      };
       const updatedClinic = {
         id: clinicId,
         name: 'New Clinic Name',
@@ -156,7 +169,13 @@ describe('ClinicService', () => {
   describe('upsertClinicConfig', () => {
     const clinicId = 'clinic-uuid-3';
     const configData = {
-      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as WorkDay[],
+      workDays: [
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'FRIDAY',
+      ] as WorkDay[],
       defaultStartTime: '09:00',
       defaultEndTime: '17:00',
     };
@@ -174,11 +193,13 @@ describe('ClinicService', () => {
           workDays: configData.workDays,
           defaultStartTime: configData.defaultStartTime,
           defaultEndTime: configData.defaultEndTime,
+          is24_7: false,
         },
         update: {
           workDays: configData.workDays,
           defaultStartTime: configData.defaultStartTime,
           defaultEndTime: configData.defaultEndTime,
+          is24_7: false,
         },
       });
       expect(result).toEqual(createdConfig);
@@ -209,14 +230,56 @@ describe('ClinicService', () => {
           workDays: newData.workDays,
           defaultStartTime: newData.defaultStartTime,
           defaultEndTime: newData.defaultEndTime,
+          is24_7: false,
         },
         update: {
           workDays: newData.workDays,
           defaultStartTime: newData.defaultStartTime,
           defaultEndTime: newData.defaultEndTime,
+          is24_7: false,
         },
       });
       expect(result).toEqual(updatedConfig);
+    });
+
+    // AC-1: a true is24_7 must persist through both the create and update paths.
+    it('should persist is24_7 true to both create and update', async () => {
+      mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
+
+      await service.upsertClinicConfig(clinicId, {
+        ...configData,
+        is24_7: true,
+      });
+
+      expect(mockPrismaService.clinicConfig.upsert).toHaveBeenCalledWith({
+        where: { clinicId },
+        create: expect.objectContaining({ is24_7: true }),
+        update: expect.objectContaining({ is24_7: true }),
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getOperationalConfig
+  // ---------------------------------------------------------------------------
+  describe('getOperationalConfig', () => {
+    // AC-4: getOperationalConfig must include is24_7 in the normalized contract.
+    it('exposes is24_7 in the normalized operational config', async () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue({
+        id: 'clinic-1',
+        config: {
+          workDays: ['MONDAY'],
+          defaultStartTime: '00:00',
+          defaultEndTime: '00:00',
+          is24_7: true,
+        },
+        closedDays: [],
+        specialDays: [],
+      });
+
+      const result = await service.getOperationalConfig('clinic-1');
+
+      expect(result.is24_7).toBe(true);
     });
   });
 
@@ -227,8 +290,22 @@ describe('ClinicService', () => {
     const clinicId = 'clinic-uuid-4';
     const shiftTypesInput = {
       shiftTypes: [
-        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
-        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
+        {
+          name: 'Morning',
+          code: 'AM',
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 0,
+          color: '#00FF00',
+        },
+        {
+          name: 'Afternoon',
+          code: 'PM',
+          startTime: '12:00',
+          endTime: '18:00',
+          breakMinutes: 0,
+          color: '#0000FF',
+        },
       ],
     };
 
@@ -236,29 +313,60 @@ describe('ClinicService', () => {
       const createManyResult = { count: 2 };
 
       // The $transaction mock receives a callback; we execute it with our mock prisma
-      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
-        return cb(mockPrismaService);
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => {
+          return cb(mockPrismaService);
+        },
+      );
+      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({
+        count: 1,
       });
-      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({ count: 1 });
-      mockPrismaService.clinicShiftType.createMany.mockResolvedValue(createManyResult);
+      mockPrismaService.clinicShiftType.createMany.mockResolvedValue(
+        createManyResult,
+      );
 
       const result = await service.createShiftTypes(clinicId, shiftTypesInput);
 
-      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(expect.any(Function));
-      expect(mockPrismaService.clinicShiftType.deleteMany).toHaveBeenCalledWith({
-        where: { clinicId },
-      });
-      expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith({
-        data: [
-          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
-          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
-        ],
-      });
+      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+      expect(mockPrismaService.clinicShiftType.deleteMany).toHaveBeenCalledWith(
+        {
+          where: { clinicId },
+        },
+      );
+      expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith(
+        {
+          data: [
+            {
+              clinicId,
+              name: 'Morning',
+              code: 'AM',
+              startTime: '08:00',
+              endTime: '12:00',
+              breakMinutes: 0,
+              color: '#00FF00',
+            },
+            {
+              clinicId,
+              name: 'Afternoon',
+              code: 'PM',
+              startTime: '12:00',
+              endTime: '18:00',
+              breakMinutes: 0,
+              color: '#0000FF',
+            },
+          ],
+        },
+      );
       expect(result).toEqual(createManyResult);
     });
 
     it('should throw ConflictException on P2002 duplicate code error', async () => {
-      const prismaError = { code: 'P2002', message: 'Unique constraint failed' };
+      const prismaError = {
+        code: 'P2002',
+        message: 'Unique constraint failed',
+      };
 
       mockPrismaService.$transaction.mockRejectedValue(prismaError);
 
@@ -290,25 +398,51 @@ describe('ClinicService', () => {
     const clinicId = 'clinic-uuid-5';
     const onboardingData = {
       clinicName: 'Pawly Clinic',
-      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as WorkDay[],
+      workDays: [
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'FRIDAY',
+      ] as WorkDay[],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
       shiftTypes: [
-        { name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
-        { name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
+        {
+          name: 'Morning',
+          code: 'AM',
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 0,
+          color: '#00FF00',
+        },
+        {
+          name: 'Afternoon',
+          code: 'PM',
+          startTime: '12:00',
+          endTime: '18:00',
+          breakMinutes: 0,
+          color: '#0000FF',
+        },
       ],
     };
 
     it('should set onboardingCompleted to true and wrap all operations in a transaction', async () => {
-      const existingClinic = { id: clinicId, name: 'Unnamed', onboardingCompleted: false };
+      const existingClinic = {
+        id: clinicId,
+        name: 'Unnamed',
+        onboardingCompleted: false,
+      };
 
       // First call: findUnique (outside transaction)
       mockPrismaService.clinic.findUnique.mockResolvedValue(existingClinic);
 
       // Transaction mock: executes the callback with mockPrismaService as tx
-      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
-        return cb(mockPrismaService);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => {
+          return cb(mockPrismaService);
+        },
+      );
       mockPrismaService.clinic.update.mockResolvedValue({
         id: clinicId,
         name: 'Pawly Clinic',
@@ -316,8 +450,12 @@ describe('ClinicService', () => {
         onboardingCompleted: true,
       });
       mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
-      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({
+        count: 2,
+      });
 
       const result = await service.completeOnboarding(clinicId, onboardingData);
 
@@ -327,7 +465,9 @@ describe('ClinicService', () => {
       });
 
       // Verify transaction was called
-      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
 
       // Verify clinic update inside transaction
       expect(mockPrismaService.clinic.update).toHaveBeenCalledWith({
@@ -347,24 +487,46 @@ describe('ClinicService', () => {
           workDays: onboardingData.workDays,
           defaultStartTime: onboardingData.defaultStartTime,
           defaultEndTime: onboardingData.defaultEndTime,
+          is24_7: false,
         },
         update: {
           workDays: onboardingData.workDays,
           defaultStartTime: onboardingData.defaultStartTime,
           defaultEndTime: onboardingData.defaultEndTime,
+          is24_7: false,
         },
       });
 
       // Verify shift types replacement inside transaction
-      expect(mockPrismaService.clinicShiftType.deleteMany).toHaveBeenCalledWith({
-        where: { clinicId },
-      });
-      expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith({
-        data: [
-          { clinicId, name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', breakMinutes: 0, color: '#00FF00' },
-          { clinicId, name: 'Afternoon', code: 'PM', startTime: '12:00', endTime: '18:00', breakMinutes: 0, color: '#0000FF' },
-        ],
-      });
+      expect(mockPrismaService.clinicShiftType.deleteMany).toHaveBeenCalledWith(
+        {
+          where: { clinicId },
+        },
+      );
+      expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith(
+        {
+          data: [
+            {
+              clinicId,
+              name: 'Morning',
+              code: 'AM',
+              startTime: '08:00',
+              endTime: '12:00',
+              breakMinutes: 0,
+              color: '#00FF00',
+            },
+            {
+              clinicId,
+              name: 'Afternoon',
+              code: 'PM',
+              startTime: '12:00',
+              endTime: '18:00',
+              breakMinutes: 0,
+              color: '#0000FF',
+            },
+          ],
+        },
+      );
 
       expect(result).toEqual({ onboardingCompleted: true });
     });
@@ -380,13 +542,19 @@ describe('ClinicService', () => {
 
     it('should call generateSlug with the new clinic name', async () => {
       mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
-      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
-        return cb(mockPrismaService);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => {
+          return cb(mockPrismaService);
+        },
+      );
       mockPrismaService.clinic.update.mockResolvedValue({});
       mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
-      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({
+        count: 0,
+      });
 
       await service.completeOnboarding(clinicId, onboardingData);
 
@@ -394,7 +562,11 @@ describe('ClinicService', () => {
     });
 
     it('should throw ConflictException on P2002 duplicate shift code error', async () => {
-      const prismaError = { code: 'P2002', message: 'Unique constraint failed', meta: { target: ['clinicId', 'code'] } };
+      const prismaError = {
+        code: 'P2002',
+        message: 'Unique constraint failed',
+        meta: { target: ['clinicId', 'code'] },
+      };
 
       mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
       mockPrismaService.$transaction.mockRejectedValue(prismaError);
@@ -410,7 +582,11 @@ describe('ClinicService', () => {
     });
 
     it('should throw ConflictException with slug message on P2002 slug collision', async () => {
-      const prismaError = { code: 'P2002', message: 'Unique constraint failed', meta: { target: ['slug'] } };
+      const prismaError = {
+        code: 'P2002',
+        message: 'Unique constraint failed',
+        meta: { target: ['slug'] },
+      };
 
       mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
       mockPrismaService.$transaction.mockRejectedValue(prismaError);
@@ -460,7 +636,14 @@ describe('ClinicService', () => {
           defaultEndTime: '18:00',
         },
         shiftTypes: [
-          { id: 'st-1', name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#00FF00' },
+          {
+            id: 'st-1',
+            name: 'Morning',
+            code: 'AM',
+            startTime: '08:00',
+            endTime: '12:00',
+            color: '#00FF00',
+          },
         ],
       };
 
@@ -526,6 +709,7 @@ describe('ClinicService', () => {
           workDays: ['MONDAY', 'TUESDAY'],
           defaultStartTime: '08:00',
           defaultEndTime: '18:00',
+          is24_7: false,
         },
         closedDays: [
           {
@@ -559,6 +743,7 @@ describe('ClinicService', () => {
         workDays: ['MONDAY', 'TUESDAY'],
         defaultStartTime: '08:00',
         defaultEndTime: '18:00',
+        is24_7: false,
         closedDays: [{ id: 'cd-1', date: '2026-12-25', reason: 'Holiday' }],
         specialDays: [
           {
@@ -626,35 +811,55 @@ describe('ClinicService', () => {
           },
         ],
       });
-      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => {
-        return cb(mockPrismaService);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => {
+          return cb(mockPrismaService);
+        },
+      );
       mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
-      mockPrismaService.clinicClosedDay.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaService.clinicClosedDay.createMany.mockResolvedValue({ count: 1 });
-      mockPrismaService.clinicSpecialDay.deleteMany.mockResolvedValue({ count: 0 });
-      mockPrismaService.clinicSpecialDay.createMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.clinicClosedDay.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicClosedDay.createMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaService.clinicSpecialDay.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicSpecialDay.createMany.mockResolvedValue({
+        count: 1,
+      });
 
       const result = await service.updateOperationalConfig(clinicId, payload);
 
-      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockPrismaService.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
       expect(mockPrismaService.clinicConfig.upsert).toHaveBeenCalled();
-      expect(mockPrismaService.clinicClosedDay.deleteMany).toHaveBeenCalledWith({
+      expect(mockPrismaService.clinicClosedDay.deleteMany).toHaveBeenCalledWith(
+        {
+          where: { clinicId },
+        },
+      );
+      expect(mockPrismaService.clinicClosedDay.createMany).toHaveBeenCalledWith(
+        {
+          data: [
+            {
+              clinicId,
+              date: new Date('2026-12-25T00:00:00.000Z'),
+              reason: 'Christmas',
+            },
+          ],
+        },
+      );
+      expect(
+        mockPrismaService.clinicSpecialDay.deleteMany,
+      ).toHaveBeenCalledWith({
         where: { clinicId },
       });
-      expect(mockPrismaService.clinicClosedDay.createMany).toHaveBeenCalledWith({
-        data: [
-          {
-            clinicId,
-            date: new Date('2026-12-25T00:00:00.000Z'),
-            reason: 'Christmas',
-          },
-        ],
-      });
-      expect(mockPrismaService.clinicSpecialDay.deleteMany).toHaveBeenCalledWith({
-        where: { clinicId },
-      });
-      expect(mockPrismaService.clinicSpecialDay.createMany).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.clinicSpecialDay.createMany,
+      ).toHaveBeenCalledWith({
         data: [
           {
             clinicId,
@@ -671,9 +876,9 @@ describe('ClinicService', () => {
     it('should throw NotFoundException when clinic does not exist', async () => {
       mockPrismaService.clinic.findUnique.mockResolvedValue(null);
 
-      await expect(service.updateOperationalConfig(clinicId, payload)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.updateOperationalConfig(clinicId, payload),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

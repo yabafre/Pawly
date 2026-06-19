@@ -5,6 +5,7 @@ model ClinicConfig {
   workDays         String[] @map("work_days")
   defaultStartTime String   @map("default_start_time")
   defaultEndTime   String   @map("default_end_time")
+  is24_7           Boolean  @default(false) @map("is_24_7")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

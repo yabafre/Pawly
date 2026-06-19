@@ -51,7 +51,15 @@ describe('clinicRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
   };
@@ -63,7 +71,10 @@ describe('clinicRouter', () => {
   it('should expose operational config procedures', () => {
     const procedures = Object.keys(clinicRouter._def.procedures);
     expect(procedures).toEqual(
-      expect.arrayContaining(['getOperationalConfig', 'updateOperationalConfig']),
+      expect.arrayContaining([
+        'getOperationalConfig',
+        'updateOperationalConfig',
+      ]),
     );
   });
 
@@ -82,7 +93,15 @@ describe('clinicRouter', () => {
   it('should throw UNAUTHORIZED when getOperationalConfig is called without user', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -97,7 +116,15 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -112,7 +139,15 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: authenticatedUser,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -152,7 +187,9 @@ describe('clinicRouter', () => {
     const result = await caller.getOperationalConfig();
 
     expect(result).toEqual(expected);
-    expect(mockClinicService.getOperationalConfig).toHaveBeenCalledWith('clinic-123');
+    expect(mockClinicService.getOperationalConfig).toHaveBeenCalledWith(
+      'clinic-123',
+    );
   });
 
   it('calls clinicService.updateOperationalConfig with validated payload', async () => {
@@ -160,6 +197,7 @@ describe('clinicRouter', () => {
       workDays: ['MONDAY', 'TUESDAY'] as ('MONDAY' | 'TUESDAY')[],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
+      is24_7: false,
       closedDays: [{ date: '2026-12-25', reason: 'Holiday' }],
       specialDays: [
         {
@@ -211,7 +249,15 @@ describe('clinicRouter', () => {
 
     const caller = createCaller({
       user: { ...authenticatedUser, clinicId: 'clinic-secure' },
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
 
@@ -228,7 +274,15 @@ describe('clinicRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: { ...authenticatedUser, role: 'ADMIN' },
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       clinicService: mockClinicService as any,
     } as any);
   };
@@ -236,7 +290,14 @@ describe('clinicRouter', () => {
   describe('listShiftTypes', () => {
     it('calls clinicService.listShiftTypes with clinicId', async () => {
       const expected = [
-        { id: 'st-1', name: 'Morning', code: 'AM', startTime: '08:00', endTime: '12:00', color: '#4F46E5' },
+        {
+          id: 'st-1',
+          name: 'Morning',
+          code: 'AM',
+          startTime: '08:00',
+          endTime: '12:00',
+          color: '#4F46E5',
+        },
       ];
       mockClinicService.listShiftTypes.mockResolvedValue(expected);
 
@@ -244,13 +305,23 @@ describe('clinicRouter', () => {
       const result = await caller.listShiftTypes({});
 
       expect(result).toEqual(expected);
-      expect(mockClinicService.listShiftTypes).toHaveBeenCalledWith('clinic-123');
+      expect(mockClinicService.listShiftTypes).toHaveBeenCalledWith(
+        'clinic-123',
+      );
     });
 
     it('throws UNAUTHORIZED without user', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+        prisma: mockPrisma as any,
+        redis: {
+          get: jest.fn().mockResolvedValue(null),
+          set: jest.fn(),
+          del: jest.fn(),
+          invalidatePattern: jest.fn(),
+          incr: jest.fn().mockResolvedValue(1),
+          isAvailable: false,
+        } as any,
         clinicService: mockClinicService as any,
       } as any);
 
@@ -263,7 +334,15 @@ describe('clinicRouter', () => {
       mockPrisma.subscription.findUnique.mockResolvedValue(null);
       const caller = createCaller({
         user: authenticatedUser,
-        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+        prisma: mockPrisma as any,
+        redis: {
+          get: jest.fn().mockResolvedValue(null),
+          set: jest.fn(),
+          del: jest.fn(),
+          invalidatePattern: jest.fn(),
+          incr: jest.fn().mockResolvedValue(1),
+          isAvailable: false,
+        } as any,
         clinicService: mockClinicService as any,
       } as any);
 
@@ -283,7 +362,10 @@ describe('clinicRouter', () => {
     };
 
     it('calls clinicService.createSingleShiftType for ADMIN', async () => {
-      mockClinicService.createSingleShiftType.mockResolvedValue({ id: 'st-1', ...validInput });
+      mockClinicService.createSingleShiftType.mockResolvedValue({
+        id: 'st-1',
+        ...validInput,
+      });
 
       const caller = createAdminCaller();
       const result = await caller.createShiftType(validInput);
@@ -305,7 +387,11 @@ describe('clinicRouter', () => {
     it('rejects invalid input (endTime <= startTime)', async () => {
       const caller = createAdminCaller();
       await expect(
-        caller.createShiftType({ ...validInput, startTime: '14:00', endTime: '08:00' }),
+        caller.createShiftType({
+          ...validInput,
+          startTime: '14:00',
+          endTime: '08:00',
+        }),
       ).rejects.toThrow();
     });
   });
@@ -317,7 +403,10 @@ describe('clinicRouter', () => {
     };
 
     it('calls clinicService.updateSingleShiftType for ADMIN', async () => {
-      mockClinicService.updateSingleShiftType.mockResolvedValue({ ...validInput, code: 'PM' });
+      mockClinicService.updateSingleShiftType.mockResolvedValue({
+        ...validInput,
+        code: 'PM',
+      });
 
       const caller = createAdminCaller();
       const result = await caller.updateShiftType(validInput);
@@ -340,7 +429,9 @@ describe('clinicRouter', () => {
 
   describe('deleteShiftType', () => {
     it('calls clinicService.deleteSingleShiftType for ADMIN', async () => {
-      mockClinicService.deleteSingleShiftType.mockResolvedValue({ deleted: true });
+      mockClinicService.deleteSingleShiftType.mockResolvedValue({
+        deleted: true,
+      });
 
       const caller = createAdminCaller();
       const result = await caller.deleteShiftType({

@@ -78,11 +78,13 @@ export class ClinicService {
         workDays: data.workDays,
         defaultStartTime: data.defaultStartTime,
         defaultEndTime: data.defaultEndTime,
+        is24_7: data.is24_7 ?? false,
       },
       update: {
         workDays: data.workDays,
         defaultStartTime: data.defaultStartTime,
         defaultEndTime: data.defaultEndTime,
+        is24_7: data.is24_7 ?? false,
       },
     });
   }
@@ -119,7 +121,10 @@ export class ClinicService {
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
-      this.logger.error(`Failed to create shift types for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to create shift types for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
   }
@@ -153,11 +158,13 @@ export class ClinicService {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
           update: {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
         });
 
@@ -195,7 +202,10 @@ export class ClinicService {
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
-      this.logger.error(`Failed to complete onboarding for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to complete onboarding for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
   }
@@ -241,13 +251,16 @@ export class ClinicService {
     }
 
     if (!clinic.config) {
-      throw new NotFoundException(`Clinic configuration for ${clinicId} not found`);
+      throw new NotFoundException(
+        `Clinic configuration for ${clinicId} not found`,
+      );
     }
 
     return {
       workDays: clinic.config.workDays,
       defaultStartTime: clinic.config.defaultStartTime,
       defaultEndTime: clinic.config.defaultEndTime,
+      is24_7: clinic.config.is24_7,
       closedDays: clinic.closedDays.map((entry) => ({
         id: entry.id,
         date: entry.date.toISOString().slice(0, 10),
@@ -322,13 +335,17 @@ export class ClinicService {
           ...(data.code !== undefined && { code: data.code }),
           ...(data.startTime !== undefined && { startTime: data.startTime }),
           ...(data.endTime !== undefined && { endTime: data.endTime }),
-          ...(data.breakMinutes !== undefined && { breakMinutes: data.breakMinutes }),
+          ...(data.breakMinutes !== undefined && {
+            breakMinutes: data.breakMinutes,
+          }),
           ...(data.color !== undefined && { color: data.color }),
         },
       });
 
       if (result.count === 0) {
-        throw new NotFoundException(`Shift type ${id} not found for this clinic`);
+        throw new NotFoundException(
+          `Shift type ${id} not found for this clinic`,
+        );
       }
 
       return this.prisma.clinicShiftType.findUnique({ where: { id } });
@@ -364,7 +381,10 @@ export class ClinicService {
 
     const blockedBy = referencingRules.filter((rule) => {
       const config = rule.config as Record<string, unknown> | null;
-      return config && (config as Record<string, unknown>).shiftTypeCode === shiftType.code;
+      return (
+        config &&
+        (config as Record<string, unknown>).shiftTypeCode === shiftType.code
+      );
     });
 
     if (blockedBy.length > 0) {
@@ -403,11 +423,13 @@ export class ClinicService {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
           update: {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
         });
 
@@ -446,7 +468,10 @@ export class ClinicService {
           'Duplicate date found in operational configuration. Each date can only appear once per clinic.',
         );
       }
-      this.logger.error(`Failed to update operational config for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to update operational config for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
 

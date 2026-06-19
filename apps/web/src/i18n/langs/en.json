@@ -1282,7 +1282,8 @@
         "startTime": "Opening time",
         "endTime": "Closing time",
         "help": "These hours serve as the baseline for planning",
-        "invalidFormat": "Use the HH:MM format"
+        "invalidFormat": "Use the HH:MM format",
+        "is24_7": "Open 24/7"
       },
       "shiftTypes": {
         "title": "Shift types",
@@ -1670,6 +1671,7 @@
         "workDays": "Work days",
         "defaultStartTime": "Default start time",
         "defaultEndTime": "Default end time",
+        "is24_7": "Open 24/7",
         "date": "Date",
         "reason": "Reason",
         "reasonPlaceholder": "e.g. public holiday, annual closure",
