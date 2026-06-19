@@ -25,13 +25,16 @@ export function StepWorkHours({ form }: StepWorkHoursProps) {
 
       <form.Field name="is24_7">
         {(field: any) => (
-          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+          <div className="flex items-center gap-2">
             <Checkbox
+              id="is24_7"
               checked={field.state.value}
               onCheckedChange={(checked) => field.handleChange(checked === true)}
             />
-            {t('is24_7')}
-          </label>
+            <label htmlFor="is24_7" className="text-sm font-medium cursor-pointer">
+              {t('is24_7')}
+            </label>
+          </div>
         )}
       </form.Field>
 

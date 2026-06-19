@@ -128,4 +128,52 @@ describe('ClinicOperationalConfigPanel', () => {
       );
     });
   });
+
+  // AC-1: toggling "Open 24/7" disables (greys) the opening/closing time inputs.
+  it('disables both time inputs when the 24/7 toggle is on', async () => {
+    render(<ClinicOperationalConfigPanel />);
+
+    expect(screen.getByLabelText('fields.defaultStartTime')).not.toBeDisabled();
+    expect(screen.getByLabelText('fields.defaultEndTime')).not.toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText('fields.is24_7'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('fields.defaultStartTime')).toBeDisabled();
+      expect(screen.getByLabelText('fields.defaultEndTime')).toBeDisabled();
+    });
+  });
+
+  // AC-1 + AC-2 at the UI layer: once 24/7 is on, equal start/end times submit
+  // successfully (the end>start rule is short-circuited) carrying is24_7: true.
+  it('submits is24_7 true and tolerates equal times once toggled on', async () => {
+    mockUseClinicOperationalConfig.mockReturnValue({
+      config: {
+        workDays: ['MONDAY', 'TUESDAY'],
+        defaultStartTime: '00:00',
+        defaultEndTime: '00:00',
+        closedDays: [],
+        specialDays: [],
+      },
+      isPending: false,
+      error: null,
+      updateOperationalConfig: mockUpdateOperationalConfig,
+      isUpdating: false,
+    });
+
+    render(<ClinicOperationalConfigPanel />);
+
+    fireEvent.click(screen.getByLabelText('fields.is24_7'));
+    fireEvent.click(screen.getByText('actions.save'));
+
+    await waitFor(() => {
+      expect(mockUpdateOperationalConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          is24_7: true,
+          defaultStartTime: '00:00',
+          defaultEndTime: '00:00',
+        })
+      );
+    });
+  });
 });

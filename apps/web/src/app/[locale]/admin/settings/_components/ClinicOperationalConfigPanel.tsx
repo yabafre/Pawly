@@ -234,13 +234,16 @@ function ClinicOperationalConfigForm({
 
           <form.Field name="is24_7">
             {(field: any) => (
-              <label className="mt-4 flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <div className="mt-4 flex items-center gap-2">
                 <Checkbox
+                  id="is24_7"
                   checked={field.state.value}
                   onCheckedChange={(checked) => field.handleChange(checked === true)}
                 />
-                {t('fields.is24_7')}
-              </label>
+                <Label htmlFor="is24_7" className="cursor-pointer text-sm font-medium">
+                  {t('fields.is24_7')}
+                </Label>
+              </div>
             )}
           </form.Field>
 

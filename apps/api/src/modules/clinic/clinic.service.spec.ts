@@ -241,6 +241,22 @@ describe('ClinicService', () => {
       });
       expect(result).toEqual(updatedConfig);
     });
+
+    // AC-1: a true is24_7 must persist through both the create and update paths.
+    it('should persist is24_7 true to both create and update', async () => {
+      mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
+
+      await service.upsertClinicConfig(clinicId, {
+        ...configData,
+        is24_7: true,
+      });
+
+      expect(mockPrismaService.clinicConfig.upsert).toHaveBeenCalledWith({
+        where: { clinicId },
+        create: expect.objectContaining({ is24_7: true }),
+        update: expect.objectContaining({ is24_7: true }),
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -693,6 +709,7 @@ describe('ClinicService', () => {
           workDays: ['MONDAY', 'TUESDAY'],
           defaultStartTime: '08:00',
           defaultEndTime: '18:00',
+          is24_7: false,
         },
         closedDays: [
           {
@@ -726,6 +743,7 @@ describe('ClinicService', () => {
         workDays: ['MONDAY', 'TUESDAY'],
         defaultStartTime: '08:00',
         defaultEndTime: '18:00',
+        is24_7: false,
         closedDays: [{ id: 'cd-1', date: '2026-12-25', reason: 'Holiday' }],
         specialDays: [
           {

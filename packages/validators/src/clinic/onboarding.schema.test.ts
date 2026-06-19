@@ -185,6 +185,26 @@ describe('updateWorkHoursSchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  // AC-2: when is24_7 is true the end>start rule is not enforced.
+  it('should accept equal times when is24_7 is true', () => {
+    const result = updateWorkHoursSchema.safeParse({
+      defaultStartTime: '00:00',
+      defaultEndTime: '00:00',
+      is24_7: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // AC-3: an invalid time format is still rejected even when is24_7 is true.
+  it('should still reject an invalid time format when is24_7 is true', () => {
+    const result = updateWorkHoursSchema.safeParse({
+      defaultStartTime: '8:00',
+      defaultEndTime: '00:00',
+      is24_7: true,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -427,6 +447,17 @@ describe('completeOnboardingSchema', () => {
     }
   });
 
+  // AC-2: when is24_7 is true the end>start rule is not enforced.
+  it('should accept equal times when is24_7 is true', () => {
+    const result = completeOnboardingSchema.safeParse({
+      ...validCompleteOnboarding,
+      defaultStartTime: '00:00',
+      defaultEndTime: '00:00',
+      is24_7: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('should accept valid complete onboarding data', () => {
     const result = completeOnboardingSchema.safeParse(validCompleteOnboarding);
     expect(result.success).toBe(true);
@@ -537,6 +568,17 @@ describe('updateClinicConfigSchema', () => {
       defaultStartTime: '8:00',
     });
     expect(result.success).toBe(false);
+  });
+
+  // AC-2: when is24_7 is true the end>start rule is not enforced.
+  it('should accept equal times when is24_7 is true', () => {
+    const result = updateClinicConfigSchema.safeParse({
+      ...validConfig,
+      defaultStartTime: '00:00',
+      defaultEndTime: '00:00',
+      is24_7: true,
+    });
+    expect(result.success).toBe(true);
   });
 
   it('should accept valid combined config data', () => {
