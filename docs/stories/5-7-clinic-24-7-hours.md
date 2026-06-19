@@ -21,7 +21,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — Prisma: add `is24_7` to `ClinicConfig`** [AC: 1, 6]. Edit `apps/api/prisma/schema/ClinicConfig.prisma`, adding the `is24_7` line between `defaultEndTime` and `createdAt`:
+- [x] **Task 1 — Prisma: add `is24_7` to `ClinicConfig`** [AC: 1, 6]. Edit `apps/api/prisma/schema/ClinicConfig.prisma`, adding the `is24_7` line between `defaultEndTime` and `createdAt`:
 
 ```prisma
   defaultEndTime   String   @map("default_end_time")
@@ -33,7 +33,7 @@ Run (repo root, never `cd apps/api`): `pnpm db:generate && pnpm db:push`
 Expected: Prisma Client regenerated; "Your database is now in sync with your Prisma schema.", exit 0.
 Commit: `git add apps/api/prisma/schema/ClinicConfig.prisma && git commit -m "feat(clinic): add is24_7 flag to ClinicConfig"`
 
-- [ ] **Task 2 — Validators: `onboarding.schema.ts` (wizard surface)** [AC: 1, 2, 3]. Edit `packages/validators/src/clinic/onboarding.schema.ts`. Add `is24_7` to `workHoursFieldsSchema` and make the three `end > start` refines short-circuit on it:
+- [x] **Task 2 — Validators: `onboarding.schema.ts` (wizard surface)** [AC: 1, 2, 3]. Edit `packages/validators/src/clinic/onboarding.schema.ts`. Add `is24_7` to `workHoursFieldsSchema` and make the three `end > start` refines short-circuit on it:
 
 ```ts
 export const workHoursFieldsSchema = z.object({
@@ -60,7 +60,7 @@ Run: `pnpm --filter @pawly/validators test`
 Expected: existing suites green, exit 0.
 Commit: `git add packages/validators/src/clinic/onboarding.schema.ts && git commit -m "feat(validators): is24_7 on onboarding/work-hours schemas"`
 
-- [ ] **Task 3 — Validators: `operational-config.schema.ts` (settings surface)** [AC: 1, 2, 3, 4]. Edit `packages/validators/src/clinic/operational-config.schema.ts`. Add `is24_7: z.boolean().default(false),` to the `updateClinicOperationalConfigSchema` object (after `defaultEndTime`), and guard the time-order issue:
+- [x] **Task 3 — Validators: `operational-config.schema.ts` (settings surface)** [AC: 1, 2, 3, 4]. Edit `packages/validators/src/clinic/operational-config.schema.ts`. Add `is24_7: z.boolean().default(false),` to the `updateClinicOperationalConfigSchema` object (after `defaultEndTime`), and guard the time-order issue:
 
 ```ts
   .superRefine((data, ctx) => {
@@ -79,7 +79,7 @@ Run: `pnpm --filter @pawly/validators test`
 Expected: green, exit 0.
 Commit: `git add packages/validators/src/clinic/operational-config.schema.ts && git commit -m "feat(validators): is24_7 on operational-config schema"`
 
-- [ ] **Task 4 — Validators tests** [AC: 2, 3]. Edit `packages/validators/src/clinic/operational-config.schema.test.ts`, appending inside the existing `describe` for `updateClinicOperationalConfigSchema`:
+- [x] **Task 4 — Validators tests** [AC: 2, 3]. Edit `packages/validators/src/clinic/operational-config.schema.test.ts`, appending inside the existing `describe` for `updateClinicOperationalConfigSchema`:
 
 ```ts
 it("accepts equal times when is24_7 is true", () => {
@@ -112,13 +112,13 @@ Run: `pnpm --filter @pawly/validators test`
 Expected: 3 new tests pass, exit 0.
 Commit: `git add packages/validators/src/clinic/operational-config.schema.test.ts && git commit -m "test(validators): is24_7 short-circuits time order rule"`
 
-- [ ] **Task 5 — API: propagate + expose `is24_7` in `clinic.service.ts`** [AC: 1, 4]. Edit `apps/api/src/modules/clinic/clinic.service.ts`. In all THREE `clinicConfig.upsert` blocks (`upsertClinicConfig`, the `tx.clinicConfig.upsert` in `completeOnboarding`, the one in `updateOperationalConfig`), add `is24_7: data.is24_7 ?? false,` to BOTH `create` and `update` objects (after `defaultEndTime`). In `getOperationalConfig`, add `is24_7: clinic.config.is24_7,` to the returned object (after `defaultEndTime`, before `closedDays`).
+- [x] **Task 5 — API: propagate + expose `is24_7` in `clinic.service.ts`** [AC: 1, 4]. Edit `apps/api/src/modules/clinic/clinic.service.ts`. In all THREE `clinicConfig.upsert` blocks (`upsertClinicConfig`, the `tx.clinicConfig.upsert` in `completeOnboarding`, the one in `updateOperationalConfig`), add `is24_7: data.is24_7 ?? false,` to BOTH `create` and `update` objects (after `defaultEndTime`). In `getOperationalConfig`, add `is24_7: clinic.config.is24_7,` to the returned object (after `defaultEndTime`, before `closedDays`).
 
 Run: `pnpm --filter @pawly/api exec jest clinic.service`
 Expected: existing clinic.service suite green, exit 0.
 Commit: `git add apps/api/src/modules/clinic/clinic.service.ts && git commit -m "feat(clinic): persist + expose is24_7"`
 
-- [ ] **Task 6 — API service test** [AC: 1, 4]. Edit `apps/api/src/modules/clinic/clinic.service.spec.ts` (read the top first to match its mock helpers). Add a test asserting `getOperationalConfig` returns `is24_7`:
+- [x] **Task 6 — API service test** [AC: 1, 4]. Edit `apps/api/src/modules/clinic/clinic.service.spec.ts` (read the top first to match its mock helpers). Add a test asserting `getOperationalConfig` returns `is24_7`:
 
 ```ts
 it("exposes is24_7 in the normalized operational config", async () => {
@@ -136,7 +136,7 @@ Run: `pnpm --filter @pawly/api exec jest clinic.service`
 Expected: new test passes, exit 0.
 Commit: `git add apps/api/src/modules/clinic/clinic.service.spec.ts && git commit -m "test(clinic): is24_7 surfaced by getOperationalConfig"`
 
-- [ ] **Task 7 — Web: onboarding wizard toggle** [AC: 1, 2, 5]. Edit `apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx`: add `is24_7: boolean;` to `OnboardingFormValues` (after `defaultEndTime`); add `is24_7: initialData.config?.is24_7 ?? false,` to `fallbackDefaults` (after `defaultEndTime`); replace `validateCurrentStep` case 1 with:
+- [x] **Task 7 — Web: onboarding wizard toggle** [AC: 1, 2, 5]. Edit `apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx`: add `is24_7: boolean;` to `OnboardingFormValues` (after `defaultEndTime`); add `is24_7: initialData.config?.is24_7 ?? false,` to `fallbackDefaults` (after `defaultEndTime`); replace `validateCurrentStep` case 1 with:
 
 ```ts
       case 1:
@@ -165,7 +165,7 @@ Run: `pnpm --filter @pawly/web test`
 Expected: no regression (720 passed, 2 known pre-existing failures), exit 0.
 Commit: `git add "apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx" "apps/web/src/app/[locale]/admin/onboarding/_components/steps/StepWorkHours.tsx" && git commit -m "feat(onboarding): 24/7 toggle in work-hours step"`
 
-- [ ] **Task 8 — Web: settings panel toggle** [AC: 1, 2, 5]. Edit `apps/web/src/app/[locale]/admin/settings/_components/ClinicOperationalConfigPanel.tsx`: add `is24_7: boolean;` to the `FormValues` type (after `defaultEndTime`); add `is24_7: boolean;` to `configToFormValues`'s param type and `is24_7: config.is24_7,` to its returned object. Add a toggle inside the "Weekly defaults" `<section>` (after the work-hours grid):
+- [x] **Task 8 — Web: settings panel toggle** [AC: 1, 2, 5]. Edit `apps/web/src/app/[locale]/admin/settings/_components/ClinicOperationalConfigPanel.tsx`: add `is24_7: boolean;` to the `FormValues` type (after `defaultEndTime`); add `is24_7: boolean;` to `configToFormValues`'s param type and `is24_7: config.is24_7,` to its returned object. Add a toggle inside the "Weekly defaults" `<section>` (after the work-hours grid):
 
 ```tsx
 <form.Field name="is24_7">
@@ -183,12 +183,12 @@ Run: `pnpm --filter @pawly/web test`
 Expected: `ClinicOperationalConfigPanel.spec.tsx` + rest green, exit 0.
 Commit: `git add "apps/web/src/app/[locale]/admin/settings/_components/ClinicOperationalConfigPanel.tsx" && git commit -m "feat(settings): 24/7 toggle in operational config"`
 
-- [ ] **Task 9 — i18n keys (EN + FR)** [AC: 5]. Edit `apps/web/src/i18n/langs/en.json` and `apps/web/src/i18n/langs/fr.json`. Under `onboarding.steps.workHours` add `"is24_7"` (EN: `"Open 24/7"`, FR: `"Ouvert 24h/24"`). Under `settings.operationalConfig.fields` add `"is24_7"` (EN: `"Open 24/7"`, FR: `"Ouvert 24h/24"`).
+- [x] **Task 9 — i18n keys (EN + FR)** [AC: 5]. Edit `apps/web/src/i18n/langs/en.json` and `apps/web/src/i18n/langs/fr.json`. Under `onboarding.steps.workHours` add `"is24_7"` (EN: `"Open 24/7"`, FR: `"Ouvert 24h/24"`). Under `settings.operationalConfig.fields` add `"is24_7"` (EN: `"Open 24/7"`, FR: `"Ouvert 24h/24"`).
 Run: `pnpm --filter @pawly/web run i18n:check`
 Expected: `Translation validation PASSED`, keys identical EN/FR, exit 0.
 Commit: `git add apps/web/src/i18n/langs/en.json apps/web/src/i18n/langs/fr.json && git commit -m "i18n: 24/7 toggle labels (en/fr)"`
 
-- [ ] **Task 10 — Quality gates + visual verification** [AC: all]. Run from repo root: `pnpm test`, then `pnpm --filter @pawly/web exec tsc --noEmit -p tsconfig.json`, then `pnpm lint`.
+- [x] **Task 10 — Quality gates + visual verification** [AC: all]. Run from repo root: `pnpm test`, then `pnpm --filter @pawly/web exec tsc --noEmit -p tsconfig.json`, then `pnpm lint`.
 Expected: `pnpm test` — no NEW failures vs `develop` (the 2 pre-existing `landing-page.spec` + `employee-form.spec` failures stay, count unchanged). `tsc` — no error on changed files (the pre-existing `AppRouter`/trpc-types error is unrelated, see lesson L5). `lint` — no NEW errors (pre-existing `react-hooks/refs` in `layout.tsx`/`TourProvider.tsx` are known).
 Visual: with `pnpm dev` running, toggle "Open 24/7" in the onboarding work-hours step AND Settings → operational config; confirm time inputs grey out, the form saves, and reload shows the toggle checked (`is24_7=true` persisted).
 Commit: none (gates only).
@@ -249,16 +249,32 @@ Commit: none (gates only).
 
 ### Summary
 
-_Filled by aped-dev on completion._
+Added an `is24_7` flag end-to-end (Prisma → validators → clinic service → onboarding wizard + operational-settings UI → i18n EN/FR). The `defaultEndTime > defaultStartTime` validation is short-circuited when `is24_7` is true; the time inputs grey out when the toggle is on. As predicted in the story, the planning algorithm needed no change — it never reads the default hours. Scope held.
 
 ### Files changed
 
-_Filled by aped-dev on completion._
+- `apps/api/prisma/schema/ClinicConfig.prisma`
+- `packages/validators/src/clinic/onboarding.schema.ts` (+ `.test.ts`)
+- `packages/validators/src/clinic/operational-config.schema.ts` (+ `.test.ts`)
+- `apps/api/src/modules/clinic/clinic.service.ts` (+ `.spec.ts`)
+- `apps/api/src/trpc/routers/clinic.router.spec.ts`
+- `apps/web/.../onboarding/_components/OnboardingWizard.tsx` + `steps/StepWorkHours.tsx`
+- `apps/web/.../settings/_components/ClinicOperationalConfigPanel.tsx` (+ `__tests__/...spec.tsx`)
+- `apps/web/src/i18n/langs/en.json`, `fr.json`
+- `packages/types/src/clinic/config.types.ts`
 
 ### Deviations
 
-_Filled by aped-dev on completion._
+- Committed per layer (validators / service / frontend) rather than one-commit-per-task — interdependent files must land together to keep each commit green.
+- `is24_7` typed **optional** in `OnboardingInitialData.config` and the `configToFormValues` param (the trpc-inferred / package types don't yet carry it; runtime always provides it via `getOperationalConfig`). Coalesced with `?? false`.
+- Visual verification deferred — react-grab MCP unavailable this session (per lesson L2, do a manual pass before merge).
+- Unrelated `apps/web/src/lib/tours/driver-adapter.ts` change (`animate` toggle) appeared in the working tree mid-session; NOT created by this story, left uncommitted and surfaced to the user.
 
 ### Test output
 
-_Filled by aped-dev on completion._
+Fresh full run (`run-tests.sh`):
+- `@pawly/validators`: **763 passed** (27 files) — incl. the 3 new is24_7 cases.
+- `@pawly/api` (jest): **827 passed** (30 suites) — incl. `clinic.service` getOperationalConfig is24_7 + router.
+- `@pawly/web` (vitest): **720 passed**; 2 pre-existing failures unrelated to this story (`landing-page.spec`, `employee-form.spec`) — confirmed identical on `develop`.
+- `tsc --noEmit` (web): clean on changed files (pre-existing `AppRouter`/trpc-types error only, per L5).
+- `i18n:check`: PASSED (EN/FR identical).
