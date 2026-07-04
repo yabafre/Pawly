@@ -39,3 +39,12 @@ jobs:
         run: pnpm turbo run build
         env:
           DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+
+      # Pre-mortem R3: the full test suite (Jest + Vitest) must gate every
+      # PR/push — a compile-only CI lets logic regressions merge green.
+      # Same placeholder DATABASE_URL: tests are unit-level, only
+      # `prisma generate` (via turbo ^build) reads it.
+      - name: Run tests (turbo)
+        run: pnpm turbo run test
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'

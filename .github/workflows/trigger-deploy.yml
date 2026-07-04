@@ -8,6 +8,10 @@ on:
       - 'apps/api/src/trigger/**'
       - 'apps/api/trigger.config.ts'
       - 'apps/api/prisma/**'
+      # Pre-mortem R12: tasks import the 13 email templates + mail-i18n
+      # from modules/mail — without this path a template fix ships to the
+      # API while prod Trigger.dev keeps rendering the old version.
+      - 'apps/api/src/modules/mail/**'
   workflow_dispatch:
 
 jobs:
