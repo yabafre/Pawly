@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Loading security check…",
+    "failed": "The security check failed to load.",
+    "retry": "Try again"
+  },
   "common": {
     "logout": "Log out",
     "loading": "Loading...",

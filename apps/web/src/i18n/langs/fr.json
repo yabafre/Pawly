@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Chargement de la vérification de sécurité…",
+    "failed": "La vérification de sécurité n'a pas pu se charger.",
+    "retry": "Réessayer"
+  },
   "common": {
     "logout": "Déconnexion",
     "loading": "Chargement...",
