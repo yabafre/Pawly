@@ -1,33 +1,29 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import { CalendarX } from "lucide-react";
-import { StaffGrid } from "./StaffGrid";
-import { WeekNavigator } from "./WeekNavigator";
-import { AssignShiftModal } from "./AssignShiftModal";
-import { PlanningHealthBar } from "./PlanningHealthBar";
-import { PublishConfirmDialog } from "./PublishConfirmDialog";
-import { SubscriptionGate } from "@/components/SubscriptionGate";
-import { useScheduleView } from "../_hooks/useScheduleView";
-import { useShiftMutations } from "../_hooks/useShiftMutations";
-import { usePublish } from "../_hooks/usePublish";
-import type { ScheduleHole, ScheduleShift, ScheduleUnavailability } from "@pawly/validators";
+import { useMemo, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { CalendarX } from 'lucide-react';
+import { StaffGrid } from './StaffGrid';
+import { WeekNavigator } from './WeekNavigator';
+import { AssignShiftModal } from './AssignShiftModal';
+import { PlanningHealthBar } from './PlanningHealthBar';
+import { PublishConfirmDialog } from './PublishConfirmDialog';
+import { PublishedChangeDialog } from './PublishedChangeDialog';
+import { SubscriptionGate } from '@/components/SubscriptionGate';
+import { useScheduleView } from '../_hooks/useScheduleView';
+import { useShiftMutations } from '../_hooks/useShiftMutations';
+import { usePublish } from '../_hooks/usePublish';
+import { usePublishedChangeGuard } from '../_hooks/usePublishedChangeGuard';
+import type { ScheduleHole, ScheduleShift, ScheduleUnavailability } from '@pawly/validators';
 
 type Props = {
   month: string;
 };
 
 export function ScheduleViewWrapper({ month }: Props) {
-  const t = useTranslations("admin.scheduleView");
-  const {
-    scheduleData,
-    isLoading,
-    currentWeekData,
-    weeks,
-    weekOffset,
-    goToWeek,
-  } = useScheduleView(month);
+  const t = useTranslations('admin.scheduleView');
+  const { scheduleData, isLoading, currentWeekData, weeks, weekOffset, goToWeek } =
+    useScheduleView(month);
 
   const { moveShift, createManualShift } = useShiftMutations(month);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
@@ -39,6 +35,23 @@ export function ScheduleViewWrapper({ month }: Props) {
   const handlePublishConfirm = useCallback(() => {
     publishPlan({ month });
   }, [publishPlan, month]);
+
+  // Story 7.6 — intercept mutations on a PUBLISHED month behind a
+  // confirmation dialog; on a DRAFT month they run straight through.
+  const isPublished = publicationStatus?.status === 'PUBLISHED';
+  const {
+    guard,
+    dialogOpen: publishedChangeDialogOpen,
+    confirm: confirmPublishedChange,
+    cancel: cancelPublishedChange,
+  } = usePublishedChangeGuard(isPublished);
+
+  const guardedMoveShift = useCallback(
+    (vars: { shiftId: string; targetEmployeeId?: string; targetDate?: string }) => {
+      guard((acknowledge) => moveShift({ ...vars, acknowledgePublishedChange: acknowledge }));
+    },
+    [guard, moveShift]
+  );
 
   // AssignShiftModal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -58,9 +71,11 @@ export function ScheduleViewWrapper({ month }: Props) {
       endTime: string;
       breakMinutes: number;
     }) => {
-      createManualShift(input);
+      guard((acknowledge) =>
+        createManualShift({ ...input, acknowledgePublishedChange: acknowledge })
+      );
     },
-    [createManualShift],
+    [guard, createManualShift]
   );
 
   // Build lookup indexes for AssignShiftModal eligibility checking
@@ -92,7 +107,12 @@ export function ScheduleViewWrapper({ month }: Props) {
   const conflictMap = useMemo(() => {
     const map = new Map<
       string,
-      Array<{ message: string; messageKey?: string; messageParams?: Record<string, string | number>; severity: "blocking" | "warning" }>
+      Array<{
+        message: string;
+        messageKey?: string;
+        messageParams?: Record<string, string | number>;
+        severity: 'blocking' | 'warning';
+      }>
     >();
     if (!scheduleData?.violations) return map;
 
@@ -100,7 +120,7 @@ export function ScheduleViewWrapper({ month }: Props) {
       if (v.affectedEmployeeId && v.affectedDate) {
         const key = `${v.affectedEmployeeId}|${v.affectedDate}`;
         const arr = map.get(key) || [];
-        arr.push({ message: v.message, severity: "blocking" });
+        arr.push({ message: v.message, severity: 'blocking' });
         map.set(key, arr);
       }
     }
@@ -113,7 +133,7 @@ export function ScheduleViewWrapper({ month }: Props) {
           message: v.message,
           messageKey: v.messageKey,
           messageParams: v.messageParams,
-          severity: "warning",
+          severity: 'warning',
         });
         map.set(key, arr);
       }
@@ -132,21 +152,19 @@ export function ScheduleViewWrapper({ month }: Props) {
     return (
       <div className="bg-card rounded-2xl border border-border p-12 text-center">
         <CalendarX size={48} className="mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-bold text-foreground mb-2">
-          {t("emptyState.title")}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {t("emptyState.description")}
-        </p>
+        <h3 className="text-lg font-bold text-foreground mb-2">{t('emptyState.title')}</h3>
+        <p className="text-sm text-muted-foreground">{t('emptyState.description')}</p>
       </div>
     );
   }
 
   // Deduplicate violation counts
-  const dedupViolations = (items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>) => {
+  const dedupViolations = (
+    items: Array<{ ruleId: string; affectedEmployeeId?: string; message: string }>
+  ) => {
     const seen = new Set<string>();
     return items.filter((v) => {
-      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ''}|${v.message}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -176,16 +194,10 @@ export function ScheduleViewWrapper({ month }: Props) {
       {/* Header: title + week navigator */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-foreground">
-            {t("title")}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+          <h2 className="text-lg font-bold text-foreground">{t('title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
-        <WeekNavigator
-          weeks={weeks}
-          currentWeekIndex={weekOffset}
-          onWeekChange={goToWeek}
-        />
+        <WeekNavigator weeks={weeks} currentWeekIndex={weekOffset} onWeekChange={goToWeek} />
       </div>
 
       {/* Staff Grid with DnD */}
@@ -197,7 +209,7 @@ export function ScheduleViewWrapper({ month }: Props) {
         holes={currentWeekData.holes}
         conflictMap={conflictMap}
         equitySummary={scheduleData.equitySummary}
-        moveShift={moveShift}
+        moveShift={guardedMoveShift}
         onHoleClick={handleHoleClick}
       />
 
@@ -220,6 +232,13 @@ export function ScheduleViewWrapper({ month }: Props) {
         softViolationCount={softViolationCount}
         isPublishing={isPublishing}
         preview={publishPreview}
+      />
+
+      {/* Published-Change Confirm Dialog (story 7.6) */}
+      <PublishedChangeDialog
+        open={publishedChangeDialogOpen}
+        onConfirm={confirmPublishedChange}
+        onCancel={cancelPublishedChange}
       />
     </div>
   );
