@@ -1250,3 +1250,76 @@ Requires `pnpm dev` + a seeded clinic. Checklist to run:
    send); (d) the moved shift's slider on the employee dashboard is unconfirmed again;
    (e) `getPublicationStatus` returns `amendmentCount: 1` (via the badge).
 4. Drag a shift on a DRAFT month → **NO dialog** (unchanged behaviour).
+
+## Review Record
+
+**Date:** 2026-07-08
+**Auditors:** Spec, Code (backend / contracts / frontend), Edge & Hallucination, Reliability, Test-integrity (7 finders, adversarial per-finding verification: 29 raised → 21 confirmed, 8 refuted)
+**Verdict:** done — all findings resolved, dismissed-with-rationale, or deferred to Epic 11; L2 journey verified live via next-browser.
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] AC7 — the Health Bar "amended" badge did not refresh in-session: `invalidateSchedule` invalidated `schedule-view` / `shifts` / `equity-counters` but not the `publication-status` query, so `amendedAt`/`amendmentCount` stayed stale after an acknowledged mutation until a refetch/reload. [apps/web/src/app/[locale]/admin/planning/_hooks/useShiftMutations.ts:17]
+  - Source: Code (backend + frontend), Edge (found independently by 3 auditors)
+  - Resolution: commit `763a441` — `invalidateSchedule` now also invalidates `QueryKeyFactory.publicationStatus(month)`. Live-verified: badge ticked "Modifié 1 fois" → "Modifié 2 fois" in-session after an acknowledged move (see Verification).
+- [MINOR] AC3 — an active employee with a null email received neither email nor push: `notifyScheduleChange` filtered `employee.findMany` on `email:{not:null}` and derived `pushIds` from that filtered set, silently dropping null-email employees from the push channel too. [apps/api/src/modules/planning/planning-generation.service.ts:1729-1765]
+  - Source: Edge, Reliability
+  - Resolution: commit `763a441` — query no longer filters on email; the email loop skips null-email recipients individually (`if (!emp || !emp.email) continue`); `pushIds` derives from the full active set. Regression test added, hardened with a `where`-clause assertion after adversarial re-verification.
+- [MINOR] AC3 — the push-notification path (`sendBatchPushNotifications`) was asserted by no test (would have surfaced the null-email defect above). [apps/api/.../planning-generation.service.spec.ts]
+  - Source: Test-integrity
+  - Resolution: commit `763a441` — added push-asserting test + null-email push regression test.
+- [MINOR] AC3 — cross-month move where only one side is published: recipient filtering to the published month was untested. [apps/api/.../planning-generation.service.spec.ts]
+  - Source: Test-integrity, Edge
+  - Resolution: commit `763a441` — added a cross-month test asserting the amendment + single email land on the published month only.
+- [NIT] AC8 — the dialog's `onOpenChange` (ESC / outside-click → cancel) keyboard-dismissal path was never exercised (AlertDialog fully mocked). [apps/web/.../__tests__/published-change.spec.tsx:42]
+  - Source: Code (frontend)
+  - Resolution: commit `763a441` — enhanced the AlertDialog mock to surface `onOpenChange` and added a test asserting dismissal routes to `onCancel`.
+
+#### Dismissed
+
+- [MINOR] AC3 — push-notification copy is hard-coded French, ignoring per-employee locale. [apps/api/src/modules/planning/planning-generation.service.ts:1769]
+  - Source: Test-integrity
+  - Rationale: Documented accepted debt (Dev Notes, key decision #5 / pre-mortem R9), tracked by the notification-i18n story 10-6, explicitly out of 7-6 scope. Mirrors the existing `publishPlan` push copy.
+
+#### Deferred to Epic 11 (confirmed accurate; the 7-6 ↔ 11-x scope boundary is drawn correctly — not 7-6 blockers)
+
+- [MINOR → Story 11-1 / KON-118] Bulk regeneration (`generateMonthlyPlan` / `deleteGeneratedShifts`) bypasses the 7-6 guard entirely (unconditional `deleteMany` on a published month). The three manual mutations 7-6 targets are all correctly guarded; bulk is out of 7-6 scope. [apps/api/src/modules/planning/planning-generation.service.ts]
+  - Source: Spec, Edge, Test-integrity
+- [MINOR → Story 11-6 / KON-123] The amendment flow (`shift.update` → `recordAmendment` → `notifyScheduleChange`) is non-transactional, and the router invalidates Redis only after the service resolves (not in `try/finally`). AC4's correctness (record + return amendment fields) holds in the happy path; atomicity/robustness is the 11-6 concern. [apps/api/.../planning-generation.service.ts:1858; apps/api/src/trpc/routers/planning.router.ts]
+  - Source: Spec, Code (backend), Edge
+- [MINOR → Story 11-4 / KON-121] `sendScheduleChangedEmail` has no retry/fallback on a Trigger.dev dispatch failure — it mirrors the pre-existing `sendSchedulePublicationEmail` log-only pattern. AC3-as-written ("notification failures are logged, never block the mutation") is satisfied; hardened reliability is the 11-4 concern. [apps/api/src/modules/mail/mail.service.tsx:419]
+  - Source: Spec, Code (backend), Edge, Reliability
+
+#### Refuted (adversarial verification eliminated as false positives)
+
+- Task 15 checkbox / journey-verification-pending framed as BLOCKER — self-disclosed, story was at `review-queued`, no reader misled; the journey has since been run (below).
+- `usePublish` cast "strips" amendment fields — file not touched by 7-6, works at runtime.
+- `amendmentCount` increments with zero eligible recipients — correct behaviour (the amendment happened).
+- error-code → translated-toast mapping "untested" — the mapping is present and covered.
+
+### Verification
+
+- Test command: `pnpm test` (turbo, all workspaces) — **8/8 tasks, exit 0**.
+- Test output (final pass): Validators **769**, API **851** (+3 story-7.6 cases: push, null-email push, cross-month), Web **745** (+2: dialog-dismiss, F1 invalidation guard) — **2365 total green**.
+- Build: `pnpm build` — **5/5 tasks, exit 0**.
+- Fix re-verification: independent adversarial re-audit of `763a441` confirmed F1 & F2 RESOLVED; flagged (and I then closed) a soundness gap in the F2 regression test by asserting `employee.findMany` is called without an email filter.
+- Visual / L2 journey verification: **run live via next-browser** (headless) against the running dev stack (web :3020 + API :3001 + Trigger), on the "Clinique Simulation E2E" clinic (published 2026-07, `amendmentCount: 1`):
+  - Admin login (password flow) → planning grid renders the published month with real shifts. ✓
+  - AC7 badge rendered live from real backend data: **"Modifié 1 fois — dernière le 08/07/2026"**. ✓
+  - AC5: keyboard-drag (dnd-kit) of a published-month shift → **PublishedChangeDialog appeared**. ✓
+  - AC8: dialog fully translated (FR) — "Planning publié — confirmer la modification" / "Modifier et notifier" / "Annuler". ✓
+  - Confirm → `moveShift(acknowledgePublishedChange:true)` → success toast "Créneau déplacé". ✓
+  - **F1 fix live-proven:** badge refreshed in-session **"Modifié 1 fois" → "Modifié 2 fois"** with no reload. ✓
+  - AC4 backend: DB `planning_period_statuses` for 2026-07 → `amendmentCount: 2`, `amendedAt` bumped to the mutation time. ✓
+  - AC3: notification dispatched fire-and-forget, no failure logged. ✓
+  - AC2 (isConfirmed reset) and AC6 (DRAFT month → no dialog): unit-verified (no DRAFT month with shifts available in the environment to drive AC6 live without provisioning).
+  - Test-environment mutations: temporarily repointed the seed admin's `clinicId` to the sim clinic to reach its published planning — **restored afterward** to `0898a439…`. The sim clinic (throwaway `@test.app` E2E data) is left with one shift moved and `amendmentCount: 2`.
+
+### Ticket sync
+- Ticket system: `none` (no ticket comment).
+- PR: not yet opened — pending decision on the out-of-scope branch commits (see below).
+
+### Scope audit (git)
+The feature branch carries ~10 files **outside** the 7-6 File List — web hardening (`turnstile.tsx`/`turnstile.spec.tsx`, `useHydrated.ts`/`.spec`, `next.config.ts`, `SchoolDayCalendar`, `SchedulePageClient`, `SettingsPageClient`, `AbsenceRequestList`, commits `2c66709` + `8813ede`) plus Epic 11 documentation (`epics.md`, `epic-11-context.md`). These ride along into any PR from this branch — to be confirmed intentional or split out before merge.
