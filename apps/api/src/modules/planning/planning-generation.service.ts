@@ -1909,6 +1909,7 @@ export class PlanningGenerationService {
       startTime: string;
       endTime: string;
       breakMinutes?: number;
+      acknowledgePublishedChange?: boolean;
     },
   ): Promise<ScheduleShift> {
     const employee = await this.prisma.employee.findFirst({
@@ -1925,6 +1926,14 @@ export class PlanningGenerationService {
       throw new NotFoundException(
         `Shift type '${input.shiftTypeCode}' not found`,
       );
+
+    // Story 7.6 — post-publication guard
+    const month = input.date.slice(0, 7);
+    const publishedMonths = await this.assertPublishedChangeAcknowledged(
+      clinicId,
+      [month],
+      input.acknowledgePublishedChange ?? false,
+    );
 
     // Check for time overlap on the target employee + date
     const existingShifts = await this.prisma.shift.findMany({
@@ -1963,6 +1972,18 @@ export class PlanningGenerationService {
       },
     });
 
+    // Story 7.6 — amendment tracking + notification (published month only)
+    if (publishedMonths.length > 0) {
+      await this.recordAmendment(clinicId, publishedMonths);
+      this.notifyScheduleChange(clinicId, [
+        { employeeId: created.employeeId, month },
+      ]).catch((err: Error) =>
+        this.logger.error(
+          `schedule-change notification failed: ${err.message}`,
+        ),
+      );
+    }
+
     const shiftTypes = await this.clinicService.listShiftTypes(clinicId);
     const colorMap = new Map(shiftTypes.map((st) => [st.code, st.color]));
 
@@ -1983,6 +2004,7 @@ export class PlanningGenerationService {
   async deleteShift(
     clinicId: string,
     shiftId: string,
+    options: { acknowledgePublishedChange?: boolean } = {},
   ): Promise<{ deleted: true }> {
     const shift = await this.prisma.shift.findUnique({
       where: { id: shiftId },
@@ -1991,7 +2013,27 @@ export class PlanningGenerationService {
     if (shift.clinicId !== clinicId)
       throw new ForbiddenException('Shift does not belong to this clinic');
 
+    // Story 7.6 — post-publication guard
+    const month = shift.date.toISOString().split('T')[0].slice(0, 7);
+    const publishedMonths = await this.assertPublishedChangeAcknowledged(
+      clinicId,
+      [month],
+      options.acknowledgePublishedChange ?? false,
+    );
+
     await this.prisma.shift.delete({ where: { id: shiftId } });
+
+    if (publishedMonths.length > 0) {
+      await this.recordAmendment(clinicId, publishedMonths);
+      this.notifyScheduleChange(clinicId, [
+        { employeeId: shift.employeeId, month },
+      ]).catch((err: Error) =>
+        this.logger.error(
+          `schedule-change notification failed: ${err.message}`,
+        ),
+      );
+    }
+
     return { deleted: true };
   }
 
@@ -2477,6 +2519,8 @@ export class PlanningGenerationService {
     status: 'DRAFT' | 'PUBLISHED';
     publishedAt: string | null;
     publishedBy: string | null;
+    amendedAt: string | null;
+    amendmentCount: number;
   }> {
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(
@@ -2489,13 +2533,21 @@ export class PlanningGenerationService {
     });
 
     if (!record) {
-      return { status: 'DRAFT', publishedAt: null, publishedBy: null };
+      return {
+        status: 'DRAFT',
+        publishedAt: null,
+        publishedBy: null,
+        amendedAt: null,
+        amendmentCount: 0,
+      };
     }
 
     return {
       status: record.status as 'DRAFT' | 'PUBLISHED',
       publishedAt: record.publishedAt?.toISOString() ?? null,
       publishedBy: record.publishedBy,
+      amendedAt: record.amendedAt?.toISOString() ?? null,
+      amendmentCount: record.amendmentCount,
     };
   }
 
