@@ -16,6 +16,7 @@ import { EmployeeInvitationEmail } from './templates/EmployeeInvitationEmail';
 import { AbsenceRequestEmail } from './templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from './templates/AbsenceReviewEmail';
 import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
+import { ScheduleChangedEmail } from './templates/ScheduleChangedEmail';
 import { OtpCodeEmail } from './templates/OtpCodeEmail';
 import { PasswordResetEmail } from './templates/PasswordResetEmail';
 import { sendEmailTask } from '@/trigger/client';
@@ -401,6 +402,55 @@ export class MailService {
         'Unexpected error sending schedule publication email',
         err,
       );
+    }
+  }
+
+  async sendScheduleChangedEmail(
+    email: string,
+    firstName: string,
+    month: string,
+    clinicName: string,
+    locale: MailLocale = 'fr',
+  ) {
+    const t = getMailTranslations(locale);
+    const webAppUrl =
+      this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+    const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+    if (this.useTrigger) {
+      return this.triggerSendEmail('schedule-changed', email, {
+        firstName,
+        month,
+        clinicName,
+        dashboardUrl,
+        locale,
+      });
+    }
+    try {
+      const html = await render(
+        <ScheduleChangedEmail
+          firstName={firstName}
+          month={month}
+          clinicName={clinicName}
+          dashboardUrl={dashboardUrl}
+          locale={locale}
+        />,
+      );
+
+      await this.throttle();
+      const { error } = await this.resend.emails.send({
+        from: this.configService.get('MAIL_FROM', { infer: true }),
+        to: email,
+        subject: t.subjects.scheduleChanged(clinicName, month),
+        html,
+      });
+
+      if (error) {
+        this.logger.error(
+          `Failed to send schedule changed email: ${error.message}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error('Unexpected error sending schedule changed email', err);
     }
   }
 
