@@ -1,22 +1,26 @@
-"use client";
+'use client';
 
-import { useTranslations, useLocale } from "next-intl";
-import { useMyAbsences } from "../_hooks/useAbsences";
-import { AbsenceStatusBadge } from "./AbsenceStatusBadge";
-import { CalendarOff } from "lucide-react";
-import { differenceInCalendarDays } from "date-fns";
-import type { AbsenceItem } from "@pawly/types";
+import { useTranslations, useLocale } from 'next-intl';
+import { useMyAbsences } from '../_hooks/useAbsences';
+import { useHydrated } from '@/lib/hooks';
+import { AbsenceStatusBadge } from './AbsenceStatusBadge';
+import { CalendarOff } from 'lucide-react';
+import { differenceInCalendarDays } from 'date-fns';
+import type { AbsenceItem } from '@pawly/types';
 
 interface AbsenceRequestListProps {
   employeeId: string;
 }
 
 export function AbsenceRequestList({ employeeId }: AbsenceRequestListProps) {
-  const t = useTranslations("dashboard.absences");
+  const t = useTranslations('dashboard.absences');
   const locale = useLocale();
+  const hydrated = useHydrated();
   const { absences, isPending } = useMyAbsences(employeeId);
 
-  if (isPending) {
+  // !hydrated: persisted query cache can make isPending false on the first
+  // client render while the server rendered this skeleton (hydration mismatch).
+  if (!hydrated || isPending) {
     return (
       <div className="space-y-2">
         {[1, 2, 3].map((i) => (
@@ -29,14 +33,14 @@ export function AbsenceRequestList({ employeeId }: AbsenceRequestListProps) {
   if (!absences.length) {
     return (
       <div className="text-center py-12">
-        <p className="text-sm text-muted-foreground">{t("list.empty")}</p>
+        <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold">{t("list.title")}</h2>
+      <h2 className="text-sm font-semibold">{t('list.title')}</h2>
       <div className="space-y-2">
         {absences.map((absence: AbsenceItem) => {
           const dayCount =
@@ -51,13 +55,15 @@ export function AbsenceRequestList({ employeeId }: AbsenceRequestListProps) {
                   <div className="min-w-0">
                     <p className="font-semibold text-sm">{t(`types.${absence.type}` as any)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(absence.startDate).toLocaleDateString(locale)} — {new Date(absence.endDate).toLocaleDateString(locale)} · {t("dayCount", { count: dayCount })}
+                      {new Date(absence.startDate).toLocaleDateString(locale)} —{' '}
+                      {new Date(absence.endDate).toLocaleDateString(locale)} ·{' '}
+                      {t('dayCount', { count: dayCount })}
                     </p>
                   </div>
                 </div>
                 <AbsenceStatusBadge status={absence.status} />
               </div>
-              {absence.status === "REJECTED" && absence.rejectionReason && (
+              {absence.status === 'REJECTED' && absence.rejectionReason && (
                 <p className="mt-3 pt-3 border-t text-xs text-muted-foreground">
                   {absence.rejectionReason}
                 </p>
