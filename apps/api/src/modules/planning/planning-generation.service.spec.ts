@@ -4236,6 +4236,118 @@ describe('PlanningGenerationService', () => {
       await new Promise((r) => setImmediate(r));
       expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
     });
+
+    // AC-3 (verbatim from story 7-6:16): ... every affected employee ...
+    //   receives a schedule-changed email and a PUSH NOTIFICATION ... (review
+    //   F3 — the push channel was previously unasserted).
+    it('sends a push notification to the affected employee on an acknowledged published amendment', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(
+        mockPushNotificationService.sendBatchPushNotifications,
+      ).toHaveBeenCalledWith(
+        ['emp-1'],
+        expect.objectContaining({ url: '/dashboard/schedule' }),
+      );
+    });
+
+    // AC-3 (review F2 regression): an ACTIVE employee with no email must still
+    //   receive the push — the email is skipped individually, the push is not
+    //   coupled to email presence.
+    it('still pushes when the affected employee has no email (email skipped, push sent)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: null,
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+      expect(
+        mockPushNotificationService.sendBatchPushNotifications,
+      ).toHaveBeenCalledWith(
+        ['emp-1'],
+        expect.objectContaining({ url: '/dashboard/schedule' }),
+      );
+      // Guard the query-level half of the F2 fix: the recipient lookup must
+      // NOT filter on email (that filter is what previously dropped null-email
+      // employees from the push channel too).
+      expect(mockPrismaService.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.not.objectContaining({ email: expect.anything() }),
+        }),
+      );
+    });
+
+    // AC-3 (verbatim from story 7-6:16): ... each only if their side's month is
+    //   published ... (review F4 — cross-month, one side published only).
+    it('cross-month move notifies only the published-side month', async () => {
+      // Original month 2026-07 is published; target month 2026-08 is a draft.
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-08-05T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-08-05' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      // amendment recorded only for the published month
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ month: { in: ['2026-07'] } }),
+        }),
+      );
+      // exactly one email, for the published month, never for the draft target
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        '2026-07',
+        expect.any(String),
+        expect.any(String),
+      );
+    });
   });
 
   // ─── preValidateMove ─────────────────────────────────────────────

@@ -40,8 +40,25 @@ vi.mock('motion/react', () => ({
 }));
 
 vi.mock('@/components/ui/alert-dialog', () => ({
-  AlertDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
-    open ? <div data-testid="alert-dialog">{children}</div> : null,
+  AlertDialog: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div data-testid="alert-dialog">
+        {/* Stand-in for Radix ESC / outside-click dismissal, which fires
+            onOpenChange(false). Real primitive is keyboard-accessible. */}
+        <button data-testid="dialog-dismiss" onClick={() => onOpenChange?.(false)}>
+          dismiss
+        </button>
+        {children}
+      </div>
+    ) : null,
   AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -155,6 +172,18 @@ describe('PublishedChangeDialog', () => {
     expect(onConfirm).toHaveBeenCalled();
     fireEvent.click(screen.getByText('cancel'));
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  // AC-8 (story 7-6:21): the dialog is keyboard-accessible — dismissing it via
+  //   ESC or an outside click (Radix onOpenChange(false)) must route to onCancel
+  //   so the schedule stays untouched (review F5 — previously unexercised).
+  it('routes an onOpenChange(false) dismissal (ESC / outside click) to onCancel', () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(<PublishedChangeDialog open onConfirm={onConfirm} onCancel={onCancel} />);
+    fireEvent.click(screen.getByTestId('dialog-dismiss'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });
 

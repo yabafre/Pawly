@@ -1727,12 +1727,14 @@ export class PlanningGenerationService {
     if (unique.length === 0) return;
 
     const [employees, clinic] = await Promise.all([
+      // Story 7.6 — do NOT filter on email here: an active employee without an
+      // email must still receive the push notification (AC3). The email loop
+      // below skips null-email employees individually.
       this.prisma.employee.findMany({
         where: {
           id: { in: unique.map((r) => r.employeeId) },
           clinicId,
           isActive: true,
-          email: { not: null },
         },
         select: {
           id: true,
@@ -1750,9 +1752,9 @@ export class PlanningGenerationService {
 
     for (const r of unique) {
       const emp = byId.get(r.employeeId);
-      if (!emp) continue;
+      if (!emp || !emp.email) continue;
       await this.mailService.sendScheduleChangedEmail(
-        emp.email!,
+        emp.email,
         emp.firstName,
         r.month,
         clinic.name,

@@ -24,6 +24,11 @@ export const useShiftMutations = (month?: string) => {
     queryClient.invalidateQueries({
       queryKey: ['planning', 'equity-counters'],
     });
+    // Story 7.6 — an acknowledged mutation on a published month bumps
+    // amendedAt/amendmentCount; refresh the Health Bar amended badge (AC7).
+    queryClient.invalidateQueries({
+      queryKey: QueryKeyFactory.publicationStatus(month),
+    });
   };
 
   const { mutate: moveShift, isPending: isMoving } = useServerActionMutation(moveShiftAction, {
