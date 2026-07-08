@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
@@ -15,7 +19,11 @@ import { SchedulePublicationEmail } from './templates/SchedulePublicationEmail';
 import { OtpCodeEmail } from './templates/OtpCodeEmail';
 import { PasswordResetEmail } from './templates/PasswordResetEmail';
 import { sendEmailTask } from '@/trigger/client';
-import { getMailTranslations, formatDateForLocale, type MailLocale } from './mail-i18n';
+import {
+  getMailTranslations,
+  formatDateForLocale,
+  type MailLocale,
+} from './mail-i18n';
 import type { EnvConfig } from '@/config/index';
 import { emailSendCounter, emailBatchSize } from '@/common/metrics';
 import type { AbsenceType } from '@pawly/validators';
@@ -38,17 +46,27 @@ export class MailService {
     return !!process.env.TRIGGER_SECRET_KEY;
   }
 
-  async triggerSendEmail(type: string, to: string, data: Record<string, unknown>): Promise<void> {
+  async triggerSendEmail(
+    type: string,
+    to: string,
+    data: Record<string, unknown>,
+  ): Promise<boolean> {
     try {
       await sendEmailTask.trigger({ type: type as any, to, data });
+      return true;
     } catch (err) {
+      emailSendCounter.add(1, { type, outcome: 'trigger_failure' });
       this.logger.error(`Failed to trigger send-email task (${type})`, err);
+      return false;
     }
   }
 
   private throttle(): Promise<void> {
     const next = this.throttleChain.then(
-      () => new Promise<void>((r) => setTimeout(r, MailService.MIN_SEND_INTERVAL_MS)),
+      () =>
+        new Promise<void>((r) =>
+          setTimeout(r, MailService.MIN_SEND_INTERVAL_MS),
+        ),
     );
     this.throttleChain = next.then(() => {
       this.throttleChain = Promise.resolve();
@@ -58,8 +76,14 @@ export class MailService {
 
   async sendMagicLink(email: string, url: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
+    // Auth-critical: a lost magic link means the employee cannot log in at
+    // all, so a failed Trigger dispatch must fall back to the direct send.
     if (this.useTrigger) {
-      return this.triggerSendEmail('magic-link', email, { url, locale });
+      if (await this.triggerSendEmail('magic-link', email, { url, locale }))
+        return;
+      this.logger.warn(
+        'Trigger dispatch failed for magic-link — falling back to direct Resend send',
+      );
     }
     try {
       const html = await render(<MagicLinkEmail url={url} locale={locale} />);
@@ -75,7 +99,9 @@ export class MailService {
       if (error) {
         emailSendCounter.add(1, { type: 'magic_link', outcome: 'failure' });
         this.logger.error(`Failed to send magic link email: ${error.message}`);
-        throw new InternalServerErrorException('Failed to send authentication email');
+        throw new InternalServerErrorException(
+          'Failed to send authentication email',
+        );
       }
 
       emailSendCounter.add(1, { type: 'magic_link', outcome: 'success' });
@@ -83,17 +109,30 @@ export class MailService {
     } catch (err) {
       emailSendCounter.add(1, { type: 'magic_link', outcome: 'failure' });
       this.logger.error('Unexpected error sending magic link email', err);
-      throw new InternalServerErrorException('Failed to send authentication email');
+      throw new InternalServerErrorException(
+        'Failed to send authentication email',
+      );
     }
   }
 
-  async sendActivationEmail(email: string, url: string, adminName?: string, locale: MailLocale = 'fr') {
+  async sendActivationEmail(
+    email: string,
+    url: string,
+    adminName?: string,
+    locale: MailLocale = 'fr',
+  ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('welcome', email, { url, adminName, locale });
+      return this.triggerSendEmail('welcome', email, {
+        url,
+        adminName,
+        locale,
+      });
     }
     try {
-      const html = await render(<ActivationEmail url={url} adminName={adminName} locale={locale} />);
+      const html = await render(
+        <ActivationEmail url={url} adminName={adminName} locale={locale} />,
+      );
 
       await this.throttle();
       const { data, error } = await this.resend.emails.send({
@@ -105,7 +144,9 @@ export class MailService {
 
       if (error) {
         this.logger.error(`Failed to send activation email: ${error.message}`);
-        throw new InternalServerErrorException('Failed to send activation email');
+        throw new InternalServerErrorException(
+          'Failed to send activation email',
+        );
       }
 
       return data;
@@ -115,17 +156,31 @@ export class MailService {
     }
   }
 
-  async sendWelcomeEmail(email: string, adminName?: string, locale: MailLocale = 'fr') {
+  async sendWelcomeEmail(
+    email: string,
+    adminName?: string,
+    locale: MailLocale = 'fr',
+  ) {
     const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true });
     const dashboardUrl = `${webAppUrl}/${locale === 'en' ? 'en/' : ''}admin/dashboard`;
     const t = getMailTranslations(locale);
 
     if (this.useTrigger) {
-      return this.triggerSendEmail('welcome', email, { url: dashboardUrl, adminName, locale });
+      return this.triggerSendEmail('welcome', email, {
+        url: dashboardUrl,
+        adminName,
+        locale,
+      });
     }
 
     try {
-      const html = await render(<WelcomeEmail url={dashboardUrl} adminName={adminName} locale={locale} />);
+      const html = await render(
+        <WelcomeEmail
+          url={dashboardUrl}
+          adminName={adminName}
+          locale={locale}
+        />,
+      );
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
@@ -155,11 +210,25 @@ export class MailService {
     const t = getMailTranslations(locale);
 
     if (this.useTrigger) {
-      return this.triggerSendEmail('plan-confirmation', email, { plan, adminName, dashboardUrl, invoiceUrl, locale });
+      return this.triggerSendEmail('plan-confirmation', email, {
+        plan,
+        adminName,
+        dashboardUrl,
+        invoiceUrl,
+        locale,
+      });
     }
 
     try {
-      const html = await render(<PlanConfirmationEmail plan={plan} adminName={adminName} dashboardUrl={dashboardUrl} invoiceUrl={invoiceUrl} locale={locale} />);
+      const html = await render(
+        <PlanConfirmationEmail
+          plan={plan}
+          adminName={adminName}
+          dashboardUrl={dashboardUrl}
+          invoiceUrl={invoiceUrl}
+          locale={locale}
+        />,
+      );
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
@@ -170,20 +239,40 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send plan confirmation email: ${error.message}`);
+        this.logger.error(
+          `Failed to send plan confirmation email: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending plan confirmation email', err);
+      this.logger.error(
+        'Unexpected error sending plan confirmation email',
+        err,
+      );
     }
   }
 
-  async sendEmployeeInvitationEmail(email: string, url: string, firstName: string, locale: MailLocale = 'fr') {
+  async sendEmployeeInvitationEmail(
+    email: string,
+    url: string,
+    firstName: string,
+    locale: MailLocale = 'fr',
+  ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('invitation', email, { url, firstName, locale });
+      return this.triggerSendEmail('invitation', email, {
+        url,
+        firstName,
+        locale,
+      });
     }
     try {
-      const html = await render(<EmployeeInvitationEmail url={url} firstName={firstName} locale={locale} />);
+      const html = await render(
+        <EmployeeInvitationEmail
+          url={url}
+          firstName={firstName}
+          locale={locale}
+        />,
+      );
 
       await this.throttle();
       const { error } = await this.resend.emails.send({
@@ -194,10 +283,15 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send employee invitation email: ${error.message}`);
+        this.logger.error(
+          `Failed to send employee invitation email: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending employee invitation email', err);
+      this.logger.error(
+        'Unexpected error sending employee invitation email',
+        err,
+      );
     }
   }
 
@@ -211,7 +305,13 @@ export class MailService {
   ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('school-notification', adminEmail, { adminName, apprenticeName, month, dateCount, locale });
+      return this.triggerSendEmail('school-notification', adminEmail, {
+        adminName,
+        apprenticeName,
+        month,
+        dateCount,
+        locale,
+      });
     }
     try {
       const html = await render(
@@ -233,10 +333,15 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send school days notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send school days notification: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending school days notification', err);
+      this.logger.error(
+        'Unexpected error sending school days notification',
+        err,
+      );
     }
   }
 
@@ -250,12 +355,21 @@ export class MailService {
   ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const webAppUrl =
+        this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
-      return this.triggerSendEmail('schedule-publication', employeeEmail, { firstName, month, clinicName, dashboardUrl, shiftCount, locale });
+      return this.triggerSendEmail('schedule-publication', employeeEmail, {
+        firstName,
+        month,
+        clinicName,
+        dashboardUrl,
+        shiftCount,
+        locale,
+      });
     }
     try {
-      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const webAppUrl =
+        this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
 
       const html = await render(
@@ -278,10 +392,15 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send schedule publication email to ${employeeEmail}: ${error.message}`);
+        this.logger.error(
+          `Failed to send schedule publication email to ${employeeEmail}: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending schedule publication email', err);
+      this.logger.error(
+        'Unexpected error sending schedule publication email',
+        err,
+      );
     }
   }
 
@@ -297,13 +416,19 @@ export class MailService {
   ): Promise<number> {
     if (emails.length === 0) return 0;
 
-    const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+    const webAppUrl =
+      this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
     const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
     const from = this.configService.get('MAIL_FROM', { infer: true });
     let notifiedCount = 0;
 
     // Pre-render HTML per employee (each has unique firstName and shiftCount)
-    const emailPayloads: Array<{ from: string; to: string; subject: string; html: string }> = [];
+    const emailPayloads: Array<{
+      from: string;
+      to: string;
+      subject: string;
+      html: string;
+    }> = [];
     for (const emp of emails) {
       try {
         const empLocale: MailLocale = emp.locale ?? 'fr';
@@ -342,15 +467,23 @@ export class MailService {
           notifiedCount += data?.data?.length ?? chunk.length;
         }
       } catch (err) {
-        this.logger.error(`Batch email send failed for chunk ${i / BATCH_SIZE + 1}: ${err}`);
+        this.logger.error(
+          `Batch email send failed for chunk ${i / BATCH_SIZE + 1}: ${err}`,
+        );
       }
     }
 
     emailBatchSize.record(emailPayloads.length, { clinic: clinicName });
-    emailSendCounter.add(notifiedCount, { type: 'schedule_publication', outcome: 'success' });
+    emailSendCounter.add(notifiedCount, {
+      type: 'schedule_publication',
+      outcome: 'success',
+    });
     const failedCount = emailPayloads.length - notifiedCount;
     if (failedCount > 0) {
-      emailSendCounter.add(failedCount, { type: 'schedule_publication', outcome: 'failure' });
+      emailSendCounter.add(failedCount, {
+        type: 'schedule_publication',
+        outcome: 'failure',
+      });
     }
 
     return notifiedCount;
@@ -364,15 +497,27 @@ export class MailService {
   ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const webAppUrl =
+        this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
-      return this.triggerSendEmail('school-reminder', apprenticeEmail, { name, month, dashboardUrl, locale });
+      return this.triggerSendEmail('school-reminder', apprenticeEmail, {
+        name,
+        month,
+        dashboardUrl,
+        locale,
+      });
     }
     try {
-      const webAppUrl = this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
+      const webAppUrl =
+        this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
       const dashboardUrl = `${webAppUrl}/dashboard/school-days`;
       const html = await render(
-        <SchoolDaysReminderEmail name={name} month={month} dashboardUrl={dashboardUrl} locale={locale} />,
+        <SchoolDaysReminderEmail
+          name={name}
+          month={month}
+          dashboardUrl={dashboardUrl}
+          locale={locale}
+        />,
       );
 
       await this.throttle();
@@ -384,7 +529,9 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send school days reminder: ${error.message}`);
+        this.logger.error(
+          `Failed to send school days reminder: ${error.message}`,
+        );
       }
     } catch (err) {
       this.logger.error('Unexpected error sending school days reminder', err);
@@ -394,7 +541,10 @@ export class MailService {
   async sendOtpCode(email: string, code: string, locale: MailLocale = 'fr') {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('otp', email, { code, locale });
+      if (await this.triggerSendEmail('otp', email, { code, locale })) return;
+      this.logger.warn(
+        'Trigger dispatch failed for otp — falling back to direct Resend send',
+      );
     }
     try {
       const html = await render(<OtpCodeEmail code={code} locale={locale} />);
@@ -410,7 +560,9 @@ export class MailService {
       if (error) {
         emailSendCounter.add(1, { type: 'otp', outcome: 'failure' });
         this.logger.error(`Failed to send OTP code email: ${error.message}`);
-        throw new InternalServerErrorException('Failed to send authentication email');
+        throw new InternalServerErrorException(
+          'Failed to send authentication email',
+        );
       }
 
       emailSendCounter.add(1, { type: 'otp', outcome: 'success' });
@@ -419,7 +571,9 @@ export class MailService {
       if (err instanceof InternalServerErrorException) throw err;
       emailSendCounter.add(1, { type: 'otp', outcome: 'failure' });
       this.logger.error('Unexpected error sending OTP code email', err);
-      throw new InternalServerErrorException('Failed to send authentication email');
+      throw new InternalServerErrorException(
+        'Failed to send authentication email',
+      );
     }
   }
 
@@ -436,10 +590,13 @@ export class MailService {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
       return this.triggerSendEmail('absence-request', adminEmail, {
-        adminName, employeeName, absenceType,
+        adminName,
+        employeeName,
+        absenceType,
         startDate: formatDateForLocale(startDate, locale),
         endDate: formatDateForLocale(endDate, locale),
-        dayCount, locale,
+        dayCount,
+        locale,
       });
     }
     try {
@@ -464,10 +621,15 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send absence request notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send absence request notification: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending absence request notification', err);
+      this.logger.error(
+        'Unexpected error sending absence request notification',
+        err,
+      );
     }
   }
 
@@ -484,10 +646,13 @@ export class MailService {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
       return this.triggerSendEmail('absence-review', employeeEmail, {
-        firstName, status, absenceType,
+        firstName,
+        status,
+        absenceType,
         startDate: formatDateForLocale(startDate, locale),
         endDate: formatDateForLocale(endDate, locale),
-        rejectionReason, locale,
+        rejectionReason,
+        locale,
       });
     }
     try {
@@ -512,20 +677,35 @@ export class MailService {
       });
 
       if (error) {
-        this.logger.error(`Failed to send absence review notification: ${error.message}`);
+        this.logger.error(
+          `Failed to send absence review notification: ${error.message}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Unexpected error sending absence review notification', err);
+      this.logger.error(
+        'Unexpected error sending absence review notification',
+        err,
+      );
     }
   }
 
-  async sendPasswordResetEmail(email: string, url: string, locale: MailLocale = 'fr') {
+  async sendPasswordResetEmail(
+    email: string,
+    url: string,
+    locale: MailLocale = 'fr',
+  ) {
     const t = getMailTranslations(locale);
     if (this.useTrigger) {
-      return this.triggerSendEmail('password-reset', email, { url, locale });
+      if (await this.triggerSendEmail('password-reset', email, { url, locale }))
+        return;
+      this.logger.warn(
+        'Trigger dispatch failed for password-reset — falling back to direct Resend send',
+      );
     }
     try {
-      const html = await render(<PasswordResetEmail url={url} locale={locale} />);
+      const html = await render(
+        <PasswordResetEmail url={url} locale={locale} />,
+      );
 
       await this.throttle();
       const { data, error } = await this.resend.emails.send({
@@ -537,8 +717,12 @@ export class MailService {
 
       if (error) {
         emailSendCounter.add(1, { type: 'password_reset', outcome: 'failure' });
-        this.logger.error(`Failed to send password reset email: ${error.message}`);
-        throw new InternalServerErrorException('Failed to send password reset email');
+        this.logger.error(
+          `Failed to send password reset email: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Failed to send password reset email',
+        );
       }
 
       emailSendCounter.add(1, { type: 'password_reset', outcome: 'success' });
@@ -546,7 +730,9 @@ export class MailService {
     } catch (err) {
       emailSendCounter.add(1, { type: 'password_reset', outcome: 'failure' });
       this.logger.error('Unexpected error sending password reset email', err);
-      throw new InternalServerErrorException('Failed to send password reset email');
+      throw new InternalServerErrorException(
+        'Failed to send password reset email',
+      );
     }
   }
 }
