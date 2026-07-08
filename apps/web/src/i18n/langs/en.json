@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Loading security check…",
+    "failed": "The security check failed to load.",
+    "retry": "Try again"
+  },
   "common": {
     "logout": "Log out",
     "loading": "Loading...",
@@ -308,6 +313,7 @@
         "emptyState": "No shifts generated yet — run generation first",
         "published": "Published",
         "publishedAt": "Published on {date}",
+        "amended": "{count, plural, one {Amended # time} other {Amended # times}} — last on {date}",
         "detailTitle": "Health Details",
         "categoryStaffing": "Staffing Minimum",
         "categorySkill": "Skill Requirements",
@@ -621,6 +627,12 @@
         "nextDays": "Next days"
       }
     },
+    "publishedChange": {
+      "dialogTitle": "Published schedule — confirm change",
+      "dialogDescription": "This schedule has already been published. Employees affected by this change will be notified by email and push notification.",
+      "confirm": "Change and notify",
+      "cancel": "Cancel"
+    },
     "dragDrop": {
       "moveSuccess": "Shift moved successfully",
       "moveError": "Failed to move shift",
@@ -628,6 +640,7 @@
       "createError": "Failed to create shift",
       "deleteSuccess": "Shift deleted successfully",
       "deleteError": "Failed to delete shift",
+      "publishedChangeRequired": "This schedule is published: the change must be confirmed through the dialog.",
       "dragging": "Moving shift…",
       "dropHere": "Drop here to assign",
       "dropBlocked": "Cannot drop here",

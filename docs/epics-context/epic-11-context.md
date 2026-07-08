@@ -1,0 +1,128 @@
+# Epic 11 — Context Cache
+
+_Hand-authored 2026-07-08 from the multi-agent planning audit (2 independent audits, 48 sub-agents, 28 confirmed findings, 0 refuted). Consumers: aped-dev, aped-review — **every Epic 11 story MUST read this file first**. Ground truth is the code; line numbers are audit anchors as of commit `2c66709` and may drift — re-locate the symbol, don't trust the number blindly._
+
+---
+
+## 0. Why this epic exists (audit synthesis)
+
+The planning engine is a **soigné greedy, above the MVP standard** (deterministic, O(1) counters, net-minute hour accounting, partial fill, Paris-timezone-correct). It is **not optimal** (single-pass, incompleteness proven by counter-example) — but optimality is not why this epic exists. Two audits, blind to each other, converged on the **same two critical safety bugs**, and both flagged the same reliability and legal-compliance gaps. Fix **safety and compliance before touching optimality**.
+
+**The two convergent criticals (both audits found them independently):**
+
+1. **Regenerating a PUBLISHED month bypasses the entire Story 7-6 guard.** `assertPublishedChangeAcknowledged` (`planning-generation.service.ts:1683-1698`) is only wired to the manual mutations (`moveShift` :1817, `createManualShift` :1932, `deleteShift` :2018). `generateMonthlyPlan` / `deleteGeneratedShifts` run an unconditional `deleteMany` (`:369-375`) that wipes GENERATED shifts of a published month — **including `isConfirmed=true`** — with no acknowledgement, no amendment, no notification. `VarianceEvent` is `onDelete: Cascade` (`Planning.prisma:117`) so no-show/pointing history is destroyed too. → **Story 11-1**.
+
+2. **The generator is blind to MANUAL shifts in the target month.** They survive the `deleteMany` but are never seeded into `assignmentIndex` / `weeklyMinutesCounter` (`:238-266`; `loadBorderWeekShifts` `:3099-3166` only loads *outside* the target month). Result: double-booking and silent contract-hour overrun on any amended month. No DB safety net — no `@@unique` on `Shift` (`Planning.prisma:20-48`). → **Story 11-2**.
+
+**The reliability & compliance gaps (each confirmed):**
+
+- **No French labor law by default.** All hard limits live inside `for (const rule of hardContractRules)` (`:788-835`); zero configured `CONTRACT_COMPLIANCE` rule = zero exclusion. No 10h/day cap, no 13h amplitude, no 35h weekly rest, no max-6-consecutive-days (only a `-8/day` soft penalty capped at `-48`, `:1061-1071`, dominated by `+50/+30` fill bonuses `:1046-1059`). Fields all `.optional()` (`planning-rule.schema.ts:56-62`); nothing seeded (`seed.ts`). → **Story 11-3**.
+- **Publication emails fail silently.** `batch-email-publish.ts` configures `maxAttempts:5` (`:18-23`) but `run()` never throws (errors caught+logged `:57-75`, unconditional `{sent}` return `:79`); trigger is fire-and-forget (`:2461-2467`). A Resend outage = no employee notified, no retry, no trace. The recent mail fallback (commit `6dcd029`) does **not** cover `sendSchedulePublicationEmail` / `sendScheduleChangedEmail` (`mail.service.tsx:358-370, :419-427`). → **Story 11-4**.
+- **Retry × non-uniqueness = month duplication.** `fetchWithRetry` retries *mutations* on 5xx/ECONNRESET (`apps/web/src/lib/trpc/client.ts:46-53, :70-84, :103`); the delete+create runs in READ COMMITTED with no `isolationLevel` (`:367-391`); the `P2002` catch is dead code (`:392-398`). A reverse-proxy 502/504 during a slow generation can double the whole month. → **Story 11-5**.
+- **Amendment flow is non-transactional.** `shift.update` (`:1858`) → `recordAmendment` (`:1700-1709`, separate `updateMany`) → `notifyScheduleChange` run outside a transaction; the router throws before Redis invalidation (`planning.router.ts:300-331`), leaving `schedule:*` stale. Same for create (`:1962→:1977`) and delete (`:2024→:2027`). → **Story 11-6**.
+- **Equity resets every January + fix inoperative for un-mapped employees.** `allMonths=[]` in January, December N-1 never loaded (`:596-602`; `equity-counter.service.ts:48-54`); live increment guarded by `if (equity)` without creating the entry (`:347-351`); scoring short-circuits to a flat `+20` (`:964-1009`). A new hire preferentially absorbs Sundays / unpopular shifts. → **Story 11-7**.
+- **Rule engine in 3 divergent implementations.** `evaluateRotationEquity` / `evaluateContractCompliance` push to `softViolations` regardless of `ruleType` (`planning.service.ts:184-188, :281-456`); `validateShiftsAgainstRules` ignores `maxWeeklyHours` (`:386-388`) and does not deduct `breakMinutes` (`:392-393`), unlike `preValidateMove` (`:2225-2241, :2192-2194`) and `scoreAndAssign` (`:786-835`). `publishPlan` only blocks on `hard` (`:2385-2389`) → HARD contract/rotation violations pass publication. → **Story 11-8**.
+- **Greedy is incomplete (assumed, documented).** Single pass, no backtracking (`:293`); hole on `No eligible employees` (`:1308-1324`); bin-packing counter-example verified. Documented in `docs/reference/planning-algorithm-reference.md:321-331`. Fix with a local repair pass (GRASP), **not** CP-SAT at this scale. → **Story 11-9**.
+- **Rotation scoring freezes the event loop.** Re-scans the whole pool per employee per slot, no `await` → NFR2 (<2s) breaks at 50 employees. → **Story 11-10**.
+
+**Full report (scores, roadmap):** artifact published 2026-07-08 — see memory `planning-algo-audit-2026-07`.
+
+---
+
+## 1. Scope from PRD
+
+- **FRs in this epic (all re-covered, none new):** FR3 — configure shift types & contract rules; FR5 — generate draft schedules with holes; FR6 — adjust shifts via drag-and-drop; **FR7 — block shifts conflicting with Hard Rules, EXTENDED to French labor law**; FR8 — flag Soft Rule violations; FR10 — notify employees on publication.
+- **NFRs that bind:** NFR2 — generation < 2s with loading feedback > 1s (11-9, 11-10); NFR3 — zero silent failures, all exceptions visible to the Admin (11-1, 11-4, 11-5, 11-6); NFR6 — multi-tenant isolation via `clinicId` on every query; NFR9 — 50 employees without degradation (11-10); NFR10 — concurrent generations across clinics (11-5).
+
+---
+
+## 2. Architecture references
+
+- **Data flow (non-negotiable):** `Page (RSC) → Client Component → Hook → Zsa → Server Action → tRPC Client → NestJS Service → Prisma` (architecture.md § Communication Patterns).
+- **Auth:** `subscribedProcedure` + ADMIN role guard on every admin planning procedure; `clinicId` always from `ctx.user.clinicId`, never from client payload. Generation/templates/equity/rules are `isEntitled('professional')`-gated; the subscription is cached in Redis `sub:{clinicId}` for 120s.
+- **Planning module map** (`apps/api/src/modules/planning/`):
+  - `planning-generation.service.ts` (~3246 lines) — generation loop, `moveShift`/`createManualShift`/`deleteShift`/`preValidateMove`, `publishPlan`, the 7-6 guard. **Touched by 11-1, 11-2, 11-5, 11-6, 11-9, 11-10.**
+  - `planning.service.ts` — `validateShiftsAgainstRules`, rotation/contract evaluators. **Touched by 11-8.**
+  - `equity-counter.service.ts` / `.scheduler.ts` — equity counters. **Touched by 11-7.**
+  - `variance.service.ts`, `presence-confirmation.*` — downstream consumers; `VarianceEvent` cascades on shift delete.
+- **Publication state:** `PlanningPeriodStatus` (`@@unique([clinicId, month])`, DRAFT/PUBLISHED, `amendedAt`, `amendmentCount`) — story 7-2/7-6.
+- **Notifications:** `MailService.sendBatchSchedulePublicationEmails` + Trigger.dev `batchEmailPublishTask` / `batchPushPublishTask`, fired only inside publish/amendment paths.
+- **Validation:** Zod schemas in `packages/validators/src/planning/`; violation messages use structured `messageKey`/`messageParams`, never raw English strings.
+
+---
+
+## 3. Cross-cutting invariants every story MUST preserve
+
+1. **Multi-tenancy:** every query filtered by `clinicId` from `ctx.user`, never from the client. Any client-supplied id (`shiftId`, `periodId`, `employeeId`, `templateId`) is re-verified as belonging to the caller's clinic.
+2. **The 7-6 guard contract is now a whole-surface invariant, not a per-endpoint check.** Any code path that mutates shifts of a PUBLISHED month must go through `assertPublishedChangeAcknowledged` + `recordAmendment` + `notifyScheduleChange`. 11-1 extends it to bulk; do not re-open the hole elsewhere.
+3. **Determinism:** the generator is fully deterministic (tiebreakers `score → #shifts → #weekends → employeeId`, no RNG). Preserve it — it is the precondition for reproducible bugs, tests, and any future benchmark. 11-9's repair pass must stay deterministic.
+4. **Net-minute hour accounting:** hours are always computed with `breakMinutes` deducted, over ISO weeks, UTC arithmetic (DST-safe). Every new rule/eval path must use net minutes (this is exactly what 11-8 unifies).
+5. **The correct transactional pattern already exists — generalize it, don't reinvent.** `confirmPresence` is the model: re-check `PUBLISHED` status *inside* the transaction (anti-TOCTOU), CAS via `updateMany`, atomic `VarianceEvent`. 11-5 and 11-6 apply this shape; 11-1 preserves confirmed shifts the same way.
+6. **Never delete confirmed or past data on regeneration.** `deleteMany` on a month must exclude `isConfirmed=true` and past days (11-1), and `VarianceEvent` cascade must not silently erase history.
+7. **No silent failure (NFR3):** every hole carries a visible reason; every notification outage is observable; every hard violation blocks publication.
+
+---
+
+## 4. Per-story anchor map (start from ground truth, verify the symbol)
+
+| Story | Primary files (audit anchors) |
+|-------|-------------------------------|
+| 11-1 | `planning-generation.service.ts` guard `:1683-1698`, call-sites `:1817/:1932/:2018`, bulk `deleteMany :369-375`, `generateMonthlyPlan :117-418`; `packages/validators/src/planning/planning-generation.schema.ts` (add `acknowledgePublishedChange`); `Planning.prisma:117` (VarianceEvent cascade) |
+| 11-2 | `:238-266` (counter seeding), `loadBorderWeekShifts :3099-3166`, overlap `:744-757`; `apps/api/prisma/schema/Planning.prisma:20-48` (add partial `@@unique`) |
+| 11-3 | `hardContractRules :734-736, :788-835`, `minRest :810-834`, consecutive-day penalty `:1061-1071`; `packages/validators/src/planning/planning-rule.schema.ts:56-62`; `apps/api/prisma/seed.ts` |
+| 11-4 | `apps/api/src/trigger/tasks/batch-email-publish.ts:18-23, :57-75, :79`; trigger fire `:2461-2467` / fallback `:2470`; `mail.service.tsx:358-370, :419-427`; caller `:1754` |
+| 11-5 | `apps/web/src/lib/trpc/client.ts:46-53, :70-84, :103`; generation tx `:367-391` (add `isolationLevel` + `pg_advisory_xact_lock`); dead `P2002 :392-398` |
+| 11-6 | `shift.update :1858`, `recordAmendment :1700-1709 / :1878`, create `:1962→:1977`, delete `:2024→:2027`; `planning.router.ts:300-331` (Redis invalidation in `try/finally`) |
+| 11-7 | `:596-602` (window), `equity-counter.service.ts:48-54`, live increment `:347-351`, scoring shortcut `:964-1009` |
+| 11-8 | `planning.service.ts:184-188, :281-456, :386-388, :392-393`; `preValidateMove :2192-2194, :2225-2241`; `scoreAndAssign :786-835`; `publishPlan :2378-2411` |
+| 11-9 | greedy loop `:293`, hole `:1308-1324`; `docs/reference/planning-algorithm-reference.md:321-331`; depends on 11-8's evaluator |
+| 11-10 | rotation scoring `countTargetDayShifts` loop (no `await`); `:1049` (dominant weekly-capacity term) |
+
+---
+
+## 5. Lessons applicable
+
+- **L-audit — "verified" means every guard entry-point, not one.** The 7-6 E2E tested only the manual-move path (guarded) and missed the bulk-regenerate path (bypassed). A guard with N call-sites is verified only when all N that *should* trigger it are exercised. Scope: every story that adds/extends a guard (11-1, 11-8), and their QA gate.
+- **L1 — Never mix Zsa tuple returns with TanStack Query direct returns** (`apps/web` hooks bridging Zsa ↔ React Query).
+- **L2 — Unit/integration tests do not replace real user-journey testing.** 428 green tests still let 3 CRITICAL runtime bugs through (and this audit found 2 more the tests never covered).
+- **L3 — Reviews must cross-reference the PRD and architecture, not just the code.**
+- **L4 — Consult up-to-date docs (Context7) for third-party SDKs; record sources in Dev Notes** (Prisma advisory locks, transaction isolation, Trigger.dev retry semantics all matter here).
+- **L5 — SWC builds emit no `.d.ts`; the `tsc -p tsconfig.types.json` pass in `apps/api` build is load-bearing** for `@pawly/api/trpc-types`.
+
+---
+
+## 6. Environment & convention gotchas (from project memory)
+
+- **Redis:** subscription cache `sub:{clinicId}` (120s); schedule caches `schedule:*`. React Query invalidation is **prefix-only** (`["planning"]`, not full keys) — full keys silently miss dynamic sub-keys.
+- **Planning grid drag is keyboard (dnd-kit)**, not pointer — relevant for any 11-x E2E on the grid.
+- **API tests:** Jest `*.spec.ts` in `apps/api`. Web tests: Vitest `*.spec.ts`. Validators: Vitest `src/**/*.test.ts`.
+- **Never `rm -rf .next`** (kills `routes-manifest.json`; only `pnpm build` regenerates it). All pnpm from repo root, never `cd apps/*`.
+- **date-fns is NOT installed in `apps/api`** — use native JS date utilities server-side.
+- **`AuthenticatedUser` has no `employeeId`** — resolve via `prisma.user.findUnique({ where: { id: ctx.user.sub }, select: { employee: { select: { id: true } } } })`.
+
+---
+
+## 7. Linear tickets
+
+Milestone *Epic 11 — Planning Engine Hardening & Compliance* (project **Pawly**, team **Koni**). Dependencies are wired as blocked-by relations.
+
+| Story | Ticket | Blocked by |
+|-------|--------|-----------|
+| 11-1 | KON-118 | — |
+| 11-2 | KON-119 | KON-118 |
+| 11-3 | KON-120 | — |
+| 11-4 | KON-121 | — |
+| 11-5 | KON-122 | KON-119 |
+| 11-6 | KON-123 | KON-118 |
+| 11-7 | KON-124 | — |
+| 11-8 | KON-125 | KON-119, KON-120 |
+| 11-9 | KON-126 | KON-119, KON-125 |
+| 11-10 | KON-127 | KON-119 |
+
+**Wave order:** W1 (parallel) 11-1 · 11-3 · 11-4 · 11-7 → W2 11-2 · 11-6 → W3 11-5 · 11-10 · 11-8 → W4 11-9. Critical quick wins (~1-2 weeks): 11-1, 11-2, 11-4, 11-5.
+
+---
+
+## 8. Previous stories — outcomes
+
+_(Appended by aped-review at story→done. Empty on first story of the epic.)_

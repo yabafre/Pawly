@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Chargement de la vérification de sécurité…",
+    "failed": "La vérification de sécurité n'a pas pu se charger.",
+    "retry": "Réessayer"
+  },
   "common": {
     "logout": "Déconnexion",
     "loading": "Chargement...",
@@ -308,6 +313,7 @@
         "emptyState": "Aucun créneau généré — lancez la génération d'abord",
         "published": "Publié",
         "publishedAt": "Publié le {date}",
+        "amended": "{count, plural, one {Modifié # fois} other {Modifié # fois}} — dernière le {date}",
         "detailTitle": "Détail de la santé",
         "categoryStaffing": "Effectif minimum",
         "categorySkill": "Compétences requises",
@@ -621,6 +627,12 @@
         "nextDays": "Jours suivants"
       }
     },
+    "publishedChange": {
+      "dialogTitle": "Planning publié — confirmer la modification",
+      "dialogDescription": "Ce planning a déjà été publié. Les employés concernés par ce changement seront notifiés par email et notification push.",
+      "confirm": "Modifier et notifier",
+      "cancel": "Annuler"
+    },
     "dragDrop": {
       "moveSuccess": "Créneau déplacé avec succès",
       "moveError": "Échec du déplacement du créneau",
@@ -628,6 +640,7 @@
       "createError": "Échec de la création du créneau",
       "deleteSuccess": "Créneau supprimé avec succès",
       "deleteError": "Échec de la suppression du créneau",
+      "publishedChangeRequired": "Ce planning est publié : la modification doit être confirmée via la boîte de dialogue.",
       "dragging": "Déplacement en cours…",
       "dropHere": "Déposer ici pour affecter",
       "dropBlocked": "Dépôt impossible ici",

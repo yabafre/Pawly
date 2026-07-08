@@ -16,6 +16,7 @@ import {
   useUpdateNotificationPreferences,
 } from '../_hooks/useNotificationPreferences';
 import { usePushNotifications } from '../_hooks/usePushNotifications';
+import { useHydrated } from '@/lib/hooks';
 
 const subscribe = () => () => {};
 const getSnapshot = () => isStandalone();
@@ -28,6 +29,7 @@ export function SettingsPageClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const replayTour = useReplayTour();
+  const hydrated = useHydrated();
   const { data: preferences, isPending } = useNotificationPreferences();
   const { mutate: updatePreferences, isPending: isUpdating } = useUpdateNotificationPreferences();
   const {
@@ -40,7 +42,10 @@ export function SettingsPageClient() {
   } = usePushNotifications();
   const pwaInstalled = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const notifyOnPublish = preferences?.notifyOnPublish ?? true;
+  // !hydrated: mirror the server render (no data → default true, switch
+  // disabled) on the first client render even if the persisted query cache
+  // already restored preferences, otherwise hydration mismatches.
+  const notifyOnPublish = hydrated ? (preferences?.notifyOnPublish ?? true) : true;
 
   const handleToggleNotify = (checked: boolean) => {
     updatePreferences({ notifyOnPublish: checked });
@@ -116,7 +121,7 @@ export function SettingsPageClient() {
             id="notify-on-publish"
             checked={notifyOnPublish}
             onCheckedChange={handleToggleNotify}
-            disabled={isPending || isUpdating}
+            disabled={!hydrated || isPending || isUpdating}
           />
         </div>
 

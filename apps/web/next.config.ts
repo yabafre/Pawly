@@ -1,9 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import createNextIntlPlugin from "next-intl/plugin";
-import type { NextConfig } from "next";
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import createNextIntlPlugin from 'next-intl/plugin';
+import type { NextConfig } from 'next';
 
-const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -18,30 +18,33 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' https://fonts.gstatic.com",
-      "connect-src 'self' https://api.stripe.com https://vitals.vercel-insights.com",
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
+      "connect-src 'self' https://api.stripe.com https://vitals.vercel-insights.com https://challenges.cloudflare.com",
+      'frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com',
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join('; '),
   },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["esbuild-wasm"],
+  serverExternalPackages: ['esbuild-wasm'],
   experimental: {
     optimizePackageImports: [
-      "lucide-react",
-      "@radix-ui/react-dialog",
-      "@radix-ui/react-select",
-      "@radix-ui/react-tabs",
-      "@radix-ui/react-checkbox",
-      "@radix-ui/react-label",
-      "@radix-ui/react-progress",
-      "date-fns",
-      "recharts",
-      "framer-motion",
+      'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-label',
+      '@radix-ui/react-progress',
+      'date-fns',
+      'recharts',
+      'framer-motion',
     ],
   },
   turbopack: {

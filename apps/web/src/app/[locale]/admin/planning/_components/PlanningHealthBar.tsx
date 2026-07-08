@@ -15,6 +15,8 @@ type PublicationStatus = {
   status: 'DRAFT' | 'PUBLISHED';
   publishedAt: string | null;
   publishedBy: string | null;
+  amendedAt?: string | null;
+  amendmentCount?: number;
 };
 
 type Props = {
@@ -179,6 +181,18 @@ export function PlanningHealthBar({
                       })
                     : t('published')}
                 </Badge>
+              )}
+
+              {/* Amendment badge (story 7.6) */}
+              {isPublished && (publicationStatus?.amendmentCount ?? 0) > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {t('amended', {
+                    count: publicationStatus?.amendmentCount ?? 0,
+                    date: publicationStatus?.amendedAt
+                      ? new Date(publicationStatus.amendedAt).toLocaleDateString(locale)
+                      : '',
+                  })}
+                </span>
               )}
 
               {/* Publish button */}

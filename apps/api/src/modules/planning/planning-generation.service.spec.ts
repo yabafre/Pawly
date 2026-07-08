@@ -1,11 +1,22 @@
 jest.mock('@/trigger/client', () => ({
-  batchEmailPublishTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
-  batchPushPublishTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
-  sendEmailTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+  batchEmailPublishTask: {
+    trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }),
+  },
+  batchPushPublishTask: {
+    trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }),
+  },
+  sendEmailTask: {
+    trigger: jest.fn().mockResolvedValue({ id: 'mock-task-id' }),
+  },
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
@@ -16,7 +27,12 @@ import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
 import { batchEmailPublishTask, batchPushPublishTask } from '@/trigger/client';
-import type { TemplateData, HoleInfo, HardViolation, SoftViolation } from '@pawly/validators';
+import type {
+  TemplateData,
+  HoleInfo,
+  HardViolation,
+  SoftViolation,
+} from '@pawly/validators';
 
 type SlotRequirement = {
   date: string;
@@ -81,7 +97,11 @@ describe('PlanningGenerationService', () => {
     workDays: ['1', '2', '3', '4', '5'],
     defaultStartTime: '08:00',
     defaultEndTime: '18:00',
-    closedDays: [] as Array<{ id: string; date: string; reason: string | null }>,
+    closedDays: [] as Array<{
+      id: string;
+      date: string;
+      reason: string | null;
+    }>,
     specialDays: [] as Array<{
       id: string;
       date: string;
@@ -153,6 +173,8 @@ describe('PlanningGenerationService', () => {
     planningPeriodStatus: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
+      updateMany: jest.fn(),
     },
     clinic: {
       findUniqueOrThrow: jest.fn(),
@@ -188,6 +210,7 @@ describe('PlanningGenerationService', () => {
   const mockMailService = {
     sendSchedulePublicationEmail: jest.fn(),
     sendBatchSchedulePublicationEmails: jest.fn().mockResolvedValue(0),
+    sendScheduleChangedEmail: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockPushNotificationService = {
@@ -201,7 +224,10 @@ describe('PlanningGenerationService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ClinicService, useValue: mockClinicService },
         { provide: MailService, useValue: mockMailService },
-        { provide: PushNotificationService, useValue: mockPushNotificationService },
+        {
+          provide: PushNotificationService,
+          useValue: mockPushNotificationService,
+        },
         { provide: PlanningService, useValue: mockPlanningService },
         {
           provide: PlanningTemplateService,
@@ -218,9 +244,7 @@ describe('PlanningGenerationService', () => {
       ],
     }).compile();
 
-    service = module.get<PlanningGenerationService>(
-      PlanningGenerationService,
-    );
+    service = module.get<PlanningGenerationService>(PlanningGenerationService);
     jest.clearAllMocks();
 
     // Default mocks
@@ -234,7 +258,15 @@ describe('PlanningGenerationService', () => {
     mockPrismaService.employee.findMany.mockResolvedValue(mockEmployees);
     mockPrismaService.shift.findMany.mockResolvedValue([]);
     mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 0 });
-    mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
+    mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+      [],
+    );
+    // Story 7.6 — default to DRAFT (no published month) so mutation tests
+    // that don't opt into the published-change flow behave as before.
+    mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+    mockPrismaService.planningPeriodStatus.updateMany.mockResolvedValue({
+      count: 0,
+    });
   });
 
   // ─── expandTemplateToMonth ───────────────────────────────────
@@ -250,7 +282,8 @@ describe('PlanningGenerationService', () => {
     ]);
 
     it('correctly maps template days to calendar dates for March 2026', () => {
-      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
@@ -278,19 +311,20 @@ describe('PlanningGenerationService', () => {
     it('skips clinic closed days', () => {
       const configWithClosed = {
         ...mockOperationalConfig,
-        closedDays: [
-          { id: 'cd-1', date: '2026-03-02', reason: 'Holiday' },
-        ],
+        closedDays: [{ id: 'cd-1', date: '2026-03-02', reason: 'Holiday' }],
       };
 
-      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithClosed,
         shiftTypeMap,
       );
 
-      const march2Slots = (slots as SlotRequirement[]).filter((s) => s.date === '2026-03-02');
+      const march2Slots = (slots as SlotRequirement[]).filter(
+        (s) => s.date === '2026-03-02',
+      );
       expect(march2Slots.length).toBe(0);
     });
 
@@ -308,7 +342,8 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         configWithSpecial,
@@ -328,28 +363,28 @@ describe('PlanningGenerationService', () => {
     it('handles months with 4 and 5 weeks correctly', () => {
       // February 2026: 28 days, starts on Sunday
       // Mon: 2,9,16,23 → 4 Mondays
-      const feb: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const feb: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         mockTemplate,
         '2026-02',
         mockOperationalConfig,
         shiftTypeMap,
       );
       const febMondays = (feb as SlotRequirement[]).filter(
-        (s) =>
-          new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
+        (s) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
       );
       expect(febMondays.length).toBe(8); // 4 Mondays × 2 slots
 
       // March 2026 has 5 Mondays
-      const mar: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const mar: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         mockTemplate,
         '2026-03',
         mockOperationalConfig,
         shiftTypeMap,
       );
       const marMondays = (mar as SlotRequirement[]).filter(
-        (s) =>
-          new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
+        (s) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 1,
       );
       expect(marMondays.length).toBe(10); // 5 Mondays × 2 slots
     });
@@ -364,7 +399,8 @@ describe('PlanningGenerationService', () => {
         ],
       };
 
-      const slots: SlotRequirement[] = callPrivate('expandTemplateToMonth',
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
         templateWithSaturday,
         '2026-03',
         mockOperationalConfig, // workDays: 1-5, no Saturday
@@ -375,8 +411,7 @@ describe('PlanningGenerationService', () => {
       expect(slots.length).toBe(4);
       expect(
         (slots as SlotRequirement[]).every(
-          (s) =>
-            new Date(`${s.date}T00:00:00Z`).getUTCDay() === 6,
+          (s) => new Date(`${s.date}T00:00:00Z`).getUTCDay() === 6,
         ),
       ).toBe(true);
     });
@@ -397,7 +432,8 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await callPrivate('loadConstraints',
+      const constraints = await callPrivate(
+        'loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -425,7 +461,8 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await callPrivate('loadConstraints',
+      const constraints = await callPrivate(
+        'loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -456,7 +493,8 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await callPrivate('loadConstraints',
+      const constraints = await callPrivate(
+        'loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -493,7 +531,8 @@ describe('PlanningGenerationService', () => {
         },
       ]);
 
-      const constraints = await callPrivate('loadConstraints',
+      const constraints = await callPrivate(
+        'loadConstraints',
         clinicId,
         new Date('2026-03-01'),
         new Date('2026-03-31T23:59:59.999Z'),
@@ -511,44 +550,52 @@ describe('PlanningGenerationService', () => {
   // ─── scoreAndAssign helpers ─────────────────────────────────
 
   const baseConstraints = {
-      unavailableMap: new Map<string, Set<string>>(),
-      schoolDayMap: new Map<string, Set<string>>(),
-      hardRules: [] as Array<{
-        id: string;
-        name: string;
-        category: string;
-        config: Record<string, unknown>;
-        priority: number;
-      }>,
-      softRules: [] as Array<{
-        id: string;
-        name: string;
-        category: string;
-        config: Record<string, unknown>;
-        priority: number;
-      }>,
-      equityMap: new Map(),
-      quarterlyShifts: [],
-    };
+    unavailableMap: new Map<string, Set<string>>(),
+    schoolDayMap: new Map<string, Set<string>>(),
+    hardRules: [] as Array<{
+      id: string;
+      name: string;
+      category: string;
+      config: Record<string, unknown>;
+      priority: number;
+    }>,
+    softRules: [] as Array<{
+      id: string;
+      name: string;
+      category: string;
+      config: Record<string, unknown>;
+      priority: number;
+    }>,
+    equityMap: new Map(),
+    quarterlyShifts: [],
+  };
 
-    // Helper: call scoreAndAssign with auto-built incremental counters from alreadyAssigned
+  // Helper: call scoreAndAssign with auto-built incremental counters from alreadyAssigned
   // Accepts 6 args (slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)
   // or 7 args (same + weeksInMonth). Appends the 3 new counter params automatically.
   const callScore = (...args: unknown[]) => {
     const alreadyAssigned = (args[3] || []) as Array<{
-      employeeId: string; date: string; startTime: string; endTime: string;
-      shiftTypeCode: string; breakMinutes?: number;
+      employeeId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      shiftTypeCode: string;
+      breakMinutes?: number;
     }>;
 
     // Determine weeksInMonth: if 7th arg exists and is a number, it's weeksInMonth
     const hasWeeksInMonth = args.length >= 7 && typeof args[6] === 'number';
     const baseArgs = hasWeeksInMonth ? args : [...args, 4.43];
 
-    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
     const getWeekStart = (dateStr: string) => {
       const d = new Date(`${dateStr}T00:00:00.000Z`);
       const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - dow + 1);
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() - dow + 1);
       return mon.toISOString().split('T')[0];
     };
 
@@ -556,16 +603,24 @@ describe('PlanningGenerationService', () => {
     const stc = new Map<string, Map<string, number>>();
     const esc = new Map<string, number>();
     for (const a of alreadyAssigned) {
-      const netMin = toMin(a.endTime) - toMin(a.startTime) - (a.breakMinutes || 0);
+      const netMin =
+        toMin(a.endTime) - toMin(a.startTime) - (a.breakMinutes || 0);
       const wk = `${a.employeeId}|${getWeekStart(a.date)}`;
-      weeklyMinutesCounter.set(wk, (weeklyMinutesCounter.get(wk) || 0) + netMin);
+      weeklyMinutesCounter.set(
+        wk,
+        (weeklyMinutesCounter.get(wk) || 0) + netMin,
+      );
       let tc = stc.get(a.employeeId);
-      if (!tc) { tc = new Map(); stc.set(a.employeeId, tc); }
+      if (!tc) {
+        tc = new Map();
+        stc.set(a.employeeId, tc);
+      }
       tc.set(a.shiftTypeCode, (tc.get(a.shiftTypeCode) || 0) + 1);
       esc.set(a.employeeId, (esc.get(a.employeeId) || 0) + 1);
     }
 
-    return callPrivate('scoreAndAssign',
+    return callPrivate(
+      'scoreAndAssign',
       ...baseArgs,
       weeklyMinutesCounter,
       stc,
@@ -646,9 +701,7 @@ describe('PlanningGenerationService', () => {
         },
       ];
 
-      const assignmentIndex = new Map([
-        [`emp-1|2026-03-02`, alreadyAssigned],
-      ]);
+      const assignmentIndex = new Map([[`emp-1|2026-03-02`, alreadyAssigned]]);
 
       const result: ScoreAndAssignResult = callScore(
         slot,
@@ -786,10 +839,34 @@ describe('PlanningGenerationService', () => {
       // emp-1 worked Mon, Tue, Wed (3 consecutive days before Thu)
       // emp-2 only worked Mon (not adjacent to Thu)
       const alreadyAssigned = [
-        { employeeId: 'emp-1', date: '2026-03-02', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-1', date: '2026-03-03', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-1', date: '2026-03-04', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-2', date: '2026-03-02', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-02',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-03',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-04',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-02',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -941,10 +1018,34 @@ describe('PlanningGenerationService', () => {
           endTime: i % 2 === 0 ? '12:00' : '18:00',
           shiftTypeCode: 'SURGERY',
         })),
-        { employeeId: 'emp-2', date: '2026-03-09', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-2', date: '2026-03-10', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-3', date: '2026-03-09', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-3', date: '2026-03-10', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-09',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-10',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-3',
+          date: '2026-03-09',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-3',
+          date: '2026-03-10',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -985,12 +1086,34 @@ describe('PlanningGenerationService', () => {
 
     it('processes Saturday slots before weekday slots within the same week', () => {
       const slots = [
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday
-        { date: '2026-03-03', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Tuesday
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday
+        {
+          date: '2026-03-02',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Monday
+        {
+          date: '2026-03-03',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Tuesday
+        {
+          date: '2026-03-07',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Saturday
       ];
 
-      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, workDaySet);
+      const reordered = callPrivate(
+        'reorderSlotsNonWorkDaysFirst',
+        slots,
+        workDaySet,
+      );
 
       // Saturday should come first (non-work day)
       expect(reordered[0].date).toBe('2026-03-07');
@@ -1000,13 +1123,41 @@ describe('PlanningGenerationService', () => {
 
     it('maintains chronological order across different weeks', () => {
       const slots = [
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Week 1 Mon
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Week 1 Sat
-        { date: '2026-03-09', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Week 2 Mon
-        { date: '2026-03-14', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Week 2 Sat
+        {
+          date: '2026-03-02',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Week 1 Mon
+        {
+          date: '2026-03-07',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Week 1 Sat
+        {
+          date: '2026-03-09',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Week 2 Mon
+        {
+          date: '2026-03-14',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Week 2 Sat
       ];
 
-      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, workDaySet);
+      const reordered = callPrivate(
+        'reorderSlotsNonWorkDaysFirst',
+        slots,
+        workDaySet,
+      );
 
       // Week 1: Saturday first, then Monday
       expect(reordered[0].date).toBe('2026-03-07'); // Week 1 Sat
@@ -1021,12 +1172,34 @@ describe('PlanningGenerationService', () => {
       // Edge days: Tue (next=Wed off) and Sat (next=Sun off)
       const customWorkDays = new Set([1, 2, 4, 5, 6]);
       const slots = [
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday (regular work, priority 2)
-        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday (off, priority 0)
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday (edge, priority 1)
+        {
+          date: '2026-03-02',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Monday (regular work, priority 2)
+        {
+          date: '2026-03-04',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Wednesday (off, priority 0)
+        {
+          date: '2026-03-07',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Saturday (edge, priority 1)
       ];
 
-      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, customWorkDays);
+      const reordered = callPrivate(
+        'reorderSlotsNonWorkDaysFirst',
+        slots,
+        customWorkDays,
+      );
 
       // Wed (non-work, 0) → Sat (edge, 1) → Mon (regular, 2)
       expect(reordered[0].date).toBe('2026-03-04'); // Wed (non-work)
@@ -1038,15 +1211,55 @@ describe('PlanningGenerationService', () => {
       // Mon-Sat clinic (Sunday off) → Saturday is the edge day (followed by Sunday)
       const monSatWorkDays = new Set([1, 2, 3, 4, 5, 6]);
       const slots = [
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday
-        { date: '2026-03-03', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Tuesday
-        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday
-        { date: '2026-03-05', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Thursday
-        { date: '2026-03-06', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Friday
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday (edge)
+        {
+          date: '2026-03-02',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Monday
+        {
+          date: '2026-03-03',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Tuesday
+        {
+          date: '2026-03-04',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Wednesday
+        {
+          date: '2026-03-05',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Thursday
+        {
+          date: '2026-03-06',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Friday
+        {
+          date: '2026-03-07',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Saturday (edge)
       ];
 
-      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, monSatWorkDays);
+      const reordered = callPrivate(
+        'reorderSlotsNonWorkDaysFirst',
+        slots,
+        monSatWorkDays,
+      );
 
       // Saturday (edge, priority 1) should come before Mon-Fri (regular, priority 2)
       expect(reordered[0].date).toBe('2026-03-07'); // Sat (edge work day)
@@ -1063,12 +1276,34 @@ describe('PlanningGenerationService', () => {
       //  all 7 days are work days, every next day IS a work day, so NO edge days)
       const allDaysWork = new Set([1, 2, 3, 4, 5, 6, 7]);
       const slots = [
-        { date: '2026-03-04', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Wednesday
-        { date: '2026-03-02', shiftTypeCode: 'VET', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Monday
-        { date: '2026-03-07', shiftTypeCode: 'CHIR', startTime: '08:00', endTime: '18:00', requiredStaff: 1 }, // Saturday
+        {
+          date: '2026-03-04',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Wednesday
+        {
+          date: '2026-03-02',
+          shiftTypeCode: 'VET',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Monday
+        {
+          date: '2026-03-07',
+          shiftTypeCode: 'CHIR',
+          startTime: '08:00',
+          endTime: '18:00',
+          requiredStaff: 1,
+        }, // Saturday
       ];
 
-      const reordered = callPrivate('reorderSlotsNonWorkDaysFirst', slots, allDaysWork);
+      const reordered = callPrivate(
+        'reorderSlotsNonWorkDaysFirst',
+        slots,
+        allDaysWork,
+      );
 
       // All work days, no edge days → all priority 2, sorted by date
       expect(reordered[0].date).toBe('2026-03-02'); // Mon
@@ -1163,15 +1398,17 @@ describe('PlanningGenerationService', () => {
         },
       ];
 
-      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          shift: {
-            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-            createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
-          },
-        };
-        return fn(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
+            },
+          };
+          return fn(tx);
+        },
+      );
 
       const result = await service.generateMonthlyPlan(
         clinicId,
@@ -1201,15 +1438,17 @@ describe('PlanningGenerationService', () => {
         clinicId,
       });
 
-      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          shift: {
-            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-            createManyAndReturn: jest.fn().mockResolvedValue([]),
-          },
-        };
-        return fn(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          };
+          return fn(tx);
+        },
+      );
 
       // No employees available
       mockPrismaService.employee.findMany.mockResolvedValue([]);
@@ -1260,18 +1499,65 @@ describe('PlanningGenerationService', () => {
 
       // Border shifts: emp-1 already worked 35h Mon-Fri of that week in February
       const borderShiftsFromDb = [
-        { employeeId: 'emp-1', date: new Date('2026-02-23'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
-        { employeeId: 'emp-1', date: new Date('2026-02-24'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
-        { employeeId: 'emp-1', date: new Date('2026-02-25'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
-        { employeeId: 'emp-1', date: new Date('2026-02-26'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
-        { employeeId: 'emp-1', date: new Date('2026-02-27'), startTime: '08:00', endTime: '15:00', shiftTypeCode: 'SURGERY', breakMinutes: 0 },
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-02-23'),
+          startTime: '08:00',
+          endTime: '15:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-02-24'),
+          startTime: '08:00',
+          endTime: '15:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-02-25'),
+          startTime: '08:00',
+          endTime: '15:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-02-26'),
+          startTime: '08:00',
+          endTime: '15:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-02-27'),
+          startTime: '08:00',
+          endTime: '15:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
       ];
       mockPrismaService.shift.findMany.mockResolvedValue(borderShiftsFromDb);
 
       // Only emp-1 (35h contract, already at 35h from border) and emp-2 (35h contract, fresh)
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', jobType: 'VET', contractHours: 35 },
-        { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', jobType: 'VET', contractHours: 35 },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'VET',
+          contractHours: 35,
+        },
       ]);
 
       // HARD CONTRACT_COMPLIANCE: max 35h/week with 0% tolerance
@@ -1300,17 +1586,23 @@ describe('PlanningGenerationService', () => {
         },
       ];
 
-      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          shift: {
-            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-            createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
-          },
-        };
-        return fn(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
+            },
+          };
+          return fn(tx);
+        },
+      );
 
-      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-1',
+      );
 
       // The shift should be assigned to emp-2, not emp-1 (who is at 35h from border shifts)
       expect(result.assignments.length).toBe(1);
@@ -1327,15 +1619,10 @@ describe('PlanningGenerationService', () => {
     it('only removes GENERATED source shifts', async () => {
       mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 5 });
 
-      const result = await service.deleteGeneratedShifts(
-        clinicId,
-        '2026-03',
-      );
+      const result = await service.deleteGeneratedShifts(clinicId, '2026-03');
 
       expect(result.deletedCount).toBe(5);
-      expect(
-        mockPrismaService.shift.deleteMany,
-      ).toHaveBeenCalledWith({
+      expect(mockPrismaService.shift.deleteMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
           clinicId,
           source: 'GENERATED',
@@ -1348,8 +1635,7 @@ describe('PlanningGenerationService', () => {
 
       await service.deleteGeneratedShifts(clinicId, '2026-03');
 
-      const callArgs =
-        mockPrismaService.shift.deleteMany.mock.calls[0][0];
+      const callArgs = mockPrismaService.shift.deleteMany.mock.calls[0][0];
       expect(callArgs.where.source).toBe('GENERATED');
     });
   });
@@ -1430,8 +1716,20 @@ describe('PlanningGenerationService', () => {
 
       // emp-1 already worked 2 Saturdays
       const alreadyAssigned = [
-        { employeeId: 'emp-1', date: '2026-03-07', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-1', date: '2026-03-14', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-07',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-14',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -1450,7 +1748,7 @@ describe('PlanningGenerationService', () => {
 
       const result: ScoreAndAssignResult = callScore(
         slot,
-        mockEmployees.filter(e => e.jobType === 'VET'), // emp-1 and emp-3
+        mockEmployees.filter((e) => e.jobType === 'VET'), // emp-1 and emp-3
         constraints,
         alreadyAssigned,
         assignmentIndex,
@@ -1544,8 +1842,20 @@ describe('PlanningGenerationService', () => {
 
       // Both ASV employees already have 1 Saturday shift each (at maxPerPeriod limit)
       const alreadyAssigned = [
-        { employeeId: 'emp-1', date: '2026-03-07', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-2', date: '2026-03-07', startTime: '14:00', endTime: '18:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-07',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-07',
+          startTime: '14:00',
+          endTime: '18:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -1576,7 +1886,9 @@ describe('PlanningGenerationService', () => {
       expect(result.holeInfo).toBeUndefined();
       // A soft warning should be emitted
       expect(result.softViolations.length).toBeGreaterThanOrEqual(1);
-      expect(result.softViolations.some(v => v.message.includes('rotation limit'))).toBe(true);
+      expect(
+        result.softViolations.some((v) => v.message.includes('rotation limit')),
+      ).toBe(true);
     });
   });
 
@@ -1800,7 +2112,13 @@ describe('PlanningGenerationService', () => {
           endTime: i % 2 === 0 ? '12:00' : '18:00',
           shiftTypeCode: 'SURGERY',
         })),
-        { employeeId: 'emp-1', date: '2026-03-12', startTime: '18:00', endTime: '20:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-12',
+          startTime: '18:00',
+          endTime: '20:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -1865,7 +2183,13 @@ describe('PlanningGenerationService', () => {
 
       // emp-1 already assigned to 1 Saturday (at limit)
       const alreadyAssigned = [
-        { employeeId: 'emp-1', date: '2026-03-07', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-07',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ];
 
       const slot = {
@@ -1903,8 +2227,20 @@ describe('PlanningGenerationService', () => {
     it('limits each employee by their own contractHours, not a global value', () => {
       // emp-part has 25h contract, emp-full has 35h contract
       const mixedEmployees = [
-        { id: 'emp-part', firstName: 'Luna', lastName: 'Part', jobType: 'ASV', contractHours: 25 },
-        { id: 'emp-full', firstName: 'Max', lastName: 'Full', jobType: 'ASV', contractHours: 35 },
+        {
+          id: 'emp-part',
+          firstName: 'Luna',
+          lastName: 'Part',
+          jobType: 'ASV',
+          contractHours: 25,
+        },
+        {
+          id: 'emp-full',
+          firstName: 'Max',
+          lastName: 'Full',
+          jobType: 'ASV',
+          contractHours: 35,
+        },
       ];
 
       const constraints = {
@@ -1985,7 +2321,13 @@ describe('PlanningGenerationService', () => {
     it('uses employee contractHours when rule maxWeeklyHours is higher', () => {
       // Rule allows 40h/week but employee only has 25h contract
       const partTimeEmployee = [
-        { id: 'emp-pt', firstName: 'Lea', lastName: 'Short', jobType: 'ASV', contractHours: 25 },
+        {
+          id: 'emp-pt',
+          firstName: 'Lea',
+          lastName: 'Short',
+          jobType: 'ASV',
+          contractHours: 25,
+        },
       ];
 
       const constraints = {
@@ -2102,9 +2444,11 @@ describe('PlanningGenerationService', () => {
       // Assignment should happen (soft rule)
       expect(result.assigned.length).toBe(1);
       // Soft warning should be recorded
-      expect(result.softViolations.some(
-        (v: any) => v.category === 'STAFFING_MINIMUM',
-      )).toBe(true);
+      expect(
+        result.softViolations.some(
+          (v: any) => v.category === 'STAFFING_MINIMUM',
+        ),
+      ).toBe(true);
     });
   });
 
@@ -2116,7 +2460,11 @@ describe('PlanningGenerationService', () => {
       workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
-      closedDays: [] as Array<{ id: string; date: string; reason: string | null }>,
+      closedDays: [] as Array<{
+        id: string;
+        date: string;
+        reason: string | null;
+      }>,
       specialDays: [] as Array<{
         id: string;
         date: string;
@@ -2169,9 +2517,30 @@ describe('PlanningGenerationService', () => {
       // The service uses orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
       // Prisma is mocked, so we simulate the sorted result from the DB
       const sortedEmployees = [
-        { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: null, jobType: 'ASV', contractHours: 35 },
-        { id: 'emp-3', firstName: 'Charlie', lastName: 'Leroy', color: null, jobType: 'VET', contractHours: 35 },
-        { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: null, jobType: 'VET', contractHours: 35 },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          color: null,
+          jobType: 'ASV',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-3',
+          firstName: 'Charlie',
+          lastName: 'Leroy',
+          color: null,
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          color: null,
+          jobType: 'VET',
+          contractHours: 35,
+        },
       ];
       mockPrismaService.employee.findMany.mockResolvedValue(sortedEmployees);
 
@@ -2504,16 +2873,25 @@ describe('PlanningGenerationService', () => {
       // scoreAndAssign uses weeksInMonth for monthly contract fit bonus
       // With 35h contract: 35 * 60 * 4.0 = 8400 min monthly limit
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
-        shift: {
-          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-          createManyAndReturn: jest.fn().mockResolvedValue([]),
-        },
-      }));
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          shift: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createManyAndReturn: jest.fn().mockResolvedValue([]),
+          },
+        }),
+      );
 
-      const result = await service.generateMonthlyPlan(clinicId, '2026-02', 'tpl-1');
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-02',
+        'tpl-1',
+      );
       // If it reaches here without errors, the weeksInMonth parameter is passed correctly
       expect(result).toBeDefined();
     });
@@ -2521,16 +2899,25 @@ describe('PlanningGenerationService', () => {
     it('uses ~4.43 weeks for March 2026 (31 days)', async () => {
       // March 2026 has 31 days → 31/7 ≈ 4.4286 weeks
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
-        shift: {
-          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-          createManyAndReturn: jest.fn().mockResolvedValue([]),
-        },
-      }));
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          shift: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createManyAndReturn: jest.fn().mockResolvedValue([]),
+          },
+        }),
+      );
 
-      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-1',
+      );
       expect(result).toBeDefined();
     });
   });
@@ -2540,7 +2927,17 @@ describe('PlanningGenerationService', () => {
   describe('deterministic tiebreaker', () => {
     it('produces reproducible results across multiple runs', async () => {
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: { days: [{ dayOfWeek: 1, slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }] }] }, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
       });
 
       const results: string[] = [];
@@ -2552,7 +2949,8 @@ describe('PlanningGenerationService', () => {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
                 const created = data.map((d: any, idx: number) => ({
-                  id: `shift-${idx}`, ...d,
+                  id: `shift-${idx}`,
+                  ...d,
                 }));
                 shifts.push(...created);
                 return created;
@@ -2561,8 +2959,14 @@ describe('PlanningGenerationService', () => {
           });
         });
 
-        const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
-        results.push(JSON.stringify(result.assignments.map(a => a.employeeId)));
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-1',
+        );
+        results.push(
+          JSON.stringify(result.assignments.map((a) => a.employeeId)),
+        );
       }
 
       // All runs should produce identical assignments
@@ -2582,20 +2986,31 @@ describe('PlanningGenerationService', () => {
       };
 
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // emp-1 already has 5 shifts, emp-3 has 0
       const alreadyAssigned = Array.from({ length: 5 }, (_, i) => ({
-        employeeId: 'emp-1', date: `2026-03-${10 + i}`,
-        startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: `2026-03-${10 + i}`,
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
       }));
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints, alreadyAssigned,
-        new Map(), new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        alreadyAssigned,
+        new Map(),
+        new Map(),
+        31 / 7,
       );
       // emp-3 (fewer shifts) should be preferred over emp-1
       expect(result.assigned.length).toBe(1);
@@ -2608,22 +3023,46 @@ describe('PlanningGenerationService', () => {
         hardRules: [],
         softRules: [],
         equityMap: new Map([
-          ['emp-1', { saturdayCount: 0, weekendCount: 5, holidayCount: 0, overtimeMinutes: 0 }],
-          ['emp-3', { saturdayCount: 0, weekendCount: 1, holidayCount: 0, overtimeMinutes: 0 }],
+          [
+            'emp-1',
+            {
+              saturdayCount: 0,
+              weekendCount: 5,
+              holidayCount: 0,
+              overtimeMinutes: 0,
+            },
+          ],
+          [
+            'emp-3',
+            {
+              saturdayCount: 0,
+              weekendCount: 1,
+              holidayCount: 0,
+              overtimeMinutes: 0,
+            },
+          ],
         ]),
         quarterlyShifts: [],
       };
 
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
-        requiredStaff: 1, requiredJobTypes: ['VET'],
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+        requiredJobTypes: ['VET'],
       };
 
       const result: ScoreAndAssignResult = callScore(
         slot,
         [mockEmployees[0], mockEmployees[2]], // emp-1, emp-3 (both VET)
-        constraints, [], new Map(), new Map(), 31 / 7,
+        constraints,
+        [],
+        new Map(),
+        new Map(),
+        31 / 7,
       );
       // emp-3 has fewer weekends, should be preferred
       expect(result.assigned[0].employeeId).toBe('emp-3');
@@ -2636,11 +3075,15 @@ describe('PlanningGenerationService', () => {
     const makeConstraintsWithMinRest = (minRest: number) => ({
       unavailableMap: new Map(),
       schoolDayMap: new Map(),
-      hardRules: [{
-        id: 'rule-rest', name: 'Min Rest', category: 'CONTRACT_COMPLIANCE',
-        config: { maxWeeklyHours: 35, minRestHoursBetweenShifts: minRest },
-        priority: 0,
-      }],
+      hardRules: [
+        {
+          id: 'rule-rest',
+          name: 'Min Rest',
+          category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35, minRestHoursBetweenShifts: minRest },
+          priority: 0,
+        },
+      ],
       softRules: [],
       equityMap: new Map(),
       quarterlyShifts: [],
@@ -2649,23 +3092,32 @@ describe('PlanningGenerationService', () => {
     it('blocks employee when rest after previous day shift is insufficient', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // Previous day: emp-1 worked until 23:00 → rest = (24*60-23*60) + 8*60 = 60+480 = 540min = 9h < 11h
       const prevShift = {
-        employeeId: 'emp-1', date: '2026-03-02',
-        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '15:00',
+        endTime: '23:00',
+        shiftTypeCode: 'SURGERY',
       };
-      const assignmentIndex = new Map([
-        ['emp-1|2026-03-02', [prevShift]],
-      ]);
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
 
       const result: ScoreAndAssignResult = callScore(
-        slot, [mockEmployees[0]], constraints,
-        [prevShift], assignmentIndex, new Map(), 31 / 7,
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       // emp-1 should be blocked
       expect(result.assigned.length).toBe(0);
@@ -2675,23 +3127,32 @@ describe('PlanningGenerationService', () => {
     it('blocks employee when rest before next day shift is insufficient', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '18:00', endTime: '23:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '18:00',
+        endTime: '23:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // Next day: emp-1 starts at 07:00 → rest = (24*60-23*60) + 7*60 = 60+420 = 480min = 8h < 11h
       const nextShift = {
-        employeeId: 'emp-1', date: '2026-03-03',
-        startTime: '07:00', endTime: '12:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: '2026-03-03',
+        startTime: '07:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
       };
-      const assignmentIndex = new Map([
-        ['emp-1|2026-03-03', [nextShift]],
-      ]);
+      const assignmentIndex = new Map([['emp-1|2026-03-03', [nextShift]]]);
 
       const result: ScoreAndAssignResult = callScore(
-        slot, [mockEmployees[0]], constraints,
-        [nextShift], assignmentIndex, new Map(), 31 / 7,
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [nextShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(0);
     });
@@ -2699,23 +3160,32 @@ describe('PlanningGenerationService', () => {
     it('allows employee when rest is sufficient', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // Previous day: emp-1 worked until 18:00 → rest = (24*60-18*60) + 8*60 = 360+480 = 840min = 14h > 11h
       const prevShift = {
-        employeeId: 'emp-1', date: '2026-03-02',
-        startTime: '08:00', endTime: '18:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '08:00',
+        endTime: '18:00',
+        shiftTypeCode: 'SURGERY',
       };
-      const assignmentIndex = new Map([
-        ['emp-1|2026-03-02', [prevShift]],
-      ]);
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
 
       const result: ScoreAndAssignResult = callScore(
-        slot, [mockEmployees[0]], constraints,
-        [prevShift], assignmentIndex, new Map(), 31 / 7,
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(1);
     });
@@ -2724,34 +3194,47 @@ describe('PlanningGenerationService', () => {
       const constraints = {
         unavailableMap: new Map(),
         schoolDayMap: new Map(),
-        hardRules: [{
-          id: 'rule-contract', name: 'Contract', category: 'CONTRACT_COMPLIANCE',
-          config: { maxWeeklyHours: 35 },
-          priority: 0,
-        }],
+        hardRules: [
+          {
+            id: 'rule-contract',
+            name: 'Contract',
+            category: 'CONTRACT_COMPLIANCE',
+            config: { maxWeeklyHours: 35 },
+            priority: 0,
+          },
+        ],
         softRules: [],
         equityMap: new Map(),
         quarterlyShifts: [],
       };
 
       const slot = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '07:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '07:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // Previous day: emp-1 worked until 23:00 → only 8h rest, but no minRest rule
       const prevShift = {
-        employeeId: 'emp-1', date: '2026-03-02',
-        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '15:00',
+        endTime: '23:00',
+        shiftTypeCode: 'SURGERY',
       };
-      const assignmentIndex = new Map([
-        ['emp-1|2026-03-02', [prevShift]],
-      ]);
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
 
       const result: ScoreAndAssignResult = callScore(
-        slot, [mockEmployees[0]], constraints,
-        [prevShift], assignmentIndex, new Map(), 31 / 7,
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(1);
     });
@@ -2759,22 +3242,36 @@ describe('PlanningGenerationService', () => {
     it('creates a hole when all employees are blocked by rest requirement', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
-      const prevShifts = mockEmployees.map(e => ({
-        employeeId: e.id, date: '2026-03-02',
-        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+      const prevShifts = mockEmployees.map((e) => ({
+        employeeId: e.id,
+        date: '2026-03-02',
+        startTime: '15:00',
+        endTime: '23:00',
+        shiftTypeCode: 'SURGERY',
       }));
       const assignmentIndex = new Map(
-        mockEmployees.map(e => [`${e.id}|2026-03-02`, [prevShifts.find(s => s.employeeId === e.id)!]]),
+        mockEmployees.map((e) => [
+          `${e.id}|2026-03-02`,
+          [prevShifts.find((s) => s.employeeId === e.id)!],
+        ]),
       );
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints,
-        prevShifts, assignmentIndex, new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        prevShifts,
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(0);
       expect(result.holeInfo).toBeDefined();
@@ -2784,23 +3281,32 @@ describe('PlanningGenerationService', () => {
     it('correctly handles multi-employee scenario with mixed rest availability', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       // emp-1 has insufficient rest (ended 23:00), emp-2 has no previous shift
       const prevShift = {
-        employeeId: 'emp-1', date: '2026-03-02',
-        startTime: '15:00', endTime: '23:00', shiftTypeCode: 'SURGERY',
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '15:00',
+        endTime: '23:00',
+        shiftTypeCode: 'SURGERY',
       };
-      const assignmentIndex = new Map([
-        ['emp-1|2026-03-02', [prevShift]],
-      ]);
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
 
       const result: ScoreAndAssignResult = callScore(
-        slot, [mockEmployees[0], mockEmployees[1]], constraints,
-        [prevShift], assignmentIndex, new Map(), 31 / 7,
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
       );
       // emp-2 (no previous shift) should be assigned
       expect(result.assigned.length).toBe(1);
@@ -2868,8 +3374,20 @@ describe('PlanningGenerationService', () => {
 
       // emp-1 had SURGERY yesterday, emp-2 had RECEPTION yesterday
       const alreadyAssigned = [
-        { employeeId: 'emp-1', date: '2026-03-04', startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-2', date: '2026-03-04', startTime: '14:00', endTime: '18:00', shiftTypeCode: 'RECEPTION' },
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-04',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-04',
+          startTime: '14:00',
+          endTime: '18:00',
+          shiftTypeCode: 'RECEPTION',
+        },
       ];
 
       const assignmentIndex = new Map<string, any[]>();
@@ -2971,14 +3489,22 @@ describe('PlanningGenerationService', () => {
       };
 
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 1,
       };
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints,
-        [], new Map(), new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        [],
+        new Map(),
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(1);
     });
@@ -2994,20 +3520,40 @@ describe('PlanningGenerationService', () => {
       };
 
       const slot = {
-        date: '2026-03-16', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-16',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 2,
       };
 
       // emp-1 and emp-3 have been paired together 5 times already
       const alreadyAssigned = Array.from({ length: 5 }, (_, i) => [
-        { employeeId: 'emp-1', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
-        { employeeId: 'emp-3', date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`, startTime: '08:00', endTime: '12:00', shiftTypeCode: 'SURGERY' },
+        {
+          employeeId: 'emp-1',
+          date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`,
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-3',
+          date: `2026-03-${String(2 + i * 2).padStart(2, '0')}`,
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
       ]).flat();
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints,
-        alreadyAssigned, new Map(), new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        alreadyAssigned,
+        new Map(),
+        new Map(),
+        31 / 7,
       );
 
       expect(result.assigned.length).toBe(2);
@@ -3028,14 +3574,22 @@ describe('PlanningGenerationService', () => {
       };
 
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 2,
       };
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints,
-        [], new Map(), new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        [],
+        new Map(),
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(2);
     });
@@ -3051,14 +3605,22 @@ describe('PlanningGenerationService', () => {
       };
 
       const slot = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 3,
       };
 
       const result: ScoreAndAssignResult = callScore(
-        slot, mockEmployees, constraints,
-        [], new Map(), new Map(), 31 / 7,
+        slot,
+        mockEmployees,
+        constraints,
+        [],
+        new Map(),
+        new Map(),
+        31 / 7,
       );
       expect(result.assigned.length).toBe(3);
       const ids = new Set(result.assigned.map((a: any) => a.employeeId));
@@ -3077,25 +3639,41 @@ describe('PlanningGenerationService', () => {
 
       // Run two consecutive slots with requiredStaff=2
       const slot1 = {
-        date: '2026-03-02', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 2,
       };
 
       const result1 = callScore(
-        slot1, mockEmployees, constraints,
-        [], new Map(), new Map(), 31 / 7,
+        slot1,
+        mockEmployees,
+        constraints,
+        [],
+        new Map(),
+        new Map(),
+        31 / 7,
       );
 
       const slot2 = {
-        date: '2026-03-03', shiftTypeCode: 'SURGERY',
-        startTime: '08:00', endTime: '12:00', breakMinutes: 0,
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
         requiredStaff: 2,
       };
 
       const result2 = callScore(
-        slot2, mockEmployees, constraints,
-        result1.assigned, new Map(), new Map(), 31 / 7,
+        slot2,
+        mockEmployees,
+        constraints,
+        result1.assigned,
+        new Map(),
+        new Map(),
+        31 / 7,
       );
 
       // Second slot should try to avoid the same pair
@@ -3111,12 +3689,15 @@ describe('PlanningGenerationService', () => {
 
   describe('apprentice declaration pre-check', () => {
     it('blocks generation when undeclared apprentices exist', async () => {
-      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
-        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
-      ]);
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+        [{ id: 'emp-4', firstName: 'David', lastName: 'Apprenti' }],
+      );
 
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
 
       await expect(
@@ -3129,13 +3710,18 @@ describe('PlanningGenerationService', () => {
     });
 
     it('includes undeclared apprentice names in error message', async () => {
-      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
-        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
-        { id: 'emp-5', firstName: 'Eve', lastName: 'Stagiaire' },
-      ]);
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+        [
+          { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
+          { id: 'emp-5', firstName: 'Eve', lastName: 'Stagiaire' },
+        ],
+      );
 
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
 
       try {
@@ -3148,43 +3734,68 @@ describe('PlanningGenerationService', () => {
     });
 
     it('allows generation when all apprentices are declared', async () => {
-      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+        [],
+      );
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
-        shift: {
-          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-          createManyAndReturn: jest.fn().mockResolvedValue([]),
-        },
-      }));
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          shift: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createManyAndReturn: jest.fn().mockResolvedValue([]),
+          },
+        }),
+      );
 
-      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-1',
+      );
       expect(result).toBeDefined();
     });
 
     it('allows generation when there are zero apprentices', async () => {
-      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([]);
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+        [],
+      );
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb({
-        shift: {
-          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-          createManyAndReturn: jest.fn().mockResolvedValue([]),
-        },
-      }));
+      mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+        cb({
+          shift: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            createManyAndReturn: jest.fn().mockResolvedValue([]),
+          },
+        }),
+      );
 
-      const result = await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-1',
+      );
       expect(result).toBeDefined();
     });
 
     it('blocks generation with correct month in error message', async () => {
-      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue([
-        { id: 'emp-4', firstName: 'David', lastName: 'Apprenti' },
-      ]);
+      mockApprenticeDeclarationService.getUndeclaredApprentices.mockResolvedValue(
+        [{ id: 'emp-4', firstName: 'David', lastName: 'Apprenti' }],
+      );
       mockTemplateService.getTemplateById.mockResolvedValue({
-        id: 'tpl-1', name: 'Test', data: mockTemplate, clinicId,
+        id: 'tpl-1',
+        name: 'Test',
+        data: mockTemplate,
+        clinicId,
       });
 
       try {
@@ -3254,7 +3865,9 @@ describe('PlanningGenerationService', () => {
     it('throws NotFoundException when shift does not exist', async () => {
       mockPrismaService.shift.findUnique.mockResolvedValue(null);
       await expect(
-        service.moveShift(clinicId, 'non-existent', { targetEmployeeId: 'emp-2' }),
+        service.moveShift(clinicId, 'non-existent', {
+          targetEmployeeId: 'emp-2',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -3283,7 +3896,9 @@ describe('PlanningGenerationService', () => {
     it('throws NotFoundException when target employee not found', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(null);
       await expect(
-        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'non-existent' }),
+        service.moveShift(clinicId, 'shift-1', {
+          targetEmployeeId: 'non-existent',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -3329,8 +3944,8 @@ describe('PlanningGenerationService', () => {
         employeeId: 'emp-1',
         date: '2025-03-03',
         shiftTypeCode: 'SURGERY',
-        startTime: '09:00',  // These should be IGNORED
-        endTime: '17:00',    // Backend uses ClinicShiftType times
+        startTime: '09:00', // These should be IGNORED
+        endTime: '17:00', // Backend uses ClinicShiftType times
         breakMinutes: 0,
       });
       expect(result.startTime).toBe('08:00');
@@ -3381,6 +3996,7 @@ describe('PlanningGenerationService', () => {
       id: 'shift-1',
       clinicId: 'clinic-123',
       employeeId: 'emp-1',
+      date: new Date('2025-03-03T00:00:00.000Z'),
     };
 
     it('deletes a shift and returns { deleted: true }', async () => {
@@ -3405,9 +4021,332 @@ describe('PlanningGenerationService', () => {
         ...mockShift,
         clinicId: 'other-clinic',
       });
+      await expect(service.deleteShift(clinicId, 'shift-1')).rejects.toThrow(
+        'Shift does not belong to this clinic',
+      );
+    });
+  });
+
+  // ─── Story 7.6 — post-publication change management ───────────────
+
+  describe('Story 7.6 — post-publication change management', () => {
+    const julyShift = {
+      id: 'shift-pub',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2026-07-10T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: true,
+    };
+    const publishedStatus = { month: '2026-07' };
+
+    beforeEach(() => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@example.com',
+          user: { locale: 'en' },
+        },
+      ]);
+    });
+
+    // AC-1 (verbatim from story 7-6:14): Given a month whose
+    //   PlanningPeriodStatus is PUBLISHED, When moveShift ... is called
+    //   without acknowledgePublishedChange: true, Then the API throws
+    //   ConflictException('PUBLISHED_CHANGE_REQUIRES_ACK') and no data changes.
+    it('moveShift throws PUBLISHED_CHANGE_REQUIRES_ACK on a published month without acknowledgement', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
       await expect(
-        service.deleteShift(clinicId, 'shift-1'),
-      ).rejects.toThrow('Shift does not belong to this clinic');
+        service.moveShift(clinicId, julyShift.id, { targetDate: '2026-07-20' }),
+      ).rejects.toMatchObject({ message: 'PUBLISHED_CHANGE_REQUIRES_ACK' });
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    // AC-2 (verbatim from story 7-6:15): Given an acknowledged moveShift that
+    //   changes the shift's date or employee, Then the shift's isConfirmed flag
+    //   is reset to false.
+    it('moveShift proceeds on a published month with acknowledgement and resets isConfirmed', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      const result = await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      expect(result.isConfirmed).toBe(false);
+      expect(mockPrismaService.shift.update).toHaveBeenCalledWith({
+        where: { id: julyShift.id },
+        data: expect.objectContaining({ isConfirmed: false }),
+      });
+    });
+
+    // AC-2 (verbatim from story 7-6:15): ... a moveShift that changes the
+    //   shift's date or employee ... — the converse: no change ⇒ no reset.
+    it('moveShift does not reset isConfirmed when neither date nor employee changes', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        source: 'MANUAL',
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-10' },
+        { acknowledgePublishedChange: true },
+      );
+      const updateArg = mockPrismaService.shift.update.mock.calls[0][0];
+      expect(updateArg.data).not.toHaveProperty('isConfirmed');
+    });
+
+    // AC-1 (verbatim from story 7-6:14): A move whose source and target dates
+    //   fall in different months checks both months.
+    it('moveShift checks BOTH months on a cross-month move', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-08-05T00:00:00.000Z'),
+        source: 'MANUAL',
+      });
+      await service.moveShift(clinicId, julyShift.id, {
+        targetDate: '2026-08-05',
+      });
+      expect(
+        mockPrismaService.planningPeriodStatus.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            month: { in: ['2026-07', '2026-08'] },
+          }),
+        }),
+      );
+    });
+
+    // AC-4 (verbatim from story 7-6:17): ... that month's PlanningPeriodStatus
+    //   records amendedAt = now() and increments amendmentCount ...
+    // AC-3 (verbatim from story 7-6:16): ... every affected employee ...
+    //   receives a schedule-changed email ...
+    it('acknowledged mutation on a published month increments amendmentCount and notifies', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            amendmentCount: { increment: 1 },
+          }),
+        }),
+      );
+      // notifyScheduleChange is fire-and-forget — flush the microtask queue.
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalled();
+    });
+
+    // AC-1 (verbatim from story 7-6:14): ... When moveShift, createManualShift,
+    //   or deleteShift is called without acknowledgePublishedChange: true ...
+    it('createManualShift and deleteShift enforce the same guard', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 30,
+        clinicId,
+      });
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-07-15',
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+        }),
+      ).rejects.toMatchObject({ message: 'PUBLISHED_CHANGE_REQUIRES_ACK' });
+      expect(mockPrismaService.shift.create).not.toHaveBeenCalled();
+
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      await expect(
+        service.deleteShift(clinicId, julyShift.id),
+      ).rejects.toMatchObject({ message: 'PUBLISHED_CHANGE_REQUIRES_ACK' });
+      expect(mockPrismaService.shift.delete).not.toHaveBeenCalled();
+    });
+
+    // AC-6 (verbatim from story 7-6:19): Given the admin grid on a DRAFT month,
+    //   Then behaviour is unchanged — no dialog, no flag, no notification.
+    it('mutations on a DRAFT month behave exactly as before (no guard, no notification)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+      const result = await service.moveShift(clinicId, julyShift.id, {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(result.employeeId).toBe('emp-2');
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).not.toHaveBeenCalled();
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+    });
+
+    // AC-3 (verbatim from story 7-6:16): ... every affected employee ...
+    //   receives a schedule-changed email and a PUSH NOTIFICATION ... (review
+    //   F3 — the push channel was previously unasserted).
+    it('sends a push notification to the affected employee on an acknowledged published amendment', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(
+        mockPushNotificationService.sendBatchPushNotifications,
+      ).toHaveBeenCalledWith(
+        ['emp-1'],
+        expect.objectContaining({ url: '/dashboard/schedule' }),
+      );
+    });
+
+    // AC-3 (review F2 regression): an ACTIVE employee with no email must still
+    //   receive the push — the email is skipped individually, the push is not
+    //   coupled to email presence.
+    it('still pushes when the affected employee has no email (email skipped, push sent)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: null,
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+      expect(
+        mockPushNotificationService.sendBatchPushNotifications,
+      ).toHaveBeenCalledWith(
+        ['emp-1'],
+        expect.objectContaining({ url: '/dashboard/schedule' }),
+      );
+      // Guard the query-level half of the F2 fix: the recipient lookup must
+      // NOT filter on email (that filter is what previously dropped null-email
+      // employees from the push channel too).
+      expect(mockPrismaService.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.not.objectContaining({ email: expect.anything() }),
+        }),
+      );
+    });
+
+    // AC-3 (verbatim from story 7-6:16): ... each only if their side's month is
+    //   published ... (review F4 — cross-month, one side published only).
+    it('cross-month move notifies only the published-side month', async () => {
+      // Original month 2026-07 is published; target month 2026-08 is a draft.
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-08-05T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-08-05' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+      // amendment recorded only for the published month
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ month: { in: ['2026-07'] } }),
+        }),
+      );
+      // exactly one email, for the published month, never for the draft target
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        '2026-07',
+        expect.any(String),
+        expect.any(String),
+      );
     });
   });
 
@@ -3443,7 +4382,9 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]); // Bob ASV
       mockPrismaService.unavailability.findMany.mockResolvedValue([]);
       mockPrismaService.shift.findMany.mockResolvedValue([]); // no existing shifts
-      mockClinicService.getOperationalConfig.mockResolvedValue(preValidateOperationalConfig);
+      mockClinicService.getOperationalConfig.mockResolvedValue(
+        preValidateOperationalConfig,
+      );
       mockPlanningService.listRules.mockResolvedValue([]);
     });
 
@@ -3474,9 +4415,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.employee.findFirst.mockResolvedValue(null);
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ rule: 'EMPLOYEE' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ rule: 'EMPLOYEE' })]),
       );
     });
 
@@ -3532,9 +4471,7 @@ describe('PlanningGenerationService', () => {
 
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ rule: 'OVERLAP' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
       );
     });
 
@@ -3575,7 +4512,7 @@ describe('PlanningGenerationService', () => {
           { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
           { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
           { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },  // 6h net = total 33h
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 }, // 6h net = total 33h
         ]) // weekShifts
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -3629,12 +4566,14 @@ describe('PlanningGenerationService', () => {
         publishedAt: new Date(),
         publishedBy: userId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = {
-          planningPeriodStatus: mockTxPlanningPeriodStatus,
-        };
-        return fn(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            planningPeriodStatus: mockTxPlanningPeriodStatus,
+          };
+          return fn(tx);
+        },
+      );
 
       // After transaction: fetch employees with shifts + clinic name
       mockPrismaService.employee.findMany.mockResolvedValue([]);
@@ -3696,18 +4635,44 @@ describe('PlanningGenerationService', () => {
 
     it('should send batch email to active employees with shifts in the month', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
-        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: true, _count: { shifts: 3 } },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 5 },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 3 },
+        },
       ]);
       mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(2);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledTimes(1);
-      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
+      expect(
+        mockMailService.sendBatchSchedulePublicationEmails,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        mockMailService.sendBatchSchedulePublicationEmails,
+      ).toHaveBeenCalledWith(
         [
-          { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' },
-          { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3, locale: 'fr' },
+          {
+            to: 'alice@clinic.fr',
+            firstName: 'Alice',
+            shiftCount: 5,
+            locale: 'fr',
+          },
+          {
+            to: 'bob@clinic.fr',
+            firstName: 'Bob',
+            shiftCount: 3,
+            locale: 'fr',
+          },
         ],
         month,
         'Clinique Vétérinaire du Parc',
@@ -3717,15 +4682,36 @@ describe('PlanningGenerationService', () => {
 
     it('should not send email to employees with notifyOnPublish disabled', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
-        { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: false, _count: { shifts: 3 } },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 5 },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          notifyOnPublish: false,
+          _count: { shifts: 3 },
+        },
       ]);
       mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendBatchSchedulePublicationEmails).toHaveBeenCalledWith(
-        [{ to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' }],
+      expect(
+        mockMailService.sendBatchSchedulePublicationEmails,
+      ).toHaveBeenCalledWith(
+        [
+          {
+            to: 'alice@clinic.fr',
+            firstName: 'Alice',
+            shiftCount: 5,
+            locale: 'fr',
+          },
+        ],
         month,
         'Clinique Vétérinaire du Parc',
       );
@@ -3737,7 +4723,9 @@ describe('PlanningGenerationService', () => {
 
       const result = await service.publishPlan(clinicId, month, userId);
 
-      expect(mockMailService.sendBatchSchedulePublicationEmails).not.toHaveBeenCalled();
+      expect(
+        mockMailService.sendBatchSchedulePublicationEmails,
+      ).not.toHaveBeenCalled();
       expect(result.totalWithShifts).toBe(0);
     });
 
@@ -3770,10 +4758,12 @@ describe('PlanningGenerationService', () => {
         publishedAt: new Date(),
         publishedBy: userId,
       });
-      mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
-        return fn(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+          return fn(tx);
+        },
+      );
       mockPrismaService.employee.findMany.mockResolvedValue([]);
       mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
         name: 'Clinique Vétérinaire du Parc',
@@ -3790,14 +4780,22 @@ describe('PlanningGenerationService', () => {
 
     it('should include publishedAt and totalWithShifts in result', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
-        { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 4 } },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 4 },
+        },
       ]);
       mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
 
       const result = await service.publishPlan(clinicId, month, userId);
 
       expect(result.publishedAt).toBeDefined();
-      expect(new Date(result.publishedAt).toISOString()).toBe(result.publishedAt);
+      expect(new Date(result.publishedAt).toISOString()).toBe(
+        result.publishedAt,
+      );
       expect(result.totalWithShifts).toBe(1);
     });
 
@@ -3808,7 +4806,9 @@ describe('PlanningGenerationService', () => {
         process.env.TRIGGER_SECRET_KEY = 'tr_dev_test_key';
         jest.clearAllMocks();
 
-        mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
+        mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(
+          null,
+        );
         mockPrismaService.shift.count.mockResolvedValue(0);
         mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
           hardViolations: [],
@@ -3822,10 +4822,12 @@ describe('PlanningGenerationService', () => {
           publishedAt: new Date(),
           publishedBy: userId,
         });
-        mockPrismaService.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-          const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
-          return fn(tx);
-        });
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) => {
+            const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+            return fn(tx);
+          },
+        );
         mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
           name: 'Clinique Test',
         });
@@ -3841,8 +4843,20 @@ describe('PlanningGenerationService', () => {
 
       it('should trigger batch-email-publish task instead of direct send when TRIGGER_SECRET_KEY is set', async () => {
         mockPrismaService.employee.findMany.mockResolvedValue([
-          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
-          { id: 'emp-2', firstName: 'Bob', email: 'bob@clinic.fr', notifyOnPublish: true, _count: { shifts: 3 } },
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            email: 'alice@clinic.fr',
+            notifyOnPublish: true,
+            _count: { shifts: 5 },
+          },
+          {
+            id: 'emp-2',
+            firstName: 'Bob',
+            email: 'bob@clinic.fr',
+            notifyOnPublish: true,
+            _count: { shifts: 3 },
+          },
         ]);
 
         await service.publishPlan(clinicId, month, userId);
@@ -3850,18 +4864,36 @@ describe('PlanningGenerationService', () => {
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
           emails: [
-            { to: 'alice@clinic.fr', firstName: 'Alice', shiftCount: 5, locale: 'fr' },
-            { to: 'bob@clinic.fr', firstName: 'Bob', shiftCount: 3, locale: 'fr' },
+            {
+              to: 'alice@clinic.fr',
+              firstName: 'Alice',
+              shiftCount: 5,
+              locale: 'fr',
+            },
+            {
+              to: 'bob@clinic.fr',
+              firstName: 'Bob',
+              shiftCount: 3,
+              locale: 'fr',
+            },
           ],
           month,
           clinicName: 'Clinique Test',
         });
-        expect(mockMailService.sendBatchSchedulePublicationEmails).not.toHaveBeenCalled();
+        expect(
+          mockMailService.sendBatchSchedulePublicationEmails,
+        ).not.toHaveBeenCalled();
       });
 
       it('should trigger batch-push-publish task when TRIGGER_SECRET_KEY is set', async () => {
         mockPrismaService.employee.findMany.mockResolvedValue([
-          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: true, _count: { shifts: 5 } },
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            email: 'alice@clinic.fr',
+            notifyOnPublish: true,
+            _count: { shifts: 5 },
+          },
         ]);
 
         await service.publishPlan(clinicId, month, userId);
@@ -3873,12 +4905,20 @@ describe('PlanningGenerationService', () => {
           body: `Votre planning de ${month} est disponible.`,
           url: '/dashboard/schedule',
         });
-        expect(mockPushNotificationService.sendBatchPushNotifications).not.toHaveBeenCalled();
+        expect(
+          mockPushNotificationService.sendBatchPushNotifications,
+        ).not.toHaveBeenCalled();
       });
 
       it('should not trigger tasks when no eligible employees', async () => {
         mockPrismaService.employee.findMany.mockResolvedValue([
-          { id: 'emp-1', firstName: 'Alice', email: 'alice@clinic.fr', notifyOnPublish: false, _count: { shifts: 5 } },
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            email: 'alice@clinic.fr',
+            notifyOnPublish: false,
+            _count: { shifts: 5 },
+          },
         ]);
 
         await service.publishPlan(clinicId, month, userId);
@@ -3899,8 +4939,12 @@ describe('PlanningGenerationService', () => {
         status: 'DRAFT',
         publishedAt: null,
         publishedBy: null,
+        amendedAt: null,
+        amendmentCount: 0,
       });
-      expect(mockPrismaService.planningPeriodStatus.findUnique).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.planningPeriodStatus.findUnique,
+      ).toHaveBeenCalledWith({
         where: { clinicId_month: { clinicId, month: '2026-03' } },
       });
     });
@@ -3914,6 +4958,8 @@ describe('PlanningGenerationService', () => {
         status: 'PUBLISHED',
         publishedAt,
         publishedBy: 'user-admin-1',
+        amendedAt: null,
+        amendmentCount: 0,
       });
 
       const result = await service.getPublicationStatus(clinicId, '2026-03');
@@ -3922,7 +4968,29 @@ describe('PlanningGenerationService', () => {
         status: 'PUBLISHED',
         publishedAt: publishedAt.toISOString(),
         publishedBy: 'user-admin-1',
+        amendedAt: null,
+        amendmentCount: 0,
       });
+    });
+
+    it('should expose amendedAt and amendmentCount on an amended published month', async () => {
+      const publishedAt = new Date('2026-03-15T10:00:00.000Z');
+      const amendedAt = new Date('2026-03-18T09:30:00.000Z');
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue({
+        id: 'pps-1',
+        clinicId,
+        month: '2026-03',
+        status: 'PUBLISHED',
+        publishedAt,
+        publishedBy: 'user-admin-1',
+        amendedAt,
+        amendmentCount: 3,
+      });
+
+      const result = await service.getPublicationStatus(clinicId, '2026-03');
+
+      expect(result.amendedAt).toBe(amendedAt.toISOString());
+      expect(result.amendmentCount).toBe(3);
     });
   });
 });

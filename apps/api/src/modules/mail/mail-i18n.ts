@@ -23,6 +23,7 @@ type Translations = {
     schoolDaysDeclaration: (name: string, month: string) => string;
     schoolDaysReminder: (month: string) => string;
     schedulePublication: (clinicName: string, month: string) => string;
+    scheduleChanged: (clinicName: string, month: string) => string;
     absenceRequest: (employeeName: string) => string;
     absenceReview: (status: 'APPROVED' | 'REJECTED') => string;
     passwordReset: string;
@@ -111,23 +112,23 @@ type Translations = {
     tip: string;
     disclaimer: string;
   };
+  scheduleChanged: {
+    heading: string;
+    subject: (month: string) => string;
+    button: string;
+    disclaimer: string;
+  };
   absenceRequest: {
     heading: string;
     subject: string;
-    body: (
-      adminName: string | undefined,
-      employeeName: string,
-    ) => string;
+    body: (adminName: string | undefined, employeeName: string) => string;
     action: string;
     disclaimer: string;
     dateRange: (start: string, end: string, days: number) => string;
   };
   absenceReview: {
     heading: (status: 'APPROVED' | 'REJECTED') => string;
-    body: (
-      firstName: string,
-      status: 'APPROVED' | 'REJECTED',
-    ) => string;
+    body: (firstName: string, status: 'APPROVED' | 'REJECTED') => string;
     reasonLabel: string;
     disclaimer: string;
     statusLabel: (s: 'APPROVED' | 'REJECTED') => string;
@@ -161,9 +162,10 @@ const fr: Translations = {
     activation: 'Complete your Pawly account setup',
     welcome: 'Bienvenue sur Pawly — votre clinique est prête !',
     planConfirmation: (plan) =>
-      plan === 'professional' ? 'Votre abonnement Pro Pawly est actif' : 'Votre plan Starter Pawly est activé',
-    invitation: (firstName) =>
-      `${firstName}, bienvenue dans l'équipe Pawly !`,
+      plan === 'professional'
+        ? 'Votre abonnement Pro Pawly est actif'
+        : 'Votre plan Starter Pawly est activé',
+    invitation: (firstName) => `${firstName}, bienvenue dans l'équipe Pawly !`,
     otpCode: 'Votre code Pawly',
     schoolDaysDeclaration: (name, month) =>
       `${name} a déclaré ses jours d'école pour ${month}`,
@@ -171,6 +173,8 @@ const fr: Translations = {
       `Rappel: déclarez vos jours d'école pour ${month}`,
     schedulePublication: (clinicName, month) =>
       `${clinicName} — Votre planning pour ${month} est publié`,
+    scheduleChanged: (clinicName, month) =>
+      `${clinicName} — Votre planning de ${month} a été modifié`,
     absenceRequest: (employeeName) =>
       `${employeeName} a soumis une demande d'absence`,
     absenceReview: (status) =>
@@ -216,10 +220,14 @@ const fr: Translations = {
     footer: 'Si vous avez des questions, répondez directement à cet email.',
   },
   planConfirmation: {
-    heading: (plan) => plan === 'professional' ? 'Votre abonnement Pro est actif !' : 'Votre plan Starter est activé !',
-    body: (plan) => plan === 'professional'
-      ? 'Merci pour votre confiance ! Votre abonnement Professionnel est maintenant actif. Vous avez accès à toutes les fonctionnalités de Pawly.'
-      : 'Votre plan Starter est activé. Vous pouvez commencer à utiliser Pawly dès maintenant. Passez au plan Professionnel à tout moment pour débloquer toutes les fonctionnalités.',
+    heading: (plan) =>
+      plan === 'professional'
+        ? 'Votre abonnement Pro est actif !'
+        : 'Votre plan Starter est activé !',
+    body: (plan) =>
+      plan === 'professional'
+        ? 'Merci pour votre confiance ! Votre abonnement Professionnel est maintenant actif. Vous avez accès à toutes les fonctionnalités de Pawly.'
+        : 'Votre plan Starter est activé. Vous pouvez commencer à utiliser Pawly dès maintenant. Passez au plan Professionnel à tout moment pour débloquer toutes les fonctionnalités.',
     planLabel: 'Votre plan',
     planStarter: 'Starter — Gratuit',
     planPro: 'Professionnel — 29,99 €/mois',
@@ -255,8 +263,7 @@ const fr: Translations = {
   },
   schoolReminder: {
     heading: 'Rappel de déclaration',
-    subject: (month) =>
-      `Objet: Déclarez vos jours d'école pour ${month}`,
+    subject: (month) => `Objet: Déclarez vos jours d'école pour ${month}`,
     body: (name, month) =>
       `Vous n'avez pas encore déclaré vos jours d'école pour le mois de **${month}**. Veuillez effectuer votre déclaration avant la fin du mois.`,
     button: "Déclarer mes jours d'école",
@@ -264,20 +271,27 @@ const fr: Translations = {
   },
   schedulePublication: {
     heading: 'Planning publié',
-    subject: (month) =>
-      `Objet: Votre planning pour ${month} est disponible`,
+    subject: (month) => `Objet: Votre planning pour ${month} est disponible`,
     body: (firstName, month, clinicName, shiftCount) => {
       let text = `Le planning pour **${month}** a été publié par **${clinicName}**.`;
       if (shiftCount !== undefined && shiftCount > 0) {
         text += ` Vous avez **${shiftCount} créneau${shiftCount > 1 ? 'x' : ''}** prévu${shiftCount > 1 ? 's' : ''} ce mois-ci.`;
       }
-      text += ' Vous pouvez dès maintenant consulter vos créneaux sur votre espace Pawly.';
+      text +=
+        ' Vous pouvez dès maintenant consulter vos créneaux sur votre espace Pawly.';
       return text;
     },
     button: 'Consulter mon planning',
     tip: "Astuce : Installez Pawly sur votre écran d'accueil pour un accès instantané !",
     disclaimer:
       'Ce message est envoyé automatiquement lors de la publication du planning.',
+  },
+  scheduleChanged: {
+    heading: 'Planning modifié',
+    subject: (month) => `Modification de votre planning de ${month}`,
+    button: 'Voir mon planning',
+    disclaimer:
+      'Vous recevez cet email car un créneau de votre planning publié a été modifié.',
   },
   absenceRequest: {
     heading: "Nouvelle demande d'absence",
@@ -307,7 +321,8 @@ const fr: Translations = {
     subject: 'Réinitialisation de votre mot de passe Pawly',
     body: 'Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.',
     button: 'Réinitialiser mon mot de passe',
-    disclaimer: 'Si vous n\'avez pas demandé cette réinitialisation, ignorez simplement cet email. Votre mot de passe restera inchangé.',
+    disclaimer:
+      "Si vous n'avez pas demandé cette réinitialisation, ignorez simplement cet email. Votre mot de passe restera inchangé.",
     expiry: 'Ce lien expire dans 1 heure.',
   },
 };
@@ -330,9 +345,10 @@ const en: Translations = {
     activation: 'Complete your Pawly account setup',
     welcome: 'Welcome to Pawly — your clinic is ready!',
     planConfirmation: (plan) =>
-      plan === 'professional' ? 'Your Pawly Pro subscription is active' : 'Your Pawly Starter plan is activated',
-    invitation: (firstName) =>
-      `${firstName}, welcome to the Pawly team!`,
+      plan === 'professional'
+        ? 'Your Pawly Pro subscription is active'
+        : 'Your Pawly Starter plan is activated',
+    invitation: (firstName) => `${firstName}, welcome to the Pawly team!`,
     otpCode: 'Your Pawly code',
     schoolDaysDeclaration: (name, month) =>
       `${name} declared school days for ${month}`,
@@ -340,6 +356,8 @@ const en: Translations = {
       `Reminder: declare your school days for ${month}`,
     schedulePublication: (clinicName, month) =>
       `${clinicName} — Your schedule for ${month} is published`,
+    scheduleChanged: (clinicName, month) =>
+      `${clinicName} — Your ${month} schedule was updated`,
     absenceRequest: (employeeName) =>
       `${employeeName} submitted an absence request`,
     absenceReview: (status) =>
@@ -374,8 +392,7 @@ const en: Translations = {
     body: (name) =>
       `Welcome to the Pawly family! Your workspace is configured and ready for your team.\n\nYou can now set your password and activate your account.`,
     button: 'Activate my account',
-    disclaimer:
-      'If you did not request this, please ignore this email.',
+    disclaimer: 'If you did not request this, please ignore this email.',
   },
   welcome: {
     heading: 'Welcome to Pawly!',
@@ -385,10 +402,14 @@ const en: Translations = {
     footer: 'If you have any questions, reply directly to this email.',
   },
   planConfirmation: {
-    heading: (plan) => plan === 'professional' ? 'Your Pro subscription is active!' : 'Your Starter plan is activated!',
-    body: (plan) => plan === 'professional'
-      ? 'Thank you for your trust! Your Professional subscription is now active. You have access to all Pawly features.'
-      : 'Your Starter plan is activated. You can start using Pawly right away. Upgrade to Professional anytime to unlock all features.',
+    heading: (plan) =>
+      plan === 'professional'
+        ? 'Your Pro subscription is active!'
+        : 'Your Starter plan is activated!',
+    body: (plan) =>
+      plan === 'professional'
+        ? 'Thank you for your trust! Your Professional subscription is now active. You have access to all Pawly features.'
+        : 'Your Starter plan is activated. You can start using Pawly right away. Upgrade to Professional anytime to unlock all features.',
     planLabel: 'Your plan',
     planStarter: 'Starter — Free',
     planPro: 'Professional — €29.99/month',
@@ -417,15 +438,13 @@ const en: Translations = {
     subject: (month) => `Subject: New declaration for ${month}`,
     body: (adminName, apprenticeName, month) =>
       `${adminName ? ` ${adminName}` : ''}\n\n**${apprenticeName}** declared school days for **${month}**.`,
-    dayCount: (count) =>
-      `${count} school day${count > 1 ? 's' : ''} declared`,
+    dayCount: (count) => `${count} school day${count > 1 ? 's' : ''} declared`,
     disclaimer:
       'This is an automatic notification. Check your Pawly dashboard for more details.',
   },
   schoolReminder: {
     heading: 'Declaration reminder',
-    subject: (month) =>
-      `Subject: Declare your school days for ${month}`,
+    subject: (month) => `Subject: Declare your school days for ${month}`,
     body: (name, month) =>
       `You have not yet declared your school days for **${month}**. Please submit your declaration before the end of the month.`,
     button: 'Declare my school days',
@@ -434,8 +453,7 @@ const en: Translations = {
   },
   schedulePublication: {
     heading: 'Schedule published',
-    subject: (month) =>
-      `Subject: Your schedule for ${month} is available`,
+    subject: (month) => `Subject: Your schedule for ${month} is available`,
     body: (firstName, month, clinicName, shiftCount) => {
       let text = `The schedule for **${month}** has been published by **${clinicName}**.`;
       if (shiftCount !== undefined && shiftCount > 0) {
@@ -449,13 +467,19 @@ const en: Translations = {
     disclaimer:
       'This message is sent automatically when the schedule is published.',
   },
+  scheduleChanged: {
+    heading: 'Schedule updated',
+    subject: (month) => `Your ${month} schedule was updated`,
+    button: 'View my schedule',
+    disclaimer:
+      'You are receiving this email because a shift on your published schedule was changed.',
+  },
   absenceRequest: {
     heading: 'New absence request',
     subject: 'Subject: Request to validate',
     body: (adminName, employeeName) =>
       `${adminName ? ` ${adminName}` : ''}\n\n**${employeeName}** submitted an absence request.`,
-    action:
-      'Log in to your Pawly dashboard to approve or reject this request.',
+    action: 'Log in to your Pawly dashboard to approve or reject this request.',
     disclaimer:
       'This is an automatic notification. Check your Pawly dashboard for more details.',
     dateRange: (start, end, days) =>
@@ -477,7 +501,8 @@ const en: Translations = {
     subject: 'Reset your Pawly password',
     body: 'You requested a password reset. Click the button below to choose a new password.',
     button: 'Reset my password',
-    disclaimer: 'If you did not request this reset, simply ignore this email. Your password will remain unchanged.',
+    disclaimer:
+      'If you did not request this reset, simply ignore this email. Your password will remain unchanged.',
     expiry: 'This link expires in 1 hour.',
   },
 };
