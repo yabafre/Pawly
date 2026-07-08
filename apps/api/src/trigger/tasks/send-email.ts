@@ -11,9 +11,13 @@ import { EmployeeInvitationEmail } from '../../modules/mail/templates/EmployeeIn
 import { SchoolDaysDeclarationEmail } from '../../modules/mail/templates/SchoolDaysDeclarationEmail';
 import { SchoolDaysReminderEmail } from '../../modules/mail/templates/SchoolDaysReminderEmail';
 import { SchedulePublicationEmail } from '../../modules/mail/templates/SchedulePublicationEmail';
+import { ScheduleChangedEmail } from '../../modules/mail/templates/ScheduleChangedEmail';
 import { AbsenceRequestEmail } from '../../modules/mail/templates/AbsenceRequestEmail';
 import { AbsenceReviewEmail } from '../../modules/mail/templates/AbsenceReviewEmail';
-import { getMailTranslations, type MailLocale } from '../../modules/mail/mail-i18n';
+import {
+  getMailTranslations,
+  type MailLocale,
+} from '../../modules/mail/mail-i18n';
 import { getResend, mailFrom } from '../lib/resend';
 
 type EmailType =
@@ -25,6 +29,7 @@ type EmailType =
   | 'invitation'
   | 'school-notification'
   | 'schedule-publication'
+  | 'schedule-changed'
   | 'school-reminder'
   | 'absence-request'
   | 'absence-review';
@@ -37,112 +42,178 @@ interface SendEmailPayload {
 
 const MIN_SEND_INTERVAL_MS = 550;
 
-async function renderEmail(type: EmailType, data: Record<string, unknown>): Promise<{ html: string; subject: string }> {
+async function renderEmail(
+  type: EmailType,
+  data: Record<string, unknown>,
+): Promise<{ html: string; subject: string }> {
   const locale = (data.locale as MailLocale) ?? 'fr';
   const t = getMailTranslations(locale);
 
   switch (type) {
     case 'welcome': {
-      const html = await render(createElement(WelcomeEmail, {
-        url: data.url as string,
-        adminName: data.adminName as string | undefined,
-        locale,
-      }));
+      const html = await render(
+        createElement(WelcomeEmail, {
+          url: data.url as string,
+          adminName: data.adminName as string | undefined,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.welcome };
     }
     case 'plan-confirmation': {
       const plan = (data.plan as 'starter' | 'professional') ?? 'starter';
-      const html = await render(createElement(PlanConfirmationEmail, {
-        plan,
-        adminName: data.adminName as string | undefined,
-        dashboardUrl: data.dashboardUrl as string,
-        invoiceUrl: data.invoiceUrl as string | undefined,
-        locale,
-      }));
+      const html = await render(
+        createElement(PlanConfirmationEmail, {
+          plan,
+          adminName: data.adminName as string | undefined,
+          dashboardUrl: data.dashboardUrl as string,
+          invoiceUrl: data.invoiceUrl as string | undefined,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.planConfirmation(plan) };
     }
     case 'magic-link': {
-      const html = await render(createElement(MagicLinkEmail, {
-        url: data.url as string,
-        locale,
-      }));
+      const html = await render(
+        createElement(MagicLinkEmail, {
+          url: data.url as string,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.magicLink };
     }
     case 'otp': {
-      const html = await render(createElement(OtpCodeEmail, {
-        code: data.code as string,
-        locale,
-      }));
+      const html = await render(
+        createElement(OtpCodeEmail, {
+          code: data.code as string,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.otpCode };
     }
     case 'password-reset': {
-      const html = await render(createElement(PasswordResetEmail, {
-        url: data.url as string,
-        locale,
-      }));
+      const html = await render(
+        createElement(PasswordResetEmail, {
+          url: data.url as string,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.passwordReset };
     }
     case 'invitation': {
-      const html = await render(createElement(EmployeeInvitationEmail, {
-        url: data.url as string,
-        firstName: data.firstName as string,
-        locale,
-      }));
+      const html = await render(
+        createElement(EmployeeInvitationEmail, {
+          url: data.url as string,
+          firstName: data.firstName as string,
+          locale,
+        }),
+      );
       return { html, subject: t.subjects.invitation(data.firstName as string) };
     }
     case 'school-notification': {
-      const html = await render(createElement(SchoolDaysDeclarationEmail, {
-        adminName: data.adminName as string | undefined,
-        apprenticeName: data.apprenticeName as string,
-        month: data.month as string,
-        dateCount: data.dateCount as number,
-        locale,
-      }));
-      return { html, subject: t.subjects.schoolDaysDeclaration(data.apprenticeName as string, data.month as string) };
+      const html = await render(
+        createElement(SchoolDaysDeclarationEmail, {
+          adminName: data.adminName as string | undefined,
+          apprenticeName: data.apprenticeName as string,
+          month: data.month as string,
+          dateCount: data.dateCount as number,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.schoolDaysDeclaration(
+          data.apprenticeName as string,
+          data.month as string,
+        ),
+      };
     }
     case 'schedule-publication': {
-      const html = await render(createElement(SchedulePublicationEmail, {
-        firstName: data.firstName as string,
-        month: data.month as string,
-        clinicName: data.clinicName as string,
-        dashboardUrl: data.dashboardUrl as string,
-        shiftCount: data.shiftCount as number | undefined,
-        locale,
-      }));
-      return { html, subject: t.subjects.schedulePublication(data.clinicName as string, data.month as string) };
+      const html = await render(
+        createElement(SchedulePublicationEmail, {
+          firstName: data.firstName as string,
+          month: data.month as string,
+          clinicName: data.clinicName as string,
+          dashboardUrl: data.dashboardUrl as string,
+          shiftCount: data.shiftCount as number | undefined,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.schedulePublication(
+          data.clinicName as string,
+          data.month as string,
+        ),
+      };
+    }
+    case 'schedule-changed': {
+      const html = await render(
+        createElement(ScheduleChangedEmail, {
+          firstName: data.firstName as string,
+          month: data.month as string,
+          clinicName: data.clinicName as string,
+          dashboardUrl: data.dashboardUrl as string,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.scheduleChanged(
+          data.clinicName as string,
+          data.month as string,
+        ),
+      };
     }
     case 'school-reminder': {
-      const html = await render(createElement(SchoolDaysReminderEmail, {
-        name: data.name as string,
-        month: data.month as string,
-        dashboardUrl: data.dashboardUrl as string,
-        locale,
-      }));
-      return { html, subject: t.subjects.schoolDaysReminder(data.month as string) };
+      const html = await render(
+        createElement(SchoolDaysReminderEmail, {
+          name: data.name as string,
+          month: data.month as string,
+          dashboardUrl: data.dashboardUrl as string,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.schoolDaysReminder(data.month as string),
+      };
     }
     case 'absence-request': {
-      const html = await render(createElement(AbsenceRequestEmail, {
-        adminName: data.adminName as string | undefined,
-        employeeName: data.employeeName as string,
-        absenceType: data.absenceType as string,
-        startDate: data.startDate as string,
-        endDate: data.endDate as string,
-        dayCount: data.dayCount as number,
-        locale,
-      }));
-      return { html, subject: t.subjects.absenceRequest(data.employeeName as string) };
+      const html = await render(
+        createElement(AbsenceRequestEmail, {
+          adminName: data.adminName as string | undefined,
+          employeeName: data.employeeName as string,
+          absenceType: data.absenceType as string,
+          startDate: data.startDate as string,
+          endDate: data.endDate as string,
+          dayCount: data.dayCount as number,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.absenceRequest(data.employeeName as string),
+      };
     }
     case 'absence-review': {
-      const html = await render(createElement(AbsenceReviewEmail, {
-        firstName: data.firstName as string,
-        status: data.status as 'APPROVED' | 'REJECTED',
-        absenceType: data.absenceType as string,
-        startDate: data.startDate as string,
-        endDate: data.endDate as string,
-        rejectionReason: data.rejectionReason as string | undefined,
-        locale,
-      }));
-      return { html, subject: t.subjects.absenceReview(data.status as 'APPROVED' | 'REJECTED') };
+      const html = await render(
+        createElement(AbsenceReviewEmail, {
+          firstName: data.firstName as string,
+          status: data.status as 'APPROVED' | 'REJECTED',
+          absenceType: data.absenceType as string,
+          startDate: data.startDate as string,
+          endDate: data.endDate as string,
+          rejectionReason: data.rejectionReason as string | undefined,
+          locale,
+        }),
+      );
+      return {
+        html,
+        subject: t.subjects.absenceReview(
+          data.status as 'APPROVED' | 'REJECTED',
+        ),
+      };
     }
   }
 }
@@ -162,10 +233,18 @@ export const sendEmailTask = task({
 
     await new Promise((r) => setTimeout(r, MIN_SEND_INTERVAL_MS));
 
-    const { error } = await getResend().emails.send({ from: mailFrom, to, subject, html });
+    const { error } = await getResend().emails.send({
+      from: mailFrom,
+      to,
+      subject,
+      html,
+    });
 
     if (error) {
-      logger.error(`Failed to send ${type} email`, { to, error: error.message });
+      logger.error(`Failed to send ${type} email`, {
+        to,
+        error: error.message,
+      });
       throw new Error(`Email send failed: ${error.message}`);
     }
 
