@@ -1,7 +1,7 @@
 # Story: 7-6-post-publication-change-management — Post-Publication Change Management
 
 **Epic:** Epic 7 — Admin Arbitration & Final Validation
-**Status:** ready-for-dev
+**Status:** done
 **Branch:** feature/story-7-6-post-publication-change-management
 **Origin:** docs/pre-mortem.md R1 (HIGH×CRITICAL) — silent edits on published plannings
 

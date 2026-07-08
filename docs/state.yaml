@@ -162,7 +162,7 @@ sprint:
     10-3-onboarding-flow-revamp: { status: done }
     10-4-onboarding-tour-engine: { status: done, started_at: '2026-06-17', completed_at: '2026-06-18' }
     5-7-clinic-24-7-hours: { status: done, started_at: '2026-06-18', completed_at: '2026-06-19' }
-    7-6-post-publication-change-management: { status: review-queued, started_at: '2026-07-08' }
+    7-6-post-publication-change-management: { status: done, started_at: '2026-07-08', completed_at: '2026-07-08' }
     # Epic 11 — Planning Engine Hardening & Compliance (from 2026-07-08 audit)
     11-1-published-change-guard-bulk-regeneration: { status: pending, depends_on: [], ticket: "KON-118", worktree: null }
     11-2-manual-shift-visibility-anti-duplicate: { status: pending, depends_on: [11-1-published-change-guard-bulk-regeneration], ticket: "KON-119", worktree: null }
