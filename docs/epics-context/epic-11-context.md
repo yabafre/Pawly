@@ -126,3 +126,10 @@ Milestone *Epic 11 — Planning Engine Hardening & Compliance* (project **Pawly*
 ## 8. Previous stories — outcomes
 
 _(Appended by aped-review at story→done. Empty on first story of the epic.)_
+
+### Story 11-1 — done 2026-07-09
+
+- **Decisions:** The 7-6 published-change guard is now a whole-surface invariant — both bulk paths (`generateMonthlyPlan`, `deleteGeneratedShifts`) route through `assertPublishedChangeAcknowledged` → `recordAmendment` → `notifyScheduleChange`. The bulk `deleteMany` preserves `isConfirmed=true` and `varianceEvents:{none:{}}` shifts **unconditionally** (DRAFT + PUBLISHED). Notify is fire-and-forget (`.catch` → `logger.error`), never blocks the operation.
+- **Files:** validators `planning-generation.schema.ts`(+test); api `planning-generation.service.ts`(+spec), `planning.router.ts`(+spec); web `_hooks/useGeneration.ts`(+new `useGeneration.spec.tsx`), `GenerationPanel.tsx`, `__tests__/generation.spec.tsx`, `i18n/langs/{fr,en}.json`.
+- **Contracts:** `acknowledgePublishedChange: z.boolean().default(false)` added to `generatePlanSchema` + `deleteGeneratedShiftsSchema`; both service methods gained `options: { acknowledgePublishedChange? }`; router threads it and adds `planning:pub:*` Redis invalidation. Toast key `admin.planningGeneration.toast.publishedChangeRequired` (fr/en).
+- **Deviations from plan:** `planning.router.spec.ts` added (ack-flag arity + `planning:pub` tests). Task-5 generate mock reworked to key on the `varianceEvents` predicate (shared `shift.findMany` with `loadBorderWeekShifts`). aped-review added a generate-path FE test, `useGeneration.spec.tsx` (AC6), and two notify-failure service tests (AC4). **Wave dependency stands:** generator-awareness of surviving shifts + DB `@@unique` → 11-2 (ship together); transactional re-check → 11-6; idempotency/locks → 11-5.

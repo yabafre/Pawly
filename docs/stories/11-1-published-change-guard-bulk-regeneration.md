@@ -1,7 +1,7 @@
 # Story: 11-1-published-change-guard-bulk-regeneration — Extend Published-Change Guard to Bulk Regeneration
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** done
 **Branch:** feature/KON-118-11-1-published-change-guard-bulk-regeneration
 **Ticket:** KON-118 (Linear · project Pawly · milestone Epic 11)
 **Origin:** Multi-agent planning audit 2026-07-08 — convergent CRITICAL #1 (both audits). See `docs/epics-context/epic-11-context.md` § 0.1.
@@ -872,6 +872,7 @@ model VarianceEvent {
 - `apps/api/src/modules/planning/planning-generation.service.ts`
 - `apps/api/src/modules/planning/planning-generation.service.spec.ts`
 - `apps/api/src/trpc/routers/planning.router.ts`
+- `apps/api/src/trpc/routers/planning.router.spec.ts` *(ack-flag arity + `planning:pub` invalidation on both bulk procedures; see Dev Agent Record § Deviations)*
 
 **Modify (frontend):**
 - `apps/web/src/app/[locale]/admin/planning/_hooks/useGeneration.ts`
@@ -880,7 +881,8 @@ model VarianceEvent {
 - `apps/web/src/i18n/langs/fr.json`
 - `apps/web/src/i18n/langs/en.json`
 
-**Create:** none.
+**Create (added during aped-review):**
+- `apps/web/src/app/[locale]/admin/planning/__tests__/useGeneration.spec.tsx` *(hook-level AC6 toast-mapping coverage — Review finding F-AC6)*
 
 ## Dev Agent Record
 
@@ -975,3 +977,98 @@ AC3 → preservation-predicate assertions on both `deleteMany` calls; AC4 →
 `updateMany amendmentCount increment` + notify assertions; AC5 → web dialog
 interaction test + router forward tests; AC6 → FR/EN key + hook mapping (live at
 review).
+
+## Review Record
+
+**Date:** 2026-07-09
+**Auditors:** Spec, Code, Edge & Hallucination (+ inline git audit)
+**Verdict:** done
+
+Three method-driven auditors ran in parallel. Code and Edge & Hallucination both
+returned **APPROVED / HIGH** on first pass (guard fires before any mutation;
+preservation predicate applied unconditionally on DRAFT and PUBLISHED; recipient
+union, month bounds, authz/tenancy, and Prisma `varianceEvents: { none: {} }`
+semantics all verified; 42 identifiers resolved, 0 hallucinations; 5 testing
+anti-patterns clean). Spec returned CHANGES_REQUESTED on a test-coverage gap
+(production code correct), addressed in-review and re-verified **RESOLVED /
+APPROVED**.
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC5 — the "Generate" path through `usePublishedChangeGuard` +
+  `PublishedChangeDialog` had no FE test; only the delete path was covered
+  (L-audit: every guard entry-point must be exercised).
+  [apps/web/…/__tests__/generation.spec.tsx]
+  - Source: Spec auditor
+  - Resolution: commit 8ccbaea — added `routes generate through the
+    published-change dialog and acknowledges`, driving the real `handleGenerate`
+    → guard → dialog → `generatePlan({ acknowledgePublishedChange: true })` via a
+    role-faithful `@/components/ui/select` mock. Spec re-verify: RESOLVED.
+- [MINOR] AC6 — `useGeneration` error→toast mapping
+  (`PUBLISHED_CHANGE_REQUIRES_ACK`) was untested.
+  [apps/web/…/_hooks/useGeneration.ts]
+  - Source: Spec auditor
+  - Resolution: commit 8ccbaea — new `useGeneration.spec.tsx` exercises the real
+    hook's `onError` branch for both mutations + the generic fallback. RESOLVED.
+- [MINOR] AC4 — the "notification failures are logged, never block" clause
+  (`.catch`) was untested. [apps/api/…/planning-generation.service.ts:452, :1445]
+  - Source: Spec auditor
+  - Resolution: commit 8ccbaea — two service tests force
+    `sendScheduleChangedEmail` to reject and assert the operation resolves and
+    `logger.error('Notify schedule-change failed…')` fired. RESOLVED.
+- [MINOR] Bookkeeping — `planning.router.spec.ts` changed but absent from the
+  File List.
+  - Source: inline git audit
+  - Resolution: added to the canonical File List (this record's commit).
+
+#### Dismissed
+- [MINOR] FE loading-window race — clicking Generate/Delete while
+  `publicationStatus` is still loading on a genuinely PUBLISHED month fires the
+  mutation without ack. [GenerationPanel.tsx:84-91]
+  - Source: Edge & Hallucination
+  - Rationale: cosmetic only — the server `assertPublishedChangeAcknowledged`
+    throws before any mutation and `useGeneration` surfaces the translated toast;
+    no data loss. Optional UX polish (gate buttons on `!isLoadingStatus`)
+    deferred.
+- [MINOR] `recordAmendment` over-counts — `amendmentCount` bumps on an
+  acknowledged published op even when zero shifts changed.
+  [service.ts:444-458, :1443-1451]
+  - Source: Edge & Hallucination
+  - Rationale: arguably by-AC4 (amendment keys on "an acknowledged bulk
+    operation", not on actual data change); `notifyScheduleChange([])` no-ops, so
+    no garbage batch. Left as-is; revisit if an exact counter is needed.
+- [MINOR/accepted] Residual concurrency (capture outside `$transaction`) + DRAFT
+  double-book (unconditional preservation predicate with the still-blind
+  generator).
+  - Source: Edge & Hallucination + Code
+  - Rationale: documented Non-Goals — transactional re-check → 11-6,
+    idempotency/locks → 11-5, generator-awareness/`@@unique` → 11-2 (W1→W2 wave
+    dependency). Ship 11-1 with 11-2.
+- [NIT] DRAFT-path `deleteMany` preservation predicate not asserted in the DRAFT
+  spec.
+  - Source: Code auditor
+  - Rationale: production code applies the predicate unconditionally (verified);
+    pure coverage completeness, not a defect.
+- [MINOR] Out-of-scope `CLAUDE.md` doc change (branch-naming convention) carried
+  on the branch.
+  - Source: inline git audit
+  - Rationale: benign documentation update (commit 8620c19), unrelated to
+    KON-118; harmless, left in place.
+
+### Verification
+- Test commands (run this session):
+  - `pnpm --filter @pawly/web test -- generation useGeneration`
+  - `pnpm --filter @pawly/api test -- --testPathPatterns "planning-generation.service.spec"`
+  - Baseline: `pnpm --filter @pawly/validators test -- planning-generation.schema`,
+    `pnpm --filter @pawly/api test -- --testPathPatterns "planning.router.spec"`
+- Test output (final pass): web — `generation` 21 ✓ + `useGeneration` 3 ✓
+  (24 total, exit 0); API — `planning-generation.service.spec` 134 ✓ (exit 0);
+  validators `planning-generation.schema` 33 ✓; API `planning.router.spec` 78 ✓.
+- Visual verification: deferred — the reused `PublishedChangeDialog` is unchanged
+  from Story 7-6 (visually verified there); live FR/EN toast text to be confirmed
+  in the L2 journey.
+
+### Ticket sync
+- Ticket comment: n/a (`ticket_system: none`)
+- PR opened/updated: #94 (base `develop`)
