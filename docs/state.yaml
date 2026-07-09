@@ -164,7 +164,7 @@ sprint:
     5-7-clinic-24-7-hours: { status: done, started_at: '2026-06-18', completed_at: '2026-06-19' }
     7-6-post-publication-change-management: { status: done, started_at: '2026-07-08', completed_at: '2026-07-08' }
     # Epic 11 — Planning Engine Hardening & Compliance (from 2026-07-08 audit)
-    11-1-published-change-guard-bulk-regeneration: { status: pending, depends_on: [], ticket: "KON-118", worktree: null }
+    11-1-published-change-guard-bulk-regeneration: { status: review, depends_on: [], ticket: "KON-118", worktree: null, started_at: '2026-07-09' }
     11-2-manual-shift-visibility-anti-duplicate: { status: pending, depends_on: [11-1-published-change-guard-bulk-regeneration], ticket: "KON-119", worktree: null }
     11-3-french-labor-law-hard-rules: { status: pending, depends_on: [], ticket: "KON-120", worktree: null }
     11-4-reliable-publication-notifications: { status: pending, depends_on: [], ticket: "KON-121", worktree: null }
