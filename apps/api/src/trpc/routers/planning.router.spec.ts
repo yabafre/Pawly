@@ -978,6 +978,7 @@ describe('planningRouter', () => {
         'clinic-123',
         '2026-03',
         '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: false },
       );
     });
 
@@ -1025,6 +1026,83 @@ describe('planningRouter', () => {
         'clinic-123', // from context, not client-supplied
         expect.any(String),
         expect.any(String),
+        expect.anything(),
+      );
+    });
+
+    // Story 11-1 — the ack flag flows through the transport to the service.
+    it('should forward acknowledgePublishedChange to the service', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
+      });
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+        acknowledgePublishedChange: true,
+      });
+
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: true },
+      );
+    });
+
+    // Story 11-1 — the published-status cache is busted after a bulk regen.
+    it('should invalidate the planning:pub Redis pattern', async () => {
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
+      });
+      const redis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      };
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+      });
+
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
       );
     });
   });
@@ -1072,7 +1150,9 @@ describe('planningRouter', () => {
       expect(result).toEqual({ deletedCount: 5 });
       expect(
         mockPlanningGenerationService.deleteGeneratedShifts,
-      ).toHaveBeenCalledWith('clinic-123', '2026-03');
+      ).toHaveBeenCalledWith('clinic-123', '2026-03', {
+        acknowledgePublishedChange: false,
+      });
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
@@ -1085,6 +1165,57 @@ describe('planningRouter', () => {
       await expect(
         caller.deleteGeneratedShifts({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    });
+
+    // Story 11-1 — the ack flag flows through the transport to the service.
+    it('should forward acknowledgePublishedChange to the service', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({
+        deletedCount: 0,
+      });
+
+      await caller.deleteGeneratedShifts({
+        month: '2026-03',
+        acknowledgePublishedChange: true,
+      });
+
+      expect(
+        mockPlanningGenerationService.deleteGeneratedShifts,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03', {
+        acknowledgePublishedChange: true,
+      });
+    });
+
+    // Story 11-1 — the published-status cache is busted after a bulk purge.
+    it('should invalidate the planning:pub Redis pattern', async () => {
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({
+        deletedCount: 0,
+      });
+      const redis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      };
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+
+      await caller.deleteGeneratedShifts({ month: '2026-03' });
+
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
+      );
     });
   });
 

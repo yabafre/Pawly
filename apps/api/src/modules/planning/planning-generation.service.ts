@@ -118,6 +118,7 @@ export class PlanningGenerationService {
     clinicId: string,
     month: string,
     templateId: string,
+    options: { acknowledgePublishedChange?: boolean } = {},
   ): Promise<GenerationResult> {
     const generationStart = Date.now();
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
@@ -125,6 +126,15 @@ export class PlanningGenerationService {
         `Invalid month format: ${month}. Expected YYYY-MM`,
       );
     }
+
+    // Story 11-1 — extend the 7-6 published-change guard to bulk regeneration:
+    // regenerating a PUBLISHED month must be explicitly acknowledged, mirroring
+    // moveShift/createManualShift/deleteShift.
+    const publishedMonths = await this.assertPublishedChangeAcknowledged(
+      clinicId,
+      [month],
+      options.acknowledgePublishedChange ?? false,
+    );
 
     const template = await this.planningTemplateService.getTemplateById(
       clinicId,
@@ -355,6 +365,26 @@ export class PlanningGenerationService {
       softViolations.push(...result.softViolations);
     }
 
+    // Story 11-1 — collect the employees whose GENERATED shifts are about to be
+    // cleared, so they can be notified (union with the new assignees below).
+    // Confirmed shifts and shifts carrying clock-in / no-show history
+    // (VarianceEvent) are preserved and never counted here.
+    let deletedEmployeeIds: string[] = [];
+    if (publishedMonths.length > 0) {
+      const toDelete = await this.prisma.shift.findMany({
+        where: {
+          clinicId,
+          source: 'GENERATED',
+          isConfirmed: false,
+          varianceEvents: { none: {} },
+          date: { gte: monthStart, lte: monthEnd },
+        },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      });
+      deletedEmployeeIds = toDelete.map((s) => s.employeeId);
+    }
+
     let createdShifts: Array<{
       id: string;
       employeeId: string;
@@ -365,11 +395,16 @@ export class PlanningGenerationService {
     }>;
     try {
       createdShifts = await this.prisma.$transaction(async (tx) => {
-        // Delete existing generated shifts first (inside transaction for atomicity)
+        // Story 11-1 — preserve confirmed shifts and shifts carrying variance
+        // history (VarianceEvent cascades on delete → would erase no-show /
+        // clock-in records). Only unconfirmed, history-free GENERATED shifts
+        // are cleared before regeneration.
         await tx.shift.deleteMany({
           where: {
             clinicId,
             source: 'GENERATED',
+            isConfirmed: false,
+            varianceEvents: { none: {} },
             date: { gte: monthStart, lte: monthEnd },
           },
         });
@@ -399,6 +434,26 @@ export class PlanningGenerationService {
       this.logger.error('Transaction failed during shift generation', error);
       throw new InternalServerErrorException(
         'Failed to persist generated shifts',
+      );
+    }
+
+    // Story 11-1 — a regeneration of a PUBLISHED month is an amendment: bump
+    // amendedAt/amendmentCount and notify every affected employee (those whose
+    // shifts were cleared UNION the freshly generated assignees). Mirrors the
+    // moveShift path; notification failures are logged, never block generation.
+    if (publishedMonths.length > 0) {
+      const recipientIds = [
+        ...new Set([
+          ...deletedEmployeeIds,
+          ...createdShifts.map((s) => s.employeeId),
+        ]),
+      ];
+      await this.recordAmendment(clinicId, publishedMonths);
+      this.notifyScheduleChange(
+        clinicId,
+        recipientIds.map((employeeId) => ({ employeeId, month })),
+      ).catch((err: Error) =>
+        this.logger.error(`Notify schedule-change failed: ${err.message}`),
       );
     }
 
@@ -1334,6 +1389,7 @@ export class PlanningGenerationService {
   async deleteGeneratedShifts(
     clinicId: string,
     month: string,
+    options: { acknowledgePublishedChange?: boolean } = {},
   ): Promise<{ deletedCount: number }> {
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(
@@ -1341,17 +1397,58 @@ export class PlanningGenerationService {
       );
     }
 
+    // Story 11-1 — purging a PUBLISHED month must be acknowledged (7-6 guard).
+    const publishedMonths = await this.assertPublishedChangeAcknowledged(
+      clinicId,
+      [month],
+      options.acknowledgePublishedChange ?? false,
+    );
+
     const [year, monthNum] = month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
 
+    // Story 11-1 — capture affected employees BEFORE deletion so we can notify
+    // them. Confirmed shifts and shifts carrying variance history are preserved.
+    let deletedEmployeeIds: string[] = [];
+    if (publishedMonths.length > 0) {
+      const toDelete = await this.prisma.shift.findMany({
+        where: {
+          clinicId,
+          source: 'GENERATED',
+          isConfirmed: false,
+          varianceEvents: { none: {} },
+          date: { gte: monthStart, lte: monthEnd },
+        },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      });
+      deletedEmployeeIds = toDelete.map((s) => s.employeeId);
+    }
+
+    // Story 11-1 — preserve confirmed shifts and shifts carrying variance
+    // history; only these unconfirmed, history-free GENERATED shifts are purged.
     const { count } = await this.prisma.shift.deleteMany({
       where: {
         clinicId,
         source: 'GENERATED',
+        isConfirmed: false,
+        varianceEvents: { none: {} },
         date: { gte: monthStart, lte: monthEnd },
       },
     });
+
+    // Story 11-1 — a purge of a PUBLISHED month is an amendment: record it and
+    // notify affected employees. Notification failures are logged, never block.
+    if (publishedMonths.length > 0) {
+      await this.recordAmendment(clinicId, publishedMonths);
+      this.notifyScheduleChange(
+        clinicId,
+        deletedEmployeeIds.map((employeeId) => ({ employeeId, month })),
+      ).catch((err: Error) =>
+        this.logger.error(`Notify schedule-change failed: ${err.message}`),
+      );
+    }
 
     return { deletedCount: count };
   }

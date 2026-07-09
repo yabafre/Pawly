@@ -553,7 +553,8 @@
         "regenerated": "Planning regenerated successfully",
         "deleted": "Generated shifts deleted",
         "generateFailed": "Unable to generate planning",
-        "deleteFailed": "Unable to delete generated shifts"
+        "deleteFailed": "Unable to delete generated shifts",
+        "publishedChangeRequired": "This schedule is published: confirm the change via the dialog."
       },
       "errors": {
         "noTemplate": "Please select a template",
