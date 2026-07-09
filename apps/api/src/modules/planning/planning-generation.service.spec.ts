@@ -4547,6 +4547,130 @@ describe('PlanningGenerationService', () => {
         'fr',
       );
     });
+
+    // AC-4 (verbatim): "Notification failures are logged, never block the
+    // operation." Review AC4 coverage gap — force the notify path to reject and
+    // assert the fire-and-forget .catch swallows it (operation still resolves,
+    // error logged) rather than surfacing to the caller.
+    it('generateMonthlyPlan on an acknowledged published month still resolves when the schedule-change notification fails', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      mockPrismaService.shift.findMany.mockImplementation(
+        (args: { where?: { varianceEvents?: unknown } }) =>
+          Promise.resolve(
+            args?.where?.varianceEvents ? [{ employeeId: 'emp-2' }] : [],
+          ),
+      );
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([
+                {
+                  id: 's-new',
+                  employeeId: 'emp-1',
+                  date: new Date('2026-07-06'),
+                  startTime: '08:00',
+                  endTime: '12:00',
+                  shiftTypeCode: 'SURGERY',
+                },
+              ]),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      mockMailService.sendScheduleChangedEmail.mockRejectedValueOnce(
+        new Error('Resend outage'),
+      );
+      const loggerError = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...a: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      // The operation must resolve — the notify failure never blocks generation.
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-07', 'tpl-1', {
+          acknowledgePublishedChange: true,
+        }),
+      ).resolves.toBeDefined();
+
+      // Flush the fire-and-forget microtask → the .catch logs, never throws.
+      await new Promise((r) => setImmediate(r));
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('Notify schedule-change failed'),
+      );
+      loggerError.mockRestore();
+    });
+
+    it('deleteGeneratedShifts on an acknowledged published month still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        { employeeId: 'emp-1' },
+      ]);
+      mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockMailService.sendScheduleChangedEmail.mockRejectedValueOnce(
+        new Error('Resend outage'),
+      );
+      const loggerError = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...a: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      // The purge must still return its deleted count despite the notify failure.
+      const result = await service.deleteGeneratedShifts(clinicId, '2026-07', {
+        acknowledgePublishedChange: true,
+      });
+      expect(result.deletedCount).toBe(2);
+
+      await new Promise((r) => setImmediate(r));
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('Notify schedule-change failed'),
+      );
+      loggerError.mockRestore();
+    });
   });
 
   // ─── preValidateMove ─────────────────────────────────────────────

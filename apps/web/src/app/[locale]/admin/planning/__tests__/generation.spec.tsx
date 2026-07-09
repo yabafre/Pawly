@@ -54,6 +54,36 @@ vi.mock('../templates/_hooks/useTemplates', () => ({
   })),
 }));
 
+// Story 11-1 — mock the shadcn Select so the template picker is drivable in
+// jsdom (the real Radix Select relies on pointer-capture APIs jsdom lacks).
+// Options render as role="option" buttons that call the owning Select's
+// onValueChange on click; SelectTrigger renders a non-button so the existing
+// `getByRole('button')` assertions stay unambiguous.
+vi.mock('@/components/ui/select', async () => {
+  const React = await import('react');
+  const OnValueChange = React.createContext<(value: string) => void>(() => {});
+  return {
+    Select: ({ children, value, onValueChange }: any) => (
+      <OnValueChange.Provider value={onValueChange}>
+        <div data-testid="select" data-value={value}>
+          {children}
+        </div>
+      </OnValueChange.Provider>
+    ),
+    SelectTrigger: ({ children }: any) => <div role="combobox">{children}</div>,
+    SelectValue: ({ placeholder }: any) => <span>{placeholder ?? null}</span>,
+    SelectContent: ({ children }: any) => <>{children}</>,
+    SelectItem: ({ children, value }: any) => {
+      const onValueChange = React.useContext(OnValueChange);
+      return (
+        <button type="button" role="option" onClick={() => onValueChange(value)}>
+          {children}
+        </button>
+      );
+    },
+  };
+});
+
 const createQueryClient = () =>
   new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -154,6 +184,56 @@ describe('GenerationPanel', () => {
       month: '2026-03',
       acknowledgePublishedChange: true,
     });
+  });
+
+  it('routes generate through the published-change dialog and acknowledges (story 11-1)', async () => {
+    const generatePlanSpy = vi.fn();
+    const { useGeneration } = await import('../_hooks/useGeneration');
+    vi.mocked(useGeneration).mockReturnValue({
+      // no existing GENERATED shifts → handleGenerate hits the guard directly
+      // (no regenerate-confirm dialog in between).
+      shifts: [],
+      isLoadingShifts: false,
+      isFetchingShifts: false,
+      refetchShifts: vi.fn(),
+      generatePlan: generatePlanSpy,
+      isGenerating: false,
+      deleteGenerated: vi.fn(),
+      isDeleting: false,
+      invalidateAll: vi.fn(),
+    } as any);
+
+    const { usePublish } = await import('../_hooks/usePublish');
+    vi.mocked(usePublish).mockReturnValue({
+      publicationStatus: {
+        status: 'PUBLISHED',
+        publishedAt: '2026-07-01',
+        publishedBy: 'admin',
+      },
+      isLoadingStatus: false,
+      publishPreview: undefined,
+      isLoadingPreview: false,
+      publishPlan: vi.fn(),
+      isPublishing: false,
+    } as any);
+
+    render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+
+    // 1) pick a template (mocked Select renders options as role="option" buttons)
+    fireEvent.click(screen.getByRole('option', { name: 'Template A' }));
+    // 2) click generate → guard opens PublishedChangeDialog (month is PUBLISHED)
+    fireEvent.click(screen.getByText('generateButton'));
+    // 3) confirm the published change → fires generatePlan with ack: true
+    fireEvent.click(screen.getByRole('button', { name: 'confirm' }));
+
+    expect(generatePlanSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: '2026-03',
+        templateId: 'tpl-1',
+        acknowledgePublishedChange: true,
+      }),
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
   });
 });
 
