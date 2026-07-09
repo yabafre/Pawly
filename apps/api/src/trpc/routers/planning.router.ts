@@ -234,8 +234,10 @@ export const planningRouter = router({
         ctx.user.clinicId,
         input.month,
         input.templateId,
+        { acknowledgePublishedChange: input.acknowledgePublishedChange },
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
       await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
@@ -257,8 +259,10 @@ export const planningRouter = router({
       const result = await ctx.planningGenerationService.deleteGeneratedShifts(
         ctx.user.clinicId,
         input.month,
+        { acknowledgePublishedChange: input.acknowledgePublishedChange },
       );
       await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
+      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
       await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
       return result;
     }),
