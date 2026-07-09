@@ -553,7 +553,8 @@
         "regenerated": "Planning regénéré avec succès",
         "deleted": "Créneaux générés supprimés",
         "generateFailed": "Impossible de générer le planning",
-        "deleteFailed": "Impossible de supprimer les créneaux générés"
+        "deleteFailed": "Impossible de supprimer les créneaux générés",
+        "publishedChangeRequired": "Ce planning est publié : confirmez la modification via la boîte de dialogue."
       },
       "errors": {
         "noTemplate": "Veuillez sélectionner un modèle",
