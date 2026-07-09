@@ -80,7 +80,7 @@ cd apps/api && pnpm dev  # NEVER DO THIS
 ```
 main (production)
   └── develop (integration)
-        ├── feature/story-X-Y-name
+        ├── feature/{TICKET}-{story-slug}
         └── fix/description
 ```
 
@@ -88,16 +88,20 @@ main (production)
 |--------|-------|----------|
 | `main` | Production code, always stable | - |
 | `develop` | Integration branch | `main` (after QA) |
-| `feature/story-*` | New stories | `develop` |
+| `feature/{TICKET}-*` | New stories (APED, ticket-prefixed) | `develop` |
 | `fix/*` | Bug fixes | `develop` |
 | `hotfix/*` | Urgent prod fixes | `main` + `develop` |
 
 ### Branch Naming Convention
 
+APED convention: **`feature/{TICKET}-{story-slug}`**, where `{TICKET}` is the Linear
+issue key (team **KON**, project **Pawly**) and `{story-slug}` matches the story key in
+`docs/epics.md` / `docs/stories/`. `aped-story` creates this branch automatically.
+
 ```bash
-# Stories
-feature/story-3-8-shipping-management
-feature/story-4-1-order-creation
+# Stories — feature/{TICKET}-{story-slug}  (TICKET = Linear key, Epic 11+ is synced)
+feature/KON-118-11-1-published-change-guard-bulk-regeneration
+feature/KON-119-11-2-manual-shift-visibility-anti-duplicate
 
 # Fixes
 fix/login-safari-bug
@@ -107,26 +111,29 @@ fix/api-timeout-error
 hotfix/critical-payment-error
 ```
 
+> Pre-Epic-11 stories predate the Linear sync (`ticket_system` was `none`) and used the
+> legacy `feature/story-X-Y-name` form. From Epic 11 on, always use the `{TICKET}` prefix.
+
 ### Workflow Commands
 
 ```bash
-# Start new story - ALWAYS create feature branch first
+# Start new story - ALWAYS create feature branch first (aped-story does this for you)
 git checkout develop
 git pull origin develop
-git checkout -b feature/story-X-Y-name
+git checkout -b feature/{TICKET}-{story-slug}   # e.g. feature/KON-118-11-1-published-change-guard-bulk-regeneration
 
 # During development
 git add .
-git commit -m "feat: implement X for story Y"
+git commit -m "feat(KON-118): implement X"      # commit prefix: feat({TICKET}): ...
 
 # When done - create PR to develop
-git push -u origin feature/story-X-Y-name
+git push -u origin feature/{TICKET}-{story-slug}
 gh pr create --base develop
 
 # After PR merged - cleanup
 git checkout develop
 git pull origin develop
-git branch -d feature/story-X-Y-name
+git branch -d feature/{TICKET}-{story-slug}
 ```
 
 ### Tags (Semantic Versioning)
