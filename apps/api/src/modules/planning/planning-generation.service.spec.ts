@@ -4350,6 +4350,205 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-1 — published-change guard on bulk regeneration ──────
+  describe('Story 11-1 — bulk regeneration published-change guard', () => {
+    const simpleTemplate = {
+      id: 'tpl-1',
+      name: 'Simple',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    it('generateMonthlyPlan throws PUBLISHED_CHANGE_REQUIRES_ACK on a published month without acknowledgement', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-07', 'tpl-1'),
+      ).rejects.toMatchObject({ message: 'PUBLISHED_CHANGE_REQUIRES_ACK' });
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('generateMonthlyPlan on an acknowledged published month preserves confirmed/variance shifts, records the amendment, and notifies', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      // employees whose shifts will be cleared (union candidate).
+      // shift.findMany is shared with loadBorderWeekShifts (border weeks need
+      // full shift rows); key on the varianceEvents predicate so only the
+      // 11-1 capture query returns emp-2, border-week loading returns [].
+      mockPrismaService.shift.findMany.mockImplementation(
+        (args: { where?: { varianceEvents?: unknown } }) =>
+          Promise.resolve(
+            args?.where?.varianceEvents ? [{ employeeId: 'emp-2' }] : [],
+          ),
+      );
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'ASV',
+          contractHours: 35,
+          email: 'bob@example.com',
+          user: { locale: 'fr' },
+        },
+      ]);
+
+      const txDeleteMany = jest.fn().mockResolvedValue({ count: 3 });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: txDeleteMany,
+              createManyAndReturn: jest.fn().mockResolvedValue([
+                {
+                  id: 's-new',
+                  employeeId: 'emp-1',
+                  date: new Date('2026-07-06'),
+                  startTime: '08:00',
+                  endTime: '12:00',
+                  shiftTypeCode: 'SURGERY',
+                },
+              ]),
+            },
+          };
+          return fn(tx);
+        },
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-07', 'tpl-1', {
+        acknowledgePublishedChange: true,
+      });
+
+      // preservation predicate on the bulk delete
+      expect(txDeleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          source: 'GENERATED',
+          isConfirmed: false,
+          varianceEvents: { none: {} },
+        }),
+      });
+      // amendment recorded
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ month: { in: ['2026-07'] } }),
+          data: expect.objectContaining({ amendmentCount: { increment: 1 } }),
+        }),
+      );
+      // fire-and-forget notify — flush microtasks then assert union (emp-1 ∪ emp-2)
+      await new Promise((r) => setImmediate(r));
+      const notified = mockMailService.sendScheduleChangedEmail.mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
+      expect(notified).toEqual(
+        expect.arrayContaining(['alice@example.com', 'bob@example.com']),
+      );
+    });
+
+    it('generateMonthlyPlan on a DRAFT month needs no acknowledgement and records no amendment', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      await service.generateMonthlyPlan(clinicId, '2026-07', 'tpl-1');
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('deleteGeneratedShifts throws PUBLISHED_CHANGE_REQUIRES_ACK on a published month without acknowledgement', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      await expect(
+        service.deleteGeneratedShifts(clinicId, '2026-07'),
+      ).rejects.toMatchObject({ message: 'PUBLISHED_CHANGE_REQUIRES_ACK' });
+      expect(mockPrismaService.shift.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('deleteGeneratedShifts on an acknowledged published month preserves confirmed/variance shifts, records the amendment, and notifies', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-07' },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        { employeeId: 'emp-1' },
+      ]);
+      mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+      ]);
+
+      const result = await service.deleteGeneratedShifts(clinicId, '2026-07', {
+        acknowledgePublishedChange: true,
+      });
+
+      expect(result.deletedCount).toBe(2);
+      expect(mockPrismaService.shift.deleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          source: 'GENERATED',
+          isConfirmed: false,
+          varianceEvents: { none: {} },
+        }),
+      });
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ month: { in: ['2026-07'] } }),
+          data: expect.objectContaining({ amendmentCount: { increment: 1 } }),
+        }),
+      );
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledWith(
+        'alice@example.com',
+        'Alice',
+        '2026-07',
+        'Test Clinic',
+        'fr',
+      );
+    });
+  });
+
   // ─── preValidateMove ─────────────────────────────────────────────
 
   describe('preValidateMove', () => {
