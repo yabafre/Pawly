@@ -42,6 +42,10 @@ model Shift {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Story 11-2 — anti-duplicate net: an employee cannot hold two shifts that
+  // start at the same time on the same day. Backstop against generator retries
+  // (the dead P2002 catch becomes real in 11-5) and exact manual double-books.
+  @@unique([employeeId, date, startTime])
   @@index([clinicId])
   @@index([employeeId])
   @@index([date])
