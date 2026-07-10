@@ -2790,21 +2790,36 @@ export class PlanningGenerationService {
       }));
 
       if (useTrigger) {
-        // Async via Trigger.dev — fire-and-forget
+        // Async via Trigger.dev — fire-and-forget. Story 11-4 (AC1): pass a
+        // stable idempotency-key seed (unique per publish via `now`, the
+        // publishedAt timestamp) so the task's retries never duplicate an
+        // already-delivered email.
         batchEmailPublishTask
-          .trigger({ emails: emailPayloads, month, clinicName: clinic.name })
+          .trigger({
+            emails: emailPayloads,
+            month,
+            clinicName: clinic.name,
+            idempotencyKey: `schedule-publish/${clinicId}:${month}:${now.getTime()}`,
+          })
           .catch((err: Error) =>
             this.logger.error(
               `Trigger batch-email-publish failed: ${err.message}`,
             ),
           );
       } else {
-        // Direct send (fallback)
-        await this.mailService.sendBatchSchedulePublicationEmails(
-          emailPayloads,
-          month,
-          clinic.name,
-        );
+        // Direct send (fallback). Story 11-4 (AC2): react to the returned count
+        // so a partial/total publication-email failure is visible (NFR3).
+        const notified =
+          await this.mailService.sendBatchSchedulePublicationEmails(
+            emailPayloads,
+            month,
+            clinic.name,
+          );
+        if (notified < emailPayloads.length) {
+          this.logger.error(
+            `publishPlan: ${emailPayloads.length - notified}/${emailPayloads.length} publication email(s) failed for clinic ${clinicId}, month ${month}`,
+          );
+        }
       }
     }
 

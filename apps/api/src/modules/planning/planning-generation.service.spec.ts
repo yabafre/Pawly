@@ -5657,6 +5657,37 @@ describe('PlanningGenerationService', () => {
       expect(result.totalWithShifts).toBe(0);
     });
 
+    // Story 11-4 (AC2): publishPlan reacts to the direct batch send count.
+    it('error-logs when the direct batch send reports fewer sent than eligible', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 5 },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 3 },
+        },
+      ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.publishPlan(clinicId, month, userId);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('publication email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
     it('should be idempotent — re-publishing updates timestamp', async () => {
       // First publish
       await service.publishPlan(clinicId, month, userId);
@@ -5790,24 +5821,29 @@ describe('PlanningGenerationService', () => {
         await service.publishPlan(clinicId, month, userId);
 
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
-        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
-          emails: [
-            {
-              to: 'alice@clinic.fr',
-              firstName: 'Alice',
-              shiftCount: 5,
-              locale: 'fr',
-            },
-            {
-              to: 'bob@clinic.fr',
-              firstName: 'Bob',
-              shiftCount: 3,
-              locale: 'fr',
-            },
-          ],
-          month,
-          clinicName: 'Clinique Test',
-        });
+        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith(
+          expect.objectContaining({
+            emails: [
+              {
+                to: 'alice@clinic.fr',
+                firstName: 'Alice',
+                shiftCount: 5,
+                locale: 'fr',
+              },
+              {
+                to: 'bob@clinic.fr',
+                firstName: 'Bob',
+                shiftCount: 3,
+                locale: 'fr',
+              },
+            ],
+            month,
+            clinicName: 'Clinique Test',
+            idempotencyKey: expect.stringContaining(
+              `schedule-publish/${clinicId}:${month}:`,
+            ),
+          }),
+        );
         expect(
           mockMailService.sendBatchSchedulePublicationEmails,
         ).not.toHaveBeenCalled();
