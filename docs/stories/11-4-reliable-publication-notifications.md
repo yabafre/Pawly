@@ -1,7 +1,7 @@
 # Story: 11-4-reliable-publication-notifications — Reliable Publication & Change Notifications
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-121-11-4-reliable-publication-notifications
 **Ticket:** KON-121 (Linear · project Pawly · milestone Epic 11 · Wave 1 · depends-on: none)
 **Origin:** Multi-agent planning audit 2026-07-08 — reliability gap "Publication emails fail silently". See `docs/epics-context/epic-11-context.md` § 0 (bullet 4). Independent of 11-1/11-2/11-3 (no code overlap); ships in Wave 1.
@@ -24,7 +24,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: Make `batch-email-publish` throw on failure, idempotent on retry, and observable** [AC: 1, 3]
+- [x] **Task 1: Make `batch-email-publish` throw on failure, idempotent on retry, and observable** [AC: 1, 3]
   Replace the **entire** contents of `apps/api/src/trigger/tasks/batch-email-publish.ts` with the following (adds the `emailSendCounter` import, an optional `idempotencyKey` on the payload, per-chunk idempotency keys, failure counting, the metric emission, and the throw):
   ```ts
   import { task, logger } from '@trigger.dev/sdk';
@@ -246,7 +246,7 @@
   Expected: `Tests: 5 passed`, exit 0.
   Commit: `git add apps/api/src/trigger/tasks/batch-email-publish.ts apps/api/src/trigger/tasks/batch-email-publish.spec.ts && git commit -m "feat(KON-121): batch-email-publish throws on failure, idempotent retries, emits emailSendCounter (AC1,AC3)"`
 
-- [ ] **Task 2: Wire the direct-Resend fallback + boolean status + counter into `sendScheduleChangedEmail`** [AC: 2]
+- [x] **Task 2: Wire the direct-Resend fallback + boolean status + counter into `sendScheduleChangedEmail`** [AC: 2]
   In `apps/api/src/modules/mail/mail.service.tsx`, replace the **entire** `sendScheduleChangedEmail` method (currently `:408-455`) with:
   ```tsx
     async sendScheduleChangedEmail(
@@ -377,7 +377,7 @@
   Expected: all existing + 3 new `sendScheduleChangedEmail` tests pass (`Tests: N passed`, exit 0).
   Commit: `git add apps/api/src/modules/mail/mail.service.tsx apps/api/src/modules/mail/mail.service.spec.ts && git commit -m "feat(KON-121): sendScheduleChangedEmail direct-Resend fallback + boolean status + counter (AC2)"`
 
-- [ ] **Task 3: Wire the same fallback + boolean status + counter into `sendSchedulePublicationEmail`** [AC: 2]
+- [x] **Task 3: Wire the same fallback + boolean status + counter into `sendSchedulePublicationEmail`** [AC: 2]
   In `apps/api/src/modules/mail/mail.service.tsx`, replace the **entire** `sendSchedulePublicationEmail` method (currently `:349-406`) with:
   ```tsx
     async sendSchedulePublicationEmail(
@@ -518,7 +518,7 @@
   Expected: all existing + 3 new `sendSchedulePublicationEmail` tests pass, exit 0.
   Commit: `git add apps/api/src/modules/mail/mail.service.tsx apps/api/src/modules/mail/mail.service.spec.ts && git commit -m "feat(KON-121): sendSchedulePublicationEmail direct-Resend fallback + boolean status + counter (AC2)"`
 
-- [ ] **Task 4: `notifyScheduleChange` reacts to the boolean send status** [AC: 2]
+- [x] **Task 4: `notifyScheduleChange` reacts to the boolean send status** [AC: 2]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, replace the change-email loop inside `notifyScheduleChange` (currently `:2015-2025`, the `for (const r of unique) { ... }` block) with:
   ```ts
       let failedEmailCount = 0;
@@ -588,7 +588,7 @@
   Expected: existing Story 7-6 notify tests stay green + the new AC2 test passes, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-121): notifyScheduleChange reacts to change-email status (AC2)"`
 
-- [ ] **Task 5: `publishPlan` passes the idempotency key + reacts to the batch send count** [AC: 1, 2]
+- [x] **Task 5: `publishPlan` passes the idempotency key + reacts to the batch send count** [AC: 1, 2]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, replace the email-notification `if (useTrigger) { ... } else { ... }` block inside `publishPlan` (currently `:2781-2797`) with:
   ```ts
         if (useTrigger) {
@@ -663,7 +663,7 @@
   Expected: the updated Trigger-path assertion + the new AC2 direct-count test pass; the rest of the suite stays green, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-121): publishPlan passes idempotencyKey + reacts to batch send count (AC1,AC2)"`
 
-- [ ] **Task 6: Full API gate — typecheck + full suite** [AC: 1, 2, 3]
+- [x] **Task 6: Full API gate — typecheck + full suite** [AC: 1, 2, 3]
   Now that Task 5 wired the caller, the whole graph type-checks. Run, in order:
   ```bash
   pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json
@@ -896,19 +896,62 @@ export const emailBatchSize = meter.createHistogram('pawly.email.batch.size', {
 
 ## Dev Agent Record
 
-- **Model:**
-- **Started:**
-- **Completed:**
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-10
+- **Completed:** 2026-07-10
 
 ### Summary
 
+The notification surface's three entry-points are now reliable: the batch Trigger task
+throws on any failed chunk (so `maxAttempts:5` actually retries) while carrying a per-chunk
+Resend idempotency key (so a retry re-delivers only the genuinely-failed chunks — zero
+duplicates), the two singular mail methods fall back to a direct Resend send and return a
+boolean instead of throwing, and both callers (`notifyScheduleChange`, `publishPlan`) react
+to that status and error-log an aggregate on partial/total failure. `emailSendCounter` is
+emitted on every path (AC3). Scope held exactly to plan; `tsc` surfaced only the
+pre-existing `@pawly/*`-dist / spec-fixture noise once the shared packages were rebuilt.
+
 ### Files changed
+
+- apps/api/src/trigger/tasks/batch-email-publish.ts
+- apps/api/src/trigger/tasks/batch-email-publish.spec.ts
+- apps/api/src/modules/mail/mail.service.tsx
+- apps/api/src/modules/mail/mail.service.spec.ts
+- apps/api/src/modules/planning/planning-generation.service.ts
+- apps/api/src/modules/planning/planning-generation.service.spec.ts
 
 ### Deviations
 
+- **None** in code — every task landed as authored.
+- **Environment (not code):** the worktree needed `pnpm install` (per-workspace `node_modules`
+  was absent) and a `@pawly/types` + `@pawly/validators` dist rebuild before `tsc` (project
+  memory `epic11-dev-gotchas`; no path mapping → stale `exports.types`). After the rebuild,
+  `tsc --noEmit` shows **24 pre-existing errors** in 4 unrelated specs (clinic / employee /
+  planning.service / variance — `is24_7`, `employeeId`, `EquityCounterType`, `page/pageSize`),
+  **none** referencing any file or symbol this story touched. Documented as spec-fixture noise
+  in 11-1/11-2, not introduced here.
+- **L4 / Context7 sources consulted:**
+  - **Trigger.dev v4 retry** (`/websites/trigger_dev`, `trigger.dev/docs/errors-retrying`,
+    `.../how-to-reduce-your-spend`): "when an error is thrown in a task, your run will be
+    automatically reattempted based on your retry settings"; a clean return does not retry;
+    the whole `run()` re-executes on retry (no mid-run resume) — this is exactly why the
+    per-chunk idempotency key is required.
+  - **Resend batch idempotency**: re-confirmed against the installed `resend@6.9.3` types —
+    `Batch.send<Options>(payload, options?)` and `IdempotentRequest.idempotencyKey?: string`
+    → sent as the `Idempotency-Key` header (`dist/index.d.mts:1131`, `:156`).
+
 ### Test output
 
-_(Also record here the Context7 sources consulted per L4 — Resend batch idempotency + Trigger.dev v4 retry semantics.)_
+```
+# per-file gates (RED→GREEN witnessed each task)
+pnpm --filter @pawly/api test -- --testPathPatterns "batch-email-publish.spec"   → 5 passed
+pnpm --filter @pawly/api test -- --testPathPatterns "mail.service.spec"          → 14 passed
+pnpm --filter @pawly/api test -- --testPathPatterns "planning-generation.service.spec" → 148 passed
+
+# full API gate (Task 6)
+pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json → 24 pre-existing errors, 0 in touched files
+pnpm --filter @pawly/api test → Test Suites: 34 passed, 34 total · Tests: 904 passed, 904 total (exit 0)
+```
 
 ## Review Record
 
