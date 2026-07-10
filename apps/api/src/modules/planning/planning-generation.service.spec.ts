@@ -1540,7 +1540,13 @@ describe('PlanningGenerationService', () => {
           breakMinutes: 0,
         },
       ];
-      mockPrismaService.shift.findMany.mockResolvedValue(borderShiftsFromDb);
+      // Story 11-2 — generateMonthlyPlan now issues TWO shift.findMany queries:
+      // border-week (where.date.in) and in-month survivors (where.OR). Key the
+      // mock on the predicate so only the border query returns borderShiftsFromDb.
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve([]);
+        return Promise.resolve(borderShiftsFromDb);
+      });
 
       // Only emp-1 (35h contract, already at 35h from border) and emp-2 (35h contract, fresh)
       mockPrismaService.employee.findMany.mockResolvedValue([
@@ -1610,6 +1616,167 @@ describe('PlanningGenerationService', () => {
 
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
+    });
+  });
+
+  // ─── Story 11-2 — surviving shifts visible to generator + anti-duplicate ──
+  describe('Story 11-2 — surviving shifts visible to generator', () => {
+    const mondaySurgery2 = {
+      id: 'tpl-11-2',
+      name: 'Monday Surgery x2',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 2 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    const twoVets = [
+      {
+        id: 'emp-1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+      {
+        id: 'emp-2',
+        firstName: 'Bob',
+        lastName: 'Dupont',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+    ];
+
+    // Key shift.findMany on the survivor predicate (where.OR) vs the border query
+    // (where.date.in). Only the survivor query returns `survivors`.
+    const mockShiftQueries = (survivors: any[]) => {
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve(survivors);
+        return Promise.resolve([]);
+      });
+    };
+
+    // Capture the rows handed to createManyAndReturn inside the $transaction.
+    const captureCreate = () => {
+      const captured: any[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) => {
+                  captured.push(...data);
+                  return data.map((d, i) => ({ id: `gen-${i}`, ...d }));
+                }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      return captured;
+    };
+
+    it('queries in-month survivors with the deleteMany-complement predicate (AC1)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      mockShiftQueries([]);
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId,
+            date: expect.objectContaining({
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            }),
+            OR: expect.arrayContaining([
+              { source: { not: 'GENERATED' } },
+              { isConfirmed: true },
+              { varianceEvents: { some: {} } },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('excludes an employee with a surviving overlapping shift and fills only the residual (AC1 + AC3)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // emp-1 already has a MANUAL SURGERY (08:00–12:00) on Mon 2026-03-02 that
+      // survives regeneration. That day's SURGERY slot needs 2.
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      const mar2 = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      // AC3 — 2 required − 1 pre-existing coverage = exactly 1 generated.
+      expect(mar2.length).toBe(1);
+      // AC1 — emp-1 is overlap-excluded; the residual goes to emp-2.
+      expect(mar2[0].employeeId).toBe('emp-2');
+    });
+
+    it('skips a slot fully covered by surviving shifts — no generation, no hole (AC3)', async () => {
+      const mondaySurgery1 = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // emp-1 covers the single SURGERY position on Mon 2026-03-02 (requiredStaff 1).
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      const mar2Created = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      expect(mar2Created.length).toBe(0); // fully covered → nothing generated
+      expect(result.holes.filter((h) => h.date === '2026-03-02').length).toBe(
+        0,
+      );
     });
   });
 
