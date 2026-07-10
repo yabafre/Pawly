@@ -4981,6 +4981,60 @@ describe('PlanningGenerationService', () => {
       );
       errorSpy.mockRestore();
     });
+
+    // Story 11-4 (n7): the ratio denominator is attempted sends, not
+    // unique.length — a null-email recipient is skipped and must not inflate it.
+    it('excludes null-email skips from the failure-ratio denominator (n7)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'NoMail',
+          email: null,
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-3',
+          firstName: 'Cara',
+          email: 'cara@clinic.fr',
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+        { employeeId: 'emp-3', month: '2026-07' },
+      ]);
+
+      // emp-1 skipped (no email) → only 2 sends attempted, denominator is 2 (not 3)
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
   });
 
   // ─── Story 11-1 — published-change guard on bulk regeneration ──────
