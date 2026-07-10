@@ -1000,3 +1000,81 @@ procedures — exactly per the story blueprint, no scope drift.
 - **Task 5 GATE:** full API suite → **33 suites, 901 tests passed, exit 0** (baseline 870 + Epic-11
   additions incl. the 10 new here). Deploy typecheck `tsc -p tsconfig.types.json` → **exit 0**.
   Full `tsc -p tsconfig.json` → 24 pre-existing errors (see Deviations); none in story files.
+
+## Review Record
+
+**Date:** 2026-07-10
+**Auditors:** Spec, Code, Edge & Hallucination (no Aria — backend-only surface)
+**Verdict:** done
+**Decision:** AC coverage gaps were closed in-review — Alex chose "fix in review" over a
+dev round-trip. Production code was independently verified correct by all three auditors
+(and by the Lead's fresh re-run) *before* any fix: mutation + `recordAmendment` correctly
+nested in `this.prisma.$transaction`, notify post-commit (can neither notify a rollback nor
+double-notify), 2 bulk callers pass `this.prisma`, tenancy `clinicId` always from
+`ctx.user`, `try/finally` never masks the handler result. All findings below are
+test-coverage / test-rigor only — no functional defect.
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC2 — "a notification-delivery failure neither fails nor blocks the change" was
+  untested for the three single-shift amendment paths (only the two bulk paths were covered).
+  [apps/api/src/modules/planning/planning-generation.service.spec.ts]
+  - Source: Spec
+  - Resolution: `c780715` — shared `expectNotifyFailureIsSwallowed` helper + move/create/delete
+    tests (op resolves, error logged via the fire-and-forget `.catch`, never surfaces to caller).
+- [MAJOR] AC3 — `deleteGeneratedShifts` (5th of the 5 `try/finally`-wrapped procedures) had no
+  throw-path cache-invalidation test; only 4/5 were covered.
+  [apps/api/src/trpc/routers/planning.router.spec.ts:1755]
+  - Source: Spec (direct L-audit instance — verify every entry point, not 4/5)
+  - Resolution: `c780715` — bulk-purge throw test asserting all three invalidations fire.
+- [MINOR] AC2 — "notified exactly once" asserted with weak `toHaveBeenCalled()`.
+  [apps/api/src/modules/planning/planning-generation.service.spec.ts:4978]
+  - Source: Spec
+  - Resolution: `c780715` — tightened to `toHaveBeenCalledTimes(1)`.
+- [NIT] Task 5 GATE counts were unverifiable by the auditor (no shell).
+  - Source: Spec
+  - Resolution: Lead re-ran fresh — targeted specs 238/238 green; `tsc -p tsconfig.types.json`
+    exit 0; full `tsc` 24 pre-existing errors, 0 in this story's files.
+
+#### Dismissed
+- [MAJOR] Default `$transaction` passthrough mock uses `tx === this.prisma`, so a future
+  regression that moved a write outside the transaction would not be caught.
+  [apps/api/src/modules/planning/planning-generation.service.spec.ts:275-278]
+  - Source: Code (+ Spec)
+  - Rationale: No live defect — writes are correctly nested in `tx` and Prisma's interactive-
+    `$transaction` rollback-on-throw is a library contract; the code mirrors the `confirmPresence`
+    reference the epic mandates. A robust mock (distinct `tx` delegates) is a test-infra change
+    across the 150-test suite disproportionate to a non-defect. Proper mitigation = the story's
+    own called-for L2 real-DB atomicity check — carried as a follow-up.
+- [MAJOR] AC4 "self-heals within ≤30s" rests on unchanged, untested code (the `getScheduleView`
+  TTL). [apps/api/src/trpc/routers/planning.router.ts:314]
+  - Source: Spec
+  - Rationale: The 30s TTL is not part of this diff — pre-existing shipped behaviour. The
+    invalidation side AC4 actually changes (swallow-and-log, never masks the result) IS tested
+    ("a Redis failure … does not mask a successful mutation").
+- [MINOR] AC4 Redis-failure-doesn't-mask tested for only 1/5 procedures.
+  [apps/api/src/trpc/routers/planning.router.spec.ts]
+  - Source: Spec
+  - Rationale: All 5 procedures call the single shared `invalidateScheduleCaches` helper; its
+    swallow-and-log path is one code path, verified once.
+- [MINOR] Over-invalidation on the guaranteed-throw pre-ack path → 2 wasted Redis `KEYS` scans
+  per "edit a published month" attempt. [apps/api/src/trpc/routers/planning.router.ts]
+  - Source: Edge & Hallucination
+  - Rationale: Correctness-safe (over-invalidation self-heals), best-effort by design, and `KEYS`
+    is pre-existing (not introduced here). Micro-opt (skip on `PUBLISHED_CHANGE_REQUIRES_ACK`, or
+    `KEYS`→`SCAN`) noted as an optional follow-up.
+
+### Verification
+- Test command: `pnpm --filter @pawly/api test -- --testPathPatterns "planning-generation.service.spec|planning.router.spec"`
+- Test output (final pass): `Tests: 238 passed, 238 total` (was 234; +4), exit 0.
+- Typecheck: `tsc -p tsconfig.types.json` → exit 0 (0 errors); full `tsc -p tsconfig.json` → 24
+  pre-existing errors, all in unrelated spec files, 0 in this story's 4 files.
+- Visual verification: n/a — backend-only surface, no preview app.
+
+### Follow-ups (not blocking)
+- L2 real-DB atomicity verification (mid-transaction failure leaves no shift moved without an
+  amendment row) — the story's own called-for check; unit-level contract is proven, real-DB is
+  the residual confidence gap.
+- Optional perf: avoid cache invalidation on the `PUBLISHED_CHANGE_REQUIRES_ACK` conflict path,
+  or migrate `invalidatePattern` off Redis `KEYS` to `SCAN`.
