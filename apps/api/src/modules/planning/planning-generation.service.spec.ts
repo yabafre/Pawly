@@ -4923,6 +4923,64 @@ describe('PlanningGenerationService', () => {
       );
       errorSpy.mockRestore();
     });
+
+    // Story 11-4 (AC2): "a single undeliverable recipient never prevents the
+    // other recipients from being notified" — drive notifyScheduleChange with
+    // two recipients where the first send fails; the loop must still reach the
+    // second, and the aggregate ratio counts only attempted sends.
+    it('continues the loop after a failed send so other recipients are still notified (AC2)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'en' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+      ]);
+
+      // both recipients attempted despite the first returning false
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenNthCalledWith(
+        2,
+        'bob@clinic.fr',
+        'Bob',
+        '2026-07',
+        'Clinique Test',
+        'en',
+      );
+      // ratio counts attempted sends (2), not just the failure count
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
   });
 
   // ─── Story 11-1 — published-change guard on bulk regeneration ──────

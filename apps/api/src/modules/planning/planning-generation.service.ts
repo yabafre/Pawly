@@ -2012,10 +2012,12 @@ export class PlanningGenerationService {
     ]);
     const byId = new Map(employees.map((e) => [e.id, e]));
 
+    let attemptedEmailCount = 0;
     let failedEmailCount = 0;
     for (const r of unique) {
       const emp = byId.get(r.employeeId);
       if (!emp || !emp.email) continue;
+      attemptedEmailCount++;
       // Story 11-4 (AC2) — react to the returned status. sendScheduleChangedEmail
       // now returns false (not throws) when both channels fail, so a change
       // notification outage is visible in the logs (NFR3) instead of silently
@@ -2030,8 +2032,10 @@ export class PlanningGenerationService {
       if (!ok) failedEmailCount++;
     }
     if (failedEmailCount > 0) {
+      // Denominator is emails actually attempted (skips null-email recipients),
+      // not `unique.length`, so the ratio reflects real send attempts.
       this.logger.error(
-        `notifyScheduleChange: ${failedEmailCount}/${unique.length} change email(s) failed for clinic ${clinicId}`,
+        `notifyScheduleChange: ${failedEmailCount}/${attemptedEmailCount} change email(s) failed for clinic ${clinicId}`,
       );
     }
 
