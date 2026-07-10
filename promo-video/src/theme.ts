@@ -1,18 +1,36 @@
-import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
-import { loadFont as loadGeistMono } from "@remotion/google-fonts/GeistMono";
+import { loadFont } from "@remotion/fonts";
+import { staticFile } from "remotion";
 
 // Inter — brand sans (--font-inter). Geist Mono — the real --font-geist-mono, used
 // STRICTLY for data (cost counter, % prêt, +7h, clock, shift times).
-const inter = loadInter("normal", {
-  weights: ["400", "600", "700"],
-  subsets: ["latin"],
-});
-const geist = loadGeistMono("normal", {
-  weights: ["400", "500", "600"],
-  subsets: ["latin"],
-});
-export const FONT = inter.fontFamily;
-export const MONO = geist.fontFamily;
+//
+// Self-hosted (public/fonts/) instead of @remotion/google-fonts: the studio preview
+// and render must not depend on fonts.gstatic.com at runtime — that dependency breaks
+// under VPN/firewall filtering (e.g. NordVPN Threat Protection) and offline CI, which
+// surfaces as a blocking "A network error occurred" in the studio. woff2 files come
+// from @fontsource/{inter,geist-mono}, copied into public/fonts/.
+export const FONT = "Inter";
+export const MONO = "Geist Mono";
+
+const INTER_WEIGHTS = [400, 600, 700] as const;
+const MONO_WEIGHTS = [400, 500, 600] as const;
+
+for (const weight of INTER_WEIGHTS) {
+  loadFont({
+    family: FONT,
+    url: staticFile(`fonts/inter-latin-${weight}-normal.woff2`),
+    weight: String(weight),
+    style: "normal",
+  });
+}
+for (const weight of MONO_WEIGHTS) {
+  loadFont({
+    family: MONO,
+    url: staticFile(`fonts/geist-mono-latin-${weight}-normal.woff2`),
+    weight: String(weight),
+    style: "normal",
+  });
+}
 
 // Exact Pawly design-system tokens (apps/web globals.css, verified 2026).
 export const C = {
