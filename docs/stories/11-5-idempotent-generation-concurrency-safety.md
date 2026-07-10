@@ -1,7 +1,7 @@
 # Story: 11-5-idempotent-generation-concurrency-safety — Idempotent Generation & Concurrency Safety
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-122-11-5-idempotent-generation-concurrency-safety
 **Ticket:** KON-122 (Linear · project Pawly · milestone Epic 11 · blocked-by KON-119)
 **Origin:** Multi-agent planning audit 2026-07-08 — reliability gap "Retry × non-uniqueness = month duplication". See `docs/epics-context/epic-11-context.md` § 0 ("Retry × non-uniqueness = month duplication") and § 4 (anchor map, row 11-5). Direct continuation of Story 11-2, which added the DB `@@unique([employeeId, date, startTime])` net and explicitly deferred "the runtime `P2002` behaviour under retry + `pg_advisory_xact_lock(clinicId, month)`" to this story.
@@ -24,7 +24,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: Limit `fetchWithRetry` to idempotent queries (exported for testing)** [AC: 1]
+- [x] **Task 1: Limit `fetchWithRetry` to idempotent queries (exported for testing)** [AC: 1]
   In `apps/web/src/lib/trpc/client.ts`, replace the current function declaration line (the wrapper is not exported today):
   ```ts
   async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -51,7 +51,7 @@
   Expected: no type errors, exit 0.
   Commit: `git add "apps/web/src/lib/trpc/client.ts" && git commit -m "feat(KON-122): limit fetchWithRetry to idempotent GET queries (at-most-once mutations)"`
 
-- [ ] **Task 2: Web spec — mutations are not retried, queries are** [AC: 1]
+- [x] **Task 2: Web spec — mutations are not retried, queries are** [AC: 1]
   Create the new file `apps/web/src/lib/trpc/client.spec.ts` with exactly this content:
   ```ts
   import { afterEach, describe, expect, it, vi } from "vitest";
@@ -131,7 +131,7 @@
   Expected: `client.spec.ts` — 4 passed, exit 0.
   Commit: `git add "apps/web/src/lib/trpc/client.spec.ts" && git commit -m "test(KON-122): fetchWithRetry retries queries but never mutations"`
 
-- [ ] **Task 3: Serialize `generateMonthlyPlan` — advisory lock + Serializable + P2034 retry** [AC: 2, 3]
+- [x] **Task 3: Serialize `generateMonthlyPlan` — advisory lock + Serializable + P2034 retry** [AC: 2, 3]
   In `apps/api/src/modules/planning/planning-generation.service.ts`:
 
   **3a.** Add the `Prisma` value import immediately after the existing validators import. Anchor on (currently line 20):
@@ -299,7 +299,7 @@
   Expected: no new type errors referencing `withSerializationRetry` / `$executeRaw` / `Prisma.TransactionIsolationLevel`, exit 0. (Pre-existing unrelated spec-fixture `tsc` noise documented in 11-1/11-2 may remain.)
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-122): advisory lock + Serializable + P2034 retry on generateMonthlyPlan"`
 
-- [ ] **Task 4: Serialize `publishPlan` on the same `(clinicId, month)` advisory lock** [AC: 2]
+- [x] **Task 4: Serialize `publishPlan` on the same `(clinicId, month)` advisory lock** [AC: 2]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, replace the publication upsert transaction (currently lines 2713–2733):
   ```ts
       // Upsert publication status atomically
@@ -366,7 +366,7 @@
   Expected: no new type errors, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-122): advisory lock + Serializable on publishPlan"`
 
-- [ ] **Task 5: Give every generation/publication `tx` mock a `$executeRaw` stub** [AC: 2]
+- [x] **Task 5: Give every generation/publication `tx` mock a `$executeRaw` stub** [AC: 2]
   The two transactions now call `tx.$executeRaw` as their first statement. Every hand-rolled `$transaction` mock in `apps/api/src/modules/planning/planning-generation.service.spec.ts` whose `tx` flows through `generateMonthlyPlan` **or** `publishPlan` will otherwise throw `TypeError: tx.$executeRaw is not a function`. Add `$executeRaw: jest.fn().mockResolvedValue(0),` as the **first property** of each such `tx` literal.
 
   Every offending `tx` literal has one of these two shapes today:
@@ -399,7 +399,7 @@
   Expected: **zero** `tx.$executeRaw is not a function` failures remain. If any test still fails with that message, apply the same one-line stub to its `tx` and re-run. The suite otherwise stays green at its pre-story count (any *new* failures are from Task 6, not this task).
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-122): stub tx.\$executeRaw on generation/publication transaction mocks"`
 
-- [ ] **Task 6: Service spec — lock acquired, P2002 net, P2034 retried** [AC: 2, 3]
+- [x] **Task 6: Service spec — lock acquired, P2002 net, P2034 retried** [AC: 2, 3]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add this block immediately **before** the `describe('publishPlan', …)` block opens (i.e., right after the `describe('Story 11-2 — surviving shifts visible to generator', …)` region closes, or anywhere inside the top-level `describe('PlanningGenerationService')` — it reuses the file's `service`, `mockPrismaService`, `mockTemplateService`, `clinicId`):
   ```ts
   // ─── Story 11-5 — idempotent generation & concurrency safety ──────
@@ -543,7 +543,7 @@
   Expected: all suites pass, including the 5 new `Story 11-5` tests, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-122): advisory lock acquired, P2002 net, P2034 retried"`
 
-- [ ] **Task 7: Full verification + story bookkeeping** [AC: all]
+- [x] **Task 7: Full verification + story bookkeeping** [AC: all]
   Run the whole matrix and the build to confirm nothing regressed (Task 3/4 touch the hottest transaction in the planning module; Task 1 touches every server-side tRPC call):
   ```bash
   pnpm test
@@ -722,22 +722,95 @@ Unit tests mock the connection, so they cannot prove the *real* advisory lock or
 
 ## Dev Agent Record
 
-- **Model:** _(set by aped-dev)_
-- **Started:** _(set by aped-dev)_
-- **Completed:** _(set by aped-dev)_
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-10
+- **Completed:** 2026-07-10
 
 ### Summary
 
-_(aped-dev fills this in.)_
+Layered at-most-once + serialization defense shipped exactly per spec across all three
+ACs. **AC1** — the server-side tRPC transport `fetchWithRetry` now short-circuits any
+non-`GET` (mutation) to a single fetch attempt, so a reverse-proxy 502/504 or a
+double-click can no longer replay a `generateMonthlyPlan`/`publishPlan` from Next.js.
+**AC2** — both `generateMonthlyPlan` and `publishPlan` take the SAME
+`pg_advisory_xact_lock(hashtext(clinicId), hashtext(month))` as the first statement of
+their interactive `$transaction`, run at `Serializable` with `timeout: 15000`, and a new
+private `withSerializationRetry` replays the whole tx up to 3× on Prisma `P2034`
+(serialization/deadlock). **AC3** — the previously-dead `P2002` catch in generation is now
+a real net (the `@@unique([employeeId,date,startTime])` from 11-2), mapping to
+`ConflictException('Duplicate shift detected during generation')`; the retry wrapper
+deliberately does NOT retry `P2002` (permanent). The generator stays fully deterministic —
+the lock only serializes *when* transactions run; a `P2034` replay re-runs the identical
+`assignedShifts` array computed once outside the tx.
+
+**L4 — Context7 SDK verification (all CONFIRMED, source `/websites/prisma_io`, `/trpc/trpc`):**
+(a) `tx.$executeRaw` as a tagged template sends `${clinicId}`/`${month}` as **bound
+parameters** (prepared statement), not string interpolation — injection-safe.
+(b) Prisma surfaces a Postgres serialization failure (40001) / deadlock (40P01) as
+**`P2034`** (the documented retry code); (c) a unique-constraint violation as **`P2002`**.
+(d) The interactive-tx overload accepts `isolationLevel` + `timeout` (ms), and runs the
+whole callback on a single pinned connection — so a connection-scoped
+`pg_advisory_xact_lock` protects the subsequent `deleteMany`/`upsert` and auto-releases at
+COMMIT/ROLLBACK (a session-level lock on the pool would NOT — correctly avoided).
+(e) tRPC v11 `httpBatchLink` sends queries as **GET** and mutations as **POST** by default
+and never batches the two into one HTTP request — so keying AC1 on the method is sound.
 
 ### Files changed
 
-_(aped-dev fills this in.)_
+- `apps/web/src/lib/trpc/client.ts` — export `fetchWithRetry`; non-GET → single attempt.
+- `apps/web/src/lib/trpc/client.spec.ts` — **new**; 4 Vitest tests (GET retried, POST not).
+- `apps/api/src/modules/planning/planning-generation.service.ts` — `Prisma` import;
+  `withSerializationRetry` helper; advisory lock + `Serializable` + `timeout` on the
+  `generateMonthlyPlan` and `publishPlan` transactions (P2002/InternalServerError catch
+  preserved verbatim).
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — `$executeRaw`
+  stub on every generation/publication `tx` mock (12 sites, 2 shapes); +5 Story 11-5 tests.
 
 ### Deviations
 
-_(aped-dev fills this in.)_
+- **Commit granularity:** the story lists 4 API commits (Tasks 3/4/5/6) but Tasks 3+4 both
+  edit `service.ts` (disjoint regions) and Tasks 5+6 both edit `service.spec.ts`.
+  Interactive hunk-staging (`git add -p`) is unavailable in this harness, so the API work
+  landed as **2 commits by file** (production `service.ts`, tests `service.spec.ts`) rather
+  than 4. No content deviation — every Task 3/4/5/6 change is present verbatim.
+- **TDD ordering:** implemented test-first per the Iron Law rather than the story's
+  narration order — the web spec (Task 2) was written before the Task 1 export (RED:
+  `fetchWithRetry is not a function`), and the Story 11-5 service tests (Task 6) before the
+  production lock/retry (RED: lock never acquired / P2034 not retried). Both RED states were
+  witnessed before GREEN.
+- **Task 5 site count:** patched **12** `tx` mock literals across 2 shapes
+  (`const tx = {…}; fn(tx)` and inline `async (cb) => cb({…})`), verified by re-running the
+  suite to zero `tx.$executeRaw is not a function` failures — one more shape (the `cb({…})`
+  form in daysInMonth/tiebreaker/apprentice blocks) than the story's known-sites list
+  enumerated; the run-as-oracle approach caught them.
 
 ### Test output
 
-_(aped-dev fills this in.)_
+- **API (Jest):** `pnpm --filter @pawly/api test` → **896 passed / 896**, 33 suites, exit 0
+  (incl. the 5 new Story 11-5 tests; `planning-generation.service.spec` = 151/151).
+- **Web (Vitest):** `pnpm --filter @pawly/web test` → **756 passed / 756**, 51 files, exit 0
+  (incl. the 4 new `client.spec.ts` tests). `tsc --noEmit` exit 0.
+- **Validators (Vitest):** `pnpm --filter @pawly/validators test` → **777 passed / 777**,
+  exit 0 (untouched — no collateral).
+- **`tsc` (api):** the 24 residual errors are pre-existing spec-fixture noise in unrelated
+  files (`clinic`/`employee`/`planning.service`/`variance` specs — none in this story's File
+  List); **zero** errors in `planning-generation.service.ts` or its spec, and none reference
+  `withSerializationRetry` / `$executeRaw` / `Prisma.TransactionIsolationLevel`.
+- **`pnpm build`:** **4/5 tasks green** — `@pawly/{validators,types,api}` + `db:generate`,
+  incl. the load-bearing `apps/api` `nest build && tsc -p tsconfig.types.json` (L5). The one
+  failure, `@pawly/web#build`, is **environmental, not code**: Turbopack rejects this
+  worktree's shared `node_modules -> ../../Pawly/node_modules` symlink
+  (*"apps/web/node_modules/next … points out of the filesystem root"*) at project/entrypoint
+  resolution — before any source is compiled. The web change is a 12-line export + method
+  guard that never enters that path; web `tsc` and all 756 web tests pass. Production web
+  build to be re-confirmed by aped-review's L2 journey in the main checkout (real
+  node_modules).
+
+### Live-verification handoff (aped-review, per L2)
+
+Unit tests mock the connection, so the **real** advisory lock + P2002 net must be confirmed
+end-to-end against Neon: (1) fire two concurrent `generateMonthlyPlan` for the same
+clinic+month → assert exactly one month of GENERATED shifts and no `(employeeId,date,
+startTime)` duplicate (P2002 surfaces as a visible `ConflictException`, never a doubled
+month); (2) a mutation behind a simulated 503 shows a single POST in the network tab. Grid
+drag in any E2E is keyboard (dnd-kit), not pointer.
