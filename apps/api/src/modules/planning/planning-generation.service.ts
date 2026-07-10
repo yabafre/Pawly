@@ -63,6 +63,10 @@ type AssignedShift = {
   breakMinutes?: number;
 };
 
+// Story 11-2 (AC3) — a surviving shift carries its employee's jobType so the
+// coverage subtraction can gate on requiredJobTypes exactly like AC1 eligibility.
+type SurvivingShift = AssignedShift & { jobType: string | null };
+
 type RuleEntry = {
   id: string;
   name: string;
@@ -358,34 +362,73 @@ export class PlanningGenerationService {
     }
 
     // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
-    // (date|shiftTypeCode) so the loop can subtract it from requiredStaff and
-    // never over-staff a slot that manual/confirmed coverage already fills.
-    const preExistingSlotCoverage = new Map<string, number>();
+    // (date|shiftTypeCode). Each entry keeps the survivor's real time window +
+    // jobType so the loop can credit coverage ONLY for a survivor that genuinely
+    // overlaps the slot's live-resolved hours AND satisfies its requiredJobTypes
+    // — the same gates as AC1 eligibility. Keying on shiftTypeCode alone would let
+    // a stale-hours survivor (e.g. shift-type hours edited, or a moved shift whose
+    // frozen times no longer match) or a wrong-jobType survivor silently mask a
+    // real staffing gap with no hole (aped-review BLOCKER).
+    const preExistingSlotCoverage = new Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >();
     for (const ss of survivingShifts) {
       const coverageKey = `${ss.date}|${ss.shiftTypeCode}`;
-      preExistingSlotCoverage.set(
-        coverageKey,
-        (preExistingSlotCoverage.get(coverageKey) || 0) + 1,
-      );
+      const bucket = preExistingSlotCoverage.get(coverageKey) || [];
+      bucket.push({
+        startTime: ss.startTime,
+        endTime: ss.endTime,
+        jobType: ss.jobType,
+        consumed: false,
+      });
+      preExistingSlotCoverage.set(coverageKey, bucket);
     }
 
     for (const slot of slots) {
       totalPositions += slot.requiredStaff;
 
-      // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage.
-      // Skip fully-covered slots entirely (no generation, no false hole). The
-      // coverage map is decremented so multiple slots sharing a (date,shiftType)
-      // key consume the coverage once. scoreAndAssign receives a slot clone whose
-      // requiredStaff is the residual, so its slice + hole logic stay correct.
+      // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage, but
+      // count a survivor only when it actually overlaps this slot's resolved hours
+      // and satisfies its requiredJobTypes. Each survivor is consumed at most once
+      // (marked below), so slots sharing a (date,shiftType) key never double-claim
+      // it. Skip fully-covered slots entirely (no generation, no false hole).
+      // scoreAndAssign receives a slot clone whose requiredStaff is the residual,
+      // so its slice + hole logic stay correct.
       const coverageKey = `${slot.date}|${slot.shiftTypeCode}`;
-      const preCovered = preExistingSlotCoverage.get(coverageKey) || 0;
+      const coverageBucket = preExistingSlotCoverage.get(coverageKey) || [];
+      let preCovered = 0;
+      for (const cov of coverageBucket) {
+        if (cov.consumed) continue;
+        if (
+          !this.timesOverlap(
+            slot.startTime,
+            slot.endTime,
+            cov.startTime,
+            cov.endTime,
+          )
+        ) {
+          continue;
+        }
+        if (
+          slot.requiredJobTypes &&
+          slot.requiredJobTypes.length > 0 &&
+          (cov.jobType === null || !slot.requiredJobTypes.includes(cov.jobType))
+        ) {
+          continue;
+        }
+        cov.consumed = true;
+        preCovered++;
+        if (preCovered >= slot.requiredStaff) break;
+      }
       const effectiveRequiredStaff = Math.max(
         0,
         slot.requiredStaff - preCovered,
-      );
-      preExistingSlotCoverage.set(
-        coverageKey,
-        Math.max(0, preCovered - slot.requiredStaff),
       );
       if (effectiveRequiredStaff === 0) continue;
 
@@ -3363,7 +3406,7 @@ export class PlanningGenerationService {
     clinicId: string,
     monthStart: Date,
     monthEnd: Date,
-  ): Promise<AssignedShift[]> {
+  ): Promise<SurvivingShift[]> {
     const shifts = await this.prisma.shift.findMany({
       where: {
         clinicId,
@@ -3381,6 +3424,9 @@ export class PlanningGenerationService {
         endTime: true,
         shiftTypeCode: true,
         breakMinutes: true,
+        // Story 11-2 (AC3) — the survivor's jobType gates its coverage credit
+        // against a slot's requiredJobTypes, exactly like AC1 eligibility.
+        employee: { select: { jobType: true } },
       },
     });
 
@@ -3391,6 +3437,7 @@ export class PlanningGenerationService {
       endTime: s.endTime,
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
+      jobType: s.employee?.jobType ?? null,
     }));
   }
 
