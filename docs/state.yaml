@@ -167,7 +167,7 @@ sprint:
     11-1-published-change-guard-bulk-regeneration: { status: done, depends_on: [], ticket: "KON-118", worktree: null, started_at: '2026-07-09' }
     11-2-manual-shift-visibility-anti-duplicate: { status: done, depends_on: [11-1-published-change-guard-bulk-regeneration], ticket: "KON-119", worktree: null, started_at: '2026-07-10', completed_at: '2026-07-10' }
     11-3-french-labor-law-hard-rules: { status: done, depends_on: [], ticket: "KON-120", worktree: null, started_at: '2026-07-10', completed_at: '2026-07-10' }
-    11-4-reliable-publication-notifications: { status: pending, depends_on: [], ticket: "KON-121", worktree: null }
+    11-4-reliable-publication-notifications: { status: ready-for-dev, depends_on: [], ticket: "KON-121", worktree: "Pawly__worktrees/feature-kon-121-11-4-reliable-publication-notifications" }
     11-5-idempotent-generation-concurrency-safety: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-122", worktree: null }
     11-6-transactional-amendment-cache-coherence: { status: pending, depends_on: [11-1-published-change-guard-bulk-regeneration], ticket: "KON-123", worktree: null }
     11-7-equity-counter-window-fix: { status: pending, depends_on: [], ticket: "KON-124", worktree: null }
