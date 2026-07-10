@@ -1,7 +1,7 @@
 # Story: 11-5-idempotent-generation-concurrency-safety — Idempotent Generation & Concurrency Safety
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-122-11-5-idempotent-generation-concurrency-safety
 **Ticket:** KON-122 (Linear · project Pawly · milestone Epic 11 · blocked-by KON-119)
 **Origin:** Multi-agent planning audit 2026-07-08 — reliability gap "Retry × non-uniqueness = month duplication". See `docs/epics-context/epic-11-context.md` § 0 ("Retry × non-uniqueness = month duplication") and § 4 (anchor map, row 11-5). Direct continuation of Story 11-2, which added the DB `@@unique([employeeId, date, startTime])` net and explicitly deferred "the runtime `P2002` behaviour under retry + `pg_advisory_xact_lock(clinicId, month)`" to this story.
@@ -814,3 +814,81 @@ clinic+month → assert exactly one month of GENERATED shifts and no `(employeeI
 startTime)` duplicate (P2002 surfaces as a visible `ConflictException`, never a doubled
 month); (2) a mutation behind a simulated 503 shows a single POST in the network tab. Grid
 drag in any E2E is keyboard (dnd-kit), not pointer.
+
+## Review Record
+
+**Date:** 2026-07-10
+**Auditors:** Spec, Code, Edge & Hallucination (Aria N/A — no visual surface; the only web
+change is the server-only `fetchWithRetry` transport wrapper)
+**Verdict:** done — all findings resolved or dismissed-with-rationale; live L2 confirmed.
+
+> **Design change applied in review (supersedes the "Serializable" wording in Task 3/4, the
+> AC-mapping, the Architecture notes and the Dev Agent Record):** both `generateMonthlyPlan`
+> and `publishPlan` transactions now run at the **default READ COMMITTED**, NOT `Serializable`.
+> The advisory lock still provides same-`(clinic, month)` mutual exclusion; `timeout: 15000`
+> and the bounded `P2034` retry are retained as a residual deadlock net.
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] `Serializable` isolation defeats the advisory-lock fresh-read: the tx snapshot
+  freezes at the advisory-lock `SELECT` (before the lock is granted), so the second
+  same-`(clinic, month)` waiter never sees the first run's committed rows — a spurious
+  `P2034` on regeneration or a visible `P2002` on first-generation, contradicting AC2's
+  "recovered automatically without surfacing an error." [planning-generation.service.ts:605, :2791]
+  - Source: Edge & Hallucination
+  - Resolution: commit `82a799f` — dropped both transactions to default READ COMMITTED
+    (kept advisory lock + `timeout: 15000` + `P2034` retry). Re-verified by the Edge auditor
+    (RESOLVED) and by live L2 (below). No-doubled-month safety was never at risk (`@@unique`
+    + AC1), so this was a concurrency-UX/correctness-of-rationale fix, not data corruption.
+
+- [MAJOR] AC2 not fully proven: no test asserted the `$transaction` options
+  (`isolationLevel`/`timeout`); every mock ignored the 2nd argument, so a regression dropping
+  them stayed green. [planning-generation.service.spec.ts]
+  - Source: Spec
+  - Resolution: commit `82a799f` — pinned `$transaction.mock.calls[0][1]` to
+    `{ timeout: 15000 }` (strict `toEqual`) in one generate test and the publish test.
+    Re-verified by the Spec auditor (RESOLVED, AC2 IMPLEMENTED).
+
+- [MINOR] `withSerializationRetry` bounded-exhaustion path (3× `P2034` → give up) untested;
+  only the retry-once happy path existed. [planning-generation.service.ts:134]
+  - Source: Spec, Edge
+  - Resolution: commit `82a799f` — new test: `$transaction` rejects `{code:'P2034'}` on all 3
+    attempts → `attempts === 3`, surfaces `InternalServerError('Failed to persist generated
+    shifts')`, proving termination.
+
+#### Dismissed
+
+- [MINOR] `throw lastError` at the tail of `withSerializationRetry` is unreachable — TS
+  control-flow artifact (loop always returns/continues/throws); harmless.
+- [MINOR/info] AC1 also suppresses the safe `ECONNREFUSED`/`ECONNRESET` retry for mutations —
+  intentional per AC1 (a mutation is at-most-once; a connection-refused surfaces visibly).
+- [MINOR] empty-string / `Request`-object `init.method` only accidentally safe — tRPC v11
+  `httpBatchLink` always passes an explicit `GET`/`POST`, so no live defect (no
+  `methodOverride` configured). Rationale: correctness rests on tRPC's calling convention.
+- [COSMETIC] helper still named `withSerializationRetry` under READ COMMITTED — name remains
+  accurate (it guards the `P2034` serialization/deadlock code); renamed deferred as churn.
+- [MINOR] full-suite counts (896/756) not statically reproducible — not a defect; a CI run
+  settles it. Spec-file count independently confirmed (152 `it()`).
+
+#### Unresolved (story stays in `review`)
+
+- none.
+
+### Verification
+
+- **Test command:** `pnpm --filter @pawly/api test -- --testPathPatterns "planning-generation.service.spec"`
+- **Test output (final pass):** `Tests: 152 passed, 152 total` (incl. all 6 Story 11-5 tests:
+  lock-before-delete, P2002→ConflictException, P2034 retry-once, P2002-not-retried,
+  3×-P2034-exhaustion, publish lock). `tsc -p tsconfig.json` → **0 errors** in
+  `planning-generation.service.ts` (residual 24 errors are pre-existing spec-fixture noise in
+  clinic/employee/planning.service/variance specs, unchanged, none in this story's File List).
+- **Live L2 (real Neon, concurrency probe on a throwaway `_l2_probe` table):** PASS.
+  READ COMMITTED → T1 ok, T2 **waited ~1.18 s on the advisory lock** then ok, exactly one
+  "month" (3 rows), no `P2002`. SERIALIZABLE (old code) → T2 rejected with SQLSTATE `40001`
+  (serialization_failure → Prisma `P2034`) even after waiting the lock, reproducing the
+  finding. No business/metadata rows touched. Confirms: (a) the lock serializes same-key runs
+  (AC2), (b) READ COMMITTED yields the clean happy path, (c) the `UNIQUE` net holds
+  (no doubled month — AC3).
+- **Visual verification:** N/A — server-only transport + service, no rendered surface.
