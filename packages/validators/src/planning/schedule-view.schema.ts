@@ -1,5 +1,5 @@
-import { z } from "@pawly/zod";
-import { equityContextSchema } from "./planning-generation.schema";
+import { z } from '@pawly/zod';
+import { equityContextSchema } from './planning-generation.schema';
 
 // ── Shared domain constants ──────────────────────────────────────────
 
@@ -10,20 +10,14 @@ export const SCHOOL_DAY_MINUTES = 420; // 7h standard school day in France
 const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const scheduleViewInputSchema = z.object({
-  month: z
-    .string()
-    .regex(monthRegex, "Month must be in YYYY-MM format (e.g., 2026-03)"),
+  month: z.string().regex(monthRegex, 'Month must be in YYYY-MM format (e.g., 2026-03)'),
 });
 export type ScheduleViewInput = z.infer<typeof scheduleViewInputSchema>;
 
 // ── Week navigation schema ────────────────────────────────────────────
 
 export const weekNavigationSchema = z.object({
-  weekOffset: z
-    .number()
-    .int()
-    .min(0)
-    .max(5, "A month has at most 6 weeks (offset 0-5)"),
+  weekOffset: z.number().int().min(0).max(5, 'A month has at most 6 weeks (offset 0-5)'),
 });
 export type WeekNavigation = z.infer<typeof weekNavigationSchema>;
 
@@ -42,9 +36,7 @@ export type ScheduleEmployee = z.infer<typeof scheduleEmployeeSchema>;
 // ── Schedule day info schema ──────────────────────────────────────────
 
 export const scheduleDayInfoSchema = z.object({
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   dayOfWeek: z.number().int().min(1).max(7),
   isWorkDay: z.boolean(),
   isClosed: z.boolean(),
@@ -57,18 +49,12 @@ export type ScheduleDayInfo = z.infer<typeof scheduleDayInfoSchema>;
 
 export const scheduleShiftSchema = z.object({
   id: z.string().uuid(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
-  startTime: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
-  endTime: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
   shiftTypeCode: z.string().min(1),
   breakMinutes: z.number().int().min(0),
-  source: z.enum(["GENERATED", "MANUAL"]),
+  source: z.enum(['GENERATED', 'MANUAL']),
   employeeId: z.string().uuid(),
   isConfirmed: z.boolean(),
   shiftTypeColor: z.string().nullable(),
@@ -80,12 +66,10 @@ export type ScheduleShift = z.infer<typeof scheduleShiftSchema>;
 export const scheduleUnavailabilitySchema = z.object({
   employeeId: z.string().uuid(),
   date: z.string(),
-  type: z.enum(["VACATION", "SICK", "SCHOOL", "OTHER"]),
+  type: z.enum(['VACATION', 'SICK', 'SCHOOL', 'OTHER']),
   reason: z.string().optional(),
 });
-export type ScheduleUnavailability = z.infer<
-  typeof scheduleUnavailabilitySchema
->;
+export type ScheduleUnavailability = z.infer<typeof scheduleUnavailabilitySchema>;
 
 // ── Schedule hole schema ──────────────────────────────────────────────
 
@@ -125,13 +109,15 @@ export const scheduleViewDataSchema = z.object({
   violations: z.object({
     hard: z.array(
       z.object({
-        ruleId: z.string().uuid(),
+        ruleId: z.string(),
         ruleName: z.string(),
         category: z.string(),
         message: z.string(),
+        messageKey: z.string().optional(),
+        messageParams: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
         affectedEmployeeId: z.string().uuid().optional(),
         affectedDate: z.string().optional(),
-        severity: z.literal("blocking"),
+        severity: z.literal('blocking'),
       })
     ),
     soft: z.array(
@@ -144,7 +130,7 @@ export const scheduleViewDataSchema = z.object({
         messageParams: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
         affectedEmployeeId: z.string().uuid().optional(),
         affectedDate: z.string().optional(),
-        severity: z.literal("warning"),
+        severity: z.literal('warning'),
         equityContext: equityContextSchema.optional(),
       })
     ),

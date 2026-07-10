@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   scheduleViewInputSchema,
   weekNavigationSchema,
@@ -8,201 +8,197 @@ import {
   scheduleUnavailabilitySchema,
   scheduleHoleSchema,
   scheduleViewDataSchema,
-} from "./schedule-view.schema";
+} from './schedule-view.schema';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const validUuid = "550e8400-e29b-41d4-a716-446655440000";
-const validUuid2 = "550e8400-e29b-41d4-a716-446655440001";
-const validUuid3 = "550e8400-e29b-41d4-a716-446655440002";
+const validUuid = '550e8400-e29b-41d4-a716-446655440000';
+const validUuid2 = '550e8400-e29b-41d4-a716-446655440001';
+const validUuid3 = '550e8400-e29b-41d4-a716-446655440002';
 
-describe("scheduleViewInputSchema", () => {
-  it("should accept valid YYYY-MM month", () => {
-    const result = scheduleViewInputSchema.safeParse({ month: "2026-03" });
+describe('scheduleViewInputSchema', () => {
+  it('should accept valid YYYY-MM month', () => {
+    const result = scheduleViewInputSchema.safeParse({ month: '2026-03' });
     expect(result.success).toBe(true);
   });
 
-  it("should accept month at year boundaries (01 and 12)", () => {
-    expect(
-      scheduleViewInputSchema.safeParse({ month: "2026-01" }).success
-    ).toBe(true);
-    expect(
-      scheduleViewInputSchema.safeParse({ month: "2026-12" }).success
-    ).toBe(true);
+  it('should accept month at year boundaries (01 and 12)', () => {
+    expect(scheduleViewInputSchema.safeParse({ month: '2026-01' }).success).toBe(true);
+    expect(scheduleViewInputSchema.safeParse({ month: '2026-12' }).success).toBe(true);
   });
 
   it("should reject non-zero-padded month '2026-3'", () => {
-    const result = scheduleViewInputSchema.safeParse({ month: "2026-3" });
+    const result = scheduleViewInputSchema.safeParse({ month: '2026-3' });
     expect(result.success).toBe(false);
   });
 
   it("should reject invalid month '2026-00'", () => {
-    const result = scheduleViewInputSchema.safeParse({ month: "2026-00" });
+    const result = scheduleViewInputSchema.safeParse({ month: '2026-00' });
     expect(result.success).toBe(false);
   });
 
   it("should reject invalid month '2026-13'", () => {
-    const result = scheduleViewInputSchema.safeParse({ month: "2026-13" });
+    const result = scheduleViewInputSchema.safeParse({ month: '2026-13' });
     expect(result.success).toBe(false);
   });
 
   it("should reject text format 'March 2026'", () => {
     const result = scheduleViewInputSchema.safeParse({
-      month: "March 2026",
+      month: 'March 2026',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty string", () => {
-    const result = scheduleViewInputSchema.safeParse({ month: "" });
+  it('should reject empty string', () => {
+    const result = scheduleViewInputSchema.safeParse({ month: '' });
     expect(result.success).toBe(false);
   });
 
-  it("should reject missing month", () => {
+  it('should reject missing month', () => {
     const result = scheduleViewInputSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });
 
-describe("weekNavigationSchema", () => {
-  it("should accept weekOffset 0", () => {
+describe('weekNavigationSchema', () => {
+  it('should accept weekOffset 0', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: 0 });
     expect(result.success).toBe(true);
   });
 
-  it("should accept weekOffset 3 (mid-range)", () => {
+  it('should accept weekOffset 3 (mid-range)', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: 3 });
     expect(result.success).toBe(true);
   });
 
-  it("should accept weekOffset 5 (max)", () => {
+  it('should accept weekOffset 5 (max)', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: 5 });
     expect(result.success).toBe(true);
   });
 
-  it("should reject negative weekOffset", () => {
+  it('should reject negative weekOffset', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: -1 });
     expect(result.success).toBe(false);
   });
 
-  it("should reject weekOffset > 5", () => {
+  it('should reject weekOffset > 5', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: 6 });
     expect(result.success).toBe(false);
   });
 
-  it("should reject float weekOffset", () => {
+  it('should reject float weekOffset', () => {
     const result = weekNavigationSchema.safeParse({ weekOffset: 2.5 });
     expect(result.success).toBe(false);
   });
 
-  it("should reject missing weekOffset", () => {
+  it('should reject missing weekOffset', () => {
     const result = weekNavigationSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });
 
-describe("scheduleEmployeeSchema", () => {
-  it("should accept valid employee data", () => {
+describe('scheduleEmployeeSchema', () => {
+  it('should accept valid employee data', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Alice",
-      lastName: "Martin",
-      color: "#FF5733",
-      jobType: "VETERINARIAN",
+      firstName: 'Alice',
+      lastName: 'Martin',
+      color: '#FF5733',
+      jobType: 'VETERINARIAN',
       contractHours: 35,
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept employee with null color", () => {
+  it('should accept employee with null color', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Bob",
-      lastName: "Dupont",
+      firstName: 'Bob',
+      lastName: 'Dupont',
       color: null,
-      jobType: "ASV",
+      jobType: 'ASV',
       contractHours: 28,
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept employee with contractHours 0", () => {
+  it('should accept employee with contractHours 0', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Claire",
-      lastName: "Petit",
+      firstName: 'Claire',
+      lastName: 'Petit',
       color: null,
-      jobType: "ASV",
+      jobType: 'ASV',
       contractHours: 0,
     });
     expect(result.success).toBe(true);
   });
 
-  it("should reject invalid UUID for id", () => {
+  it('should reject invalid UUID for id', () => {
     const result = scheduleEmployeeSchema.safeParse({
-      id: "not-a-uuid",
-      firstName: "Alice",
-      lastName: "Martin",
+      id: 'not-a-uuid',
+      firstName: 'Alice',
+      lastName: 'Martin',
       color: null,
-      jobType: "VETERINARIAN",
+      jobType: 'VETERINARIAN',
       contractHours: 35,
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty firstName", () => {
+  it('should reject empty firstName', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "",
-      lastName: "Martin",
+      firstName: '',
+      lastName: 'Martin',
       color: null,
-      jobType: "VETERINARIAN",
+      jobType: 'VETERINARIAN',
       contractHours: 35,
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty lastName", () => {
+  it('should reject empty lastName', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Alice",
-      lastName: "",
+      firstName: 'Alice',
+      lastName: '',
       color: null,
-      jobType: "VETERINARIAN",
+      jobType: 'VETERINARIAN',
       contractHours: 35,
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty jobType", () => {
+  it('should reject empty jobType', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Alice",
-      lastName: "Martin",
+      firstName: 'Alice',
+      lastName: 'Martin',
       color: null,
-      jobType: "",
+      jobType: '',
       contractHours: 35,
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject negative contractHours", () => {
+  it('should reject negative contractHours', () => {
     const result = scheduleEmployeeSchema.safeParse({
       id: validUuid,
-      firstName: "Alice",
-      lastName: "Martin",
+      firstName: 'Alice',
+      lastName: 'Martin',
       color: null,
-      jobType: "VETERINARIAN",
+      jobType: 'VETERINARIAN',
       contractHours: -5,
     });
     expect(result.success).toBe(false);
   });
 });
 
-describe("scheduleDayInfoSchema", () => {
-  it("should accept valid work day", () => {
+describe('scheduleDayInfoSchema', () => {
+  it('should accept valid work day', () => {
     const result = scheduleDayInfoSchema.safeParse({
-      date: "2026-03-15",
+      date: '2026-03-15',
       dayOfWeek: 1,
       isWorkDay: true,
       isClosed: false,
@@ -211,22 +207,22 @@ describe("scheduleDayInfoSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should accept day with specialDayLabel", () => {
+  it('should accept day with specialDayLabel', () => {
     const result = scheduleDayInfoSchema.safeParse({
-      date: "2026-12-25",
+      date: '2026-12-25',
       dayOfWeek: 4,
       isWorkDay: false,
       isClosed: true,
       isSpecialDay: true,
-      specialDayLabel: "Christmas",
+      specialDayLabel: 'Christmas',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept dayOfWeek 1 (Monday) through 7 (Sunday)", () => {
+  it('should accept dayOfWeek 1 (Monday) through 7 (Sunday)', () => {
     for (let day = 1; day <= 7; day++) {
       const result = scheduleDayInfoSchema.safeParse({
-        date: "2026-03-15",
+        date: '2026-03-15',
         dayOfWeek: day,
         isWorkDay: true,
         isClosed: false,
@@ -236,9 +232,9 @@ describe("scheduleDayInfoSchema", () => {
     }
   });
 
-  it("should reject dayOfWeek 0", () => {
+  it('should reject dayOfWeek 0', () => {
     const result = scheduleDayInfoSchema.safeParse({
-      date: "2026-03-15",
+      date: '2026-03-15',
       dayOfWeek: 0,
       isWorkDay: true,
       isClosed: false,
@@ -247,9 +243,9 @@ describe("scheduleDayInfoSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject dayOfWeek 8", () => {
+  it('should reject dayOfWeek 8', () => {
     const result = scheduleDayInfoSchema.safeParse({
-      date: "2026-03-15",
+      date: '2026-03-15',
       dayOfWeek: 8,
       isWorkDay: true,
       isClosed: false,
@@ -258,9 +254,9 @@ describe("scheduleDayInfoSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid date format", () => {
+  it('should reject invalid date format', () => {
     const result = scheduleDayInfoSchema.safeParse({
-      date: "15/03/2026",
+      date: '15/03/2026',
       dayOfWeek: 1,
       isWorkDay: true,
       isClosed: false,
@@ -269,7 +265,7 @@ describe("scheduleDayInfoSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject missing date", () => {
+  it('should reject missing date', () => {
     const result = scheduleDayInfoSchema.safeParse({
       dayOfWeek: 1,
       isWorkDay: true,
@@ -280,32 +276,32 @@ describe("scheduleDayInfoSchema", () => {
   });
 });
 
-describe("scheduleShiftSchema", () => {
-  it("should accept valid GENERATED shift", () => {
+describe('scheduleShiftSchema', () => {
+  it('should accept valid GENERATED shift', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: 30,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
-      shiftTypeColor: "#4f46e5",
+      shiftTypeColor: '#4f46e5',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept valid MANUAL shift", () => {
+  it('should accept valid MANUAL shift', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "09:00",
-      endTime: "17:00",
-      shiftTypeCode: "RECEPTION",
+      date: '2026-03-15',
+      startTime: '09:00',
+      endTime: '17:00',
+      shiftTypeCode: 'RECEPTION',
       breakMinutes: 0,
-      source: "MANUAL",
+      source: 'MANUAL',
       employeeId: validUuid2,
       isConfirmed: true,
       shiftTypeColor: null,
@@ -313,15 +309,15 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should accept shift with null shiftTypeColor", () => {
+  it('should accept shift with null shiftTypeColor', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: 0,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -329,31 +325,31 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should accept shift with hex color shiftTypeColor", () => {
+  it('should accept shift with hex color shiftTypeColor', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: 0,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
-      shiftTypeColor: "#FF5733",
+      shiftTypeColor: '#FF5733',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should reject negative breakMinutes", () => {
+  it('should reject negative breakMinutes', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: -1,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -361,15 +357,15 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid date format", () => {
+  it('should reject invalid date format', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "15/03/2026",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '15/03/2026',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: 0,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -377,15 +373,15 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject date without leading zeros", () => {
+  it('should reject date without leading zeros', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-3-5",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
+      date: '2026-3-5',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
       breakMinutes: 0,
-      source: "GENERATED",
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -393,14 +389,14 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid source value", () => {
+  it('should reject invalid source value', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
-      source: "AUTO",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
+      source: 'AUTO',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -408,14 +404,14 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid time format for startTime", () => {
+  it('should reject invalid time format for startTime', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "8:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
-      source: "GENERATED",
+      date: '2026-03-15',
+      startTime: '8:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -423,14 +419,14 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid time format for endTime", () => {
+  it('should reject invalid time format for endTime', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "4pm",
-      shiftTypeCode: "SURGERY",
-      source: "GENERATED",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '4pm',
+      shiftTypeCode: 'SURGERY',
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -438,14 +434,14 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty shiftTypeCode", () => {
+  it('should reject empty shiftTypeCode', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "",
-      source: "GENERATED",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: '',
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -453,14 +449,14 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid UUID for id", () => {
+  it('should reject invalid UUID for id', () => {
     const result = scheduleShiftSchema.safeParse({
-      id: "not-a-uuid",
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
-      source: "GENERATED",
+      id: 'not-a-uuid',
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
+      source: 'GENERATED',
       employeeId: validUuid2,
       isConfirmed: false,
       shiftTypeColor: null,
@@ -468,15 +464,15 @@ describe("scheduleShiftSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid UUID for employeeId", () => {
+  it('should reject invalid UUID for employeeId', () => {
     const result = scheduleShiftSchema.safeParse({
       id: validUuid,
-      date: "2026-03-15",
-      startTime: "08:00",
-      endTime: "16:00",
-      shiftTypeCode: "SURGERY",
-      source: "GENERATED",
-      employeeId: "not-a-uuid",
+      date: '2026-03-15',
+      startTime: '08:00',
+      endTime: '16:00',
+      shiftTypeCode: 'SURGERY',
+      source: 'GENERATED',
+      employeeId: 'not-a-uuid',
       isConfirmed: false,
       shiftTypeColor: null,
     });
@@ -484,146 +480,146 @@ describe("scheduleShiftSchema", () => {
   });
 });
 
-describe("scheduleUnavailabilitySchema", () => {
-  it("should accept VACATION type", () => {
+describe('scheduleUnavailabilitySchema', () => {
+  it('should accept VACATION type', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "VACATION",
-      reason: "Annual leave",
+      date: '2026-03-15',
+      type: 'VACATION',
+      reason: 'Annual leave',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept SICK type", () => {
+  it('should accept SICK type', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "SICK",
+      date: '2026-03-15',
+      type: 'SICK',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept SCHOOL type", () => {
+  it('should accept SCHOOL type', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "SCHOOL",
+      date: '2026-03-15',
+      type: 'SCHOOL',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept OTHER type", () => {
+  it('should accept OTHER type', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "OTHER",
-      reason: "Personal appointment",
+      date: '2026-03-15',
+      type: 'OTHER',
+      reason: 'Personal appointment',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept without optional reason", () => {
+  it('should accept without optional reason', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "VACATION",
+      date: '2026-03-15',
+      type: 'VACATION',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should reject invalid type", () => {
+  it('should reject invalid type', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
       employeeId: validUuid,
-      date: "2026-03-15",
-      type: "HOLIDAY",
+      date: '2026-03-15',
+      type: 'HOLIDAY',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject invalid UUID for employeeId", () => {
+  it('should reject invalid UUID for employeeId', () => {
     const result = scheduleUnavailabilitySchema.safeParse({
-      employeeId: "not-a-uuid",
-      date: "2026-03-15",
-      type: "VACATION",
+      employeeId: 'not-a-uuid',
+      date: '2026-03-15',
+      type: 'VACATION',
     });
     expect(result.success).toBe(false);
   });
 });
 
-describe("scheduleHoleSchema", () => {
-  it("should accept valid hole info", () => {
+describe('scheduleHoleSchema', () => {
+  it('should accept valid hole info', () => {
     const result = scheduleHoleSchema.safeParse({
-      date: "2026-03-15",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      shiftTypeCode: 'SURGERY',
       requiredStaff: 2,
       assignedStaff: 0,
-      reason: "No eligible employees available",
+      reason: 'No eligible employees available',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should accept assignedStaff = 0", () => {
+  it('should accept assignedStaff = 0', () => {
     const result = scheduleHoleSchema.safeParse({
-      date: "2026-03-15",
-      shiftTypeCode: "RECEPTION",
+      date: '2026-03-15',
+      shiftTypeCode: 'RECEPTION',
       requiredStaff: 3,
       assignedStaff: 0,
-      reason: "All employees on leave",
+      reason: 'All employees on leave',
     });
     expect(result.success).toBe(true);
   });
 
-  it("should reject requiredStaff = 0", () => {
+  it('should reject requiredStaff = 0', () => {
     const result = scheduleHoleSchema.safeParse({
-      date: "2026-03-15",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      shiftTypeCode: 'SURGERY',
       requiredStaff: 0,
       assignedStaff: 0,
-      reason: "No staff required",
+      reason: 'No staff required',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject empty shiftTypeCode", () => {
+  it('should reject empty shiftTypeCode', () => {
     const result = scheduleHoleSchema.safeParse({
-      date: "2026-03-15",
-      shiftTypeCode: "",
+      date: '2026-03-15',
+      shiftTypeCode: '',
       requiredStaff: 2,
       assignedStaff: 1,
-      reason: "Insufficient staff",
+      reason: 'Insufficient staff',
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject negative assignedStaff", () => {
+  it('should reject negative assignedStaff', () => {
     const result = scheduleHoleSchema.safeParse({
-      date: "2026-03-15",
-      shiftTypeCode: "SURGERY",
+      date: '2026-03-15',
+      shiftTypeCode: 'SURGERY',
       requiredStaff: 2,
       assignedStaff: -1,
-      reason: "Error",
+      reason: 'Error',
     });
     expect(result.success).toBe(false);
   });
 });
 
-describe("scheduleViewDataSchema", () => {
+describe('scheduleViewDataSchema', () => {
   const validScheduleViewData = {
-    month: "2026-03",
+    month: '2026-03',
     employees: [
       {
         id: validUuid,
-        firstName: "Alice",
-        lastName: "Martin",
-        color: "#FF5733",
-        jobType: "VETERINARIAN",
+        firstName: 'Alice',
+        lastName: 'Martin',
+        color: '#FF5733',
+        jobType: 'VETERINARIAN',
         contractHours: 35,
       },
     ],
     days: [
       {
-        date: "2026-03-02",
+        date: '2026-03-02',
         dayOfWeek: 1,
         isWorkDay: true,
         isClosed: false,
@@ -633,32 +629,32 @@ describe("scheduleViewDataSchema", () => {
     shifts: [
       {
         id: validUuid2,
-        date: "2026-03-02",
-        startTime: "08:00",
-        endTime: "16:00",
-        shiftTypeCode: "SURGERY",
+        date: '2026-03-02',
+        startTime: '08:00',
+        endTime: '16:00',
+        shiftTypeCode: 'SURGERY',
         breakMinutes: 30,
-        source: "GENERATED" as const,
+        source: 'GENERATED' as const,
         employeeId: validUuid,
         isConfirmed: false,
-        shiftTypeColor: "#4f46e5",
+        shiftTypeColor: '#4f46e5',
       },
     ],
     unavailabilities: [
       {
         employeeId: validUuid,
-        date: "2026-03-05",
-        type: "VACATION" as const,
-        reason: "Annual leave",
+        date: '2026-03-05',
+        type: 'VACATION' as const,
+        reason: 'Annual leave',
       },
     ],
     holes: [
       {
-        date: "2026-03-10",
-        shiftTypeCode: "RECEPTION",
+        date: '2026-03-10',
+        shiftTypeCode: 'RECEPTION',
         requiredStaff: 2,
         assignedStaff: 1,
-        reason: "Not enough eligible employees",
+        reason: 'Not enough eligible employees',
       },
     ],
     violations: {
@@ -666,24 +662,24 @@ describe("scheduleViewDataSchema", () => {
       soft: [
         {
           ruleId: validUuid3,
-          ruleName: "Contract compliance",
-          category: "CONTRACT_COMPLIANCE",
-          message: "Employee exceeds 35h/week",
-          severity: "warning" as const,
+          ruleName: 'Contract compliance',
+          category: 'CONTRACT_COMPLIANCE',
+          message: 'Employee exceeds 35h/week',
+          severity: 'warning' as const,
         },
       ],
     },
     templateId: validUuid3,
   };
 
-  it("should accept valid full schedule view data", () => {
+  it('should accept valid full schedule view data', () => {
     const result = scheduleViewDataSchema.safeParse(validScheduleViewData);
     expect(result.success).toBe(true);
   });
 
-  it("should accept empty arrays for all collections", () => {
+  it('should accept empty arrays for all collections', () => {
     const result = scheduleViewDataSchema.safeParse({
-      month: "2026-03",
+      month: '2026-03',
       employees: [],
       days: [],
       shifts: [],
@@ -694,25 +690,25 @@ describe("scheduleViewDataSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should accept without optional templateId", () => {
+  it('should accept without optional templateId', () => {
     const { templateId, ...withoutTemplate } = validScheduleViewData;
     const result = scheduleViewDataSchema.safeParse(withoutTemplate);
     expect(result.success).toBe(true);
   });
 
-  it("should accept hard violations with optional fields", () => {
+  it('should accept hard violations with optional fields', () => {
     const result = scheduleViewDataSchema.safeParse({
       ...validScheduleViewData,
       violations: {
         hard: [
           {
             ruleId: validUuid3,
-            ruleName: "Min 2 vets per surgery shift",
-            category: "STAFFING_MINIMUM",
-            message: "Only 1 vet assigned, minimum 2 required",
+            ruleName: 'Min 2 vets per surgery shift',
+            category: 'STAFFING_MINIMUM',
+            message: 'Only 1 vet assigned, minimum 2 required',
             affectedEmployeeId: validUuid,
-            affectedDate: "2026-03-02",
-            severity: "blocking",
+            affectedDate: '2026-03-02',
+            severity: 'blocking',
           },
         ],
         soft: [],
@@ -721,10 +717,35 @@ describe("scheduleViewDataSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should reject invalid month in view data", () => {
+  // Story 11-3 — statutory hard violations carry a synthetic (non-UUID) ruleId and a
+  // localizable messageKey/messageParams.
+  it('should accept a statutory hard violation with synthetic ruleId + messageKey', () => {
     const result = scheduleViewDataSchema.safeParse({
       ...validScheduleViewData,
-      month: "2026-13",
+      violations: {
+        hard: [
+          {
+            ruleId: 'statutory:daily_work',
+            ruleName: 'French labor-law limits',
+            category: 'CONTRACT_COMPLIANCE',
+            message: 'Statutory DAILY_WORK limit exceeded on 2026-08-03 (11 > 10)',
+            messageKey: 'violations.statutory.dailyWork',
+            messageParams: { date: '2026-08-03', actual: 11, limit: 10 },
+            affectedEmployeeId: validUuid,
+            affectedDate: '2026-08-03',
+            severity: 'blocking',
+          },
+        ],
+        soft: [],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject invalid month in view data', () => {
+    const result = scheduleViewDataSchema.safeParse({
+      ...validScheduleViewData,
+      month: '2026-13',
     });
     expect(result.success).toBe(false);
   });
@@ -736,10 +757,10 @@ describe("scheduleViewDataSchema", () => {
         hard: [
           {
             ruleId: validUuid3,
-            ruleName: "Test rule",
-            category: "STAFFING_MINIMUM",
-            message: "Test message",
-            severity: "warning",
+            ruleName: 'Test rule',
+            category: 'STAFFING_MINIMUM',
+            message: 'Test message',
+            severity: 'warning',
           },
         ],
         soft: [],
@@ -756,10 +777,10 @@ describe("scheduleViewDataSchema", () => {
         soft: [
           {
             ruleId: validUuid3,
-            ruleName: "Test rule",
-            category: "ROTATION_EQUITY",
-            message: "Test message",
-            severity: "blocking",
+            ruleName: 'Test rule',
+            category: 'ROTATION_EQUITY',
+            message: 'Test message',
+            severity: 'blocking',
           },
         ],
       },
@@ -767,7 +788,7 @@ describe("scheduleViewDataSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject missing violations object", () => {
+  it('should reject missing violations object', () => {
     const { violations, ...withoutViolations } = validScheduleViewData;
     const result = scheduleViewDataSchema.safeParse(withoutViolations);
     expect(result.success).toBe(false);
