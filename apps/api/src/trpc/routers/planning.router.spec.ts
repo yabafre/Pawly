@@ -1634,4 +1634,154 @@ describe('planningRouter', () => {
       ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     });
   });
+
+  // ─── Story 11-6 — shift-mutation cache coherence (try/finally) ─────
+  describe('Story 11-6 — shift-mutation cache coherence', () => {
+    const SHIFT_ID = '11111111-1111-4111-8111-111111111111';
+    const EMP_ID = '22222222-2222-4222-8222-222222222222';
+    const TPL_ID = '33333333-3333-4333-8333-333333333333';
+
+    const makeRedis = () => ({
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn(),
+      del: jest.fn(),
+      invalidatePattern: jest.fn(),
+      incr: jest.fn().mockResolvedValue(1),
+      isAvailable: false,
+    });
+
+    const callerWith = (redis: ReturnType<typeof makeRedis>) => {
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      return createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+    };
+
+    it('moveShift invalidates schedule caches after a successful move', async () => {
+      mockPlanningGenerationService.moveShift.mockResolvedValue({
+        id: SHIFT_ID,
+      });
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await caller.moveShift({ shiftId: SHIFT_ID, targetEmployeeId: EMP_ID });
+
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
+      );
+      expect(redis.del).toHaveBeenCalledWith('dashboard:stats:clinic-123');
+    });
+
+    it('moveShift still invalidates schedule caches when the service throws (try/finally)', async () => {
+      mockPlanningGenerationService.moveShift.mockRejectedValue(
+        new Error('recordAmendment failed'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(
+        caller.moveShift({ shiftId: SHIFT_ID, targetEmployeeId: EMP_ID }),
+      ).rejects.toThrow('recordAmendment failed');
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+      expect(redis.del).toHaveBeenCalledWith('dashboard:stats:clinic-123');
+    });
+
+    it('createManualShift still invalidates schedule caches when the service throws', async () => {
+      mockPlanningGenerationService.createManualShift.mockRejectedValue(
+        new Error('boom'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(
+        caller.createManualShift({
+          employeeId: EMP_ID,
+          date: '2026-07-10',
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+        }),
+      ).rejects.toThrow('boom');
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+    });
+
+    it('deleteShift still invalidates schedule caches when the service throws', async () => {
+      mockPlanningGenerationService.deleteShift.mockRejectedValue(
+        new Error('boom'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(caller.deleteShift({ shiftId: SHIFT_ID })).rejects.toThrow(
+        'boom',
+      );
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+    });
+
+    it('generatePlan still invalidates schedule caches when the service throws (bulk path)', async () => {
+      mockPlanningGenerationService.generateMonthlyPlan.mockRejectedValue(
+        new Error('boom'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(
+        caller.generatePlan({ month: '2026-07', templateId: TPL_ID }),
+      ).rejects.toThrow('boom');
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+    });
+
+    // Review AC3 (L-audit) — deleteGeneratedShifts is the 5th of the 5 wrapped
+    // procedures; the throw-path must be exercised for every entry point, not
+    // just 4 of 5.
+    it('deleteGeneratedShifts still invalidates schedule caches when the service throws (bulk path)', async () => {
+      mockPlanningGenerationService.deleteGeneratedShifts.mockRejectedValue(
+        new Error('boom'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(
+        caller.deleteGeneratedShifts({ month: '2026-07' }),
+      ).rejects.toThrow('boom');
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
+      );
+      expect(redis.del).toHaveBeenCalledWith('dashboard:stats:clinic-123');
+    });
+
+    it('a Redis failure during invalidation does not mask a successful mutation', async () => {
+      mockPlanningGenerationService.deleteShift.mockResolvedValue({
+        deleted: true,
+      });
+      const redis = makeRedis();
+      redis.invalidatePattern.mockRejectedValue(new Error('redis down'));
+      const caller = callerWith(redis);
+
+      await expect(caller.deleteShift({ shiftId: SHIFT_ID })).resolves.toEqual({
+        deleted: true,
+      });
+    });
+  });
 });

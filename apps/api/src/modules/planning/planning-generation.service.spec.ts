@@ -267,6 +267,15 @@ describe('PlanningGenerationService', () => {
     mockPrismaService.planningPeriodStatus.updateMany.mockResolvedValue({
       count: 0,
     });
+    // Story 11-6 — default interactive-tx mock: run the callback with the base
+    // mock as the tx client, so amendment paths (move/create/delete) exercise
+    // tx.shift.* + tx.planningPeriodStatus.updateMany against the same mocks.
+    // generateMonthlyPlan / deleteGeneratedShifts tests override this with a
+    // bespoke tx where they assert on tx.shift.deleteMany / createManyAndReturn.
+    mockPrismaService.$transaction.mockImplementation(
+      async (fn: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        fn(mockPrismaService),
+    );
   });
 
   // ─── expandTemplateToMonth ───────────────────────────────────
@@ -5043,6 +5052,276 @@ describe('PlanningGenerationService', () => {
         expect.stringContaining('1/2 change email(s) failed'),
       );
       errorSpy.mockRestore();
+    });
+  });
+
+  // ─── Story 11-6 — transactional amendment & cache coherence ───────
+  describe('Story 11-6 — transactional amendment', () => {
+    const publishedStatus = { month: '2026-07' };
+    const julyShift = {
+      id: 'shift-pub',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2026-07-10T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: true,
+    };
+
+    beforeEach(() => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@example.com',
+          user: { locale: 'en' },
+        },
+      ]);
+    });
+
+    // AC1 + AC2 — moveShift: mutation + recordAmendment share ONE transaction,
+    // notify fires AFTER commit.
+    it('moveShift wraps shift.update + recordAmendment in one $transaction and notifies after commit', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.shift.update).toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith({
+        where: { clinicId, month: { in: ['2026-07'] }, status: 'PUBLISHED' },
+        data: { amendedAt: expect.any(Date), amendmentCount: { increment: 1 } },
+      });
+      await new Promise((r) => setImmediate(r));
+      // AC2 — "each affected employee is notified exactly once": the two
+      // recipients (origin + destination) collapse to one on a same-employee,
+      // same-month move, so exactly one email fires.
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(1);
+    });
+
+    // AC1 — rollback safety: recordAmendment failing inside the tx rejects the
+    // whole call and emits NO notification.
+    it('moveShift rejects and does not notify when recordAmendment fails inside the transaction', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.planningPeriodStatus.updateMany.mockRejectedValueOnce(
+        new Error('amend failed'),
+      );
+
+      await expect(
+        service.moveShift(
+          clinicId,
+          julyShift.id,
+          { targetDate: '2026-07-20' },
+          { acknowledgePublishedChange: true },
+        ),
+      ).rejects.toThrow('amend failed');
+
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+    });
+
+    // AC1 — createManualShift wraps create + recordAmendment in one $transaction.
+    it('createManualShift wraps shift.create + recordAmendment in one $transaction', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-07-10T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId,
+      });
+
+      await service.createManualShift(clinicId, {
+        employeeId: 'emp-1',
+        date: '2026-07-10',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        acknowledgePublishedChange: true,
+      });
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.shift.create).toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalled();
+    });
+
+    // AC1 — deleteShift wraps delete + recordAmendment in one $transaction;
+    // rollback on amendment failure emits no notification.
+    it('deleteShift wraps shift.delete + recordAmendment in one $transaction and does not notify on rollback', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.shift.delete.mockResolvedValue(julyShift);
+      mockPrismaService.planningPeriodStatus.updateMany.mockRejectedValueOnce(
+        new Error('amend failed'),
+      );
+
+      await expect(
+        service.deleteShift(clinicId, julyShift.id, {
+          acknowledgePublishedChange: true,
+        }),
+      ).rejects.toThrow('amend failed');
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+    });
+
+    // Review AC2 (verbatim: "a notification-delivery failure neither fails nor
+    // blocks the change") — the three single-shift amendment paths this story
+    // rewired must survive a notify outage. The commit already succeeded, so the
+    // fire-and-forget .catch swallows the error (operation resolves, error
+    // logged) rather than surfacing to the caller.
+    const expectNotifyFailureIsSwallowed = async (
+      run: () => Promise<unknown>,
+    ): Promise<void> => {
+      mockMailService.sendScheduleChangedEmail.mockRejectedValueOnce(
+        new Error('Resend outage'),
+      );
+      const loggerError = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...a: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      await expect(run()).resolves.toBeDefined();
+
+      // Flush the post-commit fire-and-forget microtask → the .catch logs.
+      await new Promise((r) => setImmediate(r));
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('schedule-change notification failed'),
+      );
+      loggerError.mockRestore();
+    };
+
+    it('moveShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.moveShift(
+          clinicId,
+          julyShift.id,
+          { targetDate: '2026-07-20' },
+          { acknowledgePublishedChange: true },
+        ),
+      );
+    });
+
+    it('createManualShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-07-10T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-07-10',
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 0,
+          acknowledgePublishedChange: true,
+        }),
+      );
+    });
+
+    it('deleteShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.shift.delete.mockResolvedValue(julyShift);
+      mockPrismaService.planningPeriodStatus.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.deleteShift(clinicId, julyShift.id, {
+          acknowledgePublishedChange: true,
+        }),
+      );
     });
   });
 
