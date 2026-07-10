@@ -210,7 +210,7 @@ describe('PlanningGenerationService', () => {
   const mockMailService = {
     sendSchedulePublicationEmail: jest.fn(),
     sendBatchSchedulePublicationEmails: jest.fn().mockResolvedValue(0),
-    sendScheduleChangedEmail: jest.fn().mockResolvedValue(undefined),
+    sendScheduleChangedEmail: jest.fn().mockResolvedValue(true),
   };
 
   const mockPushNotificationService = {
@@ -4902,6 +4902,148 @@ describe('PlanningGenerationService', () => {
         expect.any(String),
       );
     });
+
+    // Story 11-4 (AC2): the caller reacts to a failed change notification.
+    it('error-logs an aggregate when a change email fails (does not throw)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockMailService.sendScheduleChangedEmail.mockResolvedValue(false);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
+    // Story 11-4 (AC2): "a single undeliverable recipient never prevents the
+    // other recipients from being notified" — drive notifyScheduleChange with
+    // two recipients where the first send fails; the loop must still reach the
+    // second, and the aggregate ratio counts only attempted sends.
+    it('continues the loop after a failed send so other recipients are still notified (AC2)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'en' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+      ]);
+
+      // both recipients attempted despite the first returning false
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenNthCalledWith(
+        2,
+        'bob@clinic.fr',
+        'Bob',
+        '2026-07',
+        'Clinique Test',
+        'en',
+      );
+      // ratio counts attempted sends (2), not just the failure count
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
+    // Story 11-4 (n7): the ratio denominator is attempted sends, not
+    // unique.length — a null-email recipient is skipped and must not inflate it.
+    it('excludes null-email skips from the failure-ratio denominator (n7)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'NoMail',
+          email: null,
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-3',
+          firstName: 'Cara',
+          email: 'cara@clinic.fr',
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+        { employeeId: 'emp-3', month: '2026-07' },
+      ]);
+
+      // emp-1 skipped (no email) → only 2 sends attempted, denominator is 2 (not 3)
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
   });
 
   // ─── Story 11-1 — published-change guard on bulk regeneration ──────
@@ -5834,6 +5976,37 @@ describe('PlanningGenerationService', () => {
       expect(result.totalWithShifts).toBe(0);
     });
 
+    // Story 11-4 (AC2): publishPlan reacts to the direct batch send count.
+    it('error-logs when the direct batch send reports fewer sent than eligible', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 5 },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 3 },
+        },
+      ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.publishPlan(clinicId, month, userId);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('publication email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
     it('should be idempotent — re-publishing updates timestamp', async () => {
       // First publish
       await service.publishPlan(clinicId, month, userId);
@@ -5973,24 +6146,29 @@ describe('PlanningGenerationService', () => {
         await service.publishPlan(clinicId, month, userId);
 
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
-        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
-          emails: [
-            {
-              to: 'alice@clinic.fr',
-              firstName: 'Alice',
-              shiftCount: 5,
-              locale: 'fr',
-            },
-            {
-              to: 'bob@clinic.fr',
-              firstName: 'Bob',
-              shiftCount: 3,
-              locale: 'fr',
-            },
-          ],
-          month,
-          clinicName: 'Clinique Test',
-        });
+        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith(
+          expect.objectContaining({
+            emails: [
+              {
+                to: 'alice@clinic.fr',
+                firstName: 'Alice',
+                shiftCount: 5,
+                locale: 'fr',
+              },
+              {
+                to: 'bob@clinic.fr',
+                firstName: 'Bob',
+                shiftCount: 3,
+                locale: 'fr',
+              },
+            ],
+            month,
+            clinicName: 'Clinique Test',
+            idempotencyKey: expect.stringContaining(
+              `schedule-publish/${clinicId}:${month}:`,
+            ),
+          }),
+        );
         expect(
           mockMailService.sendBatchSchedulePublicationEmails,
         ).not.toHaveBeenCalled();
