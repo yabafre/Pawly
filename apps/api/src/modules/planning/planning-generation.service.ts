@@ -300,6 +300,63 @@ export class PlanningGenerationService {
     const employeeMinutes = new Map<string, number>();
     let totalPositions = 0;
 
+    // Story 11-2 — seed the in-month surviving shifts into every counter BEFORE
+    // the loop so the generator is aware of them. Unlike border shifts (adjacent
+    // months → only weekly minutes + overlap matter), survivors are IN this month
+    // so they count toward this month's shift/type/equity/monthly-minute load too.
+    // Unconditional: 11-1's deleteMany preserves confirmed/variance shifts on
+    // DRAFT and PUBLISHED alike, so survivors can exist on any regeneration.
+    const survivingShifts = await this.loadSurvivingShiftsInMonth(
+      clinicId,
+      monthStart,
+      monthEnd,
+    );
+    for (const ss of survivingShifts) {
+      const key = `${ss.employeeId}|${ss.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(ss);
+      assignmentIndex.set(key, existing);
+
+      allShiftsForScoring.push(ss);
+
+      const netMin =
+        this.calculateShiftMinutes(ss.startTime, ss.endTime) -
+        (ss.breakMinutes || 0);
+      const weekKey = `${ss.employeeId}|${this.getWeekBounds(ss.date).start}`;
+      weeklyMinutesCounter.set(
+        weekKey,
+        (weeklyMinutesCounter.get(weekKey) || 0) + netMin,
+      );
+
+      let typeCounts = shiftTypeCounts.get(ss.employeeId);
+      if (!typeCounts) {
+        typeCounts = new Map();
+        shiftTypeCounts.set(ss.employeeId, typeCounts);
+      }
+      typeCounts.set(
+        ss.shiftTypeCode,
+        (typeCounts.get(ss.shiftTypeCode) || 0) + 1,
+      );
+
+      employeeShiftCounts.set(
+        ss.employeeId,
+        (employeeShiftCounts.get(ss.employeeId) || 0) + 1,
+      );
+
+      employeeMinutes.set(
+        ss.employeeId,
+        (employeeMinutes.get(ss.employeeId) || 0) + netMin,
+      );
+
+      const date = new Date(`${ss.date}T00:00:00.000Z`);
+      const dayOfWeek = date.getUTCDay();
+      const equity = constraints.equityMap.get(ss.employeeId);
+      if (equity) {
+        if (dayOfWeek === 6) equity.saturdayCount++;
+        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
+      }
+    }
+
     for (const slot of slots) {
       totalPositions += slot.requiredStaff;
 
