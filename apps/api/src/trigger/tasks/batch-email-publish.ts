@@ -49,50 +49,62 @@ export const batchEmailPublishTask = task({
     const webAppUrl = process.env.WEB_APP_URL ?? 'http://localhost:3000';
     const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
 
-    // Pre-render HTML per employee
-    const emailPayloads: Array<{
-      from: string;
-      to: string;
-      subject: string;
-      html: string;
-    }> = [];
-    for (const emp of emails) {
-      try {
-        const empLocale: MailLocale = emp.locale ?? 'fr';
-        const t = getMailTranslations(empLocale);
-        const html = await render(
-          createElement(SchedulePublicationEmail, {
-            firstName: emp.firstName,
-            month,
-            clinicName,
-            dashboardUrl,
-            shiftCount: emp.shiftCount,
-            locale: empLocale,
-          }),
-        );
-        emailPayloads.push({
-          from: mailFrom,
-          to: emp.to,
-          subject: t.subjects.schedulePublication(clinicName, month),
-          html,
-        });
-      } catch (err) {
-        logger.error(`Failed to render email for ${emp.to}`, {
-          error: String(err),
-        });
-      }
-    }
-
-    // Chunk into batches of 100 (Resend batch limit). Story 11-4 (AC1): each
-    // chunk carries a stable idempotency key so Trigger.dev's retries (below)
-    // re-send WITHOUT duplicating already-delivered emails — Resend returns
-    // the original response for a repeated (key, identical payload). The key
-    // is unique per chunk and per publish invocation.
+    // Chunk over the STABLE input `emails` array (Resend batch limit 100) and
+    // render per chunk. Story 11-4 (AC1): keying the idempotency key off the
+    // input chunk's ordinal position (`-cN`) — instead of the post-render
+    // payload array — anchors each chunk to the same input recipients across
+    // every retry attempt. A render failure inside a chunk therefore shrinks
+    // that one chunk's send payload but never shifts later recipients into a
+    // different chunk (which would remap their `-cN` key and risk a duplicate
+    // delivery or a Resend 409 on retry). Trigger.dev's retries (below)
+    // re-send with the SAME per-chunk key, so Resend returns the original
+    // response for an already-delivered chunk — no duplicate.
     let totalSent = 0;
-    let failedCount = 0;
-    for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
-      const chunk = emailPayloads.slice(i, i + BATCH_SIZE);
+    let sendFailedCount = 0;
+    let renderFailedCount = 0;
+    for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+      const inputChunk = emails.slice(i, i + BATCH_SIZE);
       const chunkIndex = Math.floor(i / BATCH_SIZE);
+
+      // Render this chunk. A render failure drops that single recipient — bad
+      // data is deterministic, so retrying the whole run cannot fix it — but
+      // it is counted (AC3/NFR3) so it surfaces in the failure metric below
+      // instead of silently reading as a successful publish.
+      const chunk: Array<{
+        from: string;
+        to: string;
+        subject: string;
+        html: string;
+      }> = [];
+      for (const emp of inputChunk) {
+        try {
+          const empLocale: MailLocale = emp.locale ?? 'fr';
+          const t = getMailTranslations(empLocale);
+          const html = await render(
+            createElement(SchedulePublicationEmail, {
+              firstName: emp.firstName,
+              month,
+              clinicName,
+              dashboardUrl,
+              shiftCount: emp.shiftCount,
+              locale: empLocale,
+            }),
+          );
+          chunk.push({
+            from: mailFrom,
+            to: emp.to,
+            subject: t.subjects.schedulePublication(clinicName, month),
+            html,
+          });
+        } catch (err) {
+          renderFailedCount++;
+          logger.error(`Failed to render email for ${emp.to}`, {
+            error: String(err),
+          });
+        }
+      }
+      if (chunk.length === 0) continue;
+
       const sendOptions = idempotencyKey
         ? { idempotencyKey: `${idempotencyKey}-c${chunkIndex}` }
         : undefined;
@@ -102,7 +114,7 @@ export const batchEmailPublishTask = task({
           sendOptions,
         );
         if (error) {
-          failedCount += chunk.length;
+          sendFailedCount += chunk.length;
           logger.error(`Batch email send error`, {
             error: error.message,
             chunkIndex,
@@ -111,7 +123,7 @@ export const batchEmailPublishTask = task({
           totalSent += data?.data?.length ?? chunk.length;
         }
       } catch (err) {
-        failedCount += chunk.length;
+        sendFailedCount += chunk.length;
         logger.error(`Batch email send failed for chunk ${chunkIndex + 1}`, {
           error: String(err),
         });
@@ -119,13 +131,18 @@ export const batchEmailPublishTask = task({
     }
 
     // Story 11-4 (AC3) — emit the metric so a silent notification outage is
-    // observable (mirrors batch-push-publish.ts). Emitted on every attempt; a
-    // sustained `outcome:failure` spike across the 5 retries is the alert
-    // signal. The idempotency keys above keep the retry duplicate-safe.
+    // observable (mirrors batch-push-publish.ts). NOTE `success` is a
+    // PER-ATTEMPT count: a run that throws below is fully re-executed by
+    // Trigger.dev, which re-sends the already-delivered chunks (idempotent
+    // no-ops at Resend) and re-adds their count here — so `success` can exceed
+    // the number of unique deliveries across the 5 retries. Read it as attempt
+    // volume; a sustained `outcome:failure` spike is the alert signal. The
+    // per-chunk idempotency keys keep the retry duplicate-safe.
     emailSendCounter.add(totalSent, {
       type: 'schedule_publication',
       outcome: 'success',
     });
+    const failedCount = sendFailedCount + renderFailedCount;
     if (failedCount > 0) {
       emailSendCounter.add(failedCount, {
         type: 'schedule_publication',
@@ -135,16 +152,19 @@ export const batchEmailPublishTask = task({
 
     logger.info(`Batch email publish complete`, {
       totalSent,
-      failedCount,
+      sendFailedCount,
+      renderFailedCount,
       totalEmails: emails.length,
     });
 
-    // Story 11-4 (AC1) — throw when any send failed so Trigger.dev's
-    // maxAttempts:5 retries actually run, instead of returning success
-    // unconditionally.
-    if (failedCount > 0) {
+    // Story 11-4 (AC1) — throw ONLY on send failures so Trigger.dev's
+    // maxAttempts:5 retries actually run against a transient Resend outage.
+    // Render failures are deterministic (bad data) — retrying would burn all 5
+    // attempts to no effect — so they surface in the metric/logs above but do
+    // NOT trigger a retry.
+    if (sendFailedCount > 0) {
       throw new Error(
-        `batch-email-publish: ${failedCount}/${emailPayloads.length} emails failed to send — retrying`,
+        `batch-email-publish: ${sendFailedCount}/${emails.length} emails failed to send — retrying`,
       );
     }
 
