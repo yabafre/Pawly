@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { generateSlug } from '@/common/utils/slug';
+import {
+  STATUTORY_RULE_NAME,
+  STATUTORY_RULE_CONFIG,
+} from '@/modules/planning/french-labor-law';
 import type {
   UpdateClinicNameInput,
   UpdateWorkDaysInput,
@@ -181,6 +185,34 @@ export class ClinicService {
             color: st.color,
           })),
         });
+
+        // Story 11-3 — seed the visible French labor-law statutory rule so the admin SEES it
+        // in the rules list. Enforcement NEVER depends on this row (it is hard-coded in
+        // french-labor-law.ts and applies with zero rules); this is visibility only.
+        // Idempotent: skip if a statutory rule already exists for the clinic.
+        const existingStatutory = await tx.planningRule.findFirst({
+          where: {
+            clinicId,
+            category: 'CONTRACT_COMPLIANCE',
+            name: STATUTORY_RULE_NAME,
+          },
+          select: { id: true },
+        });
+        if (!existingStatutory) {
+          await tx.planningRule.create({
+            data: {
+              clinicId,
+              name: STATUTORY_RULE_NAME,
+              description:
+                'Statutory French labor-law limits (10h/day, 13h amplitude, 35h weekly rest, max 6 consecutive days). Enforced by default and cannot be disabled.',
+              ruleType: 'HARD',
+              category: 'CONTRACT_COMPLIANCE',
+              isActive: true,
+              priority: 100,
+              config: STATUTORY_RULE_CONFIG,
+            },
+          });
+        }
 
         return { onboardingCompleted: true };
       });

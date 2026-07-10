@@ -337,6 +337,12 @@
           },
           "contractCompliance": {
             "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+          },
+          "statutory": {
+            "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
+            "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
+            "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
+            "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
           }
         }
       }
@@ -704,6 +710,12 @@
       },
       "contractCompliance": {
         "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+      },
+      "statutory": {
+        "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
+        "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
+        "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
+        "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
       }
     },
     "settings": {

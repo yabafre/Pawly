@@ -2572,6 +2572,94 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-3 — statutory French labor-law floor in eligibility ─────
+  // AC1 (verbatim from story 11-3): "Given any clinic, with or without
+  // admin-configured planning rules, When the monthly schedule is generated,
+  // Then no employee is scheduled beyond the statutory limits ... even for a
+  // clinic with zero configured rules; the generator leaves the slot unfilled
+  // (a hole) or assigns a compliant employee instead."
+  describe('Story 11-3 — statutory limits in generation eligibility', () => {
+    const zeroRuleConstraints = {
+      unavailableMap: new Map<string, Set<string>>(),
+      schoolDayMap: new Map<string, Set<string>>(),
+      hardRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      softRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    };
+
+    it('leaves a hole rather than scheduling a 7th consecutive day (zero rules)', () => {
+      // emp-1 worked Mon 2026-03-09 .. Sat 2026-03-14 — 6 consecutive days.
+      const alreadyAssigned = ['09', '10', '11', '12', '13', '14'].map((d) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${d}`,
+        startTime: '09:00',
+        endTime: '13:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        assignmentIndex.set(key, [...(assignmentIndex.get(key) || []), a]);
+      }
+      const slot = {
+        date: '2026-03-15', // Sunday — would be the 7th consecutive worked day
+        shiftTypeCode: 'SURGERY',
+        startTime: '09:00',
+        endTime: '13:00',
+        requiredStaff: 1,
+      };
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]], // only emp-1 available
+        zeroRuleConstraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // Statutory floor holds with zero configured rules → slot left as a hole.
+      expect(result.assigned.length).toBe(0);
+    });
+
+    it('leaves a hole for a slot whose net worked time exceeds 10h/day (zero rules)', () => {
+      // A single 08:00-19:00 slot with no break = 11h net > 10h — no employee can
+      // fill it compliantly, so the slot stays a hole even with zero configured rules.
+      const slot = {
+        date: '2026-03-10',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '19:00', // 11h net
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        zeroRuleConstraints,
+        [],
+        new Map<string, any[]>(),
+        new Map(),
+      );
+
+      expect(result.assigned.length).toBe(0);
+    });
+  });
+
   // ─── Priority effect on scoring ──────────────────────────────
 
   describe('priority effect on SOFT rule scoring', () => {
@@ -4407,6 +4495,43 @@ describe('PlanningGenerationService', () => {
         }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    // AC2 (verbatim from story 11-3): "When an admin manually adds a shift ... such that
+    // an employee would exceed a statutory limit, Then the action is blocked — the add is
+    // rejected with a conflict error".
+    it('throws ConflictException when the new shift pushes the day over 10h net (statutory)', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-late',
+        code: 'SURGERY',
+        startTime: '17:00',
+        endTime: '20:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      // Existing 08:00-16:00 (8h) + candidate 17:00-20:00 (3h) = 11h net > 10h. The same
+      // mock feeds the overlap query (no overlap) and the statutory window query.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'ex-day',
+          date: new Date('2026-03-10T00:00:00.000Z'),
+          startTime: '08:00',
+          endTime: '16:00',
+          breakMinutes: 0,
+          employeeId: 'emp-1',
+          clinicId,
+        },
+      ]);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-03-10',
+          shiftTypeCode: 'SURGERY',
+          startTime: '17:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   // ─── deleteShift ─────────────────────────────────────────────────
@@ -5215,6 +5340,36 @@ describe('PlanningGenerationService', () => {
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
         expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
+      );
+    });
+
+    // AC2 (verbatim from story 11-3): "the move surfaces a blocking (hard) conflict in the
+    // drag interface" when an employee would exceed a statutory limit.
+    it('returns a HARD CONTRACT_COMPLIANCE violation when the move creates a 7th consecutive day (statutory)', async () => {
+      // emp-2 already worked 2025-03-01..03-06 (6 consecutive days). Moving the shift onto
+      // 2025-03-07 (a Friday work day) makes a 7th consecutive worked day.
+      const consec = ['01', '02', '03', '04', '05', '06'].map((d) => ({
+        id: `s-${d}`,
+        date: new Date(`2025-03-${d}T00:00:00.000Z`),
+        startTime: '09:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        employeeId: 'emp-2',
+        clinicId,
+      }));
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts — no overlap
+        .mockResolvedValueOnce([]) // weekShifts
+        .mockResolvedValueOnce(consec); // monthShifts — statutory window
+
+      const result = await service.preValidateMove(clinicId, {
+        ...defaultInput,
+        targetDate: '2025-03-07',
+      });
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
       );
     });
 

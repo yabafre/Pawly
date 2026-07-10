@@ -120,7 +120,12 @@ export function ScheduleViewWrapper({ month }: Props) {
       if (v.affectedEmployeeId && v.affectedDate) {
         const key = `${v.affectedEmployeeId}|${v.affectedDate}`;
         const arr = map.get(key) || [];
-        arr.push({ message: v.message, severity: 'blocking' });
+        arr.push({
+          message: v.message,
+          messageKey: v.messageKey,
+          messageParams: v.messageParams,
+          severity: 'blocking',
+        });
         map.set(key, arr);
       }
     }

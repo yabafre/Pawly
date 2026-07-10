@@ -337,6 +337,12 @@
           },
           "contractCompliance": {
             "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+          },
+          "statutory": {
+            "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+            "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+            "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+            "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
           }
         }
       }
@@ -704,6 +710,12 @@
       },
       "contractCompliance": {
         "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+      },
+      "statutory": {
+        "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+        "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+        "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+        "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
       }
     },
     "settings": {
