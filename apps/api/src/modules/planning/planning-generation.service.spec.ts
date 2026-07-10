@@ -2572,6 +2572,94 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-3 — statutory French labor-law floor in eligibility ─────
+  // AC1 (verbatim from story 11-3): "Given any clinic, with or without
+  // admin-configured planning rules, When the monthly schedule is generated,
+  // Then no employee is scheduled beyond the statutory limits ... even for a
+  // clinic with zero configured rules; the generator leaves the slot unfilled
+  // (a hole) or assigns a compliant employee instead."
+  describe('Story 11-3 — statutory limits in generation eligibility', () => {
+    const zeroRuleConstraints = {
+      unavailableMap: new Map<string, Set<string>>(),
+      schoolDayMap: new Map<string, Set<string>>(),
+      hardRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      softRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    };
+
+    it('leaves a hole rather than scheduling a 7th consecutive day (zero rules)', () => {
+      // emp-1 worked Mon 2026-03-09 .. Sat 2026-03-14 — 6 consecutive days.
+      const alreadyAssigned = ['09', '10', '11', '12', '13', '14'].map((d) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${d}`,
+        startTime: '09:00',
+        endTime: '13:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        assignmentIndex.set(key, [...(assignmentIndex.get(key) || []), a]);
+      }
+      const slot = {
+        date: '2026-03-15', // Sunday — would be the 7th consecutive worked day
+        shiftTypeCode: 'SURGERY',
+        startTime: '09:00',
+        endTime: '13:00',
+        requiredStaff: 1,
+      };
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]], // only emp-1 available
+        zeroRuleConstraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+
+      // Statutory floor holds with zero configured rules → slot left as a hole.
+      expect(result.assigned.length).toBe(0);
+    });
+
+    it('leaves a hole for a slot whose net worked time exceeds 10h/day (zero rules)', () => {
+      // A single 08:00-19:00 slot with no break = 11h net > 10h — no employee can
+      // fill it compliantly, so the slot stays a hole even with zero configured rules.
+      const slot = {
+        date: '2026-03-10',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '19:00', // 11h net
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        zeroRuleConstraints,
+        [],
+        new Map<string, any[]>(),
+        new Map(),
+      );
+
+      expect(result.assigned.length).toBe(0);
+    });
+  });
+
   // ─── Priority effect on scoring ──────────────────────────────
 
   describe('priority effect on SOFT rule scoring', () => {

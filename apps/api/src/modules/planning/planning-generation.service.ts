@@ -16,6 +16,7 @@ import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
+import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type {
@@ -1021,6 +1022,36 @@ export class PlanningGenerationService {
             if (rest < minRestMin) return false;
           }
         }
+      }
+
+      // Story 11-3 — French labor-law HARD limits (non-disableable, independent of DB
+      // rules). Reject any candidate whose assignment would newly breach 10h/day worked,
+      // 13h amplitude, a 7th consecutive worked day, or the 35h weekly rest. Window =
+      // this employee's already-assigned shifts within +/-8 days of the slot (covers the
+      // ISO week and any run/rest that straddles a week boundary).
+      {
+        const statutoryWindow: StatutoryShift[] = [];
+        let cursor = this.getPreviousDate(slot.date);
+        for (let i = 0; i < 8; i++) {
+          statutoryWindow.push(
+            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+          );
+          cursor = this.getPreviousDate(cursor);
+        }
+        cursor = slot.date;
+        for (let i = 0; i < 9; i++) {
+          statutoryWindow.push(
+            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+          );
+          cursor = this.getNextDate(cursor);
+        }
+        const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          breakMinutes: slot.breakMinutes,
+        });
+        if (statutoryBreach.length > 0) return false;
       }
 
       if (blockedByRotationEquity) {
