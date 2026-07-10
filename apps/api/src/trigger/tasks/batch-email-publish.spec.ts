@@ -203,4 +203,41 @@ describe('batchEmailPublishTask.run — Story 11-4 reliable publication', () => 
       outcome: 'failure',
     });
   });
+
+  it('anchors each chunk key to input position even when an early recipient fails to render (m4 regression guard)', async () => {
+    // 101 recipients; the FIRST (input index 0, in chunk 0) fails to render.
+    // Chunking over the STABLE input array keeps input index 100 in chunk 1
+    // (key -c1). Were chunking to regress to the post-render payload array,
+    // the 100 successfully-rendered payloads would collapse into a single
+    // -c0 chunk and input index 100 would be mis-keyed under -c0 — so this
+    // test fails on the old chunking and passes only on the fix.
+    renderMock.mockRejectedValueOnce(new Error('bad props'));
+    batchSend.mockImplementation((chunk: unknown[]) =>
+      Promise.resolve({
+        data: { data: chunk.map((_, i) => ({ id: `id-${i}` })) },
+        error: null,
+      }),
+    );
+    const emails = Array.from({ length: 101 }, (_, i) => ({
+      to: `e${i}@clinic.fr`,
+      firstName: `F${i}`,
+      shiftCount: 1,
+      locale: 'fr' as const,
+    }));
+
+    const result = await runTask({ ...basePayload, emails });
+
+    expect(batchSend).toHaveBeenCalledTimes(2);
+    expect(batchSend).toHaveBeenNthCalledWith(1, expect.any(Array), {
+      idempotencyKey: 'schedule-publish/clinic123:2026-07:1700000000000-c0',
+    });
+    // chunk 0 = 100 inputs − 1 render failure = 99 sent under -c0
+    expect(batchSend.mock.calls[0][0]).toHaveLength(99);
+    expect(batchSend).toHaveBeenNthCalledWith(2, expect.any(Array), {
+      idempotencyKey: 'schedule-publish/clinic123:2026-07:1700000000000-c1',
+    });
+    // input index 100 stays anchored to chunk 1 despite the earlier drop
+    expect(batchSend.mock.calls[1][0]).toHaveLength(1);
+    expect(result).toEqual({ sent: 100 });
+  });
 });
