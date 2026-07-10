@@ -2012,15 +2012,30 @@ export class PlanningGenerationService {
     ]);
     const byId = new Map(employees.map((e) => [e.id, e]));
 
+    let attemptedEmailCount = 0;
+    let failedEmailCount = 0;
     for (const r of unique) {
       const emp = byId.get(r.employeeId);
       if (!emp || !emp.email) continue;
-      await this.mailService.sendScheduleChangedEmail(
+      attemptedEmailCount++;
+      // Story 11-4 (AC2) — react to the returned status. sendScheduleChangedEmail
+      // now returns false (not throws) when both channels fail, so a change
+      // notification outage is visible in the logs (NFR3) instead of silently
+      // dropped, and one bad recipient never aborts the loop.
+      const ok = await this.mailService.sendScheduleChangedEmail(
         emp.email,
         emp.firstName,
         r.month,
         clinic.name,
         (emp.user?.locale as 'fr' | 'en') ?? 'fr',
+      );
+      if (!ok) failedEmailCount++;
+    }
+    if (failedEmailCount > 0) {
+      // Denominator is emails actually attempted (skips null-email recipients),
+      // not `unique.length`, so the ratio reflects real send attempts.
+      this.logger.error(
+        `notifyScheduleChange: ${failedEmailCount}/${attemptedEmailCount} change email(s) failed for clinic ${clinicId}`,
       );
     }
 
@@ -2779,21 +2794,36 @@ export class PlanningGenerationService {
       }));
 
       if (useTrigger) {
-        // Async via Trigger.dev — fire-and-forget
+        // Async via Trigger.dev — fire-and-forget. Story 11-4 (AC1): pass a
+        // stable idempotency-key seed (unique per publish via `now`, the
+        // publishedAt timestamp) so the task's retries never duplicate an
+        // already-delivered email.
         batchEmailPublishTask
-          .trigger({ emails: emailPayloads, month, clinicName: clinic.name })
+          .trigger({
+            emails: emailPayloads,
+            month,
+            clinicName: clinic.name,
+            idempotencyKey: `schedule-publish/${clinicId}:${month}:${now.getTime()}`,
+          })
           .catch((err: Error) =>
             this.logger.error(
               `Trigger batch-email-publish failed: ${err.message}`,
             ),
           );
       } else {
-        // Direct send (fallback)
-        await this.mailService.sendBatchSchedulePublicationEmails(
-          emailPayloads,
-          month,
-          clinic.name,
-        );
+        // Direct send (fallback). Story 11-4 (AC2): react to the returned count
+        // so a partial/total publication-email failure is visible (NFR3).
+        const notified =
+          await this.mailService.sendBatchSchedulePublicationEmails(
+            emailPayloads,
+            month,
+            clinic.name,
+          );
+        if (notified < emailPayloads.length) {
+          this.logger.error(
+            `publishPlan: ${emailPayloads.length - notified}/${emailPayloads.length} publication email(s) failed for clinic ${clinicId}, month ${month}`,
+          );
+        }
       }
     }
 
