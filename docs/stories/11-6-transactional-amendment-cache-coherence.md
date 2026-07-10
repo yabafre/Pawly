@@ -1,7 +1,7 @@
 # Story: 11-6-transactional-amendment-cache-coherence — Transactional Amendment Flow & Cache Coherence
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-123-11-6-transactional-amendment-cache-coherence
 **Ticket:** KON-123 (Linear · project Pawly · milestone Epic 11 · blocked-by KON-118)
 **Origin:** Multi-agent planning audit 2026-07-08 — reliability gap (MAJOR): the amendment flow is non-transactional (`shift.update`/`create`/`delete` → `recordAmendment` → `notify` run outside a transaction) and the router throws before Redis invalidation, leaving `schedule:*` stale. See `docs/epics-context/epic-11-context.md` § 0 (11-6 line) and § 4 anchor map.
@@ -28,7 +28,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: [RED] Add the transactional-amendment service specs + default `$transaction` passthrough mock** [AC: 1, 2]
+- [x] **Task 1: [RED] Add the transactional-amendment service specs + default `$transaction` passthrough mock** [AC: 1, 2]
 
   **1a.** In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add a default interactive-transaction mock to the **top-level** `beforeEach`. Anchor on the existing default (near the end of the `beforeEach`, lines ~266–269):
   ```ts
@@ -228,7 +228,7 @@
   Expected: **RED** — the three `expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1)` assertions fail (`Expected 1, Received 0`) because the amendment paths do not yet use `$transaction`. All pre-existing tests in the file stay green.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-123): pin transactional amendment contract for move/create/delete (RED)"`
 
-- [ ] **Task 2: [GREEN] Thread the amendment writes through a single interactive `$transaction`** [AC: 1, 2, 5]
+- [x] **Task 2: [GREEN] Thread the amendment writes through a single interactive `$transaction`** [AC: 1, 2, 5]
 
   All edits are in `apps/api/src/modules/planning/planning-generation.service.ts`.
 
@@ -476,7 +476,7 @@
   Typecheck: `pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json` → exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "fix(KON-123): commit shift mutation + recordAmendment in one transaction (GREEN)"`
 
-- [ ] **Task 3: [RED] Add router specs proving cache invalidation survives a handler throw** [AC: 3, 4]
+- [x] **Task 3: [RED] Add router specs proving cache invalidation survives a handler throw** [AC: 3, 4]
 
   In `apps/api/src/trpc/routers/planning.router.spec.ts`, add a new `describe` block. Insert it immediately **before** the final closing `});` of the top-level `describe('planningRouter', …)` (i.e. as the last nested block in the file):
   ```ts
@@ -611,7 +611,7 @@
   Expected: **RED** — the four "still invalidates … when the service throws" tests fail (the current handler runs invalidation *after* the service call, so on a throw `redis.invalidatePattern` is never called), and "a Redis failure … does not mask" fails (the un-guarded `await redis.invalidatePattern` currently rejects into the caller). The two success-path assertions pass.
   Commit: `git add apps/api/src/trpc/routers/planning.router.spec.ts && git commit -m "test(KON-123): pin try/finally cache invalidation on shift mutations (RED)"`
 
-- [ ] **Task 4: [GREEN] Add the `invalidateScheduleCaches` helper + `try/finally` on all 5 shift-mutation procedures** [AC: 3, 4]
+- [x] **Task 4: [GREEN] Add the `invalidateScheduleCaches` helper + `try/finally` on all 5 shift-mutation procedures** [AC: 3, 4]
 
   All edits are in `apps/api/src/trpc/routers/planning.router.ts`.
 
@@ -849,7 +849,7 @@
   Typecheck: `pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json` → exit 0.
   Commit: `git add apps/api/src/trpc/routers/planning.router.ts && git commit -m "fix(KON-123): invalidate schedule caches in try/finally on shift mutations (GREEN)"`
 
-- [ ] **Task 5: [GATE] Full API suite + typecheck, then final commit** [AC: 1, 2, 3, 4, 5]
+- [x] **Task 5: [GATE] Full API suite + typecheck, then final commit** [AC: 1, 2, 3, 4, 5]
 
   Run the whole API test suite and the type declaration pass (per **L5** — the `tsconfig.types.json` step is load-bearing for `@pawly/api/trpc-types`):
   ```bash
@@ -939,14 +939,64 @@ Called from **5 sites**: `generateMonthlyPlan` (~585, bulk, post-`$transaction`)
 
 ## Dev Agent Record
 
-- **Model:**
-- **Started:**
-- **Completed:**
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-10
+- **Completed:** 2026-07-10T13:38:57Z
 
 ### Summary
 
+Applied the `confirmPresence` transactional pattern (epic-context invariant #5) to the
+three amendment paths and hardened cache invalidation on all five shift-mutation
+procedures — exactly per the story blueprint, no scope drift.
+
+- **Service (`planning-generation.service.ts`):** `recordAmendment` now takes the active
+  `Prisma.TransactionClient`. `moveShift` / `createManualShift` / `deleteShift` wrap their
+  shift mutation + `recordAmendment` in one interactive `this.prisma.$transaction`, so a
+  failing amendment rolls the mutation back; `notifyScheduleChange` moved AFTER commit
+  (fire-and-forget), so a rolled-back change never notifies. The two bulk callers
+  (`generateMonthlyPlan`, `deleteGeneratedShifts`) pass `this.prisma` — 11-1 semantics
+  unchanged. PUBLISHED re-check stays outside the tx (11-5's scope, as locked).
+- **Router (`planning.router.ts`):** added `invalidateScheduleCaches(redis, clinicId)` (a
+  swallow-and-log helper) and wrapped all 5 mutation procedures in `try { return await … }
+  finally { invalidateScheduleCaches(…) }`, so `schedule:*` / `planning:pub:*` /
+  `dashboard:stats` are invalidated even when the handler throws, and a Redis outage during
+  invalidation never masks the handler result (AC4 self-heal within the 30s TTL).
+
 ### Files changed
+
+- `apps/api/src/modules/planning/planning-generation.service.ts` — `Prisma` import;
+  `recordAmendment(tx, …)`; move/create/delete wrapped in `$transaction`; 2 bulk callers → `this.prisma`.
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — default `$transaction`
+  passthrough mock; `Story 11-6 — transactional amendment` describe (4 tests).
+- `apps/api/src/trpc/routers/planning.router.ts` — `Logger` import; `invalidateScheduleCaches`
+  helper; `try/finally` on the 5 shift-mutation procedures.
+- `apps/api/src/trpc/routers/planning.router.spec.ts` — `Story 11-6 — shift-mutation cache
+  coherence` describe (6 tests).
 
 ### Deviations
 
+- **None to the implementation.** All find/replace anchors matched the branch verbatim (re-located
+  each symbol first, per the story warning); `recordAmendment` left exactly 2 bulk call-sites as required.
+- **Pre-existing typecheck debt surfaced (out of scope, NOT introduced here).** The story's Task 2/5
+  ask for `tsc --noEmit -p tsconfig.json` → exit 0. On a fresh worktree this pass reports **24
+  pre-existing errors** in four unrelated spec files — `clinic.service.spec.ts`,
+  `employee.service.spec.ts`, `planning.service.spec.ts`, `variance.service.spec.ts` (validator
+  page/pageSize/locale + `EquityCounterType` enum mismatches). Proven pre-existing: cold `tsc`
+  with vs. without this story's edits yields **byte-identical** error sets (`diff` → identical);
+  **zero** errors in any of this story's four files. These were never gated — SWC build does no
+  typecheck, jest runs `isolatedModules`, and the deploy declaration pass `tsc -p tsconfig.types.json`
+  only includes `src/trpc-types.ts` (which passes clean, exit 0, with these changes). Left untouched
+  to respect the story's File List; flagged for the Lead to route to a separate cleanup story.
+- **Worktree bootstrap:** fresh worktree needed `pnpm install`, `@pawly/{validators,types}` dist
+  build, and `prisma generate` before tests/typecheck ran (expected per epic-11 dev gotchas + L5).
+
 ### Test output
+
+- **Task 1 RED:** `planning-generation.service.spec` → 3 failed (the three
+  `$transaction toHaveBeenCalledTimes(1)`, Expected 1 / Received 0), 147 passed.
+- **Task 2 GREEN:** `planning-generation.service.spec` → **150 passed / 150**.
+- **Task 3 RED:** `planning.router.spec` → 5 failed (4× throw-invalidation + Redis-mask), 79 passed.
+- **Task 4 GREEN:** `planning.router.spec` → **84 passed / 84**.
+- **Task 5 GATE:** full API suite → **33 suites, 901 tests passed, exit 0** (baseline 870 + Epic-11
+  additions incl. the 10 new here). Deploy typecheck `tsc -p tsconfig.types.json` → **exit 0**.
+  Full `tsc -p tsconfig.json` → 24 pre-existing errors (see Deviations); none in story files.
