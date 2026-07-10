@@ -1070,11 +1070,30 @@ test-coverage / test-rigor only — no functional defect.
 - Test output (final pass): `Tests: 238 passed, 238 total` (was 234; +4), exit 0.
 - Typecheck: `tsc -p tsconfig.types.json` → exit 0 (0 errors); full `tsc -p tsconfig.json` → 24
   pre-existing errors, all in unrelated spec files, 0 in this story's 4 files.
-- Visual verification: n/a — backend-only surface, no preview app.
+- Visual verification: done via the L2 live-journey below (backend-only surface; the schedule
+  grid was driven headed with `next-browser`).
+
+### L2 live-journey verification (real stack — 2026-07-10)
+Ran the story's called-for real-journey against the **worktree API** (11-6 code on `:3001`) with
+the `develop` web app (`:3020`, unchanged by 11-6) and a real Neon DB + Upstash Redis. Fixture:
+_Clinique Zen Dev_, published July 2026, a confirmed MANUAL shift moved `2026-07-13 → 2026-07-18`.
+The dnd-kit gesture (unchanged web plumbing) was driven at the API layer via authenticated tRPC;
+the fresh result was confirmed headed in `next-browser`.
+
+- **Cache invalidation on the throw-path (the `try/finally`, the story's core):** `schedule:*`
+  PRESENT → `moveShift` **without ack** throws `PUBLISHED_CHANGE_REQUIRES_ACK` → `schedule:*`
+  **EMPTY**. Directly exercises what 11-6 added — pre-11-6 the invalidation ran *after* the
+  service call, so a throw skipped it and left a stale cache.
+- **Cache invalidation on the success-path:** `moveShift` **with ack** → success → `schedule:*`
+  **EMPTY**, then a re-read returns fresh (HTTP 200).
+- **Atomic mutation + amendment (AC1):** DB after — `PlanningPeriodStatus.amendmentCount` 0 → **1**
+  with `amendedAt` set, in lockstep with `shift.date` 07-13 → 07-18 → `shift.update` +
+  `recordAmendment` committed in a single interactive `$transaction`.
+- **Confirmation cleared (AC5):** moved shift `isConfirmed` true → **false**.
+- **Cache coherence (AC5), visual:** reloaded schedule grid showed 07-13 empty, the shift on
+  07-18, and the Health Bar badge "Modifié 1 fois — dernière le 10/07/2026" — no stale copy.
+- Fixture fully restored afterward (shift back to 07-13 confirmed, `amendmentCount` reset to 0).
 
 ### Follow-ups (not blocking)
-- L2 real-DB atomicity verification (mid-transaction failure leaves no shift moved without an
-  amendment row) — the story's own called-for check; unit-level contract is proven, real-DB is
-  the residual confidence gap.
 - Optional perf: avoid cache invalidation on the `PUBLISHED_CHANGE_REQUIRES_ACK` conflict path,
   or migrate `invalidatePattern` off Redis `KEYS` to `SCAN`.
