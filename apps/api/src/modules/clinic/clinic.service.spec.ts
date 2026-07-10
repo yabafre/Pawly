@@ -3,6 +3,7 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { ClinicService } from './clinic.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { WorkDay } from '@pawly/validators';
+import { STATUTORY_RULE_NAME } from '@/modules/planning/french-labor-law';
 
 jest.mock('@/common/utils/slug', () => ({
   generateSlug: jest.fn(
@@ -34,6 +35,10 @@ describe('ClinicService', () => {
     clinicSpecialDay: {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
+    },
+    planningRule: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -407,6 +412,7 @@ describe('ClinicService', () => {
       ] as WorkDay[],
       defaultStartTime: '08:00',
       defaultEndTime: '18:00',
+      is24_7: false,
       shiftTypes: [
         {
           name: 'Morning',
@@ -610,6 +616,51 @@ describe('ClinicService', () => {
       await expect(
         service.completeOnboarding(clinicId, onboardingData),
       ).rejects.toThrow('Database connection lost');
+    });
+
+    // AC4 (verbatim from story 11-3): "When onboarding finishes, Then a visible,
+    // non-disableable 'French labor-law limits' rule appears in the clinic's planning rules".
+    const primeOnboardingMocks = () => {
+      mockPrismaService.clinic.findUnique.mockResolvedValue({ id: clinicId });
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => cb(mockPrismaService),
+      );
+      mockPrismaService.clinic.update.mockResolvedValue({});
+      mockPrismaService.clinicConfig.upsert.mockResolvedValue({});
+      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({
+        count: 2,
+      });
+    };
+
+    it('seeds the visible French labor-law statutory rule as a HARD rule', async () => {
+      primeOnboardingMocks();
+      mockPrismaService.planningRule.findFirst.mockResolvedValue(null); // none yet
+
+      await service.completeOnboarding(clinicId, onboardingData);
+
+      expect(mockPrismaService.planningRule.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          clinicId,
+          name: STATUTORY_RULE_NAME,
+          ruleType: 'HARD',
+          category: 'CONTRACT_COMPLIANCE',
+          isActive: true,
+        }),
+      });
+    });
+
+    it('does not seed a duplicate statutory rule (idempotent)', async () => {
+      primeOnboardingMocks();
+      mockPrismaService.planningRule.findFirst.mockResolvedValue({
+        id: 'existing-statutory',
+      });
+
+      await service.completeOnboarding(clinicId, onboardingData);
+
+      expect(mockPrismaService.planningRule.create).not.toHaveBeenCalled();
     });
   });
 
