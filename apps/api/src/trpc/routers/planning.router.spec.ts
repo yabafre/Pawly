@@ -1749,6 +1749,28 @@ describe('planningRouter', () => {
       );
     });
 
+    // Review AC3 (L-audit) — deleteGeneratedShifts is the 5th of the 5 wrapped
+    // procedures; the throw-path must be exercised for every entry point, not
+    // just 4 of 5.
+    it('deleteGeneratedShifts still invalidates schedule caches when the service throws (bulk path)', async () => {
+      mockPlanningGenerationService.deleteGeneratedShifts.mockRejectedValue(
+        new Error('boom'),
+      );
+      const redis = makeRedis();
+      const caller = callerWith(redis);
+
+      await expect(
+        caller.deleteGeneratedShifts({ month: '2026-07' }),
+      ).rejects.toThrow('boom');
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'schedule:clinic-123:*',
+      );
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
+      );
+      expect(redis.del).toHaveBeenCalledWith('dashboard:stats:clinic-123');
+    });
+
     it('a Redis failure during invalidation does not mask a successful mutation', async () => {
       mockPlanningGenerationService.deleteShift.mockResolvedValue({
         deleted: true,
