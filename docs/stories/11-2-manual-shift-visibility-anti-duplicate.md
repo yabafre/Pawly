@@ -766,30 +766,31 @@ runtime `P2002`-under-retry net is Story 11-5's scope).
   seeding path (self-acknowledged gap in Dev Notes → Testing). [`planning-generation.service.spec.ts`]
   - Source: Spec.
   - Resolution: commit `e40d897`. Added a `generateMonthlyPlan`-level test seeding a survivor that consumes a HARD `maxMonthlyHours: 4` cap and asserting the sole employee gets no further assignment (`created … length 0`) with visible holes — flowing through `loadSurvivingShiftsInMonth` → `employeeMinutes` seeding → the real HARD-rule eligibility check (`:943-949`), not a hand-fed `scoreAndAssign`. Spec re-rates AC1 IMPLEMENTED.
+- [INFO→fixed] `stats.filledSlots` counted generated rows only, so a position covered by a
+  surviving shift was neither filled nor a hole and the fill % read low. [`planning-generation.service.ts` buildResult]
+  - Source: Spec, Edge (originally self-flagged "do not fix" in Dev Notes; fixed on user request "fix tout").
+  - Resolution: commit `c2e0fae`. Track `survivorCoveredPositions` across the slot loop and set `filledSlots = generatedRows + survivorCoveredPositions`, so the accounting identity `filled ≤ total` holds and the health % is accurate. New test asserts `filledSlots === generated + survivorCovered` (RED→GREEN: was 9, now 10 for the 2-position/1-survivor case).
+- [LOW→fixed] No explicit test for two template slots sharing `(date, shiftTypeCode)` with one
+  shared overlapping survivor (consumed-once path). [`planning-generation.service.spec.ts`]
+  - Source: Code (re-verification).
+  - Resolution: commit `c2e0fae`. Added a test with two `requiredStaff:1` SURGERY slots on the same day + one overlapping survivor, asserting exactly one position is generated (survivor consumed once, the other position still filled by emp-2). Green — locks the behaviour against regression.
 
-#### Dismissed
+#### Dismissed (not code-fixable without introducing a regression)
 
 - [MINOR] AC3 coverage is credited to survivors of inactive employees (`employees` is loaded
-  `isActive:true`, survivors are not). [`planning-generation.service.ts:364-370`]
-  - Source: Edge (classified info).
-  - Rationale: semantically correct — an inactive employee's surviving MANUAL/confirmed shift physically survives the regeneration deletion, so the position is genuinely staffed and should reduce demand. No silent gap results.
+  `isActive:true`, survivors are not). [`planning-generation.service.ts` coverage build]
+  - Source: Edge (auditor's own recommendation: "Suggested fix: none required").
+  - Rationale: **not a defect, and "fixing" it would regress AC3.** An inactive employee's surviving MANUAL/confirmed shift physically remains on the schedule after regeneration, so the position IS staffed. Excluding it from coverage would make the generator add a *second* shift to an already-covered slot → over-staffing, the exact thing AC3 forbids. Whether a deactivated employee's future shifts should be reassigned is a separate data-hygiene concern, out of scope for 11-2.
 - [MINOR] Task-6 commit message drift (`docs(KON-119): dev record + flip story 11-2 to review`
   vs the story's specified `…mark story ready-for-dev bookkeeping`).
   - Source: Spec.
-  - Rationale: cosmetic; no functional impact on code or history integrity.
-- [INFO] `stats.totalSlots` (full demand) vs `stats.filledSlots` (generated rows only) can
-  read the fill % slightly low when a slot is covered by a surviving manual shift.
-  - Source: Spec, Edge.
-  - Rationale: explicitly self-flagged "do not fix" in Dev Notes → Architecture; `holes`/`violations`/absence-of-double-booking are all correct. Counting manual coverage into `filledSlots` is out of scope for 11-2.
-- [LOW] No explicit test for two distinct template slots sharing `(date, shiftTypeCode)` with
-  one shared overlapping survivor (consumed-once path). [`planning-generation.service.ts:404-428`]
-  - Source: Code (re-verification, confidence ~30).
-  - Rationale: structurally proven correct by trace (the `consumed` flag mutates the shared bucket entry in place; MRV re-validates overlap + jobType per slot regardless of order). Low value vs. the three shipped pins; deferred.
+  - Rationale: the commit is already pushed (PR #95 open on this branch); rewriting it needs a history rewrite + force-push. The actual message accurately describes what that commit did. Cosmetic drift only — not worth rewriting shared history.
 
 ### Verification
 
 - Test command: `pnpm --filter @pawly/api test` (root `pnpm test` broken by the `rtk` turbo shim).
-- Test output (final pass): Story 11-2 suite **6 passed** (3 original + 2 BLOCKER pins + 1 AC1 hour-cap); full API **Test Suites 32 passed, Tests 868 passed**.
+- Test output (final pass): Story 11-2 suite **8 passed** (3 original + 2 BLOCKER pins + 1 AC1 hour-cap + 1 filledSlots-metric + 1 consumed-once); full API **Test Suites 32 passed, Tests 870 passed**.
+- Fix commits: `e40d897` (BLOCKER coverage gating + AC1 test), `c2e0fae` (filledSlots metric + consumed-once test).
 - Build: `pnpm --filter @pawly/api build` → `nest build` (SWC 141 files) + `tsc -p tsconfig.types.json`, green. `prisma validate` → schema valid.
 - Live E2E (Chrome DevTools, headed): admin regenerated a **PUBLISHED** month (Clinique Simulation E2E, 2026-07) holding **4 survivors** (2 MANUAL, 2 GENERATED-with-variance) via the real UI. The Story 11-1 published-change guard fired its acknowledgement dialog ("Planning publié — confirmer la modification"); the Story 11-2 path then ran end-to-end through the real NestJS+Prisma stack. DB assertions post-regen: survivors preserved **4/4**, employee double-bookings **0**, exact `(employeeId, date, startTime)` duplicates **0**; health went 96% (1 hole) → 100% (0 violations), amendment count incremented. Confirms AC1 (no double-booking of a surviving overlap) and AC2 (`@@unique` holds) in the running app, not just under mocked Jest.
 
