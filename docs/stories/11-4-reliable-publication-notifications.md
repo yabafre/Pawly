@@ -908,8 +908,14 @@ Resend idempotency key (so a retry re-delivers only the genuinely-failed chunks 
 duplicates), the two singular mail methods fall back to a direct Resend send and return a
 boolean instead of throwing, and both callers (`notifyScheduleChange`, `publishPlan`) react
 to that status and error-log an aggregate on partial/total failure. `emailSendCounter` is
-emitted on every path (AC3). Scope held exactly to plan; `tsc` surfaced only the
-pre-existing `@pawly/*`-dist / spec-fixture noise once the shared packages were rebuilt.
+emitted on the **batch-task** and **direct-fallback** paths (AC3). It is **not** emitted on
+the Trigger-worker single-send path (`send-email.ts`), which `sendScheduleChangedEmail` /
+`sendSchedulePublicationEmail` route to when the Trigger dispatch *succeeds* — that task has
+its own `maxAttempts:3` retry (failures are visible in the Trigger.dev dashboard) but does
+not call `emailSendCounter`. Instrumenting it is a **follow-up** (out of scope: it would
+force choosing a metric `type` string, and "normalising the `type` attribute across email
+metric paths" is a documented Non-Goal of this story). `tsc` surfaced only the pre-existing
+`@pawly/*`-dist / spec-fixture noise once the shared packages were rebuilt.
 
 ### Files changed
 
