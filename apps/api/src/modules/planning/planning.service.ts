@@ -25,12 +25,21 @@ import {
 } from '@pawly/validators';
 import type { EquityContext } from '@pawly/validators';
 import type { CounterWithEmployee } from './equity-counter.service';
+import {
+  findStatutoryViolations,
+  STATUTORY_RULE_NAME,
+  type StatutoryShift,
+  type StatutoryViolation,
+  type StatutoryViolationKind,
+} from './french-labor-law';
 
 type HardViolation = {
   ruleId: string;
   ruleName: string;
   category: PlanningRuleCategory;
   message: string;
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
   affectedEmployeeId?: string;
   affectedDate?: string;
   severity: 'blocking';
@@ -140,7 +149,14 @@ export class PlanningService {
   ): Promise<{
     hardViolations: HardViolation[];
     softViolations: SoftViolation[];
-    rules: Array<{ id: string; name: string; category: string; ruleType: string; config: unknown; priority: number }>;
+    rules: Array<{
+      id: string;
+      name: string;
+      category: string;
+      ruleType: string;
+      config: unknown;
+      priority: number;
+    }>;
   }> {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
@@ -175,27 +191,118 @@ export class PlanningService {
 
       switch (rule.category) {
         case 'STAFFING_MINIMUM':
-          this.evaluateStaffingMinimum(rule, config, validShifts, hardViolations, softViolations);
+          this.evaluateStaffingMinimum(
+            rule,
+            config,
+            validShifts,
+            hardViolations,
+            softViolations,
+          );
           break;
         case 'SKILL_REQUIREMENT':
-          this.evaluateSkillRequirement(rule, config, validShifts, hardViolations, softViolations);
+          this.evaluateSkillRequirement(
+            rule,
+            config,
+            validShifts,
+            hardViolations,
+            softViolations,
+          );
           break;
         case 'ROTATION_EQUITY':
-          this.evaluateRotationEquity(rule, config, validShifts, softViolations, options?.equityCounters);
+          this.evaluateRotationEquity(
+            rule,
+            config,
+            validShifts,
+            softViolations,
+            options?.equityCounters,
+          );
           break;
         case 'CONTRACT_COMPLIANCE':
-          this.evaluateContractCompliance(rule, config, validShifts, softViolations, options?.equityCounters);
+          this.evaluateContractCompliance(
+            rule,
+            config,
+            validShifts,
+            softViolations,
+            options?.equityCounters,
+          );
           break;
       }
     }
 
+    // Story 11-3 — statutory French labor-law HARD limits, ALWAYS enforced (independent of
+    // configured rules). Surfaces in the Planning Health Bar and blocks publication.
+    this.evaluateStatutoryLimits(validShifts, hardViolations);
+
     return { hardViolations, softViolations, rules };
+  }
+
+  private static readonly STATUTORY_MESSAGE_KEY: Record<
+    StatutoryViolationKind,
+    string
+  > = {
+    DAILY_WORK: 'violations.statutory.dailyWork',
+    DAILY_AMPLITUDE: 'violations.statutory.dailyAmplitude',
+    WEEKLY_REST: 'violations.statutory.weeklyRest',
+    CONSECUTIVE_DAYS: 'violations.statutory.consecutiveDays',
+  };
+
+  private evaluateStatutoryLimits(
+    shifts: Array<{
+      date: Date;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+      employee: { id: string };
+    }>,
+    hardViolations: HardViolation[],
+  ) {
+    const byEmployee = new Map<string, StatutoryShift[]>();
+    for (const s of shifts) {
+      const arr = byEmployee.get(s.employee.id) ?? [];
+      arr.push({
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        breakMinutes: s.breakMinutes,
+      });
+      byEmployee.set(s.employee.id, arr);
+    }
+
+    for (const [employeeId, empShifts] of byEmployee) {
+      for (const v of findStatutoryViolations(empShifts)) {
+        hardViolations.push(this.statutoryToHardViolation(v, employeeId));
+      }
+    }
+  }
+
+  private statutoryToHardViolation(
+    v: StatutoryViolation,
+    employeeId: string,
+  ): HardViolation {
+    const isDaily = v.kind === 'DAILY_WORK' || v.kind === 'DAILY_AMPLITUDE';
+    const actual = isDaily ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
+    const limit = isDaily ? v.limit / 60 : v.limit;
+    return {
+      ruleId: `statutory:${v.kind.toLowerCase()}`,
+      ruleName: STATUTORY_RULE_NAME,
+      category: 'CONTRACT_COMPLIANCE',
+      message: `Statutory ${v.kind} limit exceeded on ${v.date} (${actual} > ${limit})`,
+      messageKey: PlanningService.STATUTORY_MESSAGE_KEY[v.kind],
+      messageParams: { date: v.date, actual, limit },
+      affectedEmployeeId: employeeId,
+      affectedDate: v.date,
+      severity: 'blocking',
+    };
   }
 
   private evaluateStaffingMinimum(
     rule: { id: string; name: string; category: string; ruleType: string },
     config: Record<string, unknown>,
-    shifts: Array<{ date: Date; shiftTypeCode: string; employee: { id: string; jobType: string } }>,
+    shifts: Array<{
+      date: Date;
+      shiftTypeCode: string;
+      employee: { id: string; jobType: string };
+    }>,
     hardViolations: HardViolation[],
     softViolations: SoftViolation[],
   ) {
@@ -239,7 +346,11 @@ export class PlanningService {
   private evaluateSkillRequirement(
     rule: { id: string; name: string; category: string; ruleType: string },
     config: Record<string, unknown>,
-    shifts: Array<{ date: Date; shiftTypeCode: string; employee: { id: string; jobType: string } }>,
+    shifts: Array<{
+      date: Date;
+      shiftTypeCode: string;
+      employee: { id: string; jobType: string };
+    }>,
     hardViolations: HardViolation[],
     softViolations: SoftViolation[],
   ) {
@@ -257,8 +368,12 @@ export class PlanningService {
     }
 
     for (const [dateKey, dateShifts] of shiftsByDate) {
-      const assignedJobTypes = new Set(dateShifts.map((s) => s.employee.jobType));
-      const missingTypes = requiredJobTypes.filter((jt) => !assignedJobTypes.has(jt));
+      const assignedJobTypes = new Set(
+        dateShifts.map((s) => s.employee.jobType),
+      );
+      const missingTypes = requiredJobTypes.filter(
+        (jt) => !assignedJobTypes.has(jt),
+      );
 
       if (missingTypes.length > 0) {
         const violation = {
@@ -291,8 +406,13 @@ export class PlanningService {
 
     // Map day name to ISO day number
     const dayNameToIso: Record<string, number> = {
-      monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
-      friday: 5, saturday: 6, sunday: 7,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+      sunday: 7,
     };
     const targetIsoDay = dayNameToIso[targetDay];
     if (!targetIsoDay) return;
@@ -326,9 +446,13 @@ export class PlanningService {
     // Compute clinic average from equity counters or shift data
     let clinicAverage = 0;
     if (equityCounters && counterType) {
-      const relevantCounters = equityCounters.filter(c => c.counterType === counterType);
+      const relevantCounters = equityCounters.filter(
+        (c) => c.counterType === counterType,
+      );
       if (relevantCounters.length > 0) {
-        clinicAverage = relevantCounters.reduce((sum, c) => sum + c.count, 0) / relevantCounters.length;
+        clinicAverage =
+          relevantCounters.reduce((sum, c) => sum + c.count, 0) /
+          relevantCounters.length;
       }
     } else {
       const allCounts = Array.from(countByEmployee.values());
@@ -341,8 +465,11 @@ export class PlanningService {
       if (count > maxPerPeriod) {
         const dates = datesByEmployee.get(employeeId) || [];
         const trend: EquityContext['trend'] =
-          count > clinicAverage + 0.5 ? 'above_average' :
-          count < clinicAverage - 0.5 ? 'below_average' : 'average';
+          count > clinicAverage + 0.5
+            ? 'above_average'
+            : count < clinicAverage - 0.5
+              ? 'below_average'
+              : 'average';
 
         const equityContext: EquityContext = {
           counterType: counterType || `${targetDay.toUpperCase()}_SHIFTS`,
@@ -379,7 +506,11 @@ export class PlanningService {
   private evaluateContractCompliance(
     rule: { id: string; name: string; category: string },
     config: Record<string, unknown>,
-    shifts: Array<{ startTime: string; endTime: string; employee: { id: string; contractHours: number } }>,
+    shifts: Array<{
+      startTime: string;
+      endTime: string;
+      employee: { id: string; contractHours: number };
+    }>,
     softViolations: SoftViolation[],
     equityCounters?: CounterWithEmployee[],
   ) {
@@ -388,9 +519,15 @@ export class PlanningService {
     if (!maxMonthlyHours) return;
 
     // Sum hours per employee
-    const hoursByEmployee = new Map<string, { total: number; contractHours: number }>();
+    const hoursByEmployee = new Map<
+      string,
+      { total: number; contractHours: number }
+    >();
     for (const shift of shifts) {
-      const minutes = this.calculateShiftMinutes(shift.startTime, shift.endTime);
+      const minutes = this.calculateShiftMinutes(
+        shift.startTime,
+        shift.endTime,
+      );
       const current = hoursByEmployee.get(shift.employee.id) || {
         total: 0,
         contractHours: shift.employee.contractHours,
@@ -402,24 +539,35 @@ export class PlanningService {
     // Compute clinic average hours
     let clinicAverageHours = 0;
     if (equityCounters) {
-      const overtimeCounters = equityCounters.filter(c => c.counterType === 'OVERTIME_HOURS');
+      const overtimeCounters = equityCounters.filter(
+        (c) => c.counterType === 'OVERTIME_HOURS',
+      );
       if (overtimeCounters.length > 0) {
-        const avgHistoricalOvertime = overtimeCounters.reduce((sum, c) => sum + c.count, 0) / overtimeCounters.length / 60;
+        const avgHistoricalOvertime =
+          overtimeCounters.reduce((sum, c) => sum + c.count, 0) /
+          overtimeCounters.length /
+          60;
         const allEmployeeHours = Array.from(hoursByEmployee.values());
         if (allEmployeeHours.length > 0) {
-          const currentAvg = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+          const currentAvg =
+            allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
+            allEmployeeHours.length;
           clinicAverageHours = currentAvg + avgHistoricalOvertime;
         }
       } else {
         const allEmployeeHours = Array.from(hoursByEmployee.values());
         if (allEmployeeHours.length > 0) {
-          clinicAverageHours = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+          clinicAverageHours =
+            allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
+            allEmployeeHours.length;
         }
       }
     } else {
       const allEmployeeHours = Array.from(hoursByEmployee.values());
       if (allEmployeeHours.length > 0) {
-        clinicAverageHours = allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) / allEmployeeHours.length;
+        clinicAverageHours =
+          allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
+          allEmployeeHours.length;
       }
     }
 
@@ -428,8 +576,11 @@ export class PlanningService {
       if (totalHours > maxMonthlyHours) {
         const overtimeMinutes = Math.round(data.total - maxMonthlyHours * 60);
         const trend: EquityContext['trend'] =
-          totalHours > clinicAverageHours + 2 ? 'above_average' :
-          totalHours < clinicAverageHours - 2 ? 'below_average' : 'average';
+          totalHours > clinicAverageHours + 2
+            ? 'above_average'
+            : totalHours < clinicAverageHours - 2
+              ? 'below_average'
+              : 'average';
 
         softViolations.push({
           ruleId: rule.id,

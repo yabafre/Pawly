@@ -90,7 +90,11 @@ describe('PlanningService', () => {
       mockPrismaService.planningRule.create.mockResolvedValue({
         ...mockRule,
         category: 'ROTATION_EQUITY',
-        config: { targetDay: 'saturday', maxPerPeriod: 2, trackingPeriod: 'monthly' },
+        config: {
+          targetDay: 'saturday',
+          maxPerPeriod: 2,
+          trackingPeriod: 'monthly',
+        },
       });
 
       const input = {
@@ -99,7 +103,11 @@ describe('PlanningService', () => {
         category: 'ROTATION_EQUITY' as const,
         isActive: true,
         priority: 5,
-        config: { targetDay: 'saturday', maxPerPeriod: 2, trackingPeriod: 'monthly' },
+        config: {
+          targetDay: 'saturday',
+          maxPerPeriod: 2,
+          trackingPeriod: 'monthly',
+        },
       };
 
       await service.createRule(clinicId, input as any);
@@ -423,7 +431,13 @@ describe('PlanningService', () => {
     it('returns violations structure with loaded rules and shifts', async () => {
       mockPrismaService.planningRule.findMany.mockResolvedValue([
         mockRule,
-        { ...mockRule, id: 'rule-2', ruleType: 'SOFT', category: 'ROTATION_EQUITY', config: { targetDay: 'saturday', maxPerPeriod: 2 } },
+        {
+          ...mockRule,
+          id: 'rule-2',
+          ruleType: 'SOFT',
+          category: 'ROTATION_EQUITY',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+        },
       ]);
       mockPrismaService.shift.findMany.mockResolvedValue([]);
 
@@ -452,6 +466,43 @@ describe('PlanningService', () => {
 
       expect(result.hardViolations).toHaveLength(0);
       expect(result.softViolations).toHaveLength(0);
+    });
+
+    // AC3 (verbatim from story 11-3): "Given persisted shifts that breach a statutory limit,
+    // When the admin views the schedule, Then each breach appears as a blocking (hard)
+    // violation in the Planning Health Bar detail popover, localized ...". Enforced even
+    // with zero configured rules (AC4).
+    it('emits a statutory HARD violation for an 11h-net day with zero configured rules', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // zero rules
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's-long',
+          date: new Date('2026-08-03'),
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '19:00', // 11h net (no break) > 10h
+          breakMinutes: 0,
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-08-01T00:00:00.000Z',
+        endDate: '2026-08-31T23:59:59.999Z',
+      });
+
+      expect(result.hardViolations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            category: 'CONTRACT_COMPLIANCE',
+            ruleId: 'statutory:daily_work',
+            messageKey: 'violations.statutory.dailyWork',
+            severity: 'blocking',
+            affectedEmployeeId: 'emp-1',
+          }),
+        ]),
+      );
     });
 
     it('should detect STAFFING_MINIMUM violation when below minStaff', async () => {
@@ -631,7 +682,11 @@ describe('PlanningService', () => {
             ruleType: 'SOFT',
             isActive: true,
             priority: 5,
-            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            config: {
+              targetDay: 'saturday',
+              maxPerPeriod: 1,
+              trackingPeriod: 'monthly',
+            },
             clinicId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -666,7 +721,14 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+            employee: {
+              id: 'emp-1',
+              firstName: 'Alice',
+              lastName: 'Martin',
+              color: '#ff0000',
+              jobType: 'VET',
+              contractHours: 35,
+            },
           },
           {
             id: 'ec-2',
@@ -675,13 +737,23 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+            employee: {
+              id: 'emp-2',
+              firstName: 'Bob',
+              lastName: 'Dupont',
+              color: '#00ff00',
+              jobType: 'ASV',
+              contractHours: 35,
+            },
           },
         ];
 
         const result = await service.validateShiftsAgainstRules(
           clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          {
+            startDate: '2026-03-01T00:00:00.000Z',
+            endDate: '2026-03-31T23:59:59.999Z',
+          },
           { equityCounters },
         );
 
@@ -692,7 +764,9 @@ describe('PlanningService', () => {
         expect(violation.equityContext!.currentCount).toBe(2);
         expect(violation.equityContext!.maxPerPeriod).toBe(1);
         expect(typeof violation.equityContext!.clinicAverage).toBe('number');
-        expect(['below_average', 'average', 'above_average']).toContain(violation.equityContext!.trend);
+        expect(['below_average', 'average', 'above_average']).toContain(
+          violation.equityContext!.trend,
+        );
       });
 
       it('should compute trend as above_average when currentCount > clinicAverage', async () => {
@@ -704,7 +778,11 @@ describe('PlanningService', () => {
             ruleType: 'SOFT',
             isActive: true,
             priority: 5,
-            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            config: {
+              targetDay: 'saturday',
+              maxPerPeriod: 1,
+              trackingPeriod: 'monthly',
+            },
             clinicId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -750,7 +828,14 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+            employee: {
+              id: 'emp-1',
+              firstName: 'Alice',
+              lastName: 'Martin',
+              color: '#ff0000',
+              jobType: 'VET',
+              contractHours: 35,
+            },
           },
           {
             id: 'ec-2',
@@ -759,17 +844,27 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+            employee: {
+              id: 'emp-2',
+              firstName: 'Bob',
+              lastName: 'Dupont',
+              color: '#00ff00',
+              jobType: 'ASV',
+              contractHours: 35,
+            },
           },
         ];
 
         const result = await service.validateShiftsAgainstRules(
           clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          {
+            startDate: '2026-03-01T00:00:00.000Z',
+            endDate: '2026-03-31T23:59:59.999Z',
+          },
           { equityCounters },
         );
 
-        const violation = result.softViolations.find(v => v.equityContext);
+        const violation = result.softViolations.find((v) => v.equityContext);
         expect(violation).toBeDefined();
         expect(violation!.equityContext!.trend).toBe('above_average');
       });
@@ -783,7 +878,11 @@ describe('PlanningService', () => {
             ruleType: 'SOFT',
             isActive: true,
             priority: 5,
-            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            config: {
+              targetDay: 'saturday',
+              maxPerPeriod: 1,
+              trackingPeriod: 'monthly',
+            },
             clinicId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -820,7 +919,14 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+            employee: {
+              id: 'emp-1',
+              firstName: 'Alice',
+              lastName: 'Martin',
+              color: '#ff0000',
+              jobType: 'VET',
+              contractHours: 35,
+            },
           },
           {
             id: 'ec-2',
@@ -829,17 +935,27 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-2', firstName: 'Bob', lastName: 'Dupont', color: '#00ff00', jobType: 'ASV', contractHours: 35 },
+            employee: {
+              id: 'emp-2',
+              firstName: 'Bob',
+              lastName: 'Dupont',
+              color: '#00ff00',
+              jobType: 'ASV',
+              contractHours: 35,
+            },
           },
         ];
 
         const result = await service.validateShiftsAgainstRules(
           clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          {
+            startDate: '2026-03-01T00:00:00.000Z',
+            endDate: '2026-03-31T23:59:59.999Z',
+          },
           { equityCounters },
         );
 
-        const violation = result.softViolations.find(v => v.equityContext);
+        const violation = result.softViolations.find((v) => v.equityContext);
         expect(violation).toBeDefined();
         expect(violation!.equityContext!.trend).toBe('below_average');
       });
@@ -853,7 +969,11 @@ describe('PlanningService', () => {
             ruleType: 'SOFT',
             isActive: true,
             priority: 5,
-            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            config: {
+              targetDay: 'saturday',
+              maxPerPeriod: 1,
+              trackingPeriod: 'monthly',
+            },
             clinicId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -881,10 +1001,10 @@ describe('PlanningService', () => {
         ]);
 
         // Call without equityCounters option
-        const result = await service.validateShiftsAgainstRules(
-          clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
-        );
+        const result = await service.validateShiftsAgainstRules(clinicId, {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T23:59:59.999Z',
+        });
 
         expect(result.softViolations.length).toBeGreaterThan(0);
         // equityContext should still be present (computed from shift data instead of counters)
@@ -939,19 +1059,29 @@ describe('PlanningService', () => {
             year: 2026,
             month: 3,
             lastCalculatedAt: new Date(),
-            employee: { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: '#ff0000', jobType: 'VET', contractHours: 35 },
+            employee: {
+              id: 'emp-1',
+              firstName: 'Alice',
+              lastName: 'Martin',
+              color: '#ff0000',
+              jobType: 'VET',
+              contractHours: 35,
+            },
           },
         ];
 
         const result = await service.validateShiftsAgainstRules(
           clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
+          {
+            startDate: '2026-03-01T00:00:00.000Z',
+            endDate: '2026-03-31T23:59:59.999Z',
+          },
           { equityCounters },
         );
 
         expect(result.softViolations.length).toBeGreaterThan(0);
         const ccViolation = result.softViolations.find(
-          v => v.category === 'CONTRACT_COMPLIANCE',
+          (v) => v.category === 'CONTRACT_COMPLIANCE',
         );
         expect(ccViolation).toBeDefined();
         expect(ccViolation!.equityContext).toBeDefined();
@@ -959,7 +1089,9 @@ describe('PlanningService', () => {
         expect(typeof ccViolation!.equityContext!.currentCount).toBe('number');
         expect(typeof ccViolation!.equityContext!.maxPerPeriod).toBe('number');
         expect(typeof ccViolation!.equityContext!.clinicAverage).toBe('number');
-        expect(['below_average', 'average', 'above_average']).toContain(ccViolation!.equityContext!.trend);
+        expect(['below_average', 'average', 'above_average']).toContain(
+          ccViolation!.equityContext!.trend,
+        );
       });
 
       it('should include messageKey and messageParams in enriched violations', async () => {
@@ -971,7 +1103,11 @@ describe('PlanningService', () => {
             ruleType: 'SOFT',
             isActive: true,
             priority: 5,
-            config: { targetDay: 'saturday', maxPerPeriod: 1, trackingPeriod: 'monthly' },
+            config: {
+              targetDay: 'saturday',
+              maxPerPeriod: 1,
+              trackingPeriod: 'monthly',
+            },
             clinicId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -998,10 +1134,10 @@ describe('PlanningService', () => {
           },
         ]);
 
-        const result = await service.validateShiftsAgainstRules(
-          clinicId,
-          { startDate: '2026-03-01T00:00:00.000Z', endDate: '2026-03-31T23:59:59.999Z' },
-        );
+        const result = await service.validateShiftsAgainstRules(clinicId, {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T23:59:59.999Z',
+        });
 
         expect(result.softViolations.length).toBeGreaterThan(0);
         for (const violation of result.softViolations) {
@@ -1010,7 +1146,9 @@ describe('PlanningService', () => {
           expect(typeof violation.message).toBe('string');
           expect(violation.message.length).toBeGreaterThan(0);
           // Should reference meaningful information about the violation
-          expect(violation.message).toMatch(/saturday|Saturday|shifts|exceeds/i);
+          expect(violation.message).toMatch(
+            /saturday|Saturday|shifts|exceeds/i,
+          );
         }
       });
     });
