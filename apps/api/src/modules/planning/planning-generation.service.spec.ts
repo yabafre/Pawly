@@ -1540,7 +1540,13 @@ describe('PlanningGenerationService', () => {
           breakMinutes: 0,
         },
       ];
-      mockPrismaService.shift.findMany.mockResolvedValue(borderShiftsFromDb);
+      // Story 11-2 — generateMonthlyPlan now issues TWO shift.findMany queries:
+      // border-week (where.date.in) and in-month survivors (where.OR). Key the
+      // mock on the predicate so only the border query returns borderShiftsFromDb.
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve([]);
+        return Promise.resolve(borderShiftsFromDb);
+      });
 
       // Only emp-1 (35h contract, already at 35h from border) and emp-2 (35h contract, fresh)
       mockPrismaService.employee.findMany.mockResolvedValue([
@@ -1610,6 +1616,420 @@ describe('PlanningGenerationService', () => {
 
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
+    });
+  });
+
+  // ─── Story 11-2 — surviving shifts visible to generator + anti-duplicate ──
+  describe('Story 11-2 — surviving shifts visible to generator', () => {
+    const mondaySurgery2 = {
+      id: 'tpl-11-2',
+      name: 'Monday Surgery x2',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 2 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    const twoVets = [
+      {
+        id: 'emp-1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+      {
+        id: 'emp-2',
+        firstName: 'Bob',
+        lastName: 'Dupont',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+    ];
+
+    // Key shift.findMany on the survivor predicate (where.OR) vs the border query
+    // (where.date.in). Only the survivor query returns `survivors`.
+    const mockShiftQueries = (survivors: any[]) => {
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve(survivors);
+        return Promise.resolve([]);
+      });
+    };
+
+    // Capture the rows handed to createManyAndReturn inside the $transaction.
+    const captureCreate = () => {
+      const captured: any[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) => {
+                  captured.push(...data);
+                  return data.map((d, i) => ({ id: `gen-${i}`, ...d }));
+                }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      return captured;
+    };
+
+    it('queries in-month survivors with the deleteMany-complement predicate (AC1)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      mockShiftQueries([]);
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            clinicId,
+            date: expect.objectContaining({
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            }),
+            OR: expect.arrayContaining([
+              { source: { not: 'GENERATED' } },
+              { isConfirmed: true },
+              { varianceEvents: { some: {} } },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('excludes an employee with a surviving overlapping shift and fills only the residual (AC1 + AC3)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // emp-1 already has a MANUAL SURGERY (08:00–12:00) on Mon 2026-03-02 that
+      // survives regeneration. That day's SURGERY slot needs 2.
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      const mar2 = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      // AC3 — 2 required − 1 pre-existing coverage = exactly 1 generated.
+      expect(mar2.length).toBe(1);
+      // AC1 — emp-1 is overlap-excluded; the residual goes to emp-2.
+      expect(mar2[0].employeeId).toBe('emp-2');
+    });
+
+    it('skips a slot fully covered by surviving shifts — no generation, no hole (AC3)', async () => {
+      const mondaySurgery1 = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // emp-1 covers the single SURGERY position on Mon 2026-03-02 (requiredStaff 1).
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      const mar2Created = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      expect(mar2Created.length).toBe(0); // fully covered → nothing generated
+      expect(result.holes.filter((h) => h.date === '2026-03-02').length).toBe(
+        0,
+      );
+    });
+
+    it('does NOT credit coverage for a survivor whose hours do not overlap the slot — the slot is still generated (AC3, no silent under-staffing)', async () => {
+      const mondaySurgery1 = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // emp-1 has a surviving SURGERY on Mon 2026-03-02 but at 06:00–08:00. The
+      // slot resolves to SURGERY's live hours 08:00–12:00 → NO time overlap.
+      // Keying coverage on shiftTypeCode alone would wrongly skip the slot;
+      // gated on real overlap it must still be generated.
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '06:00',
+          endTime: '08:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      const mar2Created = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      // The non-overlapping survivor must NOT cover the slot → it is generated.
+      expect(mar2Created.length).toBe(1);
+      // No false "fully covered" suppression: the slot is a real fill, no hole.
+      expect(result.holes.filter((h) => h.date === '2026-03-02').length).toBe(
+        0,
+      );
+    });
+
+    it('does NOT credit coverage from a survivor whose jobType fails the slot requiredJobTypes (AC3)', async () => {
+      const asvOnlySurgery = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                {
+                  shiftTypeCode: 'SURGERY',
+                  requiredStaff: 1,
+                  requiredJobTypes: ['ASV'],
+                },
+              ],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(asvOnlySurgery);
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'ASV',
+          contractHours: 35,
+        },
+      ]);
+      // emp-1 (VET) has a surviving SURGERY 08:00–12:00 on Mon 2026-03-02 that
+      // overlaps the slot hours, but the slot requires an ASV. A VET survivor
+      // must NOT satisfy the ASV demand → the slot is generated for emp-2 (ASV).
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+          employee: { jobType: 'VET' },
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      const mar2Created = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      expect(mar2Created.length).toBe(1);
+      expect(mar2Created[0].employeeId).toBe('emp-2'); // the ASV fills it
+      expect(result.holes.filter((h) => h.date === '2026-03-02').length).toBe(
+        0,
+      );
+    });
+
+    it("counts a survivor's hours toward the monthly total so regeneration cannot overrun the contract cap (AC1)", async () => {
+      const everyMondaySurgery1 = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(
+        everyMondaySurgery1,
+      );
+      // Single employee so the cap exclusion is directly observable.
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      // HARD monthly cap of 4h. emp-1's surviving 4h SURGERY (08:00–12:00) on
+      // 2026-03-02 already consumes the whole monthly budget via the seeded
+      // employeeMinutes counter.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-monthly',
+          name: '4H/month',
+          ruleType: 'HARD',
+          category: 'CONTRACT_COMPLIANCE',
+          isActive: true,
+          priority: 0,
+          config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+        },
+      ]);
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      // Every later Monday would push emp-1 past the 4h monthly cap, so the
+      // survivor's seeded hours must block any further assignment (no silent
+      // overrun) and surface visible holes instead.
+      expect(created.filter((d) => d.employeeId === 'emp-1').length).toBe(0);
+      expect(result.holes.length).toBeGreaterThan(0);
+    });
+
+    it('counts survivor-covered positions toward filledSlots so the fill stat is not understated (AC3 metric)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // One surviving SURGERY (08:00–12:00) on Mon 2026-03-02 covers one of that
+      // day's two positions. That position is neither a generated row nor a hole,
+      // so filledSlots must add it to the generated count to stay accurate.
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      // filledSlots = generated rows + the single survivor-covered position.
+      expect(result.stats.filledSlots).toBe(created.length + 1);
+      // Accounting identity holds: no position is silently unaccounted for.
+      expect(result.stats.filledSlots).toBeLessThanOrEqual(
+        result.stats.totalSlots,
+      );
+    });
+
+    it('credits a shared (date, shiftTypeCode) survivor to exactly one of two slots — consumed once (AC3)', async () => {
+      const twoSurgerySlots = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                { shiftTypeCode: 'SURGERY', requiredStaff: 1 },
+                { shiftTypeCode: 'SURGERY', requiredStaff: 1 },
+              ],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(twoSurgerySlots);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // Two SURGERY positions share the (2026-03-02, SURGERY) coverage key. One
+      // surviving overlapping shift must be consumed by ONE slot only — the other
+      // position is still generated (not double-credited, not dropped).
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      const mar2 = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      // 2 positions − 1 consumed-once survivor = exactly 1 generated.
+      expect(mar2.length).toBe(1);
+      // emp-1 is overlap-excluded; the remaining position goes to emp-2.
+      expect(mar2[0].employeeId).toBe('emp-2');
     });
   });
 

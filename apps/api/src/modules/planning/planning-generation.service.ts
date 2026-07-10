@@ -63,6 +63,10 @@ type AssignedShift = {
   breakMinutes?: number;
 };
 
+// Story 11-2 (AC3) — a surviving shift carries its employee's jobType so the
+// coverage subtraction can gate on requiredJobTypes exactly like AC1 eligibility.
+type SurvivingShift = AssignedShift & { jobType: string | null };
+
 type RuleEntry = {
   id: string;
   name: string;
@@ -299,12 +303,141 @@ export class PlanningGenerationService {
     const softViolations: GenerationResult['violations']['soft'] = [];
     const employeeMinutes = new Map<string, number>();
     let totalPositions = 0;
+    // Story 11-2 (AC3 metric) — positions already filled by a surviving shift are
+    // neither a generated row nor a hole; count them so the fill stat is accurate.
+    let survivorCoveredPositions = 0;
+
+    // Story 11-2 — seed the in-month surviving shifts into every counter BEFORE
+    // the loop so the generator is aware of them. Unlike border shifts (adjacent
+    // months → only weekly minutes + overlap matter), survivors are IN this month
+    // so they count toward this month's shift/type/equity/monthly-minute load too.
+    // Unconditional: 11-1's deleteMany preserves confirmed/variance shifts on
+    // DRAFT and PUBLISHED alike, so survivors can exist on any regeneration.
+    const survivingShifts = await this.loadSurvivingShiftsInMonth(
+      clinicId,
+      monthStart,
+      monthEnd,
+    );
+    for (const ss of survivingShifts) {
+      const key = `${ss.employeeId}|${ss.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(ss);
+      assignmentIndex.set(key, existing);
+
+      allShiftsForScoring.push(ss);
+
+      const netMin =
+        this.calculateShiftMinutes(ss.startTime, ss.endTime) -
+        (ss.breakMinutes || 0);
+      const weekKey = `${ss.employeeId}|${this.getWeekBounds(ss.date).start}`;
+      weeklyMinutesCounter.set(
+        weekKey,
+        (weeklyMinutesCounter.get(weekKey) || 0) + netMin,
+      );
+
+      let typeCounts = shiftTypeCounts.get(ss.employeeId);
+      if (!typeCounts) {
+        typeCounts = new Map();
+        shiftTypeCounts.set(ss.employeeId, typeCounts);
+      }
+      typeCounts.set(
+        ss.shiftTypeCode,
+        (typeCounts.get(ss.shiftTypeCode) || 0) + 1,
+      );
+
+      employeeShiftCounts.set(
+        ss.employeeId,
+        (employeeShiftCounts.get(ss.employeeId) || 0) + 1,
+      );
+
+      employeeMinutes.set(
+        ss.employeeId,
+        (employeeMinutes.get(ss.employeeId) || 0) + netMin,
+      );
+
+      const date = new Date(`${ss.date}T00:00:00.000Z`);
+      const dayOfWeek = date.getUTCDay();
+      const equity = constraints.equityMap.get(ss.employeeId);
+      if (equity) {
+        if (dayOfWeek === 6) equity.saturdayCount++;
+        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
+      }
+    }
+
+    // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
+    // (date|shiftTypeCode). Each entry keeps the survivor's real time window +
+    // jobType so the loop can credit coverage ONLY for a survivor that genuinely
+    // overlaps the slot's live-resolved hours AND satisfies its requiredJobTypes
+    // — the same gates as AC1 eligibility. Keying on shiftTypeCode alone would let
+    // a stale-hours survivor (e.g. shift-type hours edited, or a moved shift whose
+    // frozen times no longer match) or a wrong-jobType survivor silently mask a
+    // real staffing gap with no hole (aped-review BLOCKER).
+    const preExistingSlotCoverage = new Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >();
+    for (const ss of survivingShifts) {
+      const coverageKey = `${ss.date}|${ss.shiftTypeCode}`;
+      const bucket = preExistingSlotCoverage.get(coverageKey) || [];
+      bucket.push({
+        startTime: ss.startTime,
+        endTime: ss.endTime,
+        jobType: ss.jobType,
+        consumed: false,
+      });
+      preExistingSlotCoverage.set(coverageKey, bucket);
+    }
 
     for (const slot of slots) {
       totalPositions += slot.requiredStaff;
 
+      // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage, but
+      // count a survivor only when it actually overlaps this slot's resolved hours
+      // and satisfies its requiredJobTypes. Each survivor is consumed at most once
+      // (marked below), so slots sharing a (date,shiftType) key never double-claim
+      // it. Skip fully-covered slots entirely (no generation, no false hole).
+      // scoreAndAssign receives a slot clone whose requiredStaff is the residual,
+      // so its slice + hole logic stay correct.
+      const coverageKey = `${slot.date}|${slot.shiftTypeCode}`;
+      const coverageBucket = preExistingSlotCoverage.get(coverageKey) || [];
+      let preCovered = 0;
+      for (const cov of coverageBucket) {
+        if (cov.consumed) continue;
+        if (
+          !this.timesOverlap(
+            slot.startTime,
+            slot.endTime,
+            cov.startTime,
+            cov.endTime,
+          )
+        ) {
+          continue;
+        }
+        if (
+          slot.requiredJobTypes &&
+          slot.requiredJobTypes.length > 0 &&
+          (cov.jobType === null || !slot.requiredJobTypes.includes(cov.jobType))
+        ) {
+          continue;
+        }
+        cov.consumed = true;
+        preCovered++;
+        if (preCovered >= slot.requiredStaff) break;
+      }
+      const effectiveRequiredStaff = Math.max(
+        0,
+        slot.requiredStaff - preCovered,
+      );
+      survivorCoveredPositions += preCovered;
+      if (effectiveRequiredStaff === 0) continue;
+
       const result = this.scoreAndAssign(
-        slot,
+        { ...slot, requiredStaff: effectiveRequiredStaff },
         employees,
         constraints,
         allShiftsForScoring,
@@ -469,6 +602,7 @@ export class PlanningGenerationService {
       hardViolations,
       softViolations,
       totalPositions,
+      survivorCoveredPositions,
     );
   }
 
@@ -2951,6 +3085,7 @@ export class PlanningGenerationService {
     hardViolations: GenerationResult['violations']['hard'],
     softViolations: GenerationResult['violations']['soft'],
     totalPositions: number,
+    survivorCoveredPositions = 0,
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -2976,7 +3111,9 @@ export class PlanningGenerationService {
       },
       stats: {
         totalSlots: totalPositions,
-        filledSlots: assignments.length,
+        // Filled = newly generated rows + positions already covered by survivors
+        // (Story 11-2 AC3 metric — a survivor-covered position is filled, not a gap).
+        filledSlots: assignments.length + survivorCoveredPositions,
         holeCount: holes.length,
         hardViolationCount: hardViolations.length,
         softWarningCount: softViolations.length,
@@ -3261,6 +3398,54 @@ export class PlanningGenerationService {
       endTime: s.endTime,
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
+    }));
+  }
+
+  // Story 11-2 — load the shifts INSIDE the target month that SURVIVE a
+  // regeneration. This is the exact complement of the Story 11-1 bulk deleteMany
+  // predicate (delete = source:GENERATED AND isConfirmed:false AND no-variance),
+  // so it returns MANUAL shifts, confirmed GENERATED shifts, and GENERATED shifts
+  // carrying VarianceEvent history — and EXCLUDES the unconfirmed, history-free
+  // GENERATED shifts that are about to be deleted and regenerated. The generator
+  // must see these survivors so it never double-books an employee, overruns their
+  // contract hours, or over-staffs a slot they already cover. Same projection
+  // shape as loadBorderWeekShifts, bounded to the target month.
+  private async loadSurvivingShiftsInMonth(
+    clinicId: string,
+    monthStart: Date,
+    monthEnd: Date,
+  ): Promise<SurvivingShift[]> {
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        clinicId,
+        date: { gte: monthStart, lte: monthEnd },
+        OR: [
+          { source: { not: 'GENERATED' } },
+          { isConfirmed: true },
+          { varianceEvents: { some: {} } },
+        ],
+      },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+        // Story 11-2 (AC3) — the survivor's jobType gates its coverage credit
+        // against a slot's requiredJobTypes, exactly like AC1 eligibility.
+        employee: { select: { jobType: true } },
+      },
+    });
+
+    return shifts.map((s) => ({
+      employeeId: s.employeeId,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      shiftTypeCode: s.shiftTypeCode,
+      breakMinutes: s.breakMinutes,
+      jobType: s.employee?.jobType ?? null,
     }));
   }
 
