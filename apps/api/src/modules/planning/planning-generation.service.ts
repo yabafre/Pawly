@@ -2223,6 +2223,40 @@ export class PlanningGenerationService {
       }
     }
 
+    // Story 11-3 — statutory French labor-law HARD check. Load the employee's shifts in a
+    // window around the target day (ISO week + neighbours) and reject the create if it would
+    // breach a statutory limit. Enforced regardless of configured rules.
+    const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
+    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+    const statWindowShifts = await this.prisma.shift.findMany({
+      where: {
+        employeeId: input.employeeId,
+        clinicId,
+        date: { gte: statWindowStart, lte: statWindowEnd },
+      },
+    });
+    const createBreaches = wouldExceedStatutory(
+      statWindowShifts.map((s) => ({
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        breakMinutes: s.breakMinutes,
+      })),
+      {
+        date: input.date,
+        startTime: shiftType.startTime,
+        endTime: shiftType.endTime,
+        breakMinutes: shiftType.breakMinutes,
+      },
+    );
+    if (createBreaches.length > 0) {
+      throw new ConflictException(
+        `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
+      );
+    }
+
     const created = await this.prisma.shift.create({
       data: {
         date: new Date(`${input.date}T00:00:00.000Z`),
@@ -2592,6 +2626,30 @@ export class PlanningGenerationService {
           message: `${employee.firstName} ${employee.lastName} — would be ${targetDayCount + 1}th ${targetDay} this ${trackingPeriod || 'month'} (max ${maxPerPeriod})`,
         });
       }
+    }
+
+    // Story 11-3 — statutory French labor-law HARD check on the moved shift. `monthShifts`
+    // (target employee, target month, excluding the moved shift) is the window; the candidate
+    // is the moved shift placed at the target date.
+    const moveBreaches = wouldExceedStatutory(
+      monthShifts.map((s) => ({
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        breakMinutes: s.breakMinutes,
+      })),
+      {
+        date: input.targetDate,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        breakMinutes: shift.breakMinutes,
+      },
+    );
+    for (const kind of moveBreaches) {
+      hard.push({
+        rule: 'CONTRACT_COMPLIANCE',
+        message: `Statutory limit exceeded: ${kind}`,
+      });
     }
 
     return { hard, soft };

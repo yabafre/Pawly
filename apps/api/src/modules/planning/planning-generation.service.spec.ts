@@ -4495,6 +4495,43 @@ describe('PlanningGenerationService', () => {
         }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    // AC2 (verbatim from story 11-3): "When an admin manually adds a shift ... such that
+    // an employee would exceed a statutory limit, Then the action is blocked — the add is
+    // rejected with a conflict error".
+    it('throws ConflictException when the new shift pushes the day over 10h net (statutory)', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-late',
+        code: 'SURGERY',
+        startTime: '17:00',
+        endTime: '20:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      // Existing 08:00-16:00 (8h) + candidate 17:00-20:00 (3h) = 11h net > 10h. The same
+      // mock feeds the overlap query (no overlap) and the statutory window query.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'ex-day',
+          date: new Date('2026-03-10T00:00:00.000Z'),
+          startTime: '08:00',
+          endTime: '16:00',
+          breakMinutes: 0,
+          employeeId: 'emp-1',
+          clinicId,
+        },
+      ]);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-03-10',
+          shiftTypeCode: 'SURGERY',
+          startTime: '17:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   // ─── deleteShift ─────────────────────────────────────────────────
@@ -5303,6 +5340,36 @@ describe('PlanningGenerationService', () => {
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
         expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
+      );
+    });
+
+    // AC2 (verbatim from story 11-3): "the move surfaces a blocking (hard) conflict in the
+    // drag interface" when an employee would exceed a statutory limit.
+    it('returns a HARD CONTRACT_COMPLIANCE violation when the move creates a 7th consecutive day (statutory)', async () => {
+      // emp-2 already worked 2025-03-01..03-06 (6 consecutive days). Moving the shift onto
+      // 2025-03-07 (a Friday work day) makes a 7th consecutive worked day.
+      const consec = ['01', '02', '03', '04', '05', '06'].map((d) => ({
+        id: `s-${d}`,
+        date: new Date(`2025-03-${d}T00:00:00.000Z`),
+        startTime: '09:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        employeeId: 'emp-2',
+        clinicId,
+      }));
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts — no overlap
+        .mockResolvedValueOnce([]) // weekShifts
+        .mockResolvedValueOnce(consec); // monthShifts — statutory window
+
+      const result = await service.preValidateMove(clinicId, {
+        ...defaultInput,
+        targetDate: '2025-03-07',
+      });
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
       );
     });
 
