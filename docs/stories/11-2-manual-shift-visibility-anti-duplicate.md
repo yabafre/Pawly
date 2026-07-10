@@ -746,3 +746,54 @@ month bounds) + test 2 (seeded overlap excludes emp-1, residual → emp-2); **AC
 0 generated, 0 hole); **AC2** → DB-enforced `@@unique`, verified by `db push`
 creating the unique index (not unit-testable with the mocked Prisma client — the
 runtime `P2002`-under-retry net is Story 11-5's scope).
+
+## Review Record
+
+**Date:** 2026-07-10
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface → Aria not dispatched)
+**Verdict:** done
+
+### Findings
+
+#### Resolved
+
+- [BLOCKER] AC3 pre-existing-coverage map keyed on `date|shiftTypeCode` alone → silent
+  under-staffing. [`planning-generation.service.ts:360-390` (pre-fix)]
+  - Source: Code (CRITICAL, time facet) + Edge (MINOR, time facet) + Spec (MAJOR, job-type facet) — one root cause, two facets.
+  - Root cause: coverage was credited for any survivor sharing a slot's `(date, shiftTypeCode)`, without a time-overlap check or a `requiredJobTypes` check, while slot hours resolve **live** from `ClinicShiftType` (`expandTemplateToMonth :617-654`) and `Shift` rows freeze their hours. A stale-hours survivor (shift-type hours edited, or a `moveShift`'d shift — `:2043-2054` sets `source:MANUAL` and never rewrites `startTime`/`endTime`) or a wrong-job-type survivor could drive `effectiveRequiredStaff` to 0 and `continue`-skip a genuinely uncovered slot with no hole — contradicting AC3 and the Epic-11 NFR3 "no silent failure" invariant.
+  - Resolution: commit `e40d897`. `loadSurvivingShiftsInMonth` now selects `employee.jobType` (new `SurvivingShift` type); `preExistingSlotCoverage` stores per-`(date,shiftTypeCode)` buckets of `{ startTime, endTime, jobType, consumed }`; a survivor is credited to a slot only when `timesOverlap(slot, survivor)` **and** the survivor's `jobType` satisfies `slot.requiredJobTypes` (mirroring the AC1 eligibility gates), and is consumed at most once. Both auditors re-verified RESOLVED (HIGH). RED→GREEN proven: the two pinning tests fail against the old key-only code, pass after the fix.
+- [MAJOR] AC1 weekly/monthly hour-accounting had no end-to-end test through the survivor
+  seeding path (self-acknowledged gap in Dev Notes → Testing). [`planning-generation.service.spec.ts`]
+  - Source: Spec.
+  - Resolution: commit `e40d897`. Added a `generateMonthlyPlan`-level test seeding a survivor that consumes a HARD `maxMonthlyHours: 4` cap and asserting the sole employee gets no further assignment (`created … length 0`) with visible holes — flowing through `loadSurvivingShiftsInMonth` → `employeeMinutes` seeding → the real HARD-rule eligibility check (`:943-949`), not a hand-fed `scoreAndAssign`. Spec re-rates AC1 IMPLEMENTED.
+
+#### Dismissed
+
+- [MINOR] AC3 coverage is credited to survivors of inactive employees (`employees` is loaded
+  `isActive:true`, survivors are not). [`planning-generation.service.ts:364-370`]
+  - Source: Edge (classified info).
+  - Rationale: semantically correct — an inactive employee's surviving MANUAL/confirmed shift physically survives the regeneration deletion, so the position is genuinely staffed and should reduce demand. No silent gap results.
+- [MINOR] Task-6 commit message drift (`docs(KON-119): dev record + flip story 11-2 to review`
+  vs the story's specified `…mark story ready-for-dev bookkeeping`).
+  - Source: Spec.
+  - Rationale: cosmetic; no functional impact on code or history integrity.
+- [INFO] `stats.totalSlots` (full demand) vs `stats.filledSlots` (generated rows only) can
+  read the fill % slightly low when a slot is covered by a surviving manual shift.
+  - Source: Spec, Edge.
+  - Rationale: explicitly self-flagged "do not fix" in Dev Notes → Architecture; `holes`/`violations`/absence-of-double-booking are all correct. Counting manual coverage into `filledSlots` is out of scope for 11-2.
+- [LOW] No explicit test for two distinct template slots sharing `(date, shiftTypeCode)` with
+  one shared overlapping survivor (consumed-once path). [`planning-generation.service.ts:404-428`]
+  - Source: Code (re-verification, confidence ~30).
+  - Rationale: structurally proven correct by trace (the `consumed` flag mutates the shared bucket entry in place; MRV re-validates overlap + jobType per slot regardless of order). Low value vs. the three shipped pins; deferred.
+
+### Verification
+
+- Test command: `pnpm --filter @pawly/api test` (root `pnpm test` broken by the `rtk` turbo shim).
+- Test output (final pass): Story 11-2 suite **6 passed** (3 original + 2 BLOCKER pins + 1 AC1 hour-cap); full API **Test Suites 32 passed, Tests 868 passed**.
+- Build: `pnpm --filter @pawly/api build` → `nest build` (SWC 141 files) + `tsc -p tsconfig.types.json`, green. `prisma validate` → schema valid.
+- Live E2E (Chrome DevTools, headed): admin regenerated a **PUBLISHED** month (Clinique Simulation E2E, 2026-07) holding **4 survivors** (2 MANUAL, 2 GENERATED-with-variance) via the real UI. The Story 11-1 published-change guard fired its acknowledgement dialog ("Planning publié — confirmer la modification"); the Story 11-2 path then ran end-to-end through the real NestJS+Prisma stack. DB assertions post-regen: survivors preserved **4/4**, employee double-bookings **0**, exact `(employeeId, date, startTime)` duplicates **0**; health went 96% (1 hole) → 100% (0 violations), amendment count incremented. Confirms AC1 (no double-booking of a surviving overlap) and AC2 (`@@unique` holds) in the running app, not just under mocked Jest.
+
+### Ticket sync
+
+- Ticket comment posted: n/a (`ticket_system: none`).
+- PR opened/updated: draft → `develop` (see below).
