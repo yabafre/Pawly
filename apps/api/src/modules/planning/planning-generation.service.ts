@@ -357,11 +357,40 @@ export class PlanningGenerationService {
       }
     }
 
+    // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
+    // (date|shiftTypeCode) so the loop can subtract it from requiredStaff and
+    // never over-staff a slot that manual/confirmed coverage already fills.
+    const preExistingSlotCoverage = new Map<string, number>();
+    for (const ss of survivingShifts) {
+      const coverageKey = `${ss.date}|${ss.shiftTypeCode}`;
+      preExistingSlotCoverage.set(
+        coverageKey,
+        (preExistingSlotCoverage.get(coverageKey) || 0) + 1,
+      );
+    }
+
     for (const slot of slots) {
       totalPositions += slot.requiredStaff;
 
+      // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage.
+      // Skip fully-covered slots entirely (no generation, no false hole). The
+      // coverage map is decremented so multiple slots sharing a (date,shiftType)
+      // key consume the coverage once. scoreAndAssign receives a slot clone whose
+      // requiredStaff is the residual, so its slice + hole logic stay correct.
+      const coverageKey = `${slot.date}|${slot.shiftTypeCode}`;
+      const preCovered = preExistingSlotCoverage.get(coverageKey) || 0;
+      const effectiveRequiredStaff = Math.max(
+        0,
+        slot.requiredStaff - preCovered,
+      );
+      preExistingSlotCoverage.set(
+        coverageKey,
+        Math.max(0, preCovered - slot.requiredStaff),
+      );
+      if (effectiveRequiredStaff === 0) continue;
+
       const result = this.scoreAndAssign(
-        slot,
+        { ...slot, requiredStaff: effectiveRequiredStaff },
         employees,
         constraints,
         allShiftsForScoring,
