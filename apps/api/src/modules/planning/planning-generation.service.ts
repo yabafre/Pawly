@@ -18,7 +18,6 @@ import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
 import { templateDataSchema } from '@pawly/validators';
-import { Prisma } from '@prisma/client';
 import type { TemplateData } from '@pawly/validators';
 import type {
   GenerationResult,
@@ -120,14 +119,18 @@ export class PlanningGenerationService {
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
   ) {}
 
-  // Story 11-5 — under SERIALIZABLE isolation Postgres can abort a transaction
-  // with serialization_failure (SQLSTATE 40001) or deadlock_detected (40P01),
-  // both surfaced by Prisma as error code P2034. The (clinicId, month) advisory
-  // lock already serializes same-key runs, so a P2034 here is a rare cross-key
-  // conflict: retry the whole transaction (the lock is re-acquired and the
-  // delete+create is replayed idempotently). Every other error — including P2002
-  // (permanent under the same inputs; retrying would only repeat it) — propagates
-  // unchanged so the caller's catch can map it.
+  // Story 11-5 — the (clinicId, month) advisory lock already serializes same-key
+  // runs, and both transactions run at the default READ COMMITTED isolation, so
+  // the second waiter's deleteMany takes a fresh per-statement snapshot and sees
+  // the first run's committed rows — clearing them before re-creating, no P2002
+  // in the happy path. (SERIALIZABLE would freeze the snapshot at the advisory-lock
+  // SELECT, before the lock is granted, so the waiter would NOT see the first run's
+  // rows — reintroducing the very P2002/retry it is meant to avoid.) A rare
+  // deadlock_detected (SQLSTATE 40P01) can still surface as Prisma error code P2034
+  // against an unrelated concurrent writer: retry the whole transaction (the lock is
+  // re-acquired and the delete+create replays against the now-committed state).
+  // Every other error — including P2002 (permanent under the same inputs; retrying
+  // would only repeat it) — propagates unchanged so the caller's catch can map it.
   private async withSerializationRetry<T>(
     op: () => Promise<T>,
     maxAttempts = 3,
@@ -600,7 +603,6 @@ export class PlanningGenerationService {
             });
           },
           {
-            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
             timeout: 15000,
           },
         ),
@@ -2787,7 +2789,6 @@ export class PlanningGenerationService {
           return publishedAt;
         },
         {
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           timeout: 15000,
         },
       ),

@@ -5508,6 +5508,12 @@ describe('PlanningGenerationService', () => {
       // lock is the FIRST db call — before deleteMany and createManyAndReturn
       expect(calls[0]).toContain('pg_advisory_xact_lock');
       expect(calls.indexOf('deleteMany')).toBeGreaterThan(0);
+      // aped-review — pin the transaction options: default READ COMMITTED + 15s
+      // timeout, NO isolationLevel (SERIALIZABLE would freeze the snapshot at the
+      // advisory-lock SELECT and defeat the second waiter's fresh-snapshot read).
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
     });
 
     it('maps a P2002 during generation to a ConflictException (AC3 — the dead catch is now a real net)', async () => {
@@ -5568,6 +5574,27 @@ describe('PlanningGenerationService', () => {
       expect(attempts).toBe(1);
     });
 
+    it('gives up after 3 P2034 attempts and surfaces InternalServerError, never looping (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(async () => {
+        attempts += 1;
+        return Promise.reject({ code: 'P2034' });
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Failed to persist generated shifts',
+      });
+      // bounded at maxAttempts=3: the 3rd P2034 is thrown (not retried), and the
+      // outer catch maps the non-P2002 error to InternalServerError.
+      expect(attempts).toBe(3);
+    });
+
     it('acquires the (clinicId, month) advisory lock inside publishPlan (AC2)', async () => {
       mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
       (mockPrismaService as any).planningService?.validateShiftsAgainstRules;
@@ -5595,6 +5622,10 @@ describe('PlanningGenerationService', () => {
       expect(lockExec.mock.calls[0][0].join('?')).toContain(
         'pg_advisory_xact_lock',
       );
+      // aped-review — same options contract as generation: READ COMMITTED + 15s.
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
     });
   });
 
