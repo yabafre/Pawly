@@ -1956,6 +1956,81 @@ describe('PlanningGenerationService', () => {
       expect(created.filter((d) => d.employeeId === 'emp-1').length).toBe(0);
       expect(result.holes.length).toBeGreaterThan(0);
     });
+
+    it('counts survivor-covered positions toward filledSlots so the fill stat is not understated (AC3 metric)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // One surviving SURGERY (08:00–12:00) on Mon 2026-03-02 covers one of that
+      // day's two positions. That position is neither a generated row nor a hole,
+      // so filledSlots must add it to the generated count to stay accurate.
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-2',
+      );
+
+      // filledSlots = generated rows + the single survivor-covered position.
+      expect(result.stats.filledSlots).toBe(created.length + 1);
+      // Accounting identity holds: no position is silently unaccounted for.
+      expect(result.stats.filledSlots).toBeLessThanOrEqual(
+        result.stats.totalSlots,
+      );
+    });
+
+    it('credits a shared (date, shiftTypeCode) survivor to exactly one of two slots — consumed once (AC3)', async () => {
+      const twoSurgerySlots = {
+        ...mondaySurgery2,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                { shiftTypeCode: 'SURGERY', requiredStaff: 1 },
+                { shiftTypeCode: 'SURGERY', requiredStaff: 1 },
+              ],
+            },
+          ],
+        },
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(twoSurgerySlots);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // Two SURGERY positions share the (2026-03-02, SURGERY) coverage key. One
+      // surviving overlapping shift must be consumed by ONE slot only — the other
+      // position is still generated (not double-credited, not dropped).
+      mockShiftQueries([
+        {
+          employeeId: 'emp-1',
+          date: new Date('2026-03-02'),
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2');
+
+      const mar2 = created.filter((d) =>
+        d.date.toISOString().startsWith('2026-03-02'),
+      );
+      // 2 positions − 1 consumed-once survivor = exactly 1 generated.
+      expect(mar2.length).toBe(1);
+      // emp-1 is overlap-excluded; the remaining position goes to emp-2.
+      expect(mar2[0].employeeId).toBe('emp-2');
+    });
   });
 
   // ─── deleteGeneratedShifts ────────────────────────────────

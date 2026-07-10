@@ -303,6 +303,9 @@ export class PlanningGenerationService {
     const softViolations: GenerationResult['violations']['soft'] = [];
     const employeeMinutes = new Map<string, number>();
     let totalPositions = 0;
+    // Story 11-2 (AC3 metric) — positions already filled by a surviving shift are
+    // neither a generated row nor a hole; count them so the fill stat is accurate.
+    let survivorCoveredPositions = 0;
 
     // Story 11-2 — seed the in-month surviving shifts into every counter BEFORE
     // the loop so the generator is aware of them. Unlike border shifts (adjacent
@@ -430,6 +433,7 @@ export class PlanningGenerationService {
         0,
         slot.requiredStaff - preCovered,
       );
+      survivorCoveredPositions += preCovered;
       if (effectiveRequiredStaff === 0) continue;
 
       const result = this.scoreAndAssign(
@@ -598,6 +602,7 @@ export class PlanningGenerationService {
       hardViolations,
       softViolations,
       totalPositions,
+      survivorCoveredPositions,
     );
   }
 
@@ -3080,6 +3085,7 @@ export class PlanningGenerationService {
     hardViolations: GenerationResult['violations']['hard'],
     softViolations: GenerationResult['violations']['soft'],
     totalPositions: number,
+    survivorCoveredPositions = 0,
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -3105,7 +3111,9 @@ export class PlanningGenerationService {
       },
       stats: {
         totalSlots: totalPositions,
-        filledSlots: assignments.length,
+        // Filled = newly generated rows + positions already covered by survivors
+        // (Story 11-2 AC3 metric — a survivor-covered position is filled, not a gap).
+        filledSlots: assignments.length + survivorCoveredPositions,
         holeCount: holes.length,
         hardViolationCount: hardViolations.length,
         softWarningCount: softViolations.length,
