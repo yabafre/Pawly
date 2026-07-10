@@ -1,7 +1,7 @@
 # Story: 11-4-reliable-publication-notifications — Reliable Publication & Change Notifications
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-121-11-4-reliable-publication-notifications
 **Ticket:** KON-121 (Linear · project Pawly · milestone Epic 11 · Wave 1 · depends-on: none)
 **Origin:** Multi-agent planning audit 2026-07-08 — reliability gap "Publication emails fail silently". See `docs/epics-context/epic-11-context.md` § 0 (bullet 4). Independent of 11-1/11-2/11-3 (no code overlap); ships in Wave 1.
@@ -961,8 +961,47 @@ pnpm --filter @pawly/api test → Test Suites: 34 passed, 34 total · Tests: 904
 
 ## Review Record
 
+**Date:** 2026-07-10
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface — no Aria)
+**Verdict:** done
+
+Git audit clean (6 declared files = 6 changed; only `docs/state.yaml` + this story extra). Zero hallucinations — 35 identifiers verified, incl. `resend@6.9.3` `Batch.send(payload, { idempotencyKey })` confirmed against the installed types (`index.d.mts:1128` / `IdempotentRequest.idempotencyKey?`). All 3 ACs re-rated **IMPLEMENTED** by the spec verifier. 7 findings, all resolved in-review (6 new tests).
+
 ### Findings
 
+#### Resolved
+- [MAJOR] M1 — batch-email-publish's core multi-chunk / partial-failure path was untested (single-recipient payload only) [apps/api/src/trigger/tasks/batch-email-publish.spec.ts]
+  - Source: Code + Edge
+  - Resolution: `236e42c` — added 3 specs (150-email `-c0`/`-c1` chunking; chunk0-success/chunk1-fail throwing `50/150 … failed to send` with both success=100 and failure=50 counters; render-failure counted without throw).
+- [MAJOR] M2 — AC2 "a single undeliverable recipient never prevents the others" was untested (only failure test drove one recipient) [apps/api/src/modules/planning/planning-generation.service.spec.ts:4931]
+  - Source: Spec
+  - Resolution: `6cce6ec` — drives `notifyScheduleChange` with 2 recipients (first `false`, second `true`), asserts `toHaveBeenCalledTimes(2)` + second recipient's exact args + `1/2` aggregate log. Loop has no `break`/`return` on `!ok`.
+- [MINOR] m3 — render failures silently dropped (no failure metric, no throw, read as success) [apps/api/src/trigger/tasks/batch-email-publish.ts:79-105]
+  - Source: Edge + Spec
+  - Resolution: `236e42c` — `renderFailedCount` folded into the failure metric; deliberately excluded from the retry throw (deterministic bad data must not burn all 5 attempts). Total render wipeout no longer reads as success.
+- [MINOR] m4 — positional `-cN` keys remapped recipients if render composition shifted between retries → duplicate / 409 risk [apps/api/src/trigger/tasks/batch-email-publish.ts:65-110]
+  - Source: Edge + Code
+  - Resolution: `236e42c` chunks over the stable input `emails` array (render per chunk) so each `-cN` key stays anchored to the same input recipients; `93a4d24` adds a discriminating regression guard (101-email batch, early render fail, input index 100 stays under `-c1`).
+- [MINOR] m5 — Dev Agent Record overclaimed "emailSendCounter emitted on every path" [docs/stories/11-4-reliable-publication-notifications.md]
+  - Source: Spec
+  - Resolution: `b21508d` — Summary scoped to the batch-task + direct-fallback paths; documents the Trigger-worker single-send path (`send-email.ts`) is not instrumented. See Deferred below.
+- [NIT] n6 — success counter re-emitted per retry (up to ×5) [apps/api/src/trigger/tasks/batch-email-publish.ts:133-140]
+  - Source: Edge
+  - Resolution: `236e42c` — comment now documents `success` is a per-attempt count (no cross-attempt state available inside a stateless `run()`; doc is the only feasible fix).
+- [NIT] n7 — failure-ratio denominator used `unique.length` (counts null-email skips) [apps/api/src/modules/planning/planning-generation.service.ts:2015-2039]
+  - Source: Edge
+  - Resolution: `6cce6ec` `attemptedEmailCount` (guard-then-increment); `47dd357` null-email-skip + failure test pins `1/2` numerically.
+
+#### Deferred (follow-up ticket — out of this story's scope)
+- [MINOR] m5(b) — the Trigger-worker single-send task `send-email.ts` (used by `sendScheduleChangedEmail` when the Trigger dispatch succeeds) emits no `emailSendCounter`, so a Resend outage on that path is visible only in the Trigger.dev dashboard, not SigNoz.
+  - Rationale for deferral: `send-email.ts` is not in this story's File List, and instrumenting it forces choosing a metric `type` string — "normalising the `type` attribute across email metric paths" is a **documented Non-Goal** of this story. Its own `maxAttempts:3` retry means failures are not fully silent. Tracked for a follow-up ticket.
+
 ### Verification
+- Test command: `pnpm --filter @pawly/api test`
+- Test output (final pass): `Test Suites: 34 passed, 34 total · Tests: 910 passed, 910 total` (exit 0) — 904 baseline + 6 review tests.
+- Typecheck: `pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json` → 24 pre-existing errors (clinic/employee/planning.service/variance specs), **0 in any file this story touched**.
+- Both fix rounds re-verified by dedicated auditors: reliability verifier + spec verifier both returned ALL_RESOLVED (HIGH confidence).
 
 ### Ticket sync
+- Ticket comment posted: YES (KON-121, Linear)
+- PR opened: https://github.com/yabafre/Pawly/pull/98 (draft → develop)
