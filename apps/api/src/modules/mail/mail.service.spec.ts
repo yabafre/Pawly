@@ -197,4 +197,62 @@ describe('MailService — Trigger.dev fallback for auth-critical emails', () => 
       });
     });
   });
+
+  describe('sendSchedulePublicationEmail — Story 11-4 reliable publication notifications', () => {
+    it('returns true and skips the direct send when the Trigger dispatch succeeds', async () => {
+      triggerMock.mockResolvedValue({ id: 'run-id' });
+
+      const ok = await service.sendSchedulePublicationEmail(
+        'vet@clinic.fr',
+        'Sarah',
+        '2026-07',
+        'Clinique du Parc',
+        5,
+      );
+
+      expect(ok).toBe(true);
+      expect(resendSend).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the direct Resend send when the Trigger dispatch fails', async () => {
+      triggerMock.mockRejectedValue(new Error('trigger.dev unreachable'));
+
+      const ok = await service.sendSchedulePublicationEmail(
+        'vet@clinic.fr',
+        'Sarah',
+        '2026-07',
+        'Clinique du Parc',
+        5,
+      );
+
+      expect(ok).toBe(true);
+      expect(resendSend).toHaveBeenCalledTimes(1);
+      expect(counterMock).toHaveBeenCalledWith(1, {
+        type: 'schedule_publication',
+        outcome: 'success',
+      });
+    });
+
+    it('returns false (does not throw) when both channels fail', async () => {
+      triggerMock.mockRejectedValue(new Error('trigger.dev unreachable'));
+      resendSend.mockResolvedValue({
+        data: null,
+        error: { message: 'resend down' },
+      });
+
+      const ok = await service.sendSchedulePublicationEmail(
+        'vet@clinic.fr',
+        'Sarah',
+        '2026-07',
+        'Clinique du Parc',
+        5,
+      );
+
+      expect(ok).toBe(false);
+      expect(counterMock).toHaveBeenCalledWith(1, {
+        type: 'schedule_publication',
+        outcome: 'failure',
+      });
+    });
+  });
 });
