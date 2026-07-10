@@ -1,7 +1,7 @@
 # Story: 11-3-french-labor-law-hard-rules — French Labor Law as Default Hard Rules
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-120-11-3-french-labor-law-hard-rules
 **Ticket:** KON-120 (Linear · project Pawly · milestone Epic 11 · blocks KON-125 / 11-8)
 **Origin:** Multi-agent planning audit 2026-07-08 — confirmed reliability/compliance gap: *"No French labor law by default. All hard limits live inside `for (const rule of hardContractRules)`; zero configured `CONTRACT_COMPLIANCE` rule = zero exclusion."* See `docs/epics-context/epic-11-context.md` § 0. This story is Wave W1 (no deps) and **unblocks 11-8** (unified rule engine), which will later fold these four checks into a single evaluator.
