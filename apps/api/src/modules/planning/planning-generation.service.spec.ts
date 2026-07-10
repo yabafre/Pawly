@@ -1401,6 +1401,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
@@ -1441,6 +1442,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -1595,6 +1597,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
@@ -1667,6 +1670,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
@@ -3388,6 +3392,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -3414,6 +3419,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -3453,6 +3459,7 @@ describe('PlanningGenerationService', () => {
         mockPrismaService.$transaction.mockImplementation(async (cb: any) => {
           const shifts: any[] = [];
           return cb({
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
@@ -4253,6 +4260,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -4280,6 +4288,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -5106,6 +5115,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: txDeleteMany,
               createManyAndReturn: jest.fn().mockResolvedValue([
@@ -5161,6 +5171,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -5267,6 +5278,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
               createManyAndReturn: jest.fn().mockResolvedValue([
@@ -5565,6 +5577,200 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-5 — idempotent generation & concurrency safety ──────
+  describe('Story 11-5 — idempotent generation & concurrency safety', () => {
+    const simpleTemplate = {
+      id: 'tpl-11-5',
+      name: 'Simple',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+    const oneVet = [
+      {
+        id: 'emp-1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+    ];
+
+    // A tx whose $executeRaw records the raw SQL it was handed, so we can assert
+    // the advisory lock ran BEFORE any deleteMany/createManyAndReturn.
+    const buildRecordingTx = () => {
+      const calls: string[] = [];
+      const tx = {
+        $executeRaw: jest
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray) => {
+            calls.push(strings.join('?'));
+            return Promise.resolve(0);
+          }),
+        shift: {
+          deleteMany: jest.fn().mockImplementation(() => {
+            calls.push('deleteMany');
+            return Promise.resolve({ count: 0 });
+          }),
+          createManyAndReturn: jest
+            .fn()
+            .mockImplementation(({ data }: { data: any[] }) => {
+              calls.push('createManyAndReturn');
+              return Promise.resolve(
+                data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+              );
+            }),
+        },
+      };
+      return { tx, calls };
+    };
+
+    it('acquires the (clinicId, month) advisory lock before deleting on generateMonthlyPlan (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      const { tx, calls } = buildRecordingTx();
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) => fn(tx),
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5');
+
+      expect(tx.$executeRaw).toHaveBeenCalled();
+      const rawSql = tx.$executeRaw.mock.calls[0][0].join('?');
+      expect(rawSql).toContain('pg_advisory_xact_lock');
+      expect(rawSql).toContain('hashtext');
+      // lock is the FIRST db call — before deleteMany and createManyAndReturn
+      expect(calls[0]).toContain('pg_advisory_xact_lock');
+      expect(calls.indexOf('deleteMany')).toBeGreaterThan(0);
+      // aped-review — pin the transaction options: default READ COMMITTED + 15s
+      // timeout, NO isolationLevel (SERIALIZABLE would freeze the snapshot at the
+      // advisory-lock SELECT and defeat the second waiter's fresh-snapshot read).
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
+    });
+
+    it('maps a P2002 during generation to a ConflictException (AC3 — the dead catch is now a real net)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Duplicate shift detected during generation',
+      });
+    });
+
+    it('retries the generation transaction once on a P2034 serialization failure, then succeeds (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      const { tx } = buildRecordingTx();
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) => {
+          attempts += 1;
+          if (attempts === 1) return Promise.reject({ code: 'P2034' });
+          return fn(tx);
+        },
+      );
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-5',
+      );
+
+      expect(attempts).toBe(2);
+      expect(result).toBeDefined();
+    });
+
+    it('does NOT retry a P2002 (permanent) — fails on the first attempt (AC3)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(async () => {
+        attempts += 1;
+        return Promise.reject({ code: 'P2002' });
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Duplicate shift detected during generation',
+      });
+      expect(attempts).toBe(1);
+    });
+
+    it('gives up after 3 P2034 attempts and surfaces InternalServerError, never looping (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(async () => {
+        attempts += 1;
+        return Promise.reject({ code: 'P2034' });
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Failed to persist generated shifts',
+      });
+      // bounded at maxAttempts=3: the 3rd P2034 is thrown (not retried), and the
+      // outer catch maps the non-P2002 error to InternalServerError.
+      expect(attempts).toBe(3);
+    });
+
+    it('acquires the (clinicId, month) advisory lock inside publishPlan (AC2)', async () => {
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
+      (mockPrismaService as any).planningService?.validateShiftsAgainstRules;
+      jest
+        .spyOn(service['planningService'], 'validateShiftsAgainstRules')
+        .mockResolvedValue({ hardViolations: [], softViolations: [] } as any);
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinic',
+      });
+      const lockExec = jest.fn().mockResolvedValue(0);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: lockExec,
+            planningPeriodStatus: {
+              upsert: jest.fn().mockResolvedValue({}),
+            },
+          }),
+      );
+
+      await service.publishPlan(clinicId, '2026-03', 'user-1');
+
+      expect(lockExec).toHaveBeenCalled();
+      expect(lockExec.mock.calls[0][0].join('?')).toContain(
+        'pg_advisory_xact_lock',
+      );
+      // aped-review — same options contract as generation: READ COMMITTED + 15s.
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
+    });
+  });
+
   // ─── publishPlan ──────────────────────────────────────────────────
   describe('publishPlan', () => {
     const userId = 'user-admin-1';
@@ -5609,6 +5815,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             planningPeriodStatus: mockTxPlanningPeriodStatus,
           };
           return fn(tx);
@@ -5831,7 +6038,10 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
-          const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            planningPeriodStatus: mockTxPlanningPeriodStatus,
+          };
           return fn(tx);
         },
       );
@@ -5895,7 +6105,10 @@ describe('PlanningGenerationService', () => {
         });
         mockPrismaService.$transaction.mockImplementation(
           async (fn: (tx: unknown) => Promise<unknown>) => {
-            const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+            const tx = {
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              planningPeriodStatus: mockTxPlanningPeriodStatus,
+            };
             return fn(tx);
           },
         );

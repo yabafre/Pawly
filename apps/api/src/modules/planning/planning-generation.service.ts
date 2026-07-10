@@ -119,6 +119,38 @@ export class PlanningGenerationService {
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
   ) {}
 
+  // Story 11-5 — the (clinicId, month) advisory lock already serializes same-key
+  // runs, and both transactions run at the default READ COMMITTED isolation, so
+  // the second waiter's deleteMany takes a fresh per-statement snapshot and sees
+  // the first run's committed rows — clearing them before re-creating, no P2002
+  // in the happy path. (SERIALIZABLE would freeze the snapshot at the advisory-lock
+  // SELECT, before the lock is granted, so the waiter would NOT see the first run's
+  // rows — reintroducing the very P2002/retry it is meant to avoid.) A rare
+  // deadlock_detected (SQLSTATE 40P01) can still surface as Prisma error code P2034
+  // against an unrelated concurrent writer: retry the whole transaction (the lock is
+  // re-acquired and the delete+create replays against the now-committed state).
+  // Every other error — including P2002 (permanent under the same inputs; retrying
+  // would only repeat it) — propagates unchanged so the caller's catch can map it.
+  private async withSerializationRetry<T>(
+    op: () => Promise<T>,
+    maxAttempts = 3,
+  ): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await op();
+      } catch (error: unknown) {
+        const code = (error as { code?: string }).code;
+        if (code === 'P2034' && attempt < maxAttempts) {
+          lastError = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
+  }
+
   async generateMonthlyPlan(
     clinicId: string,
     month: string,
@@ -528,36 +560,53 @@ export class PlanningGenerationService {
       shiftTypeCode: string;
     }>;
     try {
-      createdShifts = await this.prisma.$transaction(async (tx) => {
-        // Story 11-1 — preserve confirmed shifts and shifts carrying variance
-        // history (VarianceEvent cascades on delete → would erase no-show /
-        // clock-in records). Only unconfirmed, history-free GENERATED shifts
-        // are cleared before regeneration.
-        await tx.shift.deleteMany({
-          where: {
-            clinicId,
-            source: 'GENERATED',
-            isConfirmed: false,
-            varianceEvents: { none: {} },
-            date: { gte: monthStart, lte: monthEnd },
-          },
-        });
+      createdShifts = await this.withSerializationRetry(() =>
+        this.prisma.$transaction(
+          async (tx) => {
+            // Story 11-5 — serialize concurrent generations of the SAME
+            // (clinic, month) so a retry (reverse-proxy 502/504 replay, or a
+            // double-click) can never interleave two delete+create passes into a
+            // duplicated month. pg_advisory_xact_lock auto-releases at COMMIT /
+            // ROLLBACK on this interactive transaction's pinned connection (safe
+            // with the Prisma pool, unlike a session-level pg_advisory_lock). Two
+            // int4 keys — hashtext of each — avoid the bigint-cast ambiguity of the
+            // single-argument form; the tagged template binds them as parameters.
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
-        if (assignedShifts.length === 0) return [];
-        return tx.shift.createManyAndReturn({
-          data: assignedShifts.map((s) => ({
-            date: new Date(`${s.date}T00:00:00.000Z`),
-            startTime: s.startTime,
-            endTime: s.endTime,
-            shiftTypeCode: s.shiftTypeCode,
-            breakMinutes: s.breakMinutes || 0,
-            source: 'GENERATED' as const,
-            employeeId: s.employeeId,
-            clinicId,
-            planningTemplateId: templateId,
-          })),
-        });
-      });
+            // Story 11-1 — preserve confirmed shifts and shifts carrying variance
+            // history (VarianceEvent cascades on delete → would erase no-show /
+            // clock-in records). Only unconfirmed, history-free GENERATED shifts
+            // are cleared before regeneration.
+            await tx.shift.deleteMany({
+              where: {
+                clinicId,
+                source: 'GENERATED',
+                isConfirmed: false,
+                varianceEvents: { none: {} },
+                date: { gte: monthStart, lte: monthEnd },
+              },
+            });
+
+            if (assignedShifts.length === 0) return [];
+            return tx.shift.createManyAndReturn({
+              data: assignedShifts.map((s) => ({
+                date: new Date(`${s.date}T00:00:00.000Z`),
+                startTime: s.startTime,
+                endTime: s.endTime,
+                shiftTypeCode: s.shiftTypeCode,
+                breakMinutes: s.breakMinutes || 0,
+                source: 'GENERATED' as const,
+                employeeId: s.employeeId,
+                clinicId,
+                planningTemplateId: templateId,
+              })),
+            });
+          },
+          {
+            timeout: 15000,
+          },
+        ),
+      );
     } catch (error: unknown) {
       const prismaError = error as { code?: string };
       if (prismaError.code === 'P2002') {
@@ -2726,26 +2775,39 @@ export class PlanningGenerationService {
     }
 
     // Upsert publication status atomically
-    const now = await this.prisma.$transaction(async (tx) => {
-      const publishedAt = new Date();
-      await tx.planningPeriodStatus.upsert({
-        where: { clinicId_month: { clinicId, month } },
-        create: {
-          clinicId,
-          month,
-          status: 'PUBLISHED',
-          publishedAt,
-          publishedBy: userId,
-        },
-        update: {
-          status: 'PUBLISHED',
-          publishedAt,
-          publishedBy: userId,
-        },
-      });
+    const now = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          // Story 11-5 — take the SAME (clinicId, month) advisory lock as
+          // generation so a publish serializes against a concurrent regeneration
+          // or a double-clicked publish instead of racing. Auto-released at
+          // COMMIT / ROLLBACK on the interactive transaction's pinned connection.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
-      return publishedAt;
-    });
+          const publishedAt = new Date();
+          await tx.planningPeriodStatus.upsert({
+            where: { clinicId_month: { clinicId, month } },
+            create: {
+              clinicId,
+              month,
+              status: 'PUBLISHED',
+              publishedAt,
+              publishedBy: userId,
+            },
+            update: {
+              status: 'PUBLISHED',
+              publishedAt,
+              publishedBy: userId,
+            },
+          });
+
+          return publishedAt;
+        },
+        {
+          timeout: 15000,
+        },
+      ),
+    );
 
     // Fetch all employees with shifts in the month (for total count)
     const [allEmployeesWithShifts, clinic] = await Promise.all([

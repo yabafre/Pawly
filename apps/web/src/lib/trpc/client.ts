@@ -35,7 +35,21 @@ const getBaseUrl = () => {
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 
-async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  // Story 11-5 — retry ONLY safe, idempotent queries. tRPC v11 httpBatchLink
+  // sends queries as GET and mutations as POST, and never batches the two into
+  // one HTTP request, so any non-GET method is a mutation. Replaying a mutation
+  // could duplicate a whole month of shifts (a retried generateMonthlyPlan behind
+  // a reverse-proxy 502/504). A mutation therefore gets a SINGLE attempt — at most
+  // once — and any 5xx / non-JSON / connection error propagates to the caller.
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') {
+    return fetch(input, init);
+  }
+
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
