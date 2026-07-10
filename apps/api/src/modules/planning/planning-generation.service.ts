@@ -2012,15 +2012,26 @@ export class PlanningGenerationService {
     ]);
     const byId = new Map(employees.map((e) => [e.id, e]));
 
+    let failedEmailCount = 0;
     for (const r of unique) {
       const emp = byId.get(r.employeeId);
       if (!emp || !emp.email) continue;
-      await this.mailService.sendScheduleChangedEmail(
+      // Story 11-4 (AC2) — react to the returned status. sendScheduleChangedEmail
+      // now returns false (not throws) when both channels fail, so a change
+      // notification outage is visible in the logs (NFR3) instead of silently
+      // dropped, and one bad recipient never aborts the loop.
+      const ok = await this.mailService.sendScheduleChangedEmail(
         emp.email,
         emp.firstName,
         r.month,
         clinic.name,
         (emp.user?.locale as 'fr' | 'en') ?? 'fr',
+      );
+      if (!ok) failedEmailCount++;
+    }
+    if (failedEmailCount > 0) {
+      this.logger.error(
+        `notifyScheduleChange: ${failedEmailCount}/${unique.length} change email(s) failed for clinic ${clinicId}`,
       );
     }
 

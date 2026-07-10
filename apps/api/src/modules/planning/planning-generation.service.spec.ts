@@ -210,7 +210,7 @@ describe('PlanningGenerationService', () => {
   const mockMailService = {
     sendSchedulePublicationEmail: jest.fn(),
     sendBatchSchedulePublicationEmails: jest.fn().mockResolvedValue(0),
-    sendScheduleChangedEmail: jest.fn().mockResolvedValue(undefined),
+    sendScheduleChangedEmail: jest.fn().mockResolvedValue(true),
   };
 
   const mockPushNotificationService = {
@@ -4892,6 +4892,36 @@ describe('PlanningGenerationService', () => {
         expect.any(String),
         expect.any(String),
       );
+    });
+
+    // Story 11-4 (AC2): the caller reacts to a failed change notification.
+    it('error-logs an aggregate when a change email fails (does not throw)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockMailService.sendScheduleChangedEmail.mockResolvedValue(false);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('change email(s) failed'),
+      );
+      errorSpy.mockRestore();
     });
   });
 
