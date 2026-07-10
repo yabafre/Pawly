@@ -16,6 +16,9 @@ model User {
   locale  String   @default("fr") // "fr" | "en"
   otpFallbackUntil DateTime? @map("otp_fallback_until")
 
+  tourCompletedAt DateTime? @map("tour_completed_at")
+  tourState       Json?     @map("tour_state")
+
   employee  Employee?
   magicLinks           MagicLink[]
   activationTokens     ActivationToken[]

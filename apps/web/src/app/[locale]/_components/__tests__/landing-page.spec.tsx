@@ -361,7 +361,7 @@ describe('LandingFooter', () => {
     expect(featuresLink.closest('a')).toHaveAttribute('href', '#features');
 
     const pricingLink = screen.getByText('pricing');
-    expect(pricingLink.closest('a')).toHaveAttribute('href', '/pricing');
+    expect(pricingLink.closest('a')).toHaveAttribute('href', '/#pricing');
   });
 
   it('has border-t styling', async () => {

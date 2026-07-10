@@ -10,6 +10,10 @@ status: updated
 completedAt: '2026-02-02'
 lastEdited: '2026-04-04'
 editHistory:
+  - date: '2026-07-08'
+    changes: 'Added Epic 11: Planning Engine Hardening & Compliance (10 stories) — from the 2026-07-08 multi-agent audit (28 confirmed findings). Remediates the 7-6 bulk-regeneration guard gap, manual-shift blindness, missing French labor-law hard rules, notification reliability, generation idempotency/concurrency, equity plumbing, rule-engine unification, and a GRASP local-repair pass. No new FRs — extends FR7 (Hard Rules) to French labor law.'
+  - date: '2026-07-08'
+    changes: 'Added Story 7.6: Post-Publication Change Management — from pre-mortem R1 (HIGH×CRITICAL): silent edits on published plannings, missing change notifications, stale isConfirmed, stale PWA cache.'
   - date: '2026-04-04'
     changes: 'Added Story 10.3: Onboarding Flow Revamp — Account-first registration, 3-step wizard, upgrade modal, webhook adaptation.'
   - date: '2026-04-01'
@@ -130,7 +134,7 @@ _PRD → Epic/Story traceability._
 | FR7 | System blocks shifts conflicting with Hard Rules | Epic 5, Epic 6 | 5.4, 5.5, 6.2 |
 | FR8 | System flags Soft Rule violations | Epic 5, Epic 7 | 5.5, 5.6, 7.2 |
 | FR9 | Employees confirm presence via slider | Epic 8 | 8.2 |
-| FR10 | System notifies employees on publication | Epic 8 | 8.3 |
+| FR10 | System notifies employees on publication | Epic 7, Epic 8 | 7.6 (post-publication changes), 8.3 |
 | FR11 | Interface FR/EN with versioned translation files | Epic 2 | 2.1, 2.2 |
 | FR12 | Public landing page (product, pricing, CTA) | Epic 4 | 4.1 |
 | FR13 | Stripe Checkout IS registration (pre-checkout form) | Epic 3, Epic 4 | 3.2, 4.2 |
@@ -139,6 +143,8 @@ _PRD → Epic/Story traceability._
 | FR16 | Access restricted by subscription status | Epic 3 | 3.6 |
 | FR17 | Webhook creates Clinic + Admin + Subscription + Magic Link | Epic 3 | 3.2 |
 | FR18 | Post-checkout onboarding wizard for clinic configuration | Epic 3 | 3.3 |
+
+_Epic 11 (Planning Engine Hardening & Compliance) re-covers FR3/FR5/FR6/FR7/FR8/FR10 at a higher safety and reliability bar — see stories 11-1 through 11-10. It extends FR7 (Hard Rules) to French labor-law constraints (max 10h/day, 35h weekly rest, max 6 consecutive days) rather than introducing a new FR._
 
 ## Epic List
 
@@ -683,6 +689,22 @@ So that I can track deviations, manage exceptions, and prepare accurate data for
 
 > **Note:** This module bridges the gap between scheduling and payroll/HR systems. It provides the audit trail needed for labor compliance and fair compensation.
 
+### Story 7.6: Post-Publication Change Management
+As an admin,
+I want schedule changes made after publication to be explicit, notified, and consistency-preserving,
+So that employees never show up on a stale schedule and the "System Never Lies" promise holds after publication.
+
+**Acceptance Criteria:**
+**Given** a PUBLISHED planning period
+**When** I move, create, or delete a shift in that period
+**Then** the system requires an explicit acknowledgement of the post-publication change (no silent edit path)
+**And** a shift moved to another date/employee has its `isConfirmed` flag reset
+**And** every employee affected by the change receives a "schedule changed" notification (email, new template)
+**And** the employee PWA schedule cache is invalidated so the stale version is not shown on next open
+**And** post-publication modifications are tracked so the "<10% shifts modified after publication" PRD metric is measurable.
+
+> **Origin:** `docs/pre-mortem.md` R1 (HIGH×CRITICAL). Evidence: `moveShift`/`createManualShift` have no `PlanningPeriodStatus` guard and send no notification; email/push fire only inside `publishPlanning`; no "schedule changed" template exists among the 13 email templates.
+
 ## Epic 8: Employee PWA Portal & Time Tracking
 
 ### Story 8.1: Personal Schedule Consultation (Graceful Offline)
@@ -774,3 +796,212 @@ So that I can explore the platform as a Starter user immediately and upgrade to 
 **And** on submit, Clinic + User + Subscription (starter) are created atomically, I'm auto-logged in and redirected to the onboarding wizard (3 steps: work days, hours, shift types — no clinic name step).
 **And** if I selected Professional, a dismissible upgrade modal appears on the dashboard after onboarding.
 **And** the Stripe webhook handles upgrades for existing accounts (update subscription, not create new clinic).
+
+---
+
+## Epic 11: Planning Engine Hardening & Compliance
+
+> **Shared context (read first):** [`docs/epics-context/epic-11-context.md`](epics-context/epic-11-context.md) — the full audit synthesis, file:line anchors per story, and the cross-cutting invariants every Epic 11 story must preserve. `aped-dev` / `aped-review` load it automatically.
+
+Remediation epic derived from the multi-agent audit of 2026-07-08 (28 confirmed findings, 0 refuted across two independent audits). It introduces **no new FRs** — it re-covers FR5/FR6/FR7/FR8/FR10 at a higher safety and reliability bar and **extends the FR7 "Hard Rules" definition to include French labor-law constraints**. Sequencing follows the audit ROI roadmap: safety and compliance criticals first, algorithmic completeness last.
+
+**FRs covered:** FR3, FR5, FR6, FR7 (extended), FR8, FR10.
+**NFRs covered:** NFR2, NFR3, NFR9, NFR10.
+
+### Story 11.1: Extend Published-Change Guard to Bulk Regeneration
+**Story key:** `11-1-published-change-guard-bulk-regeneration`
+As an admin user,
+I want the published-change guard to apply when I regenerate or purge a published month, not only when I move a single shift,
+So that a bulk regeneration can never silently wipe a published, confirmed schedule without my acknowledgement and without notifying staff.
+
+**Acceptance Criteria:**
+**Given** a month whose `PlanningPeriodStatus` is `PUBLISHED`
+**When** an admin triggers monthly generation or "delete generated shifts" on that month
+**Then** the `PUBLISHED_CHANGE_REQUIRES_ACK` guard fires and the operation requires `acknowledgePublishedChange: true` (added to the generation schemas).
+**And** shifts with `isConfirmed=true` and shifts on past days are preserved (never deleted by the bulk `deleteMany`).
+**And** on acknowledged change, an amendment is recorded (`amendedAt`, `amendmentCount++`) and a `schedule-changed` notification is emitted — mirroring the manual-move path.
+
+**FRs covered:** FR5, FR7, FR10. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** none.
+
+### Story 11.2: Manual Shifts Visible to Generator + Anti-Duplicate Constraint
+**Story key:** `11-2-manual-shift-visibility-anti-duplicate`
+As an admin user,
+I want the generator to see the manual shifts already present in the target month,
+So that regenerating an amended month never double-books an employee or silently exceeds their contract hours.
+
+**Acceptance Criteria:**
+**Given** a target month containing `MANUAL` shifts that survive regeneration
+**When** the generation loop runs
+**Then** those manual shifts are loaded into `assignmentIndex`, `weeklyMinutesCounter`, and the equity/hour counters before the loop begins (same query shape as `loadBorderWeekShifts`, bounded to the target month).
+**And** a partial `@@unique` constraint on `Shift` (employee × date × slot) prevents any exact double-booking at the database level.
+**And** the slot overlap check accounts for pre-existing manual coverage when computing remaining `requiredStaff`.
+
+**FRs covered:** FR5, FR7.
+**Complexity:** M.
+**Depends on:** 11-1-published-change-guard-bulk-regeneration.
+
+### Story 11.3: French Labor Law as Default Hard Rules
+**Story key:** `11-3-french-labor-law-hard-rules`
+As a clinic operating under French labor law,
+I want statutory rest and working-time limits enforced by default,
+So that a generated or manually edited schedule cannot silently produce an illegal roster.
+
+**Acceptance Criteria:**
+**Given** any clinic, with or without admin-configured planning rules
+**When** shifts are generated or manually edited
+**Then** the following constraints are enforced as non-disableable hard rules: max 10h worked per day (L.3121-18), 13h daily amplitude, 35h consecutive weekly rest and max 6 consecutive worked days (L.3132-1/2).
+**And** default statutory rules are seeded at onboarding, and the statutory limits are also hard-coded so they hold even with zero configured rules.
+**And** violations surface in the Planning Health Bar (not only as a soft score penalty).
+
+**FRs covered:** FR3, FR7 (extended). **NFRs:** NFR3.
+**Complexity:** L.
+**Depends on:** none.
+
+### Story 11.4: Reliable Publication & Change Notifications
+**Story key:** `11-4-reliable-publication-notifications`
+As an employee,
+I want to reliably receive publication and change notifications,
+So that a transient email-provider failure never leaves me unaware that my schedule was published or changed.
+
+**Acceptance Criteria:**
+**Given** the `batch-email-publish` Trigger task and the schedule-notification mail methods
+**When** a Resend send fails
+**Then** the task throws so its configured retries (`maxAttempts: 5`) actually run, instead of returning success unconditionally.
+**And** the direct-Resend fallback (used by OTP / magic-link) is wired for `sendSchedulePublicationEmail` and `sendScheduleChangedEmail`, and the caller reacts to the returned status.
+**And** an `emailSendCounter` metric is emitted so a silent notification outage is observable.
+
+**FRs covered:** FR10. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** none.
+
+### Story 11.5: Idempotent Generation & Concurrency Safety
+**Story key:** `11-5-idempotent-generation-concurrency-safety`
+As an admin user,
+I want month generation and publication to be safe under retries and concurrent access,
+So that a reverse-proxy timeout or a double click can never duplicate an entire month of shifts.
+
+**Acceptance Criteria:**
+**Given** a slow generation or publication request behind a reverse proxy
+**When** the client or infrastructure retries on a 5xx / connection reset
+**Then** the tRPC client no longer retries mutations (`fetchWithRetry` limited to queries), so a mutation is sent at most once.
+**And** `generateMonthlyPlan` and `publishPlan` take a `pg_advisory_xact_lock` keyed on `(clinicId, month)` so concurrent runs serialize instead of racing.
+**And** with the anti-duplicate constraint from 11-2 in place, a retried generation cannot produce a duplicated month (the dead `P2002` catch becomes a real safety net).
+
+**FRs covered:** FR5. **NFRs:** NFR3, NFR10.
+**Complexity:** M.
+**Depends on:** 11-2-manual-shift-visibility-anti-duplicate.
+
+### Story 11.6: Transactional Amendment Flow & Cache Coherence
+**Story key:** `11-6-transactional-amendment-cache-coherence`
+As an admin user,
+I want an acknowledged amendment to apply atomically and invalidate stale caches,
+So that a partial failure never leaves a changed shift without its amendment record, notification, or a fresh cache.
+
+**Acceptance Criteria:**
+**Given** an acknowledged published-change (move / create / delete)
+**When** the mutation and `recordAmendment` run
+**Then** both execute inside a single interactive `$transaction` (tx passed through), so an intermediate failure rolls back cleanly.
+**And** the router's Redis `schedule:*` invalidations run in a `try/finally` so they are never skipped when the handler throws mid-way.
+**And** after a successful amendment the employee-facing schedule reflects the change within one cache TTL, with no stale `isConfirmed` or `schedule:*` entry.
+
+**FRs covered:** FR6, FR10. **NFRs:** NFR3.
+**Complexity:** S.
+**Depends on:** 11-1-published-change-guard-bulk-regeneration.
+
+### Story 11.7: Equity Counter Window Fix
+**Story key:** `11-7-equity-counter-window-fix`
+As an admin user,
+I want equity to be computed over a rolling 12-month window with entries for every employee,
+So that fairness does not reset each January and new hires are not preferentially assigned the unpopular shifts.
+
+**Acceptance Criteria:**
+**Given** equity computation at the start of a calendar year or for a newly hired employee
+**When** `getCountersForPeriod` builds the equity map
+**Then** it loads a rolling 12-month window (including December of the previous year), instead of only the current calendar year.
+**And** missing `equityMap` entries (January boundary, new hires) are created rather than short-circuited with a flat `+20` fallback.
+**And** the live intra-month increment creates the employee's entry when absent so subsequent scoring reflects real load.
+
+**FRs covered:** FR8.
+**Complexity:** M.
+**Depends on:** none.
+
+### Story 11.8: Unify the Rule Engine
+**Story key:** `11-8-unified-rule-engine`
+As a maintainer,
+I want a single HARD/SOFT rule evaluator shared by generation, publication, and manual-move validation,
+So that a shift violating a hard rule cannot pass one path while being blocked in another.
+
+**Acceptance Criteria:**
+**Given** the three current rule implementations (generation scoring, `validateShiftsAgainstRules`, `preValidateMove`)
+**When** rules are evaluated on any path
+**Then** a single shared evaluator is used, deducting `breakMinutes`, enforcing `maxWeeklyHours` in validation, and honoring `ruleType` for contract/rotation (so HARD contract/rotation violations block publication).
+**And** the evaluator is unit-tested in isolation, ideally extracted with the pure algorithm core into a domain package.
+**And** publication is blocked by any HARD violation regardless of which rule category produced it.
+
+**FRs covered:** FR7, FR8.
+**Complexity:** L.
+**Depends on:** 11-2-manual-shift-visibility-anti-duplicate, 11-3-french-labor-law-hard-rules.
+
+### Story 11.9: Local Repair Pass (GRASP) for Generation Completeness
+**Story key:** `11-9-local-repair-pass-grasp`
+As an admin user,
+I want the generator to attempt to fill holes a single greedy pass leaves behind,
+So that the schedule is as complete as feasible without introducing rule violations.
+
+**Acceptance Criteria:**
+**Given** a greedy generation result that leaves holes while a feasible fuller assignment exists (proven by counter-example)
+**When** generation completes
+**Then** a bounded local-repair pass runs: hole-repair via ejection chains (depth ≤ 2) plus equity hill-climbing swaps against an explicit global objective.
+**And** every swap correctly decrements/increments the affected counters and re-checks validity through the unified evaluator, so no repair introduces a hard-rule violation.
+**And** holes and violations are recomputed after the pass, and each unresolved hole still carries a visible reason for the admin.
+
+**FRs covered:** FR5. **NFRs:** NFR2.
+**Complexity:** L.
+**Depends on:** 11-2-manual-shift-visibility-anti-duplicate, 11-8-unified-rule-engine.
+
+### Story 11.10: Generation Performance Under Load
+**Story key:** `11-10-generation-performance-under-load`
+As an admin of a large clinic,
+I want month generation to stay responsive at 50 employees,
+So that generating a full month never freezes the API event loop or breaks the < 2s target.
+
+**Acceptance Criteria:**
+**Given** a stress configuration (50 employees, 24/7 clinic, 3 shift types, 31-day month)
+**When** a month is generated
+**Then** the SOFT rotation scoring uses a per-day index and early-exit instead of re-scanning the whole pool per employee per slot.
+**And** the generation loop yields the event loop periodically (or runs as an async Trigger job) so it never blocks concurrent requests.
+**And** generation meets NFR2 (< 2s, with loading feedback beyond 1s) and NFR9 (50 employees without degradation) under the stress configuration.
+
+**FRs covered:** (perf hardening — no new FR). **NFRs:** NFR2, NFR9.
+**Complexity:** M.
+**Depends on:** 11-2-manual-shift-visibility-anti-duplicate.
+
+### Epic 11 — Implementation Sequence (DAG)
+
+```
+Wave 1 (no deps, parallel): 11-1 · 11-3 · 11-4 · 11-7
+Wave 2: 11-2 (<-11-1) · 11-6 (<-11-1)
+Wave 3: 11-5 (<-11-2) · 11-10 (<-11-2) · 11-8 (<-11-2,11-3)
+Wave 4: 11-9 (<-11-2,11-8)
+```
+
+Critical safety/reliability quick wins (~1-2 weeks): 11-1, 11-2, 11-4, 11-5.
+
+### Epic 11 — Linear Tickets
+
+Synced to Linear project **Pawly**, milestone *Epic 11 — Planning Engine Hardening & Compliance* (2026-07-08). Dependencies wired as blocked-by relations.
+
+| Story key | Ticket | Size | Priority |
+|-----------|--------|------|----------|
+| 11-1-published-change-guard-bulk-regeneration | KON-118 | M | Urgent |
+| 11-2-manual-shift-visibility-anti-duplicate | KON-119 | M | Urgent |
+| 11-3-french-labor-law-hard-rules | KON-120 | L | High |
+| 11-4-reliable-publication-notifications | KON-121 | M | High |
+| 11-5-idempotent-generation-concurrency-safety | KON-122 | M | High |
+| 11-6-transactional-amendment-cache-coherence | KON-123 | S | Medium |
+| 11-7-equity-counter-window-fix | KON-124 | M | Medium |
+| 11-8-unified-rule-engine | KON-125 | L | Medium |
+| 11-9-local-repair-pass-grasp | KON-126 | L | Low |
+| 11-10-generation-performance-under-load | KON-127 | M | Medium |

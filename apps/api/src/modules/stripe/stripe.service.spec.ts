@@ -131,9 +131,9 @@ describe('StripeService', () => {
         throw new Error('Signature verification failed');
       });
 
-      expect(() =>
-        service.constructWebhookEvent(rawBody, signature),
-      ).toThrow('Signature verification failed');
+      expect(() => service.constructWebhookEvent(rawBody, signature)).toThrow(
+        'Signature verification failed',
+      );
     });
   });
 
@@ -170,101 +170,13 @@ describe('StripeService', () => {
         type: 'checkout.session.completed',
       });
 
-      await service.markEventProcessed(
-        'evt_123',
-        'checkout.session.completed',
-      );
+      await service.markEventProcessed('evt_123', 'checkout.session.completed');
 
       expect(mockPrismaService.stripeEvent.create).toHaveBeenCalledWith({
         data: {
           stripeEventId: 'evt_123',
           type: 'checkout.session.completed',
         },
-      });
-    });
-  });
-
-  describe('createCheckoutSession', () => {
-    const input = {
-      clinicName: 'Clinique Test',
-      adminName: 'Dr. Test',
-      adminEmail: 'admin@test.com',
-      priceId: 'price_test_123',
-      locale: 'fr' as const,
-    };
-
-    it('should create a Stripe Checkout Session with correct params', async () => {
-      mockCheckoutSessionsCreate.mockResolvedValue({
-        id: 'cs_test_session',
-        url: 'https://checkout.stripe.com/pay/cs_test_session',
-      });
-
-      const result = await service.createCheckoutSession(input);
-
-      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith({
-        mode: 'subscription',
-        payment_method_collection: 'if_required',
-        line_items: [{ price: 'price_test_123', quantity: 1 }],
-        success_url:
-          'http://localhost:3000/fr/pricing/success?session_id={CHECKOUT_SESSION_ID}',
-        cancel_url: 'http://localhost:3000/fr/pricing',
-        customer_email: 'admin@test.com',
-        allow_promotion_codes: true,
-        metadata: {
-          clinicName: 'Clinique Test',
-          adminName: 'Dr. Test',
-          adminEmail: 'admin@test.com',
-        },
-        subscription_data: {
-          metadata: {
-            clinicName: 'Clinique Test',
-            adminName: 'Dr. Test',
-            adminEmail: 'admin@test.com',
-          },
-        },
-      });
-
-      expect(result).toEqual({
-        sessionId: 'cs_test_session',
-        url: 'https://checkout.stripe.com/pay/cs_test_session',
-      });
-    });
-
-    it('should use the locale in success and cancel URLs', async () => {
-      mockCheckoutSessionsCreate.mockResolvedValue({
-        id: 'cs_test',
-        url: 'https://checkout.stripe.com/pay/cs_test',
-      });
-
-      await service.createCheckoutSession({ ...input, locale: 'en' });
-
-      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success_url:
-            'http://localhost:3000/en/pricing/success?session_id={CHECKOUT_SESSION_ID}',
-          cancel_url: 'http://localhost:3000/en/pricing',
-        }),
-      );
-    });
-
-    it('should pass metadata to both session and subscription_data', async () => {
-      mockCheckoutSessionsCreate.mockResolvedValue({
-        id: 'cs_test',
-        url: 'https://checkout.stripe.com/pay/cs_test',
-      });
-
-      await service.createCheckoutSession(input);
-
-      const callArgs = mockCheckoutSessionsCreate.mock.calls[0][0];
-      expect(callArgs.metadata).toEqual({
-        clinicName: 'Clinique Test',
-        adminName: 'Dr. Test',
-        adminEmail: 'admin@test.com',
-      });
-      expect(callArgs.subscription_data.metadata).toEqual({
-        clinicName: 'Clinique Test',
-        adminName: 'Dr. Test',
-        adminEmail: 'admin@test.com',
       });
     });
   });
@@ -277,14 +189,14 @@ describe('StripeService', () => {
 
       const result = await service.createBillingPortalSession(
         'cus_test_123',
-        'https://example.com/admin/billing',
+        'https://example.com/admin/settings?tab=billing',
         'fr',
       );
 
       expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: 'cus_test_123',
-          return_url: 'https://example.com/admin/billing',
+          return_url: 'https://example.com/admin/settings?tab=billing',
           locale: 'fr',
         }),
       );
@@ -300,13 +212,13 @@ describe('StripeService', () => {
 
       await service.createBillingPortalSession(
         'cus_test_123',
-        'https://example.com/admin/billing',
+        'https://example.com/admin/settings?tab=billing',
       );
 
       expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: 'cus_test_123',
-          return_url: 'https://example.com/admin/billing',
+          return_url: 'https://example.com/admin/settings?tab=billing',
           locale: 'fr',
         }),
       );
@@ -386,9 +298,7 @@ describe('StripeService', () => {
       const result = await service.getSubscriptionWithDetails('sub_test_trial');
 
       expect(result.status).toBe('trialing');
-      expect(result.trialEnd).toBe(
-        new Date(1740787200 * 1000).toISOString(),
-      );
+      expect(result.trialEnd).toBe(new Date(1740787200 * 1000).toISOString());
     });
 
     it('should default planKey to "default" when lookup_key is null', async () => {

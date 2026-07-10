@@ -1,4 +1,4 @@
-import { z } from "@pawly/zod";
+import { z } from '@pawly/zod';
 
 // ── Month format schema ──────────────────────────────────────────────────
 
@@ -6,13 +6,15 @@ const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const monthSchema = z
   .string()
-  .regex(monthRegex, "Month must be in YYYY-MM format (e.g., 2026-03)");
+  .regex(monthRegex, 'Month must be in YYYY-MM format (e.g., 2026-03)');
 
 // ── Generate plan input schema ───────────────────────────────────────────
 
 export const generatePlanSchema = z.object({
   month: monthSchema,
-  templateId: z.string().uuid("Template ID must be a valid UUID"),
+  templateId: z.string().uuid('Template ID must be a valid UUID'),
+  // Story 11-1 — bulk regeneration now honours the 7-6 published-change guard.
+  acknowledgePublishedChange: z.boolean().default(false),
 });
 export type GeneratePlanInput = z.infer<typeof generatePlanSchema>;
 
@@ -27,10 +29,10 @@ export type ListShiftsForMonthInput = z.infer<typeof listShiftsForMonthSchema>;
 
 export const deleteGeneratedShiftsSchema = z.object({
   month: monthSchema,
+  // Story 11-1 — purging generated shifts of a published month needs ack.
+  acknowledgePublishedChange: z.boolean().default(false),
 });
-export type DeleteGeneratedShiftsInput = z.infer<
-  typeof deleteGeneratedShiftsSchema
->;
+export type DeleteGeneratedShiftsInput = z.infer<typeof deleteGeneratedShiftsSchema>;
 
 // ── Shift assignment schema (output) ─────────────────────────────────────
 
@@ -63,7 +65,7 @@ export const equityContextSchema = z.object({
   currentCount: z.number(),
   maxPerPeriod: z.number(),
   clinicAverage: z.number(),
-  trend: z.enum(["below_average", "average", "above_average"]),
+  trend: z.enum(['below_average', 'average', 'above_average']),
 });
 export type EquityContext = z.infer<typeof equityContextSchema>;
 
@@ -76,7 +78,7 @@ export const hardViolationSchema = z.object({
   message: z.string(),
   affectedEmployeeId: z.string().uuid().optional(),
   affectedDate: z.string().optional(),
-  severity: z.literal("blocking"),
+  severity: z.literal('blocking'),
 });
 export type HardViolation = z.infer<typeof hardViolationSchema>;
 
@@ -89,7 +91,7 @@ export const softViolationSchema = z.object({
   messageParams: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   affectedEmployeeId: z.string().uuid().optional(),
   affectedDate: z.string().optional(),
-  severity: z.literal("warning"),
+  severity: z.literal('warning'),
   equityContext: equityContextSchema.optional(),
 });
 export type SoftViolation = z.infer<typeof softViolationSchema>;

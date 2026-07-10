@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Loading security check…",
+    "failed": "The security check failed to load.",
+    "retry": "Try again"
+  },
   "common": {
     "logout": "Log out",
     "loading": "Loading...",
@@ -308,6 +313,7 @@
         "emptyState": "No shifts generated yet — run generation first",
         "published": "Published",
         "publishedAt": "Published on {date}",
+        "amended": "{count, plural, one {Amended # time} other {Amended # times}} — last on {date}",
         "detailTitle": "Health Details",
         "categoryStaffing": "Staffing Minimum",
         "categorySkill": "Skill Requirements",
@@ -331,6 +337,12 @@
           },
           "contractCompliance": {
             "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+          },
+          "statutory": {
+            "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
+            "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
+            "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
+            "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
           }
         }
       }
@@ -547,7 +559,8 @@
         "regenerated": "Planning regenerated successfully",
         "deleted": "Generated shifts deleted",
         "generateFailed": "Unable to generate planning",
-        "deleteFailed": "Unable to delete generated shifts"
+        "deleteFailed": "Unable to delete generated shifts",
+        "publishedChangeRequired": "This schedule is published: confirm the change via the dialog."
       },
       "errors": {
         "noTemplate": "Please select a template",
@@ -621,6 +634,12 @@
         "nextDays": "Next days"
       }
     },
+    "publishedChange": {
+      "dialogTitle": "Published schedule — confirm change",
+      "dialogDescription": "This schedule has already been published. Employees affected by this change will be notified by email and push notification.",
+      "confirm": "Change and notify",
+      "cancel": "Cancel"
+    },
     "dragDrop": {
       "moveSuccess": "Shift moved successfully",
       "moveError": "Failed to move shift",
@@ -628,6 +647,7 @@
       "createError": "Failed to create shift",
       "deleteSuccess": "Shift deleted successfully",
       "deleteError": "Failed to delete shift",
+      "publishedChangeRequired": "This schedule is published: the change must be confirmed through the dialog.",
       "dragging": "Moving shift…",
       "dropHere": "Drop here to assign",
       "dropBlocked": "Cannot drop here",
@@ -690,6 +710,12 @@
       },
       "contractCompliance": {
         "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h"
+      },
+      "statutory": {
+        "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
+        "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
+        "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
+        "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
       }
     },
     "settings": {
@@ -1281,23 +1307,24 @@
         "description": "Set the default hours for your clinic",
         "startTime": "Opening time",
         "endTime": "Closing time",
-        "help": "These hours serve as the baseline for planning"
+        "help": "These hours serve as the baseline for planning",
+        "invalidFormat": "Use the HH:MM format",
+        "is24_7": "Open 24/7"
       },
       "shiftTypes": {
         "title": "Shift types",
         "description": "Define the different shift types at your clinic",
         "name": "Shift name",
         "namePlaceholder": "Surgery",
-        "code": "Code",
-        "codePlaceholder": "SURG",
         "startTime": "Start",
         "endTime": "End",
         "breakMinutes": "Break (min)",
         "color": "Color",
         "addShiftType": "Add shift type",
         "removeShiftType": "Remove",
-        "help": "Each shift must have a unique code",
-        "minRequired": "At least one shift type is required"
+        "help": "Define the shifts worked at your clinic",
+        "minRequired": "At least one shift type is required",
+        "incompleteShiftType": "Please fill in every shift type's name and hours"
       }
     },
     "navigation": {
@@ -1314,7 +1341,8 @@
     "errors": {
       "loadFailed": "Unable to load onboarding data. Please refresh the page.",
       "saveFailed": "Unable to save configuration",
-      "duplicateCode": "This shift code already exists"
+      "duplicateCode": "This shift code already exists",
+      "incompleteStep": "Please complete the required fields before continuing"
     },
     "days": {
       "MONDAY": "Monday",
@@ -1603,7 +1631,8 @@
       "operational": "General",
       "shiftTypes": "Shift Types",
       "clinic": "Clinic",
-      "account": "My account"
+      "account": "My account",
+      "billing": "Billing"
     },
     "shiftTypes": {
       "title": "Shift Types",
@@ -1668,6 +1697,7 @@
         "workDays": "Work days",
         "defaultStartTime": "Default start time",
         "defaultEndTime": "Default end time",
+        "is24_7": "Open 24/7",
         "date": "Date",
         "reason": "Reason",
         "reasonPlaceholder": "e.g. public holiday, annual closure",
@@ -2022,5 +2052,96 @@
     "backToPricing": "Back to pricing",
     "alreadyHaveAccount": "Already have an account?",
     "loginLink": "Log in"
+  },
+  "tour": {
+    "replayGuide": "Replay the guide",
+    "employee": {
+      "greeting": {
+        "title": "Welcome to Pawly",
+        "body": "This is your personal space. Let us walk you through it."
+      },
+      "today": {
+        "title": "Your schedule",
+        "body": "Your day and upcoming shifts appear here."
+      },
+      "confirm": {
+        "title": "Confirm your presence",
+        "body": "Swipe to confirm you were present."
+      },
+      "settings": {
+        "title": "Your settings",
+        "body": "Change your language or replay this guide anytime."
+      },
+      "schedule": {
+        "title": "Your monthly schedule",
+        "body": "Browse your schedule month by month — shifts, school days, and time off."
+      },
+      "weeklySummary": {
+        "title": "Your week at a glance",
+        "body": "Hours worked, number of shifts, and confirmations for the week."
+      },
+      "absence": {
+        "title": "Request time off",
+        "body": "Start an absence request in a few steps: type, dates, and reason."
+      }
+    },
+    "admin": {
+      "dashboard": {
+        "title": "Your dashboard",
+        "body": "An overview of your clinic."
+      },
+      "employeesNav": {
+        "title": "Your employees",
+        "body": "Start by adding your team here."
+      },
+      "addEmployee": {
+        "title": "Add an employee",
+        "body": "Create your first employee so you can schedule."
+      },
+      "planningNav": {
+        "title": "Planning",
+        "body": "This is where you generate and adjust schedules."
+      },
+      "generate": {
+        "title": "Generate a schedule",
+        "body": "Click to auto-generate your first schedule."
+      },
+      "pendingRequests": {
+        "title": "Pending requests",
+        "body": "See absence and leave requests waiting for approval at a glance, and jump straight to them."
+      },
+      "todaysTeam": {
+        "title": "Today's team",
+        "body": "Who's working today, their hours, and their roles."
+      },
+      "clinicHours": {
+        "title": "Your clinic hours",
+        "body": "Set your working days and hours — the foundation for all scheduling."
+      },
+      "shiftTypes": {
+        "title": "Your shift types",
+        "body": "Create your clinic's roles (vet assistant, auxiliary…) with their hours."
+      },
+      "createTemplate": {
+        "title": "Create your first template",
+        "body": "Define the typical weekly shift slots. Required before you can generate a schedule."
+      },
+      "rules": {
+        "title": "Your planning rules",
+        "body": "Configure constraints (minimum staffing, equity, skills) that guide generation."
+      },
+      "healthBar": {
+        "title": "The health monitor",
+        "body": "Conflicts (red), warnings (orange), gaps (gray), healthy (green). You can publish once conflict-free."
+      },
+      "publish": {
+        "title": "Publish the schedule",
+        "body": "Once healthy, publish it — your employees see their schedule right away."
+      },
+      "equity": {
+        "title": "Shift equity",
+        "body": "Check the workload is fair: Saturdays, weekends, holidays, and overtime."
+      }
+    }
   }
 }

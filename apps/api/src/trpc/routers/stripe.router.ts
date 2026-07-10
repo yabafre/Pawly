@@ -1,9 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router, isAuthed } from '../trpc';
-import {
-  createCheckoutSessionSchema,
-  createBillingPortalSessionSchema,
-} from '@pawly/validators';
+import { createBillingPortalSessionSchema } from '@pawly/validators';
 import { z } from '@pawly/zod';
 import { deriveEntitlementTier } from '@/modules/stripe/stripe.utils';
 
@@ -37,30 +34,33 @@ export const stripeRouter = router({
     };
   }),
 
-  createCheckoutSession: publicProcedure
-    .input(createCheckoutSessionSchema)
-    .mutation(async ({ input, ctx }) => {
-      return ctx.stripeService.createCheckoutSession(input);
-    }),
-
   createUpgradeSession: protectedProcedure
-    .input(z.object({ priceId: z.string(), locale: z.enum(['fr', 'en']).optional(), successPath: z.string().optional() }))
+    .input(
+      z.object({
+        priceId: z.string(),
+        locale: z.enum(['fr', 'en']).optional(),
+        successPath: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const user = await ctx.prisma.user.findUnique({
         where: { id: ctx.user.sub },
         include: { clinic: true },
       });
       if (!user || !user.clinic) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User or clinic not found' });
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'User or clinic not found',
+        });
       }
       const locale = input.locale ?? 'fr';
       const webAppUrl = process.env.WEB_APP_URL ?? 'http://localhost:3000';
       const successUrl = input.successPath
         ? `${webAppUrl}/${locale}${input.successPath}`
-        : `${webAppUrl}/${locale}/admin/billing?upgraded=true`;
+        : `${webAppUrl}/${locale}/admin/settings?tab=billing`;
       const cancelUrl = input.successPath
         ? `${webAppUrl}/${locale}/pricing`
-        : `${webAppUrl}/${locale}/admin/billing`;
+        : `${webAppUrl}/${locale}/admin/settings?tab=billing`;
       const session = await ctx.stripeService.stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_collection: 'if_required',
@@ -83,7 +83,10 @@ export const stripeRouter = router({
         },
       });
       if (!session.url) {
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Stripe session created without URL' });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Stripe session created without URL',
+        });
       }
       return { sessionId: session.id, url: session.url };
     }),
@@ -94,7 +97,10 @@ export const stripeRouter = router({
     });
 
     if (!subscription) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'No subscription found' });
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'No subscription found',
+      });
     }
 
     // Already has Stripe IDs or already upgraded to Pro — nothing to do
@@ -110,12 +116,18 @@ export const stripeRouter = router({
       include: { clinic: true },
     });
     if (!user || !user.clinic) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'User or clinic not found' });
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User or clinic not found',
+      });
     }
 
     const starterPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER;
     if (!starterPriceId) {
-      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Starter price not configured' });
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Starter price not configured',
+      });
     }
 
     // Create Stripe customer
@@ -150,9 +162,15 @@ export const stripeRouter = router({
     });
 
     // Send plan confirmation email (fire-and-forget)
-    ctx.mailService.sendPlanConfirmationEmail(
-      user.email, 'starter', user.name ?? undefined, undefined, user.locale as 'fr' | 'en' ?? 'fr',
-    ).catch(() => {});
+    ctx.mailService
+      .sendPlanConfirmationEmail(
+        user.email,
+        'starter',
+        user.name ?? undefined,
+        undefined,
+        (user.locale as 'fr' | 'en') ?? 'fr',
+      )
+      .catch(() => {});
 
     return { alreadySetup: false };
   }),
@@ -164,11 +182,17 @@ export const stripeRouter = router({
     });
 
     if (!subscription) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'No subscription found' });
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'No subscription found',
+      });
     }
 
     // Already synced by webhook (has Stripe IDs and is not starter_free)
-    if (subscription.stripeSubscriptionId && subscription.entitlementTier !== 'starter') {
+    if (
+      subscription.stripeSubscriptionId &&
+      subscription.entitlementTier !== 'starter'
+    ) {
       // Still send plan confirmation email (webhook doesn't send it)
       const user = await ctx.prisma.user.findUnique({
         where: { id: ctx.user.sub },
@@ -183,15 +207,19 @@ export const stripeRouter = router({
             limit: 1,
           });
           invoiceUrl = invoices.data[0]?.hosted_invoice_url ?? undefined;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
 
-        ctx.mailService.sendPlanConfirmationEmail(
-          user.email,
-          subscription.entitlementTier as 'starter' | 'professional',
-          user.name ?? undefined,
-          invoiceUrl,
-          (user.locale as 'fr' | 'en') ?? 'fr',
-        ).catch(() => {});
+        ctx.mailService
+          .sendPlanConfirmationEmail(
+            user.email,
+            subscription.entitlementTier as 'starter' | 'professional',
+            user.name ?? undefined,
+            invoiceUrl,
+            (user.locale as 'fr' | 'en') ?? 'fr',
+          )
+          .catch(() => {});
       }
       return { synced: true, tier: subscription.entitlementTier };
     }
@@ -223,7 +251,10 @@ export const stripeRouter = router({
     const stripeSubscriptionId = proSession.subscription as string;
     const stripeCustomerId = proSession.customer as string;
 
-    const stripeSub = await ctx.stripeService.stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const stripeSub =
+      await ctx.stripeService.stripe.subscriptions.retrieve(
+        stripeSubscriptionId,
+      );
     const firstItem = stripeSub.items.data[0];
     if (!firstItem) {
       return { synced: false, tier: subscription.entitlementTier };
@@ -253,12 +284,20 @@ export const stripeRouter = router({
         limit: 1,
       });
       invoiceUrl = invoices.data[0]?.hosted_invoice_url ?? undefined;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Send plan confirmation email (fire-and-forget)
-    ctx.mailService.sendPlanConfirmationEmail(
-      user.email, tier as 'starter' | 'professional', user.name ?? undefined, invoiceUrl, user.locale as 'fr' | 'en' ?? 'fr',
-    ).catch(() => {});
+    ctx.mailService
+      .sendPlanConfirmationEmail(
+        user.email,
+        tier as 'starter' | 'professional',
+        user.name ?? undefined,
+        invoiceUrl,
+        (user.locale as 'fr' | 'en') ?? 'fr',
+      )
+      .catch(() => {});
 
     return { synced: true, tier };
   }),
@@ -280,7 +319,10 @@ export const stripeRouter = router({
         subscription: {
           status: subscription.status,
           planKey: subscription.planKey,
-          planName: subscription.planKey === 'starter_free' ? 'Starter' : subscription.planKey,
+          planName:
+            subscription.planKey === 'starter_free'
+              ? 'Starter'
+              : subscription.planKey,
           entitlementTier: subscription.entitlementTier,
           currentPeriodEnd: null,
           cancelAtPeriodEnd: false,
@@ -292,40 +334,84 @@ export const stripeRouter = router({
           couponId: null,
           discountType: null as 'percent' | 'amount' | null,
           discountValue: null,
-          couponMetadataType: null as 'partner' | 'internal' | 'lifetime' | null,
+          couponMetadataType: null as
+            | 'partner'
+            | 'internal'
+            | 'lifetime'
+            | null,
         },
         invoices: [],
       };
     }
 
-    const [details, invoices] = await Promise.all([
-      ctx.stripeService.getSubscriptionWithDetails(
-        subscription.stripeSubscriptionId,
-      ),
-      ctx.stripeService.listInvoices(
-        subscription.stripeCustomerId,
-        DEFAULT_INVOICE_LIMIT,
-      ),
-    ]);
+    try {
+      const [details, invoices] = await Promise.all([
+        ctx.stripeService.getSubscriptionWithDetails(
+          subscription.stripeSubscriptionId,
+        ),
+        ctx.stripeService.listInvoices(
+          subscription.stripeCustomerId,
+          DEFAULT_INVOICE_LIMIT,
+        ),
+      ]);
 
-    return {
-      subscription: {
-        ...details,
-        promotionCodeId: subscription.promotionCodeId ?? null,
-        couponId: subscription.couponId ?? null,
-        discountType: (subscription.discountType ?? null) as
-          | 'percent'
-          | 'amount'
-          | null,
-        discountValue: subscription.discountValue ?? null,
-        couponMetadataType: (subscription.couponMetadataType ?? null) as
-          | 'partner'
-          | 'internal'
-          | 'lifetime'
-          | null,
-      },
-      invoices,
-    };
+      return {
+        subscription: {
+          ...details,
+          promotionCodeId: subscription.promotionCodeId ?? null,
+          couponId: subscription.couponId ?? null,
+          discountType: (subscription.discountType ?? null) as
+            | 'percent'
+            | 'amount'
+            | null,
+          discountValue: subscription.discountValue ?? null,
+          couponMetadataType: (subscription.couponMetadataType ?? null) as
+            | 'partner'
+            | 'internal'
+            | 'lifetime'
+            | null,
+        },
+        invoices,
+      };
+    } catch (err) {
+      // Stripe unreachable or stale IDs — degrade to DB-known data instead of a
+      // hard 500 (which otherwise triggers a client retry storm and shows
+      // "unable to load billing"). The portal/upgrade actions still work.
+      console.error(
+        'getBillingOverview: Stripe fetch failed, serving DB-only data',
+        err,
+      );
+      return {
+        subscription: {
+          status: subscription.status,
+          planKey: subscription.planKey,
+          planName:
+            subscription.planKey === 'starter_free'
+              ? 'Starter'
+              : subscription.planKey,
+          entitlementTier: subscription.entitlementTier,
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+          trialEnd: null,
+          priceAmount: 0,
+          priceCurrency: 'eur',
+          priceInterval: 'month' as const,
+          promotionCodeId: subscription.promotionCodeId ?? null,
+          couponId: subscription.couponId ?? null,
+          discountType: (subscription.discountType ?? null) as
+            | 'percent'
+            | 'amount'
+            | null,
+          discountValue: subscription.discountValue ?? null,
+          couponMetadataType: (subscription.couponMetadataType ?? null) as
+            | 'partner'
+            | 'internal'
+            | 'lifetime'
+            | null,
+        },
+        invoices: [],
+      };
+    }
   }),
 
   createBillingPortalSession: protectedProcedure

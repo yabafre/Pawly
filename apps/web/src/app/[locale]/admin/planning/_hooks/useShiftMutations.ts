@@ -1,21 +1,18 @@
-"use client";
+'use client';
 
-import {
-  QueryKeyFactory,
-  useServerActionMutation,
-} from "@/lib/hooks/server-action-hooks";
+import { QueryKeyFactory, useServerActionMutation } from '@/lib/hooks/server-action-hooks';
 import {
   moveShiftAction,
   createManualShiftAction,
   deleteShiftAction,
-} from "../_actions/shift-mutation-actions";
-import { useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+} from '../_actions/shift-mutation-actions';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 
 export const useShiftMutations = (month?: string) => {
   const queryClient = useQueryClient();
-  const t = useTranslations("admin.dragDrop");
+  const t = useTranslations('admin.dragDrop');
 
   const invalidateSchedule = () => {
     queryClient.invalidateQueries({
@@ -25,56 +22,76 @@ export const useShiftMutations = (month?: string) => {
       queryKey: QueryKeyFactory.planningShifts(month),
     });
     queryClient.invalidateQueries({
-      queryKey: ["planning", "equity-counters"],
+      queryKey: ['planning', 'equity-counters'],
+    });
+    // Story 7.6 — an acknowledged mutation on a published month bumps
+    // amendedAt/amendmentCount; refresh the Health Bar amended badge (AC7).
+    queryClient.invalidateQueries({
+      queryKey: QueryKeyFactory.publicationStatus(month),
     });
   };
 
-  const { mutate: moveShift, isPending: isMoving } =
-    useServerActionMutation(moveShiftAction, {
-      onMutate: async () => {
-        // Cancel in-flight queries for this month to avoid overwriting rollback snapshot
-        await queryClient.cancelQueries({ queryKey: QueryKeyFactory.planningScheduleView(month) });
-        // Snapshot previous data for rollback
-        const previous = queryClient.getQueryData(QueryKeyFactory.planningScheduleView(month));
-        return { previous };
-      },
+  const { mutate: moveShift, isPending: isMoving } = useServerActionMutation(moveShiftAction, {
+    onMutate: async () => {
+      // Cancel in-flight queries for this month to avoid overwriting rollback snapshot
+      await queryClient.cancelQueries({ queryKey: QueryKeyFactory.planningScheduleView(month) });
+      // Snapshot previous data for rollback
+      const previous = queryClient.getQueryData(QueryKeyFactory.planningScheduleView(month));
+      return { previous };
+    },
+    onSuccess: () => {
+      toast.success(t('moveSuccess'));
+    },
+    onError: (_err: { message?: string }, _vars: unknown, context: unknown) => {
+      // Rollback on error
+      const ctx = context as { previous?: unknown } | undefined;
+      if (ctx?.previous) {
+        queryClient.setQueryData(QueryKeyFactory.planningScheduleView(month), ctx.previous);
+      }
+      if (_err?.message === 'PUBLISHED_CHANGE_REQUIRES_ACK') {
+        toast.error(t('publishedChangeRequired'));
+      } else {
+        toast.error(t('moveError'), { description: _err?.message });
+      }
+    },
+    onSettled: () => {
+      invalidateSchedule();
+    },
+  });
+
+  const { mutate: createManualShift, isPending: isCreating } = useServerActionMutation(
+    createManualShiftAction,
+    {
       onSuccess: () => {
-        toast.success(t("moveSuccess"));
+        invalidateSchedule();
+        toast.success(t('createSuccess'));
       },
-      onError: (_err: { message?: string }, _vars: unknown, context: unknown) => {
-        // Rollback on error
-        const ctx = context as { previous?: unknown } | undefined;
-        if (ctx?.previous) {
-          queryClient.setQueryData(QueryKeyFactory.planningScheduleView(month), ctx.previous);
+      onError: (err: { message?: string }) => {
+        if (err?.message === 'PUBLISHED_CHANGE_REQUIRES_ACK') {
+          toast.error(t('publishedChangeRequired'));
+        } else {
+          toast.error(t('createError'), { description: err?.message });
         }
-        toast.error(t("moveError"), { description: _err?.message });
       },
-      onSettled: () => {
-        invalidateSchedule();
-      },
-    });
+    }
+  );
 
-  const { mutate: createManualShift, isPending: isCreating } =
-    useServerActionMutation(createManualShiftAction, {
+  const { mutate: deleteShift, isPending: isDeleting } = useServerActionMutation(
+    deleteShiftAction,
+    {
       onSuccess: () => {
         invalidateSchedule();
-        toast.success(t("createSuccess"));
+        toast.success(t('deleteSuccess'));
       },
       onError: (err: { message?: string }) => {
-        toast.error(t("createError"), { description: err?.message });
+        if (err?.message === 'PUBLISHED_CHANGE_REQUIRES_ACK') {
+          toast.error(t('publishedChangeRequired'));
+        } else {
+          toast.error(t('deleteError'), { description: err?.message });
+        }
       },
-    });
-
-  const { mutate: deleteShift, isPending: isDeleting } =
-    useServerActionMutation(deleteShiftAction, {
-      onSuccess: () => {
-        invalidateSchedule();
-        toast.success(t("deleteSuccess"));
-      },
-      onError: (err: { message?: string }) => {
-        toast.error(t("deleteError"), { description: err?.message });
-      },
-    });
+    }
+  );
 
   return {
     moveShift,

@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Chargement de la vérification de sécurité…",
+    "failed": "La vérification de sécurité n'a pas pu se charger.",
+    "retry": "Réessayer"
+  },
   "common": {
     "logout": "Déconnexion",
     "loading": "Chargement...",
@@ -308,6 +313,7 @@
         "emptyState": "Aucun créneau généré — lancez la génération d'abord",
         "published": "Publié",
         "publishedAt": "Publié le {date}",
+        "amended": "{count, plural, one {Modifié # fois} other {Modifié # fois}} — dernière le {date}",
         "detailTitle": "Détail de la santé",
         "categoryStaffing": "Effectif minimum",
         "categorySkill": "Compétences requises",
@@ -331,6 +337,12 @@
           },
           "contractCompliance": {
             "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+          },
+          "statutory": {
+            "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+            "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+            "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+            "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
           }
         }
       }
@@ -547,7 +559,8 @@
         "regenerated": "Planning regénéré avec succès",
         "deleted": "Créneaux générés supprimés",
         "generateFailed": "Impossible de générer le planning",
-        "deleteFailed": "Impossible de supprimer les créneaux générés"
+        "deleteFailed": "Impossible de supprimer les créneaux générés",
+        "publishedChangeRequired": "Ce planning est publié : confirmez la modification via la boîte de dialogue."
       },
       "errors": {
         "noTemplate": "Veuillez sélectionner un modèle",
@@ -621,6 +634,12 @@
         "nextDays": "Jours suivants"
       }
     },
+    "publishedChange": {
+      "dialogTitle": "Planning publié — confirmer la modification",
+      "dialogDescription": "Ce planning a déjà été publié. Les employés concernés par ce changement seront notifiés par email et notification push.",
+      "confirm": "Modifier et notifier",
+      "cancel": "Annuler"
+    },
     "dragDrop": {
       "moveSuccess": "Créneau déplacé avec succès",
       "moveError": "Échec du déplacement du créneau",
@@ -628,6 +647,7 @@
       "createError": "Échec de la création du créneau",
       "deleteSuccess": "Créneau supprimé avec succès",
       "deleteError": "Échec de la suppression du créneau",
+      "publishedChangeRequired": "Ce planning est publié : la modification doit être confirmée via la boîte de dialogue.",
       "dragging": "Déplacement en cours…",
       "dropHere": "Déposer ici pour affecter",
       "dropBlocked": "Dépôt impossible ici",
@@ -690,6 +710,12 @@
       },
       "contractCompliance": {
         "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+      },
+      "statutory": {
+        "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+        "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+        "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+        "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
       }
     },
     "settings": {
@@ -1281,23 +1307,24 @@
         "description": "Définissez les horaires par défaut de votre clinique",
         "startTime": "Heure d'ouverture",
         "endTime": "Heure de fermeture",
-        "help": "Ces horaires servent de base pour la planification"
+        "help": "Ces horaires servent de base pour la planification",
+        "invalidFormat": "Utilisez le format HH:MM",
+        "is24_7": "Ouvert 24h/24"
       },
       "shiftTypes": {
         "title": "Types de postes",
         "description": "Définissez les différents types de postes de votre clinique",
         "name": "Nom du poste",
         "namePlaceholder": "Chirurgie",
-        "code": "Code",
-        "codePlaceholder": "CHIR",
         "startTime": "Début",
         "endTime": "Fin",
         "breakMinutes": "Pause (min)",
         "color": "Couleur",
         "addShiftType": "Ajouter un type de poste",
         "removeShiftType": "Supprimer",
-        "help": "Chaque poste doit avoir un code unique",
-        "minRequired": "Au moins un type de poste est requis"
+        "help": "Définissez les postes de travail de votre clinique",
+        "minRequired": "Au moins un type de poste est requis",
+        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste"
       }
     },
     "navigation": {
@@ -1314,7 +1341,8 @@
     "errors": {
       "loadFailed": "Impossible de charger les données d'onboarding. Veuillez rafraîchir la page.",
       "saveFailed": "Impossible de sauvegarder la configuration",
-      "duplicateCode": "Ce code de poste existe déjà"
+      "duplicateCode": "Ce code de poste existe déjà",
+      "incompleteStep": "Veuillez compléter les champs requis avant de continuer"
     },
     "days": {
       "MONDAY": "Lundi",
@@ -1603,7 +1631,8 @@
       "operational": "Général",
       "shiftTypes": "Types de quarts",
       "clinic": "Clinique",
-      "account": "Mon compte"
+      "account": "Mon compte",
+      "billing": "Facturation"
     },
     "shiftTypes": {
       "title": "Types de quarts",
@@ -1668,6 +1697,7 @@
         "workDays": "Jours de travail",
         "defaultStartTime": "Heure de début par défaut",
         "defaultEndTime": "Heure de fin par défaut",
+        "is24_7": "Ouvert 24h/24",
         "date": "Date",
         "reason": "Motif",
         "reasonPlaceholder": "ex : jour férié, fermeture annuelle",
@@ -2022,5 +2052,96 @@
     "backToPricing": "Retour aux tarifs",
     "alreadyHaveAccount": "Déjà un compte ?",
     "loginLink": "Se connecter"
+  },
+  "tour": {
+    "replayGuide": "Revoir le guide",
+    "employee": {
+      "greeting": {
+        "title": "Bienvenue sur Pawly",
+        "body": "Voici votre espace personnel. Laissez-vous guider en quelques étapes."
+      },
+      "today": {
+        "title": "Votre planning",
+        "body": "Votre journée et vos prochains créneaux s'affichent ici."
+      },
+      "confirm": {
+        "title": "Confirmer votre présence",
+        "body": "Glissez pour confirmer que vous étiez bien présent·e."
+      },
+      "settings": {
+        "title": "Vos réglages",
+        "body": "Changez votre langue ou rejouez ce guide quand vous voulez."
+      },
+      "schedule": {
+        "title": "Votre planning du mois",
+        "body": "Parcourez votre planning mois par mois — shifts, jours d'école et absences."
+      },
+      "weeklySummary": {
+        "title": "Votre semaine en un coup d'œil",
+        "body": "Heures travaillées, nombre de shifts et confirmations de la semaine."
+      },
+      "absence": {
+        "title": "Demander un congé",
+        "body": "Lancez une demande d'absence en quelques étapes : type, dates et motif."
+      }
+    },
+    "admin": {
+      "dashboard": {
+        "title": "Votre tableau de bord",
+        "body": "Vue d'ensemble de votre clinique."
+      },
+      "employeesNav": {
+        "title": "Vos employés",
+        "body": "Commencez par ajouter votre équipe ici."
+      },
+      "addEmployee": {
+        "title": "Ajouter un employé",
+        "body": "Créez votre premier employé pour pouvoir planifier."
+      },
+      "planningNav": {
+        "title": "Le planning",
+        "body": "C'est ici que vous générez et ajustez les plannings."
+      },
+      "generate": {
+        "title": "Générer un planning",
+        "body": "Cliquez pour générer votre premier planning automatiquement."
+      },
+      "pendingRequests": {
+        "title": "Demandes en attente",
+        "body": "Voyez d'un coup d'œil les demandes (congés, absences) à valider, et accédez-y directement."
+      },
+      "todaysTeam": {
+        "title": "L'équipe du jour",
+        "body": "Qui travaille aujourd'hui, à quelles heures et sur quels postes."
+      },
+      "clinicHours": {
+        "title": "Vos horaires de clinique",
+        "body": "Définissez vos jours et heures d'ouverture — la base de toute planification."
+      },
+      "shiftTypes": {
+        "title": "Vos types de postes",
+        "body": "Créez les postes de votre clinique (ASV, auxiliaire…) avec leurs horaires."
+      },
+      "createTemplate": {
+        "title": "Créez votre premier modèle",
+        "body": "Définissez les tranches horaires types de la semaine. Indispensable avant de générer un planning."
+      },
+      "rules": {
+        "title": "Vos règles de planification",
+        "body": "Configurez les contraintes (effectif minimum, équité, compétences) qui guident la génération."
+      },
+      "healthBar": {
+        "title": "Le moniteur de santé",
+        "body": "Conflits (rouge), avertissements (orange), trous (gris), sain (vert). Publication possible sans conflit."
+      },
+      "publish": {
+        "title": "Publier le planning",
+        "body": "Une fois sain, publiez : vos employés voient leur planning immédiatement."
+      },
+      "equity": {
+        "title": "Équité de répartition",
+        "body": "Vérifiez que la charge est juste : samedis, week-ends, jours fériés, heures supp."
+      }
+    }
   }
 }

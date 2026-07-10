@@ -1,50 +1,55 @@
 ---
 generated_by: aped-grill
-generated_at: 2026-06-03
-question_count: 8
-decided_count: 8
+generated_at: 2026-06-17T15:50:00+02:00
+question_count: 11
+decided_count: 11
 deferred_count: 5
-out_of_scope_count: 3
+out_of_scope_count: 2
 stop_reason: no-new-question
 ---
 
-# Grill summary — Pawly customer-acquisition system (design-partner outbound)
+# Grill summary — First-run guided TOUR onboarding (both roles), Pawly
 
-> Cold-start grill: no prior PRD/arch/CONTEXT loaded for the *acquisition* scope. Grounding came
-> from a live 8-epic code audit (2026-06-03) of the Pawly product itself.
+Scope: an anchored, interactive product walkthrough at first login that orients users
+("where am I, what to do first, how my space works"). Distinct from — and layered on top of —
+the existing admin setup wizard (work days / hours / shift types, gated by `Clinic.onboardingCompleted`).
+Applies to EMPLOYEE (mobile PWA `/dashboard`) and ADMIN (desktop `/admin`).
 
 ## Decided
 
-- **Q1 — Run design-partner recruitment NOW; ship public deploy + live Stripe in parallel, not as a blocker.** The product is demoable today, so outreach does not wait on go-live.
-- **Q2 — Target hyper-local first (France), not national.** Small reachable pool; in-person/white-glove feasible; no SIRENE sourcing script needed yet.
-- **Q3 — Email is the primary channel; no cold in-person.** In-person demo offered ONLY to Île-de-France clinics that request it after the email.
-- **Q4 — Demo asset is a produced Remotion video** (not a raw Loom screen-capture).
-- **Q5 — Structured design-partner deal.** Free ~3-month pilot in exchange for: (a) a 20-min feedback call every 2 weeks, (b) a named testimonial + reference rights once value is seen, (c) optional logo / case study. Cap: 3-5 concurrent pilots. PLUS a **20% discount on the Pro plan for the first 6 months** after definitive subscription.
-- **Q6 — Semi-automated outreach.** A free or custom-coded "Lemlist-style" sequencer on top of email; Claude sources the clinics and writes each personalized email per clinic; Alex pilots/approves. (Manual-only rejected — no time.)
-- **Q7 — Isolate cold sending on ONE dedicated "cousin" domain (~10-15€/yr).** `pawly.fr` + Resend stay 100% transactional and untouched. A subdomain was rejected: it only *partially* isolates reputation (root-domain bleed). Multiple domains deferred to the national phase.
-- **Q8 — White-glove onboarding.** Alex loads each pilot's real data (team, contracts, constraints, apprentices) himself for the first 3-5; the self-service wizard is polished later from what white-glove teaches.
+- **One shared tour mechanism for both roles** — not two separate engines (Q1).
+- **Anchored interactive tour** (spotlight on real on-screen elements with next/skip), via a single responsive library (driver.js as default candidate) (Q2).
+- **Completion tracked per-user in DB** (e.g. `User.tourCompletedAt`), not `localStorage` — one nullable timestamp suffices since each user has exactly one role (Q3).
+- **Admin tour is action-oriented** (guide toward first real tasks: add first employee → generate first schedule). **Employee tour is descriptive** ("here's your schedule", "swipe to confirm presence") (Q4).
+- **Skippable anytime, never blocking, replayable on demand** from a help/avatar menu ("Revoir le guide"). Reaching the end OR clicking "Passer" writes the completion flag (Q5).
+- **Employee tour fires on first login regardless** of whether a schedule is published; anchored to STABLE layout elements (timeline container, nav, confirm zone), conceptual wording that tolerates an empty timeline (Q6).
+- **Admin tour is a multi-page walkthrough** that follows the admin across routes (dashboard → employees → planning) — requires a controller that persists progress across navigation and re-anchors after each route loads (Q7).
+- **Resume at the exact step** after interruption → persist a **per-user step pointer**, not just the boolean. Only reaching the end OR explicit "Passer" marks complete; accidental interruption (close/refresh/navigate-away) does NOT complete → re-fires next login as a safety net (Q8).
+- **Build a generic, reusable tour engine** (registry of named tours = `tour key + ordered steps`). **Ship exactly 2 tours in v1** (employee + admin) (Q9).
+- **Missing anchor handling: brief polling then graceful skip** to the next valid step; end gracefully if none remain; never hard-fail or block the UI (Q10).
+- **Migration backfill split by role**: existing ADMINS backfilled as "completed" (don't nag productive admins with a multi-page tour); existing EMPLOYEES left NULL → they see the descriptive tour once (they never had any onboarding) (Q11).
 
-## Deferred (still need a real-world answer)
+## Deferred (still need a real answer — mostly architecture/UX)
 
-- **Solo-founder sequencing / capacity** (Q-next) — order of operations across the next ~2 weeks: close the Story 1.5 register-gap, reach a pilot-ready private build, ship the Remotion video, source list, draft emails, white-glove onboard — all while product epics sit at 75-95%. Recommended next: start sourcing + first emails now; reach pilot-ready in parallel (the B2B sales cycle buys the buffer before any "yes" needs onboarding).
-- **Division of labor Claude vs Alex** — who builds the sequencer, who supplies the dedicated domain + sending credentials, who approves list/copy. Recommended: Claude sources + drafts + scaffolds; Alex provides domain + approves + runs calls + white-glove.
-- **Phase-exit trigger** — the concrete metric that graduates design-partner mode → national cold-sell (e.g., 3 pilots live + 2 converted + 2 testimonials). Recommended next: define before launch so the deferred national infra has an activation signal.
-- **RGPD operational checklist** — BRAINST as data controller, registre des traitements, opt-out/STOP wired into the sequencer, pro addresses only. Recommended next: lock before the first send.
-- **Concrete artifacts to pin** — the exact dedicated domain string; the Remotion video narrative/scope (60-90s single arc: Excel pain → one-click generation → HealthBar → team notified); the tracking surface (simple sheet vs Notion CRM).
+- **Tour library choice** (driver.js vs react-joyride vs shepherd vs custom) given multi-page + resumable + role-shared requirements (Q2/Q7/Q8) — recommended next: `aped-arch`.
+- **Exact persistence shape** on `User` (`tourCompletedAt DateTime?` + a step pointer — scalar `tourStep Int?` vs `tourState Json?` carrying tour key + index) (Q3/Q8) — recommended next: `aped-arch` / `aped-story`.
+- **Cross-route resume orchestration pattern** — how the controller persists in-progress step and re-anchors after App Router navigation/refresh (Q7/Q8) — recommended next: `aped-arch`.
+- **Polling timeout values** for missing-anchor handling (Q10) — recommended next: `aped-arch`.
+- **Step content & count per role, tour copy (FR/EN), placement of the "Revoir le guide" entry** (Q4/Q5/Q6) — recommended next: `aped-ux` / `aped-story`.
 
 ## Out of scope (pinned for later)
 
-- **National cold-sell infrastructure** — SIRENE / API Annuaire-Entreprises sourcing script, multi-domain rotation, Lemlist/Instantly + dedicated-domain warm-up. All belong to the post-deploy national phase, gated on the Q-next phase-exit trigger.
-- **The other three SaaS** — Pekulo (B2C, inbound only), CloudVault, MoodStory. Pawly is the sole outbound focus.
-- **Public marketing deploy + live Stripe as a *prerequisite*** — they are parallel, not gating. Pilots are free, so live Stripe is only needed at the first conversion (~month 3).
+- Feature-announcement / "what's new" tours that reuse the engine (Q9).
+- Admin-authored / editable tours (Q9).
 
 ## Assumptions in play
 
-- **Product readiness (verified against real code, 8-epic audit 2026-06-03):** Pawly is a demoable, near-feature-complete MVP — Epic 6 (planning engine) ~95%, Epic 2 (i18n) 100%, Epics 1/4/5 at 85-92%, Epics 3/7/8 at 75%. BUT it is **local-only** (`WEB_APP_URL=http://localhost:3020`), Stripe runs on **test keys**, and the `register` endpoint is still open (Story 1.5 gap). → grounds the "demo by video/visio, deploy in parallel" stance and the white-glove decision.
-- **Stripe coupon infra already exists** (`promotionCodeId` / `couponId` / `discountType` fields on the Subscription model, Epic 3.5) → the 20% / 6-month discount is a config, not a build.
-- **Resend is Pawly's transactional backbone** (magic links, Stripe receipts, schedule-publish emails) → must never be touched by cold outreach. → drives the domain-isolation decision (Q7).
-- **Alex operates in/near Île-de-France** → basis for the IDF in-person exception (Q3).
+- **Each user has exactly one role** (ADMIN or EMPLOYEE) — so a single per-user flag + step pointer is sufficient (drove Q3). From the explored auth model.
+- **Employee app is mobile-first PWA; admin is desktop-first** — this drove the Q1/Q6 framing even though Alex chose a single unified mechanism. From PRD product scope.
+- **The existing admin setup wizard stays unchanged**; the tour is a layer on top, firing after the wizard on first admin landing (`/admin/dashboard`). From PRD FR18 + story 10-3.
+- **Employee first login usually coincides with a published schedule** (magic link sent on publish, PRD journey "Declarative Trust"), but the tour must tolerate an empty timeline (Q6).
+- **Stack: Next.js App Router + tRPC + Prisma (Neon) + shadcn/ui + "Warm Linen" + i18n FR/EN** — any new copy must be bilingual.
 
 ## Suggested next skill
 
-- `aped-prd` — to spec the custom "Pawly Acquisition System" (the Lemlist-style sequencer: list model, personalization tokens, scheduling, opt-out/STOP, reply detection, isolated-domain sending) as a lightweight PRD before building it story-driven. The non-code groundwork (IDF clinic sourcing, personalized email drafting, Remotion narrative) can proceed directly with Claude in parallel.
+- **`aped-arch`** — the grilling converged on a stateful, generic tour engine. Before story/dev, the technical decisions still open (library choice, per-user persistence + step-pointer shape, cross-route resume orchestration, missing-anchor robustness) warrant a focused design pass. From there → `aped-story` → `aped-dev`.

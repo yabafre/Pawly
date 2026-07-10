@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Mirrors the Nixpacks/Dokploy deploy command so build breakages
+      # (e.g. missing cross-package type declarations) are caught on PRs
+      # instead of at deploy time. DATABASE_URL is a placeholder — only
+      # `prisma generate` needs it, no DB connection is made during build.
+      - name: Build all packages (turbo)
+        run: pnpm turbo run build
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+
+      # Pre-mortem R3: the full test suite (Jest + Vitest) must gate every
+      # PR/push — a compile-only CI lets logic regressions merge green.
+      # Same placeholder DATABASE_URL: tests are unit-level, only
+      # `prisma generate` (via turbo ^build) reads it.
+      - name: Run tests (turbo)
+        run: pnpm turbo run test
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'

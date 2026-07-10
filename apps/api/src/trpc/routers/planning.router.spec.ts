@@ -90,7 +90,15 @@ describe('planningRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedAdmin,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -103,7 +111,15 @@ describe('planningRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
       user: authenticatedEmployee,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -163,7 +179,15 @@ describe('planningRouter', () => {
   it('should throw UNAUTHORIZED when user is not authenticated', async () => {
     const caller = createCaller({
       user: null,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -180,7 +204,15 @@ describe('planningRouter', () => {
 
     const caller = createCaller({
       user: authenticatedAdmin,
-      prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
       planningService: mockPlanningService as any,
       planningTemplateService: mockPlanningTemplateService as any,
       equityCounterService: mockEquityCounterService as any,
@@ -218,10 +250,10 @@ describe('planningRouter', () => {
         ruleType: 'HARD',
       });
 
-      expect(mockPlanningService.listRules).toHaveBeenCalledWith(
-        'clinic-123',
-        { category: 'STAFFING_MINIMUM', ruleType: 'HARD' },
-      );
+      expect(mockPlanningService.listRules).toHaveBeenCalledWith('clinic-123', {
+        category: 'STAFFING_MINIMUM',
+        ruleType: 'HARD',
+      });
     });
 
     it('allows EMPLOYEE role to list rules', async () => {
@@ -485,10 +517,12 @@ describe('planningRouter', () => {
 
       expect(
         mockEquityCounterService.getCountersForPeriod,
-      ).toHaveBeenCalledWith('clinic-123', 2026, [1, 2, 3], [
-        'SATURDAY_WORKED',
-        'OVERTIME_HOURS',
-      ]);
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        2026,
+        [1, 2, 3],
+        ['SATURDAY_WORKED', 'OVERTIME_HOURS'],
+      );
     });
 
     it('uses clinicId from context', async () => {
@@ -499,7 +533,12 @@ describe('planningRouter', () => {
 
       expect(
         mockEquityCounterService.getCountersForPeriod,
-      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Array), undefined);
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.any(Number),
+        expect.any(Array),
+        undefined,
+      );
     });
 
     it('throws FORBIDDEN for non-admin user', async () => {
@@ -508,9 +547,7 @@ describe('planningRouter', () => {
       await expect(caller.getEquityCounters(validInput)).rejects.toThrow(
         TRPCError,
       );
-      await expect(
-        caller.getEquityCounters(validInput),
-      ).rejects.toMatchObject({
+      await expect(caller.getEquityCounters(validInput)).rejects.toMatchObject({
         code: 'FORBIDDEN',
       });
     });
@@ -518,7 +555,15 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+        prisma: mockPrisma as any,
+        redis: {
+          get: jest.fn().mockResolvedValue(null),
+          set: jest.fn(),
+          del: jest.fn(),
+          invalidatePattern: jest.fn(),
+          incr: jest.fn().mockResolvedValue(1),
+          isAvailable: false,
+        } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
@@ -527,9 +572,7 @@ describe('planningRouter', () => {
       await expect(caller.getEquityCounters(validInput)).rejects.toThrow(
         TRPCError,
       );
-      await expect(
-        caller.getEquityCounters(validInput),
-      ).rejects.toMatchObject({
+      await expect(caller.getEquityCounters(validInput)).rejects.toMatchObject({
         code: 'UNAUTHORIZED',
       });
     });
@@ -559,9 +602,11 @@ describe('planningRouter', () => {
       const result = await caller.getQuarterlySummary(validInput);
 
       expect(result).toEqual(mockSummary);
-      expect(
-        mockEquityCounterService.getQuarterlySummary,
-      ).toHaveBeenCalledWith('clinic-123', 2026, 1);
+      expect(mockEquityCounterService.getQuarterlySummary).toHaveBeenCalledWith(
+        'clinic-123',
+        2026,
+        1,
+      );
     });
 
     it('uses clinicId from context', async () => {
@@ -570,17 +615,19 @@ describe('planningRouter', () => {
       const caller = createAdminCaller();
       await caller.getQuarterlySummary(validInput);
 
-      expect(
-        mockEquityCounterService.getQuarterlySummary,
-      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Number));
+      expect(mockEquityCounterService.getQuarterlySummary).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.any(Number),
+        expect.any(Number),
+      );
     });
 
     it('throws FORBIDDEN for non-admin user', async () => {
       const caller = createEmployeeCaller();
 
-      await expect(
-        caller.getQuarterlySummary(validInput),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.getQuarterlySummary(validInput)).rejects.toThrow(
+        TRPCError,
+      );
       await expect(
         caller.getQuarterlySummary(validInput),
       ).rejects.toMatchObject({
@@ -591,15 +638,23 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+        prisma: mockPrisma as any,
+        redis: {
+          get: jest.fn().mockResolvedValue(null),
+          set: jest.fn(),
+          del: jest.fn(),
+          invalidatePattern: jest.fn(),
+          incr: jest.fn().mockResolvedValue(1),
+          isAvailable: false,
+        } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
       } as any);
 
-      await expect(
-        caller.getQuarterlySummary(validInput),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.getQuarterlySummary(validInput)).rejects.toThrow(
+        TRPCError,
+      );
       await expect(
         caller.getQuarterlySummary(validInput),
       ).rejects.toMatchObject({
@@ -640,15 +695,19 @@ describe('planningRouter', () => {
 
       expect(
         mockEquityCounterService.recalculateForPeriod,
-      ).toHaveBeenCalledWith('clinic-123', expect.any(Number), expect.any(Number));
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        expect.any(Number),
+        expect.any(Number),
+      );
     });
 
     it('throws FORBIDDEN for non-admin user', async () => {
       const caller = createEmployeeCaller();
 
-      await expect(
-        caller.recalculateCounters(validInput),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.recalculateCounters(validInput)).rejects.toThrow(
+        TRPCError,
+      );
       await expect(
         caller.recalculateCounters(validInput),
       ).rejects.toMatchObject({
@@ -659,15 +718,23 @@ describe('planningRouter', () => {
     it('throws UNAUTHORIZED when user is not authenticated', async () => {
       const caller = createCaller({
         user: null,
-        prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
+        prisma: mockPrisma as any,
+        redis: {
+          get: jest.fn().mockResolvedValue(null),
+          set: jest.fn(),
+          del: jest.fn(),
+          invalidatePattern: jest.fn(),
+          incr: jest.fn().mockResolvedValue(1),
+          isAvailable: false,
+        } as any,
         planningService: mockPlanningService as any,
         planningTemplateService: mockPlanningTemplateService as any,
         equityCounterService: mockEquityCounterService as any,
       } as any);
 
-      await expect(
-        caller.recalculateCounters(validInput),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.recalculateCounters(validInput)).rejects.toThrow(
+        TRPCError,
+      );
       await expect(
         caller.recalculateCounters(validInput),
       ).rejects.toMatchObject({
@@ -681,9 +748,9 @@ describe('planningRouter', () => {
       );
 
       const caller = createAdminCaller();
-      await expect(
-        caller.recalculateCounters(validInput),
-      ).rejects.toThrow('Database connection lost');
+      await expect(caller.recalculateCounters(validInput)).rejects.toThrow(
+        'Database connection lost',
+      );
     });
   });
 
@@ -692,28 +759,42 @@ describe('planningRouter', () => {
   describe('listTemplates', () => {
     it('returns templates for admin user', async () => {
       const mockTemplates = [{ id: 'tmpl-1', name: 'Standard' }];
-      mockPlanningTemplateService.listTemplates.mockResolvedValue(mockTemplates);
+      mockPlanningTemplateService.listTemplates.mockResolvedValue(
+        mockTemplates,
+      );
 
       const caller = createAdminCaller();
       const result = await caller.listTemplates({});
 
       expect(result).toEqual(mockTemplates);
-      expect(mockPlanningTemplateService.listTemplates).toHaveBeenCalledWith('clinic-123');
+      expect(mockPlanningTemplateService.listTemplates).toHaveBeenCalledWith(
+        'clinic-123',
+      );
     });
 
     it('throws FORBIDDEN for EMPLOYEE role', async () => {
       const caller = createEmployeeCaller();
-      await expect(caller.listTemplates({})).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(caller.listTemplates({})).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
     });
   });
 
   describe('getTemplateById', () => {
     it('returns template scoped to clinic', async () => {
-      const mockTemplate = { id: 'tmpl-1', name: 'Test', clinicId: 'clinic-123' };
-      mockPlanningTemplateService.getTemplateById.mockResolvedValue(mockTemplate);
+      const mockTemplate = {
+        id: 'tmpl-1',
+        name: 'Test',
+        clinicId: 'clinic-123',
+      };
+      mockPlanningTemplateService.getTemplateById.mockResolvedValue(
+        mockTemplate,
+      );
 
       const caller = createAdminCaller();
-      const result = await caller.getTemplateById({ id: '550e8400-e29b-41d4-a716-446655440000' });
+      const result = await caller.getTemplateById({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+      });
 
       expect(result).toEqual(mockTemplate);
       expect(mockPlanningTemplateService.getTemplateById).toHaveBeenCalledWith(
@@ -735,13 +816,19 @@ describe('planningRouter', () => {
       name: 'Standard Week',
       data: {
         days: [
-          { dayOfWeek: 1, slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 2 }] },
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 2 }],
+          },
         ],
       },
     };
 
     it('creates template with admin role', async () => {
-      mockPlanningTemplateService.createTemplate.mockResolvedValue({ id: 'new-1', ...validInput });
+      mockPlanningTemplateService.createTemplate.mockResolvedValue({
+        id: 'new-1',
+        ...validInput,
+      });
 
       const caller = createAdminCaller();
       const result = await caller.createTemplate(validInput);
@@ -755,11 +842,15 @@ describe('planningRouter', () => {
 
     it('throws FORBIDDEN for non-admin user', async () => {
       const caller = createEmployeeCaller();
-      await expect(caller.createTemplate(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(caller.createTemplate(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
     });
 
     it('uses clinicId from context', async () => {
-      mockPlanningTemplateService.createTemplate.mockResolvedValue({ id: 'new-1' });
+      mockPlanningTemplateService.createTemplate.mockResolvedValue({
+        id: 'new-1',
+      });
 
       const caller = createAdminCaller();
       await caller.createTemplate(validInput);
@@ -779,7 +870,10 @@ describe('planningRouter', () => {
     };
 
     it('updates template with admin role', async () => {
-      mockPlanningTemplateService.updateTemplate.mockResolvedValue({ ...validInput, clinicId: 'clinic-123' });
+      mockPlanningTemplateService.updateTemplate.mockResolvedValue({
+        ...validInput,
+        clinicId: 'clinic-123',
+      });
 
       const caller = createAdminCaller();
       const result = await caller.updateTemplate(validInput);
@@ -789,16 +883,22 @@ describe('planningRouter', () => {
 
     it('throws FORBIDDEN for non-admin', async () => {
       const caller = createEmployeeCaller();
-      await expect(caller.updateTemplate(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(caller.updateTemplate(validInput)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
     });
   });
 
   describe('deleteTemplate', () => {
     it('deletes template with admin role', async () => {
-      mockPlanningTemplateService.deleteTemplate.mockResolvedValue({ id: 'tmpl-1' });
+      mockPlanningTemplateService.deleteTemplate.mockResolvedValue({
+        id: 'tmpl-1',
+      });
 
       const caller = createAdminCaller();
-      await caller.deleteTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' });
+      await caller.deleteTemplate({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+      });
 
       expect(mockPlanningTemplateService.deleteTemplate).toHaveBeenCalledWith(
         'clinic-123',
@@ -822,10 +922,14 @@ describe('planningRouter', () => {
       });
 
       const caller = createAdminCaller();
-      const result = await caller.duplicateTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' });
+      const result = await caller.duplicateTemplate({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+      });
 
       expect(result.name).toBe('Standard (Copy)');
-      expect(mockPlanningTemplateService.duplicateTemplate).toHaveBeenCalledWith(
+      expect(
+        mockPlanningTemplateService.duplicateTemplate,
+      ).toHaveBeenCalledWith(
         'clinic-123',
         '550e8400-e29b-41d4-a716-446655440000',
       );
@@ -834,7 +938,9 @@ describe('planningRouter', () => {
     it('throws FORBIDDEN for non-admin', async () => {
       const caller = createEmployeeCaller();
       await expect(
-        caller.duplicateTemplate({ id: '550e8400-e29b-41d4-a716-446655440000' }),
+        caller.duplicateTemplate({
+          id: '550e8400-e29b-41d4-a716-446655440000',
+        }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
   });
@@ -848,9 +954,17 @@ describe('planningRouter', () => {
         assignments: [],
         holes: [],
         violations: { hard: [], soft: [] },
-        stats: { totalSlots: 0, filledSlots: 0, holeCount: 0, hardViolationCount: 0, softWarningCount: 0 },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
       };
-      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue(mockResult);
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue(
+        mockResult,
+      );
 
       const result = await caller.generatePlan({
         month: '2026-03',
@@ -858,10 +972,13 @@ describe('planningRouter', () => {
       });
 
       expect(result).toEqual(mockResult);
-      expect(mockPlanningGenerationService.generateMonthlyPlan).toHaveBeenCalledWith(
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
         'clinic-123',
         '2026-03',
         '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: false },
       );
     });
 
@@ -886,8 +1003,16 @@ describe('planningRouter', () => {
     it('should use clinicId from context, not input', async () => {
       const caller = createAdminCaller();
       mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
-        assignments: [], holes: [], violations: { hard: [], soft: [] },
-        stats: { totalSlots: 0, filledSlots: 0, holeCount: 0, hardViolationCount: 0, softWarningCount: 0 },
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
       });
 
       await caller.generatePlan({
@@ -895,10 +1020,89 @@ describe('planningRouter', () => {
         templateId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
-      expect(mockPlanningGenerationService.generateMonthlyPlan).toHaveBeenCalledWith(
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
         'clinic-123', // from context, not client-supplied
         expect.any(String),
         expect.any(String),
+        expect.anything(),
+      );
+    });
+
+    // Story 11-1 — the ack flag flows through the transport to the service.
+    it('should forward acknowledgePublishedChange to the service', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
+      });
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+        acknowledgePublishedChange: true,
+      });
+
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: true },
+      );
+    });
+
+    // Story 11-1 — the published-status cache is busted after a bulk regen.
+    it('should invalidate the planning:pub Redis pattern', async () => {
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+        },
+      });
+      const redis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      };
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+      });
+
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
       );
     });
   });
@@ -906,16 +1110,19 @@ describe('planningRouter', () => {
   describe('listShiftsForMonth', () => {
     it('should allow ADMIN to list shifts for a month', async () => {
       const caller = createAdminCaller();
-      const mockShifts = [{ id: 'shift-1', date: new Date('2026-03-01'), source: 'GENERATED' }];
-      mockPlanningGenerationService.listShiftsForMonth.mockResolvedValue(mockShifts);
+      const mockShifts = [
+        { id: 'shift-1', date: new Date('2026-03-01'), source: 'GENERATED' },
+      ];
+      mockPlanningGenerationService.listShiftsForMonth.mockResolvedValue(
+        mockShifts,
+      );
 
       const result = await caller.listShiftsForMonth({ month: '2026-03' });
 
       expect(result).toEqual(mockShifts);
-      expect(mockPlanningGenerationService.listShiftsForMonth).toHaveBeenCalledWith(
-        'clinic-123',
-        '2026-03',
-      );
+      expect(
+        mockPlanningGenerationService.listShiftsForMonth,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03');
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
@@ -934,15 +1141,18 @@ describe('planningRouter', () => {
   describe('deleteGeneratedShifts', () => {
     it('should allow ADMIN to delete generated shifts', async () => {
       const caller = createAdminCaller();
-      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({ deletedCount: 5 });
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({
+        deletedCount: 5,
+      });
 
       const result = await caller.deleteGeneratedShifts({ month: '2026-03' });
 
       expect(result).toEqual({ deletedCount: 5 });
-      expect(mockPlanningGenerationService.deleteGeneratedShifts).toHaveBeenCalledWith(
-        'clinic-123',
-        '2026-03',
-      );
+      expect(
+        mockPlanningGenerationService.deleteGeneratedShifts,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03', {
+        acknowledgePublishedChange: false,
+      });
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
@@ -956,6 +1166,57 @@ describe('planningRouter', () => {
         caller.deleteGeneratedShifts({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     });
+
+    // Story 11-1 — the ack flag flows through the transport to the service.
+    it('should forward acknowledgePublishedChange to the service', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({
+        deletedCount: 0,
+      });
+
+      await caller.deleteGeneratedShifts({
+        month: '2026-03',
+        acknowledgePublishedChange: true,
+      });
+
+      expect(
+        mockPlanningGenerationService.deleteGeneratedShifts,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03', {
+        acknowledgePublishedChange: true,
+      });
+    });
+
+    // Story 11-1 — the published-status cache is busted after a bulk purge.
+    it('should invalidate the planning:pub Redis pattern', async () => {
+      mockPlanningGenerationService.deleteGeneratedShifts.mockResolvedValue({
+        deletedCount: 0,
+      });
+      const redis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      };
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+
+      await caller.deleteGeneratedShifts({ month: '2026-03' });
+
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
+      );
+    });
   });
 
   // ─── getScheduleView ────────────────────────────────────────────
@@ -964,10 +1225,23 @@ describe('planningRouter', () => {
     const mockScheduleViewData = {
       month: '2026-03',
       employees: [
-        { id: 'emp-1', firstName: 'Alice', lastName: 'Martin', color: null, jobType: 'VET', contractHours: 35 },
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          color: null,
+          jobType: 'VET',
+          contractHours: 35,
+        },
       ],
       days: [
-        { date: '2026-03-02', dayOfWeek: 1, isWorkDay: true, isClosed: false, isSpecialDay: false },
+        {
+          date: '2026-03-02',
+          dayOfWeek: 1,
+          isWorkDay: true,
+          isClosed: false,
+          isSpecialDay: false,
+        },
       ],
       shifts: [],
       unavailabilities: [],
@@ -977,15 +1251,16 @@ describe('planningRouter', () => {
 
     it('should return schedule view data for ADMIN', async () => {
       const caller = createAdminCaller();
-      mockPlanningGenerationService.getScheduleViewForMonth.mockResolvedValue(mockScheduleViewData);
+      mockPlanningGenerationService.getScheduleViewForMonth.mockResolvedValue(
+        mockScheduleViewData,
+      );
 
       const result = await caller.getScheduleView({ month: '2026-03' });
 
       expect(result).toEqual(mockScheduleViewData);
-      expect(mockPlanningGenerationService.getScheduleViewForMonth).toHaveBeenCalledWith(
-        'clinic-123',
-        '2026-03',
-      );
+      expect(
+        mockPlanningGenerationService.getScheduleViewForMonth,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03');
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
@@ -1040,6 +1315,7 @@ describe('planningRouter', () => {
         'clinic-123',
         shiftId,
         { targetEmployeeId, targetDate: '2025-03-04' },
+        { acknowledgePublishedChange: false },
       );
     });
 
@@ -1058,6 +1334,52 @@ describe('planningRouter', () => {
         'clinic-123', // from ctx.user.clinicId, not from input
         expect.anything(),
         expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    // Story 7-6 (AC-1): the ack flag flows through the transport to the service.
+    it('should forward acknowledgePublishedChange to the service', async () => {
+      mockPlanningGenerationService.moveShift.mockResolvedValue(mockResult);
+      const caller = createAdminCaller();
+      await caller.moveShift({
+        shiftId,
+        targetDate: '2025-03-04',
+        acknowledgePublishedChange: true,
+      });
+      expect(mockPlanningGenerationService.moveShift).toHaveBeenCalledWith(
+        'clinic-123',
+        shiftId,
+        expect.objectContaining({ targetDate: '2025-03-04' }),
+        { acknowledgePublishedChange: true },
+      );
+    });
+
+    // Story 7-6 (AC-4): the published-status cache is busted on every mutation.
+    it('should invalidate the planning:pub Redis pattern', async () => {
+      mockPlanningGenerationService.moveShift.mockResolvedValue(mockResult);
+      const redis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      };
+      mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
+      const caller = createCaller({
+        user: authenticatedAdmin,
+        prisma: mockPrisma as any,
+        redis: redis as any,
+        planningService: mockPlanningService as any,
+        planningTemplateService: mockPlanningTemplateService as any,
+        equityCounterService: mockEquityCounterService as any,
+        planningGenerationService: mockPlanningGenerationService as any,
+        apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+      } as any);
+      await caller.moveShift({ shiftId, targetEmployeeId });
+      expect(redis.invalidatePattern).toHaveBeenCalledWith(
+        'planning:pub:clinic-123:*',
       );
     });
   });
@@ -1089,7 +1411,9 @@ describe('planningRouter', () => {
     };
 
     it('should allow ADMIN to create a manual shift', async () => {
-      mockPlanningGenerationService.createManualShift.mockResolvedValue(mockResult);
+      mockPlanningGenerationService.createManualShift.mockResolvedValue(
+        mockResult,
+      );
       const caller = createAdminCaller();
       const result = await caller.createManualShift(validInput);
       expect(result).toEqual(mockResult);
@@ -1097,9 +1421,9 @@ describe('planningRouter', () => {
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
       const caller = createEmployeeCaller();
-      await expect(
-        caller.createManualShift(validInput),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.createManualShift(validInput)).rejects.toThrow(
+        TRPCError,
+      );
     });
   });
 
@@ -1109,21 +1433,22 @@ describe('planningRouter', () => {
     const shiftId = '550e8400-e29b-41d4-a716-446655440005';
 
     it('should allow ADMIN to delete a shift', async () => {
-      mockPlanningGenerationService.deleteShift.mockResolvedValue({ deleted: true });
+      mockPlanningGenerationService.deleteShift.mockResolvedValue({
+        deleted: true,
+      });
       const caller = createAdminCaller();
       const result = await caller.deleteShift({ shiftId });
       expect(result).toEqual({ deleted: true });
       expect(mockPlanningGenerationService.deleteShift).toHaveBeenCalledWith(
         'clinic-123',
         shiftId,
+        { acknowledgePublishedChange: false },
       );
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
       const caller = createEmployeeCaller();
-      await expect(
-        caller.deleteShift({ shiftId }),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.deleteShift({ shiftId })).rejects.toThrow(TRPCError);
     });
   });
 
@@ -1135,7 +1460,9 @@ describe('planningRouter', () => {
     const mockResult = { hard: [], soft: [] };
 
     it('should allow ADMIN to pre-validate a move', async () => {
-      mockPlanningGenerationService.preValidateMove.mockResolvedValue(mockResult);
+      mockPlanningGenerationService.preValidateMove.mockResolvedValue(
+        mockResult,
+      );
       const caller = createAdminCaller();
       const result = await caller.preValidateMove({
         shiftId,
@@ -1143,10 +1470,13 @@ describe('planningRouter', () => {
         targetDate: '2025-03-04',
       });
       expect(result).toEqual(mockResult);
-      expect(mockPlanningGenerationService.preValidateMove).toHaveBeenCalledWith(
-        'clinic-123',
-        { shiftId, targetEmployeeId, targetDate: '2025-03-04' },
-      );
+      expect(
+        mockPlanningGenerationService.preValidateMove,
+      ).toHaveBeenCalledWith('clinic-123', {
+        shiftId,
+        targetEmployeeId,
+        targetDate: '2025-03-04',
+      });
     });
 
     it('should reject EMPLOYEE with FORBIDDEN', async () => {
@@ -1184,9 +1514,9 @@ describe('planningRouter', () => {
     it('should reject EMPLOYEE role with FORBIDDEN', async () => {
       const caller = createEmployeeCaller();
 
-      await expect(
-        caller.publishPlan({ month: '2026-03' }),
-      ).rejects.toThrow(TRPCError);
+      await expect(caller.publishPlan({ month: '2026-03' })).rejects.toThrow(
+        TRPCError,
+      );
       await expect(
         caller.publishPlan({ month: '2026-03' }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1226,10 +1556,9 @@ describe('planningRouter', () => {
         publishedAt: '2026-03-15T10:00:00.000Z',
         publishedBy: 'user-1',
       });
-      expect(mockPlanningGenerationService.getPublicationStatus).toHaveBeenCalledWith(
-        'clinic-123',
-        '2026-03',
-      );
+      expect(
+        mockPlanningGenerationService.getPublicationStatus,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03');
     });
 
     it('should reject EMPLOYEE role with FORBIDDEN', async () => {
@@ -1249,8 +1578,22 @@ describe('planningRouter', () => {
   describe('getPublishPreview', () => {
     const mockPreview = {
       employees: [
-        { id: 'emp-1', firstName: 'Marie', lastName: 'Dupont', shiftCount: 5, notifyOnPublish: true, hasPushSubscription: true },
-        { id: 'emp-2', firstName: 'Jean', lastName: 'Martin', shiftCount: 3, notifyOnPublish: false, hasPushSubscription: false },
+        {
+          id: 'emp-1',
+          firstName: 'Marie',
+          lastName: 'Dupont',
+          shiftCount: 5,
+          notifyOnPublish: true,
+          hasPushSubscription: true,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Jean',
+          lastName: 'Martin',
+          shiftCount: 3,
+          notifyOnPublish: false,
+          hasPushSubscription: false,
+        },
       ],
       emailCount: 1,
       pushCount: 1,
@@ -1259,16 +1602,17 @@ describe('planningRouter', () => {
     };
 
     it('should be accessible to ADMIN role', async () => {
-      mockPlanningGenerationService.getPublishPreview.mockResolvedValue(mockPreview);
+      mockPlanningGenerationService.getPublishPreview.mockResolvedValue(
+        mockPreview,
+      );
 
       const caller = createAdminCaller();
       const result = await caller.getPublishPreview({ month: '2026-03' });
 
       expect(result).toEqual(mockPreview);
-      expect(mockPlanningGenerationService.getPublishPreview).toHaveBeenCalledWith(
-        'clinic-123',
-        '2026-03',
-      );
+      expect(
+        mockPlanningGenerationService.getPublishPreview,
+      ).toHaveBeenCalledWith('clinic-123', '2026-03');
     });
 
     it('should reject EMPLOYEE role with FORBIDDEN', async () => {

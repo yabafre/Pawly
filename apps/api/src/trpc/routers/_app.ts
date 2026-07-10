@@ -16,6 +16,7 @@ import { varianceRouter } from './variance.router';
 import { dashboardRouter } from './dashboard.router';
 import { employeeScheduleRouter } from './employee-schedule.router';
 import { presenceConfirmationRouter } from './presence-confirmation.router';
+import { tourRouter } from './tour.router';
 
 /**
  * Main application router
@@ -33,6 +34,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   employeeSchedule: employeeScheduleRouter,
   presenceConfirmation: presenceConfirmationRouter,
+  tour: tourRouter,
 });
 
 /**

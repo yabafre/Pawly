@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,18 +10,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Calendar, Copy, EllipsisVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import type { ShiftTypeRecord } from "@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes";
-import type { TemplateSlot, TemplateDay, TemplateData, TemplateRecord } from "@pawly/types";
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Calendar, Copy, EllipsisVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import type { ShiftTypeRecord } from '@/app/[locale]/admin/settings/_hooks/useClinicShiftTypes';
+import type { TemplateSlot, TemplateDay, TemplateData, TemplateRecord } from '@pawly/types';
 
 type Props = {
   templates: TemplateRecord[];
@@ -34,7 +34,12 @@ type Props = {
 };
 
 function parseTemplateData(data: unknown): TemplateData {
-  if (data && typeof data === "object" && "days" in data && Array.isArray((data as TemplateData).days)) {
+  if (
+    data &&
+    typeof data === 'object' &&
+    'days' in data &&
+    Array.isArray((data as TemplateData).days)
+  ) {
     return data as TemplateData;
   }
   return { days: [] };
@@ -49,7 +54,7 @@ type TemplateCardProps = {
 };
 
 function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
-  const t = useTranslations("admin.planningTemplates");
+  const t = useTranslations('admin.planningTemplates');
 
   const daysConfigured = data.days.length;
   const totalShifts = data.days.reduce((acc, day) => acc + day.slots.length, 0);
@@ -69,7 +74,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
             <Button
               variant="ghost"
               size="icon"
-              aria-label={t("actions.menu")}
+              aria-label={t('actions.menu')}
               onClick={(event) => event.stopPropagation()}
               className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
             >
@@ -85,7 +90,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
               className="rounded-lg focus:bg-muted cursor-pointer font-medium text-xs p-2"
             >
               <Pencil className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-              {t("actions.edit")}
+              {t('actions.edit')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(event) => {
@@ -95,7 +100,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
               className="rounded-lg focus:bg-muted cursor-pointer font-medium text-xs p-2"
             >
               <Copy className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-              {t("actions.duplicate")}
+              {t('actions.duplicate')}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:bg-destructive/5 focus:text-destructive rounded-lg cursor-pointer font-medium text-xs p-2"
@@ -105,7 +110,7 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
               }}
             >
               <Trash2 className="h-3.5 w-3.5 mr-2" />
-              {t("actions.delete")}
+              {t('actions.delete')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -118,7 +123,8 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
         <div>
           <h3 className="font-bold text-foreground leading-tight">{template.name}</h3>
           <span className="text-xs text-muted-foreground font-medium">
-            {t("card.daysConfigured", { count: daysConfigured })} • {t("card.slotsCount", { count: totalShifts })}
+            {t('card.daysConfigured', { count: daysConfigured })} •{' '}
+            {t('card.slotsCount', { count: totalShifts })}
           </span>
         </div>
       </div>
@@ -129,17 +135,16 @@ function TemplateCard({ template, data, onEdit, onDuplicate, onDelete }: Templat
             <div key={dayIndex} className="flex-1 flex flex-col items-center gap-2 group/day">
               <div
                 className={`w-full rounded-md transition-all duration-500 ${
-                  status ? "h-6 bg-primary group-hover:bg-primary/80" : "h-1 bg-muted"
+                  status ? 'h-6 bg-primary group-hover:bg-primary/80' : 'h-1 bg-muted'
                 }`}
               />
               <span className="text-[8px] font-bold text-muted-foreground uppercase">
-                {["L", "M", "M", "J", "V", "S", "D"][dayIndex]}
+                {['L', 'M', 'M', 'J', 'V', 'S', 'D'][dayIndex]}
               </span>
             </div>
           ))}
         </div>
       </div>
-
     </div>
   );
 }
@@ -153,7 +158,7 @@ export function TemplateList({
   onDelete,
   onCreate,
 }: Props) {
-  const t = useTranslations("admin.planningTemplates");
+  const t = useTranslations('admin.planningTemplates');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   if (templates.length === 0) {
@@ -162,11 +167,11 @@ export function TemplateList({
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted border border-border">
           <Calendar className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-bold text-foreground">{t("emptyState.title")}</h3>
-        <p className="mt-2 text-sm text-muted-foreground">{t("emptyState.description")}</p>
-        <Button onClick={onCreate} className="mt-6 rounded-xl">
+        <h3 className="text-lg font-bold text-foreground">{t('emptyState.title')}</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{t('emptyState.description')}</p>
+        <Button data-tour="admin-create-template" onClick={onCreate} className="mt-6 rounded-xl">
           <Plus className="mr-2 h-4 w-4" />
-          {t("emptyState.cta")}
+          {t('emptyState.cta')}
         </Button>
       </div>
     );
@@ -175,9 +180,9 @@ export function TemplateList({
   return (
     <>
       <div className="flex justify-end mb-8">
-        <Button onClick={onCreate} className="rounded-xl">
+        <Button data-tour="admin-create-template" onClick={onCreate} className="rounded-xl">
           <Plus className="mr-2 h-4 w-4" />
-          {t("emptyState.cta")}
+          {t('emptyState.cta')}
         </Button>
       </div>
 
@@ -201,19 +206,25 @@ export function TemplateList({
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-card">
             <Plus className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
           </div>
-          <span className="text-sm font-bold text-muted-foreground group-hover:text-primary">{t("form.createTitle")}</span>
+          <span className="text-sm font-bold text-muted-foreground group-hover:text-primary">
+            {t('form.createTitle')}
+          </span>
         </Button>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent className="rounded-2xl border-border shadow-2xl p-6">
           <AlertDialogHeader className="mb-4">
-            <AlertDialogTitle className="font-bold text-lg text-foreground">{t("confirm.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">{t("confirm.deleteMessage")}</AlertDialogDescription>
+            <AlertDialogTitle className="font-bold text-lg text-foreground">
+              {t('confirm.deleteTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              {t('confirm.deleteMessage')}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3">
             <AlertDialogCancel className="rounded-xl font-bold text-muted-foreground border-border hover:bg-muted">
-              {t("confirm.cancel")}
+              {t('confirm.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-foreground hover:bg-foreground/90 text-background rounded-xl font-bold"
@@ -222,7 +233,7 @@ export function TemplateList({
                 setDeleteId(null);
               }}
             >
-              {t("confirm.confirm")}
+              {t('confirm.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
