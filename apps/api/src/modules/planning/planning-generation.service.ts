@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
@@ -582,7 +583,7 @@ export class PlanningGenerationService {
           ...createdShifts.map((s) => s.employeeId),
         ]),
       ];
-      await this.recordAmendment(clinicId, publishedMonths);
+      await this.recordAmendment(this.prisma, clinicId, publishedMonths);
       this.notifyScheduleChange(
         clinicId,
         recipientIds.map((employeeId) => ({ employeeId, month })),
@@ -1606,7 +1607,7 @@ export class PlanningGenerationService {
     // Story 11-1 — a purge of a PUBLISHED month is an amendment: record it and
     // notify affected employees. Notification failures are logged, never block.
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
+      await this.recordAmendment(this.prisma, clinicId, publishedMonths);
       this.notifyScheduleChange(
         clinicId,
         deletedEmployeeIds.map((employeeId) => ({ employeeId, month })),
@@ -1959,12 +1960,15 @@ export class PlanningGenerationService {
     return publishedMonths;
   }
 
+  // Story 11-6 — accepts the active transaction client (or `this.prisma`) so
+  // the amendment bookkeeping commits atomically with the shift mutation.
   private async recordAmendment(
+    tx: Prisma.TransactionClient,
     clinicId: string,
     months: string[],
   ): Promise<void> {
     if (months.length === 0) return;
-    await this.prisma.planningPeriodStatus.updateMany({
+    await tx.planningPeriodStatus.updateMany({
       where: { clinicId, month: { in: months }, status: 'PUBLISHED' },
       data: { amendedAt: new Date(), amendmentCount: { increment: 1 } },
     });
@@ -2119,27 +2123,40 @@ export class PlanningGenerationService {
     const dateChanged =
       !!target.targetDate && target.targetDate !== originalDateISO;
 
-    const updated = await this.prisma.shift.update({
-      where: { id: shiftId },
-      data: {
-        ...(target.targetEmployeeId && { employeeId: target.targetEmployeeId }),
-        ...(target.targetDate && {
-          date: new Date(`${target.targetDate}T00:00:00.000Z`),
-        }),
-        source: 'MANUAL',
-        // Story 7.6 — a moved shift is no longer the one the employee confirmed
-        ...((employeeChanged || dateChanged) && { isConfirmed: false }),
-      },
+    // Story 11-6 — the shift mutation and the amendment bookkeeping commit
+    // atomically. If recordAmendment throws, shift.update rolls back, so a
+    // moved shift can never be left without its amendment record. Notification
+    // fires AFTER commit (below), so a rolled-back change never notifies.
+    const amend =
+      publishedMonths.length > 0 && (employeeChanged || dateChanged);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.shift.update({
+        where: { id: shiftId },
+        data: {
+          ...(target.targetEmployeeId && {
+            employeeId: target.targetEmployeeId,
+          }),
+          ...(target.targetDate && {
+            date: new Date(`${target.targetDate}T00:00:00.000Z`),
+          }),
+          source: 'MANUAL',
+          // Story 7.6 — a moved shift is no longer the one the employee confirmed
+          ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+        },
+      });
+      if (amend) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+      return u;
     });
 
-    // Story 7.6 — amendment tracking + notifications (published months only)
-    if (publishedMonths.length > 0 && (employeeChanged || dateChanged)) {
+    // Story 7.6 — post-commit notification (published months only), fire-and-forget
+    if (amend) {
       const updatedMonth = updated.date.toISOString().split('T')[0].slice(0, 7);
       const recipients = [
         { employeeId: originalEmployeeId, month: originalMonth },
         { employeeId: updated.employeeId, month: updatedMonth },
       ].filter((r) => publishedMonths.includes(r.month));
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, recipients).catch((err: Error) =>
         this.logger.error(
           `schedule-change notification failed: ${err.message}`,
@@ -2257,22 +2274,28 @@ export class PlanningGenerationService {
       );
     }
 
-    const created = await this.prisma.shift.create({
-      data: {
-        date: new Date(`${input.date}T00:00:00.000Z`),
-        startTime: shiftType.startTime,
-        endTime: shiftType.endTime,
-        shiftTypeCode: input.shiftTypeCode,
-        breakMinutes: shiftType.breakMinutes,
-        source: 'MANUAL',
-        employeeId: input.employeeId,
-        clinicId,
-      },
+    // Story 11-6 — create + amendment commit atomically; notify post-commit.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.shift.create({
+        data: {
+          date: new Date(`${input.date}T00:00:00.000Z`),
+          startTime: shiftType.startTime,
+          endTime: shiftType.endTime,
+          shiftTypeCode: input.shiftTypeCode,
+          breakMinutes: shiftType.breakMinutes,
+          source: 'MANUAL',
+          employeeId: input.employeeId,
+          clinicId,
+        },
+      });
+      if (publishedMonths.length > 0) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+      return c;
     });
 
-    // Story 7.6 — amendment tracking + notification (published month only)
+    // Story 7.6 — post-commit notification (published month only), fire-and-forget
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, [
         { employeeId: created.employeeId, month },
       ]).catch((err: Error) =>
@@ -2319,10 +2342,15 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    await this.prisma.shift.delete({ where: { id: shiftId } });
+    // Story 11-6 — delete + amendment commit atomically; notify post-commit.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.shift.delete({ where: { id: shiftId } });
+      if (publishedMonths.length > 0) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+    });
 
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, [
         { employeeId: shift.employeeId, month },
       ]).catch((err: Error) =>
