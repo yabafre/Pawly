@@ -891,4 +891,5 @@ change is the server-only `fetchWithRetry` transport wrapper)
   finding. No business/metadata rows touched. Confirms: (a) the lock serializes same-key runs
   (AC2), (b) READ COMMITTED yields the clean happy path, (c) the `UNIQUE` net holds
   (no doubled month — AC3).
+- **Full local build + suite (after de-symlinking the worktree `node_modules` — real `pnpm install`, Prisma regenerated):** `pnpm build` → **5/5 tasks**, incl. `@pawly/web:build` — the Turbopack "points out of the filesystem root" blocker the dev had deferred to the main checkout is resolved by a real local install, so the production web build is now confirmed here. `pnpm --filter @pawly/api test` → **897/897** (33 suites), `@pawly/web` → **756/756** (51 files, incl. `client.spec.ts`), `@pawly/validators` → **777/777** = **2430 green**. Live L2 re-confirmed PASS in the de-symlinked state.
 - **Visual verification:** N/A — server-only transport + service, no rendered surface.
