@@ -1206,7 +1206,10 @@ TDD (RED witnessed → GREEN) with one commit per task.
 - `packages/validators/src/planning/schedule-view.schema.ts`
 - `packages/validators/src/planning/schedule-view.schema.test.ts`
 - `apps/web/src/app/[locale]/admin/planning/_components/HealthBarDetailPopover.tsx`
+- `apps/web/src/app/[locale]/admin/planning/_components/ConflictIndicator.tsx` (live-verification fix)
+- `apps/web/src/app/[locale]/admin/planning/_components/ScheduleViewWrapper.tsx` (live-verification fix)
 - `apps/web/src/app/[locale]/admin/planning/__tests__/publish.spec.tsx`
+- `apps/web/src/app/[locale]/admin/planning/__tests__/schedule-view.spec.tsx` (live-verification fix)
 - `apps/web/src/i18n/langs/fr.json`
 - `apps/web/src/i18n/langs/en.json`
 
@@ -1242,6 +1245,24 @@ TDD (RED witnessed → GREEN) with one commit per task.
   (the `createManualShift` guard). App boots, admin login, and the planning page render
   were confirmed headed. The full staged generation/Health-Bar/manual-toast UI journey is
   recommended for the aped-review L2 journey (project convention for planning stories).
+- **Headed live UI pass — two findings surfaced (post-review).**
+  1. *Environmental blocker (not this story):* the "Simulation E2E" clinic used for the
+     live pass had **no `ClinicConfig` row**, so `getScheduleViewForMonth` threw
+     `NotFoundException` from the unguarded `getOperationalConfig` call → tRPC 500 → the
+     whole schedule grid fell back to the empty state. Seeding a `ClinicConfig` unblocked
+     the grid; no product code was at fault (statutory eval is downstream and
+     `.catch()`-guarded).
+  2. *Localization gap (fixed here, RED→GREEN):* the **cell-level `ConflictIndicator`**
+     popover rendered statutory HARD violations with the raw English API `message`
+     ("Statutory DAILY_WORK limit exceeded…") while the UI was French — the `messageKey`
+     localization added for the Health-Bar popover in Task 9 was never wired to the grid
+     cell. Fix mirrors `WarningBadge`: `ScheduleViewWrapper`'s hard-conflict map now
+     carries `messageKey`/`messageParams`; `ConflictIndicator` resolves them via
+     `useTranslations('admin')`; and an `admin.violations.statutory.*` block was added to
+     `fr.json`/`en.json` (the cell root, alongside the existing Health-Bar root). New test
+     `schedule-view.spec.tsx › "localizes hard conflicts via messageKey instead of the raw
+     message"`. Verified live: the LUN. 13 badge popover now reads **"Le 2026-07-13 : 11h
+     travaillées, dépasse la limite légale de 10h/jour"**.
 
 ### Test output
 
@@ -1264,4 +1285,9 @@ pnpm --filter @pawly/api  exec tsc --noEmit -p tsconfig.types.json → 0 errors 
 # Live real-DB verification (Prisma 7 adapter → Neon)
 AC3  findStatutoryViolations(persisted 11h) → [{kind:DAILY_WORK, actual:660, limit:600}]
 AC2  wouldExceedStatutory(DB window, 19:30-21:30 add) → ["DAILY_AMPLITUDE"]
+
+# Headed live UI pass (post-review localization fix)
+pnpm --filter @pawly/web test -- schedule-view.spec.tsx   → 68 passed (incl. new messageKey test)
+pnpm --filter @pawly/web test -- publish integration-i18n → 72 passed (no regression)
+Live: LUN.13 cell conflict popover renders FR → "Le 2026-07-13 : 11h travaillées, dépasse la limite légale de 10h/jour"
 ```
