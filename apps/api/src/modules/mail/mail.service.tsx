@@ -411,19 +411,30 @@ export class MailService {
     month: string,
     clinicName: string,
     locale: MailLocale = 'fr',
-  ) {
+  ): Promise<boolean> {
     const t = getMailTranslations(locale);
     const webAppUrl =
       this.configService.get('WEB_APP_URL', { infer: true }) ?? '';
     const dashboardUrl = `${webAppUrl}/dashboard/schedule`;
+    // Story 11-4 — a missed change notification means a missed shift, so a
+    // failed Trigger dispatch must fall back to the direct Resend send (same
+    // idiom as sendMagicLink). Non-auth-critical: return a boolean status
+    // instead of throwing, so one bad recipient never aborts the whole
+    // notifyScheduleChange loop.
     if (this.useTrigger) {
-      return this.triggerSendEmail('schedule-changed', email, {
-        firstName,
-        month,
-        clinicName,
-        dashboardUrl,
-        locale,
-      });
+      if (
+        await this.triggerSendEmail('schedule-changed', email, {
+          firstName,
+          month,
+          clinicName,
+          dashboardUrl,
+          locale,
+        })
+      )
+        return true;
+      this.logger.warn(
+        'Trigger dispatch failed for schedule-changed — falling back to direct Resend send',
+      );
     }
     try {
       const html = await render(
@@ -445,12 +456,22 @@ export class MailService {
       });
 
       if (error) {
+        emailSendCounter.add(1, {
+          type: 'schedule_changed',
+          outcome: 'failure',
+        });
         this.logger.error(
           `Failed to send schedule changed email: ${error.message}`,
         );
+        return false;
       }
+
+      emailSendCounter.add(1, { type: 'schedule_changed', outcome: 'success' });
+      return true;
     } catch (err) {
+      emailSendCounter.add(1, { type: 'schedule_changed', outcome: 'failure' });
       this.logger.error('Unexpected error sending schedule changed email', err);
+      return false;
     }
   }
 
