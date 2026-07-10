@@ -500,6 +500,10 @@ describe('PlanningService', () => {
             messageKey: 'violations.statutory.dailyWork',
             severity: 'blocking',
             affectedEmployeeId: 'emp-1',
+            // Story 11-3 — the human-facing {date} param is French-formatted (DD/MM/YYYY),
+            // while affectedDate stays ISO (it keys the grid-cell conflict lookup).
+            messageParams: expect.objectContaining({ date: '03/08/2026' }),
+            affectedDate: '2026-08-03',
           }),
         ]),
       );

@@ -275,6 +275,12 @@ export class PlanningService {
     }
   }
 
+  /** ISO `YYYY-MM-DD` → French `DD/MM/YYYY` for human-facing statutory messages. */
+  private static formatFrDate(iso: string): string {
+    const [y, m, d] = iso.split('-');
+    return y && m && d ? `${d}/${m}/${y}` : iso;
+  }
+
   private statutoryToHardViolation(
     v: StatutoryViolation,
     employeeId: string,
@@ -282,13 +288,16 @@ export class PlanningService {
     const isDaily = v.kind === 'DAILY_WORK' || v.kind === 'DAILY_AMPLITUDE';
     const actual = isDaily ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
     const limit = isDaily ? v.limit / 60 : v.limit;
+    // Human-facing date is French-formatted; `affectedDate` stays ISO because it
+    // keys the grid-cell conflict lookup (`${employeeId}|${day.date}`).
+    const displayDate = PlanningService.formatFrDate(v.date);
     return {
       ruleId: `statutory:${v.kind.toLowerCase()}`,
       ruleName: STATUTORY_RULE_NAME,
       category: 'CONTRACT_COMPLIANCE',
-      message: `Statutory ${v.kind} limit exceeded on ${v.date} (${actual} > ${limit})`,
+      message: `Statutory ${v.kind} limit exceeded on ${displayDate} (${actual} > ${limit})`,
       messageKey: PlanningService.STATUTORY_MESSAGE_KEY[v.kind],
-      messageParams: { date: v.date, actual, limit },
+      messageParams: { date: displayDate, actual, limit },
       affectedEmployeeId: employeeId,
       affectedDate: v.date,
       severity: 'blocking',

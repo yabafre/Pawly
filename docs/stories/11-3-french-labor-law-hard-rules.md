@@ -1261,8 +1261,15 @@ TDD (RED witnessed → GREEN) with one commit per task.
      `useTranslations('admin')`; and an `admin.violations.statutory.*` block was added to
      `fr.json`/`en.json` (the cell root, alongside the existing Health-Bar root). New test
      `schedule-view.spec.tsx › "localizes hard conflicts via messageKey instead of the raw
-     message"`. Verified live: the LUN. 13 badge popover now reads **"Le 2026-07-13 : 11h
-     travaillées, dépasse la limite légale de 10h/jour"**.
+     message"`.
+  3. *Date format (fixed here, RED→GREEN):* statutory `messageParams.date` was ISO
+     (`2026-07-13`); the human-facing date is now French `DD/MM/YYYY` via a pure
+     `formatFrDate` helper in `statutoryToHardViolation` (no `date-fns` in the API).
+     **`affectedDate` deliberately stays ISO** — it keys the grid-cell conflict lookup
+     (`${employeeId}|${day.date}`), so formatting it would break the badge placement.
+     Extended the Task-8 statutory HARD test to assert `messageParams.date === '03/08/2026'`
+     with `affectedDate === '2026-08-03'`. Verified live: the LUN. 13 badge popover now
+     reads **"Le 13/07/2026 : 11h travaillées, dépasse la limite légale de 10h/jour"**.
 
 ### Test output
 
