@@ -3264,6 +3264,50 @@ export class PlanningGenerationService {
     }));
   }
 
+  // Story 11-2 — load the shifts INSIDE the target month that SURVIVE a
+  // regeneration. This is the exact complement of the Story 11-1 bulk deleteMany
+  // predicate (delete = source:GENERATED AND isConfirmed:false AND no-variance),
+  // so it returns MANUAL shifts, confirmed GENERATED shifts, and GENERATED shifts
+  // carrying VarianceEvent history — and EXCLUDES the unconfirmed, history-free
+  // GENERATED shifts that are about to be deleted and regenerated. The generator
+  // must see these survivors so it never double-books an employee, overruns their
+  // contract hours, or over-staffs a slot they already cover. Same projection
+  // shape as loadBorderWeekShifts, bounded to the target month.
+  private async loadSurvivingShiftsInMonth(
+    clinicId: string,
+    monthStart: Date,
+    monthEnd: Date,
+  ): Promise<AssignedShift[]> {
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        clinicId,
+        date: { gte: monthStart, lte: monthEnd },
+        OR: [
+          { source: { not: 'GENERATED' } },
+          { isConfirmed: true },
+          { varianceEvents: { some: {} } },
+        ],
+      },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+      },
+    });
+
+    return shifts.map((s) => ({
+      employeeId: s.employeeId,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      shiftTypeCode: s.shiftTypeCode,
+      breakMinutes: s.breakMinutes,
+    }));
+  }
+
   // FIX 1 — MRV (Minimum Remaining Values) heuristic: process most constrained slots first.
   // Within each ISO week (to preserve the non-workday-first grouping), re-sort by eligible pool size.
   private reorderByMRV(
