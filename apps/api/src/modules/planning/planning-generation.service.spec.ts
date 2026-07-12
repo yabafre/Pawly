@@ -1660,6 +1660,109 @@ describe('PlanningGenerationService', () => {
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
     });
+
+    // AC3 (verbatim from story 11-10-generation-performance-under-load:21):
+    //   "Given the stress configuration, When the month is generated, Then
+    //   generation completes within the < 2s target (NFR2) at 50 employees with
+    //   no degradation (NFR9)"
+    it('Story 11-10 — generates the 50-employee stress config well under the NFR2 budget', async () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-stress',
+        name: '24/7 stress',
+        data: { days },
+        clinicId,
+      });
+      // Deviation from the story snippet: expandTemplateToMonth resolves slot
+      // times from clinicService.listShiftTypes (the shiftTypeMap), not from the
+      // template — without this override the MORNING/DAY/NIGHT codes resolve to
+      // nothing and the run generates 0 slots.
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-stress-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // Deviation from the story snippet: put a ROTATION_EQUITY rule on the hot
+      // path — the pre-index O(E×A) re-scan only ran when such a rule existed, so
+      // a benchmark without one could never catch a regression back to it.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Max 2 Saturdays (stress)',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+          priority: 5,
+        },
+      ]);
+      // 50 active VETs
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      // No survivors, no border shifts (both queries return []).
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+
+      const start = Date.now();
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-stress',
+      );
+      const elapsedMs = Date.now() - start;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[11-10] stress 50-emp/24-7/31d generation core: ${elapsedMs}ms`,
+      );
+
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+      // NFR2 budget is 2s; wide threshold keeps CI non-flaky while still catching a
+      // regression back to the O(E×A) scan (which blew past 2s at this scale).
+      expect(elapsedMs).toBeLessThan(2000);
+    });
   });
 
   // ─── Story 11-2 — surviving shifts visible to generator + anti-duplicate ──
