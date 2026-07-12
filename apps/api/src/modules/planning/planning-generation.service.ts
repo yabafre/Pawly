@@ -23,6 +23,12 @@ import {
   violatesHardRotation,
   type RuleType,
 } from './rule-engine';
+import {
+  findEjectionChain,
+  selectImprovingSwap,
+  type RepairSlot,
+  type RepairAssignment,
+} from './local-repair';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type {
@@ -105,6 +111,9 @@ export class PlanningGenerationService {
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
   private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
+  // Story 11-9 — local-repair bounds (AC4). Depth is fixed at <=2 by findEjectionChain.
+  private static readonly MAX_HILLCLIMB_ITERATIONS = 200;
+  private static readonly REPAIR_YIELD_EVERY = 8; // mirror the generation-loop event-loop yield
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
     tuesday: 2,
@@ -162,7 +171,10 @@ export class PlanningGenerationService {
     clinicId: string,
     month: string,
     templateId: string,
-    options: { acknowledgePublishedChange?: boolean } = {},
+    options: {
+      acknowledgePublishedChange?: boolean;
+      enableRepair?: boolean;
+    } = {},
   ): Promise<GenerationResult> {
     const generationStart = Date.now();
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
@@ -581,6 +593,32 @@ export class PlanningGenerationService {
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
       softViolations.push(...result.softViolations);
+    }
+
+    // Story 11-9 — bounded GRASP local-repair pass. Runs on the fully-populated in-memory
+    // counters, before persistence, so it can move GENERATED assignments the single greedy pass
+    // could not. Mutates assignedShifts + every counter in lockstep; recomputes holes after.
+    // The `enableRepair` flag is a test hook (defaults on) so a fixture can measure the
+    // greedy-only baseline against the repaired result.
+    if (options.enableRepair ?? true) {
+      const repairedHoles = await this.runLocalRepairPass({
+        employees,
+        slots,
+        constraints,
+        assignedShifts,
+        allShiftsForScoring,
+        assignmentIndex,
+        weeklyMinutesCounter,
+        employeeMinutes,
+        shiftTypeCounts,
+        employeeShiftCounts,
+        dayOfWeekCounts,
+        quarterlyDayOfWeekCounts,
+        preExistingSlotCoverage,
+        priorHoles: holes,
+      });
+      holes.length = 0;
+      holes.push(...repairedHoles);
     }
 
     // Story 11-1 — collect the employees whose GENERATED shifts are about to be
@@ -3718,6 +3756,509 @@ export class PlanningGenerationService {
       equityMap.set(employeeId, entry);
     }
     return entry;
+  }
+
+  /**
+   * Story 11-9 — bounded local-repair pass. Phase 1: hole-repair via depth-<=2 ejection chains.
+   * Phase 2: equity hill-climbing swaps against the global equity objective. Every candidate move is
+   * validated with the shared evaluateEligibility predicate and applied through applyAssignment /
+   * removeAssignment so all counters stay in lockstep. Additions (backfill, swap) are checked on
+   * pre-apply state; the ejection mover is checked on post-removal state (its vacated shift lifted off
+   * the counters first). Returns the recomputed holes.
+   */
+  private async runLocalRepairPass(ctx: {
+    employees: EmployeeInfo[];
+    slots: SlotRequirement[];
+    constraints: ConstraintMap;
+    assignedShifts: AssignedShift[];
+    allShiftsForScoring: AssignedShift[];
+    assignmentIndex: Map<string, AssignedShift[]>;
+    weeklyMinutesCounter: Map<string, number>;
+    employeeMinutes: Map<string, number>;
+    shiftTypeCounts: Map<string, Map<string, number>>;
+    employeeShiftCounts: Map<string, number>;
+    dayOfWeekCounts: Map<string, Map<number, number>>;
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+    preExistingSlotCoverage: Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >;
+    priorHoles: GenerationResult['holes'];
+  }): Promise<GenerationResult['holes']> {
+    const eligibilityCtx = {
+      constraints: ctx.constraints,
+      assignmentIndex: ctx.assignmentIndex,
+      weeklyMinutesCounter: ctx.weeklyMinutesCounter,
+      employeeMinutes: ctx.employeeMinutes,
+      dayOfWeekCounts: ctx.dayOfWeekCounts,
+      quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
+    };
+    const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
+    const employeeIds = ctx.employees.map((e) => e.id).sort();
+
+    const slotIdOf = (
+      date: string,
+      shiftTypeCode: string,
+      startTime: string,
+    ): string => `${date}|${shiftTypeCode}|${startTime}`;
+
+    const asSlotRequirement = (rslot: RepairSlot): SlotRequirement => ({
+      date: rslot.date,
+      shiftTypeCode: rslot.shiftTypeCode,
+      startTime: rslot.startTime,
+      endTime: rslot.endTime,
+      breakMinutes: rslot.breakMinutes,
+      requiredStaff: 1,
+      requiredJobTypes: rslot.requiredJobTypes,
+    });
+
+    // Additions (backfill, swap) — the injected predicate the pure search calls. Strict rotation
+    // (no greedy relaxation): the repair must never introduce a HARD violation.
+    const isEligible = (employeeId: string, rslot: RepairSlot): boolean => {
+      const emp = employeeById.get(employeeId);
+      if (!emp) return false;
+      return this.evaluateEligibility(
+        emp,
+        asSlotRequirement(rslot),
+        eligibilityCtx,
+      ).eligible;
+    };
+
+    // The ejection MOVER — eligibility for the hole evaluated on POST-removal state: lift its vacated
+    // shift off the live counters, test, then restore exactly. Sound because removing only relaxes;
+    // this is what lets a capped mover reach a hole it could not fill while still on its slot.
+    const isMoverEligibleForHole = (
+      moverEmployeeId: string,
+      holeR: RepairSlot,
+      vacatedR: RepairSlot,
+    ): boolean => {
+      const emp = employeeById.get(moverEmployeeId);
+      if (!emp) return false;
+      const moverShift = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === moverEmployeeId &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === vacatedR.id,
+      );
+      if (!moverShift) return false;
+      this.removeAssignment(moverShift, ctx);
+      const ok = this.evaluateEligibility(
+        emp,
+        asSlotRequirement(holeR),
+        eligibilityCtx,
+      ).eligible;
+      this.applyAssignment(moverShift, ctx);
+      return ok;
+    };
+
+    // Belt-and-suspenders: an already-applied shift is valid iff removing it and re-checking the
+    // add passes. Sound design means this never fires, but a false verdict reverts the whole chain.
+    const isAppliedShiftValid = (shift: AssignedShift): boolean => {
+      const emp = employeeById.get(shift.employeeId);
+      if (!emp) return false;
+      const slotView = slotById.get(
+        slotIdOf(shift.date, shift.shiftTypeCode, shift.startTime),
+      );
+      this.removeAssignment(shift, ctx);
+      const ok = this.evaluateEligibility(
+        emp,
+        {
+          date: shift.date,
+          shiftTypeCode: shift.shiftTypeCode,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes ?? 0,
+          requiredStaff: 1,
+          requiredJobTypes: slotView?.requiredJobTypes,
+        },
+        eligibilityCtx,
+      ).eligible;
+      this.applyAssignment(shift, ctx);
+      return ok;
+    };
+
+    // Build the RepairSlot view (one per demand slot key) once; slot ids are deterministic.
+    const slotById = new Map<string, RepairSlot>();
+    for (const s of ctx.slots) {
+      const id = slotIdOf(s.date, s.shiftTypeCode, s.startTime);
+      if (!slotById.has(id)) {
+        slotById.set(id, {
+          id,
+          date: s.date,
+          shiftTypeCode: s.shiftTypeCode,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          breakMinutes: s.breakMinutes,
+          requiredJobTypes: s.requiredJobTypes,
+        });
+      }
+    }
+
+    // ── Phase 1: hole-repair via ejection chains ────────────────────────────────
+    let yields = 0;
+    const holes = this.recomputeHoles(
+      ctx.slots,
+      ctx.assignedShifts,
+      ctx.preExistingSlotCoverage,
+      ctx.priorHoles,
+    );
+    for (const hole of holes) {
+      if (hole.assignedStaff >= hole.requiredStaff) continue;
+      const holeSlot = slotById.get(
+        slotIdOf(
+          hole.date,
+          hole.shiftTypeCode,
+          this.slotStartFor(ctx.slots, hole),
+        ),
+      );
+      if (!holeSlot) continue;
+      if (++yields % PlanningGenerationService.REPAIR_YIELD_EVERY === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      const currentAssignments: RepairAssignment[] = ctx.assignedShifts.map(
+        (s) => ({
+          slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
+          employeeId: s.employeeId,
+        }),
+      );
+      const chain = findEjectionChain(
+        holeSlot,
+        currentAssignments,
+        slotById,
+        employeeIds,
+        isEligible,
+        isMoverEligibleForHole,
+      );
+      if (!chain) continue;
+
+      const moverShift = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === chain.moverEmployeeId &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) ===
+            chain.ejectFromSlotId,
+      );
+      const vacated = slotById.get(chain.ejectFromSlotId);
+      if (!moverShift || !vacated) continue;
+
+      // Apply: eject mover from its slot, place mover on the hole, backfill the vacated slot.
+      this.removeAssignment(moverShift, ctx);
+      const moverOnHole: AssignedShift = {
+        employeeId: chain.moverEmployeeId,
+        date: holeSlot.date,
+        startTime: holeSlot.startTime,
+        endTime: holeSlot.endTime,
+        shiftTypeCode: holeSlot.shiftTypeCode,
+        breakMinutes: holeSlot.breakMinutes,
+      };
+      const backfill: AssignedShift = {
+        employeeId: chain.backfillEmployeeId,
+        date: vacated.date,
+        startTime: vacated.startTime,
+        endTime: vacated.endTime,
+        shiftTypeCode: vacated.shiftTypeCode,
+        breakMinutes: vacated.breakMinutes,
+      };
+      this.applyAssignment(moverOnHole, ctx);
+      this.applyAssignment(backfill, ctx);
+
+      // Revert the whole chain if either applied shift is somehow invalid (unreachable by design).
+      if (!isAppliedShiftValid(moverOnHole) || !isAppliedShiftValid(backfill)) {
+        this.removeAssignment(backfill, ctx);
+        this.removeAssignment(moverOnHole, ctx);
+        this.applyAssignment(moverShift, ctx);
+      }
+    }
+
+    // ── Phase 2: equity hill-climbing swaps ─────────────────────────────────────
+    for (
+      let iter = 0;
+      iter < PlanningGenerationService.MAX_HILLCLIMB_ITERATIONS;
+      iter++
+    ) {
+      if (++yields % PlanningGenerationService.REPAIR_YIELD_EVERY === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      const assignments: RepairAssignment[] = ctx.assignedShifts.map((s) => ({
+        slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
+        employeeId: s.employeeId,
+      }));
+      const swap = selectImprovingSwap(assignments, slotById, isEligible);
+      if (!swap) break; // local optimum reached — objective is monotone non-increasing
+
+      const shiftA = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === swap.employeeA &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === swap.slotIdA,
+      );
+      const shiftB = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === swap.employeeB &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === swap.slotIdB,
+      );
+      const slotA = slotById.get(swap.slotIdA);
+      const slotB = slotById.get(swap.slotIdB);
+      if (!shiftA || !shiftB || !slotA || !slotB) break;
+
+      this.removeAssignment(shiftA, ctx);
+      this.removeAssignment(shiftB, ctx);
+      this.applyAssignment(
+        {
+          employeeId: swap.employeeB,
+          date: slotA.date,
+          startTime: slotA.startTime,
+          endTime: slotA.endTime,
+          shiftTypeCode: slotA.shiftTypeCode,
+          breakMinutes: slotA.breakMinutes,
+        },
+        ctx,
+      );
+      this.applyAssignment(
+        {
+          employeeId: swap.employeeA,
+          date: slotB.date,
+          startTime: slotB.startTime,
+          endTime: slotB.endTime,
+          shiftTypeCode: slotB.shiftTypeCode,
+          breakMinutes: slotB.breakMinutes,
+        },
+        ctx,
+      );
+    }
+
+    // AC4 — recompute holes from the final assignments; each keeps a visible reason.
+    return this.recomputeHoles(
+      ctx.slots,
+      ctx.assignedShifts,
+      ctx.preExistingSlotCoverage,
+      ctx.priorHoles,
+    );
+  }
+
+  /** Story 11-9 — add a GENERATED assignment and increment EVERY live counter in lockstep. */
+  private applyAssignment(
+    shift: AssignedShift,
+    ctx: {
+      assignedShifts: AssignedShift[];
+      allShiftsForScoring: AssignedShift[];
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      shiftTypeCounts: Map<string, Map<string, number>>;
+      employeeShiftCounts: Map<string, number>;
+      constraints: ConstraintMap;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): void {
+    ctx.assignedShifts.push(shift);
+    ctx.allShiftsForScoring.push(shift);
+    const key = `${shift.employeeId}|${shift.date}`;
+    ctx.assignmentIndex.set(key, [
+      ...(ctx.assignmentIndex.get(key) || []),
+      shift,
+    ]);
+
+    const netMin =
+      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
+      (shift.breakMinutes || 0);
+    const weekKey = `${shift.employeeId}|${this.getWeekBounds(shift.date).start}`;
+    ctx.weeklyMinutesCounter.set(
+      weekKey,
+      (ctx.weeklyMinutesCounter.get(weekKey) || 0) + netMin,
+    );
+    ctx.employeeMinutes.set(
+      shift.employeeId,
+      (ctx.employeeMinutes.get(shift.employeeId) || 0) + netMin,
+    );
+
+    let typeCounts = ctx.shiftTypeCounts.get(shift.employeeId);
+    if (!typeCounts) {
+      typeCounts = new Map();
+      ctx.shiftTypeCounts.set(shift.employeeId, typeCounts);
+    }
+    typeCounts.set(
+      shift.shiftTypeCode,
+      (typeCounts.get(shift.shiftTypeCode) || 0) + 1,
+    );
+    ctx.employeeShiftCounts.set(
+      shift.employeeId,
+      (ctx.employeeShiftCounts.get(shift.employeeId) || 0) + 1,
+    );
+
+    const dow = new Date(`${shift.date}T00:00:00.000Z`).getUTCDay();
+    const equity = this.getOrCreateEquityEntry(
+      ctx.constraints.equityMap,
+      shift.employeeId,
+    );
+    if (dow === 6) equity.saturdayCount++;
+    if (dow === 0 || dow === 6) equity.weekendCount++;
+    this.incrementDayOfWeekCount(
+      ctx.dayOfWeekCounts,
+      shift.employeeId,
+      shift.date,
+    );
+  }
+
+  /** Story 11-9 — remove a GENERATED assignment and decrement EVERY live counter in lockstep. */
+  private removeAssignment(
+    shift: AssignedShift,
+    ctx: {
+      assignedShifts: AssignedShift[];
+      allShiftsForScoring: AssignedShift[];
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      shiftTypeCounts: Map<string, Map<string, number>>;
+      employeeShiftCounts: Map<string, number>;
+      constraints: ConstraintMap;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): void {
+    const same = (a: AssignedShift, b: AssignedShift) =>
+      a.employeeId === b.employeeId &&
+      a.date === b.date &&
+      a.startTime === b.startTime &&
+      a.shiftTypeCode === b.shiftTypeCode;
+    const removeOne = (arr: AssignedShift[]) => {
+      const i = arr.findIndex((s) => same(s, shift));
+      if (i >= 0) arr.splice(i, 1);
+    };
+    removeOne(ctx.assignedShifts);
+    removeOne(ctx.allShiftsForScoring);
+    const key = `${shift.employeeId}|${shift.date}`;
+    const bucket = ctx.assignmentIndex.get(key);
+    if (bucket) {
+      const i = bucket.findIndex((s) => same(s, shift));
+      if (i >= 0) bucket.splice(i, 1);
+      if (bucket.length === 0) ctx.assignmentIndex.delete(key);
+    }
+
+    const netMin =
+      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
+      (shift.breakMinutes || 0);
+    const weekKey = `${shift.employeeId}|${this.getWeekBounds(shift.date).start}`;
+    ctx.weeklyMinutesCounter.set(
+      weekKey,
+      (ctx.weeklyMinutesCounter.get(weekKey) || 0) - netMin,
+    );
+    ctx.employeeMinutes.set(
+      shift.employeeId,
+      (ctx.employeeMinutes.get(shift.employeeId) || 0) - netMin,
+    );
+
+    const typeCounts = ctx.shiftTypeCounts.get(shift.employeeId);
+    if (typeCounts)
+      typeCounts.set(
+        shift.shiftTypeCode,
+        (typeCounts.get(shift.shiftTypeCode) || 0) - 1,
+      );
+    ctx.employeeShiftCounts.set(
+      shift.employeeId,
+      (ctx.employeeShiftCounts.get(shift.employeeId) || 0) - 1,
+    );
+
+    const dow = new Date(`${shift.date}T00:00:00.000Z`).getUTCDay();
+    const equity = this.getOrCreateEquityEntry(
+      ctx.constraints.equityMap,
+      shift.employeeId,
+    );
+    if (dow === 6) equity.saturdayCount--;
+    if (dow === 0 || dow === 6) equity.weekendCount--;
+    this.decrementDayOfWeekCount(
+      ctx.dayOfWeekCounts,
+      shift.employeeId,
+      shift.date,
+    );
+  }
+
+  /** Story 11-9 — inverse of incrementDayOfWeekCount (never goes below 0). */
+  private decrementDayOfWeekCount(
+    index: Map<string, Map<number, number>>,
+    employeeId: string,
+    dateStr: string,
+  ): void {
+    const iso = this.isoDayOf(dateStr);
+    const byDay = index.get(employeeId);
+    if (!byDay) return;
+    byDay.set(iso, Math.max(0, (byDay.get(iso) || 0) - 1));
+  }
+
+  /**
+   * Story 11-9 (AC4) — recompute holes from the final assignments + survivor coverage. Reuses the
+   * loop's per-slot reason when a hole persists on the same (date, shiftTypeCode); falls back to a
+   * coverage reason otherwise so every remaining hole is explained to the admin.
+   */
+  private recomputeHoles(
+    slots: SlotRequirement[],
+    assignedShifts: AssignedShift[],
+    preExistingSlotCoverage: Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >,
+    priorHoles: GenerationResult['holes'],
+  ): GenerationResult['holes'] {
+    const priorReason = new Map(
+      priorHoles.map((h) => [`${h.date}|${h.shiftTypeCode}`, h.reason]),
+    );
+    // Aggregate demand per (date, shiftTypeCode).
+    const demand = new Map<
+      string,
+      { slot: SlotRequirement; required: number }
+    >();
+    for (const s of slots) {
+      const k = `${s.date}|${s.shiftTypeCode}`;
+      const cur = demand.get(k);
+      if (cur) cur.required += s.requiredStaff;
+      else demand.set(k, { slot: s, required: s.requiredStaff });
+    }
+    // Coverage = generated assignments + survivor-covered positions, per key.
+    const covered = new Map<string, number>();
+    for (const a of assignedShifts) {
+      const k = `${a.date}|${a.shiftTypeCode}`;
+      covered.set(k, (covered.get(k) || 0) + 1);
+    }
+    for (const [k, bucket] of preExistingSlotCoverage) {
+      const consumed = bucket.filter((c) => c.consumed).length;
+      if (consumed > 0) covered.set(k, (covered.get(k) || 0) + consumed);
+    }
+
+    const holes: GenerationResult['holes'] = [];
+    for (const [k, { slot, required }] of demand) {
+      const assignedStaff = covered.get(k) || 0;
+      if (assignedStaff < required) {
+        holes.push({
+          date: slot.date,
+          shiftTypeCode: slot.shiftTypeCode,
+          requiredStaff: required,
+          assignedStaff,
+          reason:
+            priorReason.get(k) ??
+            (assignedStaff === 0
+              ? 'No eligible employee available after local repair'
+              : `Only ${assignedStaff} of ${required} staff assigned after local repair`),
+        });
+      }
+    }
+    return holes;
+  }
+
+  /** Story 11-9 — resolve the demand slot's startTime for a recomputed hole (first matching slot). */
+  private slotStartFor(
+    slots: SlotRequirement[],
+    hole: { date: string; shiftTypeCode: string },
+  ): string {
+    const match = slots.find(
+      (s) => s.date === hole.date && s.shiftTypeCode === hole.shiftTypeCode,
+    );
+    return match ? match.startTime : '00:00';
   }
 
   /**

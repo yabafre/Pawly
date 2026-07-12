@@ -203,6 +203,13 @@ export function findEjectionChain(
  * employeeId), pick the eligible swap that yields the greatest strict decrease of equityObjective.
  * Deterministic tiebreak by (slotIdA, slotIdB). Returns null when no eligible swap improves the
  * objective. Eligibility is evaluated on pre-move state (conservative — see module header).
+ *
+ * Each candidate pair is scored in O(1) as a delta off the base objective rather than recomputing
+ * the whole objective, so the scan is O(A²) not O(A³) (NFR2, Story 11-10). This is exact, not an
+ * approximation: a swap exchanges which employee holds two slots, so every workforce total (each
+ * slot stays assigned) and every employee's shiftCount (each keeps one of the two slots) is
+ * preserved. The objective means are therefore constant and only the two swapped employees'
+ * saturday/weekend terms move — the delta below equals equityObjective(after) − equityObjective(before).
  */
 export function selectImprovingSwap(
   assignments: RepairAssignment[],
@@ -210,7 +217,36 @@ export function selectImprovingSwap(
   isEligible: IsEligible,
 ): EquitySwap | null {
   const baseLoads = computeLoads(assignments, slotById);
-  const base = equityObjective(baseLoads);
+  const n = baseLoads.size;
+  if (n === 0) return null;
+  let sumSat = 0;
+  let sumWeekend = 0;
+  for (const l of baseLoads.values()) {
+    sumSat += l.saturdayCount;
+    sumWeekend += l.weekendCount;
+  }
+  const meanSat = sumSat / n;
+  const meanWeekend = sumWeekend / n;
+  const sq = (x: number): number => x * x;
+
+  // Cache each slot's weekday contribution once (the date parse in slotContribution is otherwise
+  // repeated per pair — O(A²) parses).
+  const contribById = new Map<string, EmployeeLoad>();
+  for (const [id, s] of slotById) contribById.set(id, slotContribution(s));
+
+  // Memoize the (rule-engine-heavy) eligibility within this scan. The counters isEligible closes
+  // over are frozen for the whole scan, so (employee, slot) → boolean is stable; caching bounds the
+  // distinct rule evaluations at E×S instead of the ~2·A² call sites below.
+  const eligMemo = new Map<string, boolean>();
+  const elig = (employeeId: string, slot: RepairSlot): boolean => {
+    const k = `${employeeId}|${slot.id}`;
+    let v = eligMemo.get(k);
+    if (v === undefined) {
+      v = isEligible(employeeId, slot);
+      eligMemo.set(k, v);
+    }
+    return v;
+  };
 
   const keyOf = (a: RepairAssignment): string => {
     const s = slotById.get(a.slotId);
@@ -223,7 +259,7 @@ export function selectImprovingSwap(
   );
 
   let best: EquitySwap | null = null;
-  let bestObj = base - OBJECTIVE_EPSILON; // must strictly beat the base
+  let bestDelta = -OBJECTIVE_EPSILON; // the objective must strictly decrease
 
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
@@ -235,24 +271,36 @@ export function selectImprovingSwap(
       if (!slotA || !slotB) continue;
       // A swap keeps both slots filled; it only rebalances weekend/Saturday load. Skip pairs whose
       // day contributions are identical (swap cannot change the objective).
-      const cA = slotContribution(slotA);
-      const cB = slotContribution(slotB);
+      const cA = contribById.get(a.slotId)!;
+      const cB = contribById.get(b.slotId)!;
       if (
         cA.saturdayCount === cB.saturdayCount &&
         cA.weekendCount === cB.weekendCount
       )
         continue;
-      if (!isEligible(a.employeeId, slotB) || !isEligible(b.employeeId, slotA))
-        continue;
 
-      const swapped = sorted.map((x) => {
-        if (x === a) return { slotId: a.slotId, employeeId: b.employeeId };
-        if (x === b) return { slotId: b.slotId, employeeId: a.employeeId };
-        return x;
-      });
-      const obj = equityObjective(computeLoads(swapped, slotById));
-      if (obj < bestObj) {
-        bestObj = obj;
+      const la = baseLoads.get(a.employeeId)!;
+      const lb = baseLoads.get(b.employeeId)!;
+      // After the swap: A gives up cA and takes cB; B gives up cB and takes cA. shiftCount and the
+      // means are unchanged, so only these four squared-deviation terms move.
+      const delta =
+        sq(la.saturdayCount - cA.saturdayCount + cB.saturdayCount - meanSat) -
+        sq(la.saturdayCount - meanSat) +
+        sq(lb.saturdayCount - cB.saturdayCount + cA.saturdayCount - meanSat) -
+        sq(lb.saturdayCount - meanSat) +
+        sq(la.weekendCount - cA.weekendCount + cB.weekendCount - meanWeekend) -
+        sq(la.weekendCount - meanWeekend) +
+        sq(lb.weekendCount - cB.weekendCount + cA.weekendCount - meanWeekend) -
+        sq(lb.weekendCount - meanWeekend);
+      // Cheap delta gate before the expensive eligibility check: only a pair that would beat the
+      // current best (eligible) delta is worth the rule-engine evaluation. Equivalent to the
+      // filter-then-argmin order because an ineligible pair never lowers bestDelta.
+      if (
+        delta < bestDelta &&
+        elig(a.employeeId, slotB) &&
+        elig(b.employeeId, slotA)
+      ) {
+        bestDelta = delta;
         best = {
           slotIdA: a.slotId,
           slotIdB: b.slotId,
