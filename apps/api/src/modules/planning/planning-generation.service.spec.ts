@@ -7484,17 +7484,19 @@ describe('PlanningGenerationService', () => {
 
   // ─── Story 11-9 — local-repair pass integration ───────────────────────────────
   describe('local-repair pass (Story 11-9)', () => {
-    // Bin-packing counter-example through the full generateMonthlyPlan pipeline.
-    // Template: one VET-only SURGERY slot every Monday + every Wednesday. Two VETs, each
-    // capped at 4h/ISO-week (one SURGERY). Bob (emp-2) is unavailable every Wednesday.
-    // Greedy fills each Monday with Alice (emp-1, tiebreak winner), which caps her for the
-    // week → the same-week Wednesday is stranded (Alice capped, Bob unavailable). A depth-2
-    // ejection fixes each: move Alice Monday→Wednesday (she is free once she leaves Monday),
-    // backfill Monday with the idle Bob.
+    // Bin-packing counter-example through the full generateMonthlyPlan pipeline. It defeats the
+    // MRV slot ordering, which counts eligibility by availability + jobType only (never the
+    // contract cap) and processes ISO weeks in order. Template: one VET-only SURGERY slot every
+    // Monday, but every Monday except 2026-03-02 (week 1) and 2026-03-09 (week 2) is closed, so
+    // exactly two slots survive — one per week. Two VETs, each capped at ONE 4h shift per MONTH.
+    // Bob (emp-2) is on leave the second Monday. MRV processes week 1 first; greedy fills it with
+    // Alice (emp-1, tiebreak winner), which spends her whole monthly budget → the second Monday is
+    // stranded (Alice capped, Bob on leave) even though b→Mon1 + a→Mon2 fills both. A depth-2
+    // ejection repairs it: move Alice Mon1→Mon2 (free once she leaves Mon1), backfill Mon1 with Bob.
     const buildCounterExample = () => {
       mockTemplateService.getTemplateById.mockResolvedValue({
         id: 'tpl-11-9',
-        name: 'Mon+Wed VET surgery',
+        name: 'Monday VET surgery',
         clinicId,
         data: {
           days: [
@@ -7508,18 +7510,17 @@ describe('PlanningGenerationService', () => {
                 },
               ],
             },
-            {
-              dayOfWeek: 3,
-              slots: [
-                {
-                  shiftTypeCode: 'SURGERY',
-                  requiredStaff: 1,
-                  requiredJobTypes: ['VET'],
-                },
-              ],
-            },
           ],
         },
+      });
+      // Close every Monday except the first two so exactly two demand slots remain.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        closedDays: [
+          { id: 'c1', date: '2026-03-16', reason: null },
+          { id: 'c2', date: '2026-03-23', reason: null },
+          { id: 'c3', date: '2026-03-30', reason: null },
+        ],
       });
       mockPrismaService.employee.findMany.mockResolvedValue([
         {
@@ -7537,26 +7538,28 @@ describe('PlanningGenerationService', () => {
           contractHours: 35,
         },
       ]);
-      // HARD weekly cap of 4h → each VET can hold only one 4h SURGERY per ISO week.
+      // HARD monthly cap of 4h → each VET can hold only ONE 4h SURGERY per month. Monthly is
+      // invisible to the MRV eligibility count, so MRV cannot pre-empt the stranding.
       mockPlanningService.listRules.mockResolvedValue([
         {
           id: '33333333-3333-3333-3333-333333333333',
-          name: 'Max 4h/week',
+          name: 'Max 4h/month',
           category: 'CONTRACT_COMPLIANCE',
           ruleType: 'HARD',
-          config: { maxWeeklyHours: 4, overtimeThresholdPercent: 0 },
+          config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
           priority: 10,
         },
       ]);
-      // Bob unavailable every Wednesday — the reason greedy strands the Wednesday slot.
+      // Bob on leave the second Monday — the reason greedy cannot fill it after Alice is capped.
+      // VACATION (unlike SCHOOL) adds no worked minutes, so it only removes availability.
       mockPrismaService.unavailability.findMany.mockResolvedValue([
         {
-          id: 'ua-wed',
+          id: 'ua-mon2',
           employeeId: 'emp-2',
-          type: 'SCHOOL',
-          startDate: new Date('2026-03-01'),
-          endDate: new Date('2026-03-31'),
-          daysOfWeek: [3],
+          type: 'VACATION',
+          startDate: new Date('2026-03-09'),
+          endDate: new Date('2026-03-09'),
+          daysOfWeek: [],
         },
       ]);
       mockPrismaService.shift.findMany.mockResolvedValue([]); // no border, no survivors
@@ -7619,6 +7622,103 @@ describe('PlanningGenerationService', () => {
       const b = await runCounterExampleWithRepair();
       expect(a.assignments).toEqual(b.assignments);
       expect(a.holes).toEqual(b.holes);
+    });
+  });
+
+  // ─── Story 11-9 — NFR2/NFR9 stress ────────────────────────────────────────────
+  describe('local-repair pass performance (Story 11-9, NFR2/NFR9)', () => {
+    // 50 employees, a 3-slot 24/7 template over a full month, one live SOFT ROTATION_EQUITY
+    // rule so the eligibility hot path (the pass's per-swap re-check) is genuinely exercised —
+    // mirrors 11-10's stress harness. The pass runs with its default (enableRepair unset → true).
+    const generateStressMonth = () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-stress',
+        name: '24/7 stress',
+        data: { days },
+        clinicId,
+      });
+      // expandTemplateToMonth resolves slot times from listShiftTypes, not the template.
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-stress-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // One live SOFT ROTATION_EQUITY rule keeps the rule-engine on the per-swap re-check path.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Max 2 Saturdays (stress)',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+          priority: 5,
+        },
+      ]);
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-stress');
+    };
+
+    it('generates a 50-employee, 24/7, 31-day month within the 2s budget', async () => {
+      const start = Date.now();
+      const result = await generateStressMonth();
+      const elapsedMs = Date.now() - start;
+      expect(elapsedMs).toBeLessThan(2000);
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+    });
+
+    it('yields the event loop during the pass (setImmediate scheduled)', async () => {
+      const setImmediateSpy = jest.spyOn(global, 'setImmediate');
+      await generateStressMonth();
+      expect(setImmediateSpy).toHaveBeenCalled();
+      setImmediateSpy.mockRestore();
     });
   });
 });
