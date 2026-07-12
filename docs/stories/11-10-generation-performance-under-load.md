@@ -1,7 +1,7 @@
 # Story: 11-10-generation-performance-under-load — Rotation-Scoring O(1) Index + Spike-Gated Async Generation
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-127-11-10-generation-performance-under-load
 **Ticket:** KON-127 (Linear · project Pawly · milestone Epic 11 · blocked-by KON-119)
 **Origin:** Multi-agent planning audit 2026-07-08 — MAJOR (perf): "Rotation scoring freezes the event loop. Re-scans the whole pool per employee per slot, no `await` → NFR2 (<2s) breaks at 50 employees." See `docs/epics-context/epic-11-context.md` § 0 (last bullet) + § 4 (anchor `:1049` / `countTargetDayShifts`). Depends on Story 11-2 (`done`) — the survivor-seeding this story extends the index across.
@@ -793,7 +793,7 @@
   Expected: all suites pass, including the 3 new `Story 11-10` tests AND every pre-existing rotation test (their green state is the equivalence proof), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-127): rotation-index equivalence (HARD block / SOFT penalty / violation)"`
 
-- [ ] **Task 6: Phase B — event-loop non-blocking (BRANCH on Task-1 verdict)** [AC: 2]
+- [x] **Task 6: Phase B — event-loop non-blocking (BRANCH on Task-1 verdict)** [AC: 2]
 
   ### Branch 6A — SPIKE OK: offload to Trigger.dev + Realtime UI
 
@@ -1092,7 +1092,7 @@
   Expected: all suites pass (the yield changes nothing observable), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-127): yield event loop every 8 slots during generation (6B)"`
 
-- [ ] **Task 7: Stress benchmark + full verification + bookkeeping** [AC: 1, 3]
+- [x] **Task 7: Stress benchmark + full verification + bookkeeping** [AC: 1, 3]
   **7a — Add the logged stress benchmark.** In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, append inside the top-level `describe('generateMonthlyPlan')` block (it reuses the file's `service`, `mockPrismaService`, `mockTemplateService`, `clinicId`). It builds a 24/7 × 3-shift-type × 31-day template for 50 VETs, generates, logs the duration, and asserts the NFR2 budget with a wide anti-flaky threshold:
   ```ts
   it('Story 11-10 — generates the 50-employee stress config well under the NFR2 budget', async () => {
@@ -1329,7 +1329,7 @@ const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBod
 
 - **Model:** claude-fable-5
 - **Started:** 2026-07-12
-- **Completed:** {{timestamp}}
+- **Completed:** 2026-07-12
 
 ### Debug Log
 
@@ -1365,25 +1365,30 @@ const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBod
 
 ### Summary
 
-Unconditional AC1/AC3 path (Tasks 2–5, 7a) implemented and green; Task 1 spike blocked
-by a Trigger.dev infra outage (see Debug Log), so Task 6 (AC2 branch) awaits the gate
-decision. The per-`(employee, ISO-weekday)` rotation index is seeded at the same three
-points as the FIX-4 counters (border, survivors, per-assignment) plus a one-shot
-quarterly index; the three rotation-equity evaluators (`violatesHardRotationEquity`,
-`countTargetDayShifts`, `checkRotationEquity`) are O(1) lookups via `countFromDayIndex`.
-Stress benchmark (50 VETs, 24/7, 3 shift types, 31 days, 1 SOFT ROTATION_EQUITY rule on
-the hot path): **250 ms**, well under the 2 s NFR2 budget.
+All 7 tasks done. **AC1/AC3:** the per-`(employee, ISO-weekday)` rotation index is
+seeded at the same three points as the FIX-4 counters (border, survivors,
+per-assignment) plus a one-shot quarterly index; the three rotation-equity evaluators
+(`violatesHardRotationEquity`, `countTargetDayShifts`, `checkRotationEquity`) are O(1)
+lookups via `countFromDayIndex`. Stress benchmark (50 VETs, 24/7, 3 shift types, 31
+days, 1 SOFT ROTATION_EQUITY rule on the hot path): **156–250 ms**, well under the 2 s
+NFR2 budget. **AC2:** the Task-1 spike ran against the restarted self-hosted instance
+and returned **KO** (esbuild strips `emitDecoratorMetadata` → Nest DI resolves
+`undefined` graph-wide; full 3-run trace in Debug Log) → branch **6B**: the slot loop
+yields to the event loop every 8 slots (`setImmediate`), pinned by an order-sensitive
+test proving a concurrent macrotask is served mid-generation. Router and frontend
+untouched — `generatePlan` still returns a synchronous `GenerationResult`.
 
 ### Files changed
 
 - `apps/api/src/modules/planning/planning-generation.service.ts` — 4 index helpers (T2);
   index declaration + border/survivor/assignment seeding + quarterly build (T3);
-  `scoreAndAssign` +2 params, 5 call sites, 3 evaluators rewritten O(1) (T4).
+  `scoreAndAssign` +2 params, 5 call sites, 3 evaluators rewritten O(1) (T4);
+  `setImmediate` yield in the slot loop (T6B).
 - `apps/api/src/modules/planning/planning-generation.service.spec.ts` — `callScore`
   builds/appends the 2 indexes (T5a); `Story 11-10 — rotation-equity via O(1) day index`
-  describe, 3 tests (T5b); stress benchmark (T7a).
-- *(uncommitted, pending spike)* `apps/api/src/trigger/tasks/_spike-nest-context.ts` +
-  `client.ts` re-export — left in working tree for the moment the instance is back.
+  describe, 3 tests (T5b); stress benchmark (T7a); AC2 event-loop-yield order test (T6B).
+- Spike artefacts (`_spike-nest-context.ts`, `client.ts` re-export, `trigger.config.ts`
+  experiments) created then fully removed after the KO verdict — nothing ships.
 
 ### Deviations
 
@@ -1408,6 +1413,11 @@ the hot path): **250 ms**, well under the 2 s NFR2 budget.
   snippet generated 0 slots; (b) one SOFT ROTATION_EQUITY rule added — the pre-index
   O(E×A) re-scan only ran when such a rule existed, so a rule-less benchmark could never
   catch a regression back to it.
+- **T6B test added (not in story):** the story shipped 6B with "the yield changes
+  nothing observable" as its only gate. Added an order-sensitive AC2 pin: a pending
+  `setImmediate` macrotask must run BEFORE the persistence tx (with mocked prisma the
+  pre-loop awaits are pure microtasks, so only a genuine yield lets it through).
+  Witnessed RED (order `['tx','immediate']`) before implementing the yield.
 
 ### Test output
 
@@ -1415,11 +1425,15 @@ the hot path): **250 ms**, well under the 2 s NFR2 budget.
   (reading 'get')` at `countFromDayIndex`, via `callScore` pre-extension) — proves the
   rotation tests exercise the index path. Deliberate-break check: index zeroed → the 3
   T5b tests RED; restored → GREEN.
-- Focused suite: **167/167** (163 baseline + 3 equivalence + 1 benchmark).
-- Full API suite: **34 suites, 934 tests, all green** (baseline 901 post-11-6).
+- T6B RED witness: yield test failed (`Expected: "immediate", Received: "tx"`) → GREEN
+  after the yield landed.
+- Focused suite: **168/168** (163 baseline + 3 equivalence + 1 benchmark + 1 AC2 yield).
+- Full suites (7b gate): API **34 suites / 935 tests** green; web **756** green;
+  validators **777** green; `pnpm build` **5/5 tasks successful**.
 - Deploy typecheck `tsc -p tsconfig.types.json`: exit 0. Full `tsc -p tsconfig.json`:
   the 24 pre-existing errors documented by 11-6 (4 unrelated spec files), 0 in story files.
-- Benchmark: `[11-10] stress 50-emp/24-7/31d generation core: 250ms` (< 2000 ms).
+- Benchmark: `[11-10] stress 50-emp/24-7/31d generation core: 250ms` first run, `156ms`
+  with the 6B yield in place (< 2000 ms).
 
 ## Review Record
 
