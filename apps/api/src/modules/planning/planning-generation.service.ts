@@ -288,12 +288,21 @@ export class PlanningGenerationService {
     const assignedShifts: AssignedShift[] = [];
     const assignmentIndex = new Map<string, AssignedShift[]>();
 
+    // Story 11-10 — O(1) per-(employee, ISO-weekday) rotation index. Reflects the
+    // exact multiset in allShiftsForScoring (border + survivors + assigned) so the
+    // rotation-equity evaluators lookup instead of re-scanning alreadyAssigned.
+    const dayOfWeekCounts = new Map<string, Map<number, number>>();
+
     // Pre-seed assignmentIndex with border shifts (for overlap/consecutive checks)
     for (const bs of borderShifts) {
       const key = `${bs.employeeId}|${bs.date}`;
       const existing = assignmentIndex.get(key) || [];
       existing.push(bs);
       assignmentIndex.set(key, existing);
+      // Story 11-10 — border shifts are already part of allShiftsForScoring, so
+      // the pre-index rotation scan counted them too. Seed them here to preserve
+      // bit-for-bit equivalence (see Dev Notes → Equivalence).
+      this.incrementDayOfWeekCount(dayOfWeekCounts, bs.employeeId, bs.date);
     }
 
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
@@ -396,6 +405,8 @@ export class PlanningGenerationService {
         if (dayOfWeek === 6) equity.saturdayCount++;
         if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
       }
+      // Story 11-10 — survivors are in allShiftsForScoring; seed the rotation index.
+      this.incrementDayOfWeekCount(dayOfWeekCounts, ss.employeeId, ss.date);
     }
 
     // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
@@ -426,6 +437,12 @@ export class PlanningGenerationService {
       });
       preExistingSlotCoverage.set(coverageKey, bucket);
     }
+
+    // Story 11-10 — quarterly history is fixed for the whole run; index it once
+    // (was spread + filtered on every quarterly rotation check, per emp per slot).
+    const quarterlyDayOfWeekCounts = this.buildDayOfWeekIndex(
+      constraints.quarterlyShifts,
+    );
 
     for (const slot of slots) {
       totalPositions += slot.requiredStaff;
@@ -526,6 +543,8 @@ export class PlanningGenerationService {
           if (dayOfWeek === 6) equity.saturdayCount++;
           if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
         }
+        // Story 11-10 — keep the rotation index in lockstep with allShiftsForScoring.
+        this.incrementDayOfWeekCount(dayOfWeekCounts, a.employeeId, a.date);
       }
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
