@@ -1,7 +1,7 @@
 # Story: 11-8-unified-rule-engine — Unify the Rule Engine (single HARD/SOFT evaluator)
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-125-11-8-unified-rule-engine
 **Ticket:** KON-125 (Linear · project Pawly · milestone Epic 11 · blocked by KON-119 / 11-2 + KON-120 / 11-3 · blocks KON-126 / 11-9)
 **Origin:** Multi-agent planning audit 2026-07-08 — confirmed critical finding: *"Rule engine in 3 divergent implementations. `evaluateRotationEquity` / `evaluateContractCompliance` push to `softViolations` regardless of `ruleType`; `validateShiftsAgainstRules` ignores `maxWeeklyHours` and does not deduct `breakMinutes`, unlike `preValidateMove` and `scoreAndAssign`. `publishPlan` only blocks on `hard` → HARD contract/rotation violations pass publication."* See `docs/epics-context/epic-11-context.md` § 0 and § 4.
@@ -1339,3 +1339,63 @@ blocks publication (409) — proven by unit test and live.
   (6 shifts deleted, rule deleted via UI, seed admin repointed to Zen Dev, Upstash user-cache
   key purged).
 
+
+## Review Record
+
+**Date:** 2026-07-12
+**Auditors:** Spec, Code, Edge & Hallucination (Aria not dispatched — backend surface; dev's React Grab live pass accepted as visual evidence)
+**Verdict:** done
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] `applicableJobTypes` now filters ROTATION_EQUITY on the validation/publish path — 4th behaviour change, undocumented, untested [rule-engine.ts:213 via planning.service.ts adapter]
+  - Source: Code auditor
+  - Resolution: `5da2e8e` pin test (VET excluded / ASV flagged through `validateShiftsAgainstRules`) + `e2db702` scope-decision note in this story.
+- [MINOR] Residual asymmetry: without `maxWeeklyHours`, generation/move enforced the `contractHours` weekly floor but validation emitted nothing (45h/week green in health bar, blocked on drag) [rule-engine.ts]
+  - Source: Edge auditor (decision Alex: align the code)
+  - Resolution: two attempts. `eba70b1` made the weekly check unconditional — Edge's fix-verification then caught a MAJOR consequence: the capless seeded 11-3 statutory row gated publication at 35h/week under the "French labor-law limits" label. `b4de385` restored the capless guard: the `contractHours` floor applies only to rules declaring ≥1 hour cap; capless rules stay visibility-only. Both pinned by tests; both auditors approved v2.
+- [MINOR] `weeklyOvertime` `{date}` rendered raw ISO (`2026-08-03`) while neighbouring statutory messages render `03/08/2026` [rule-engine.ts]
+  - Source: Edge auditor
+  - Resolution: `5aa373f` — pure `formatFrDate` mirror; `messageParams.date` + `message` FR-formatted, `affectedDate` stays ISO (grid conflict key, verified consumer-side: `ScheduleViewWrapper.tsx` keys on `affectedDate` only). Note: dev's Task 10 live screenshot predates this format change; unit-pinned, not re-run headed.
+- [MINOR] Weekly SOFT violations carried an `equityContext` whose trend compared weekly hours to the monthly clinic average (near-always `below_average`) [planning.service.ts]
+  - Source: Edge + Code auditors
+  - Resolution: `719d03f` — weekly soft bucket ships without `equityContext`; monthly keeps it. (`equityContext` is currently consumed by no web component — schema-only contract.)
+- [MINOR] `computeRotationClinicAverage` drift: counters supplied without `SATURDAY_WORKED` matches gave 0 before the refactor, shift-data average after [planning.service.ts]
+  - Source: Code auditor (+ Lead)
+  - Resolution: `f8e38b1` — exact legacy fallback restored, pinned by test.
+- [MINOR] Monthly threshold compared raw net minutes where legacy rounded to hours first (<1h window flip) [rule-engine.ts]
+  - Source: Code auditor
+  - Resolution: `de41cc0` — minute precision kept as the unification's intent, boundary pinned (150h29 violates a 150h cap; 150h00 does not).
+- [MINOR] Redundant `applicableJobTypes` double-check at generation/move call sites vs the shared primitive [planning-generation.service.ts]
+  - Source: Spec auditor
+  - Resolution: `d14f072` — documented as deliberate defense-in-depth; deletion rejected because the `preValidateMove` pre-filter also skips the lazy quarterly shift load for non-applicable rules.
+
+#### Dismissed
+
+- [NIT] `violatesHardRotation` accepts `ruleType` but never reads it — Source: Spec — Rationale: severity routing is a call-site concern; the primitive is pure cap math.
+- [NIT] `{targetDay}` interpolates the English day name into the French rotation message — Source: Edge — Rationale: pre-existing (identical params pre-story); i18n batch candidate, out of scope.
+- [NIT] `preValidateMove` emits raw English strings without `messageKey` — Source: Code — Rationale: pre-existing; the story explicitly locks the terse `{rule, message}` shape the drag UI expects.
+- [NIT] Live-test clinic naming ("Clinique test"/"Zen Dev") diverges from the "Simulation E2E" convention — Source: Spec — Rationale: record otherwise highly specific (exact strings, hour math, component file:line); not retroactively reproducible.
+- [NIT] `git-audit.sh` flagged `en.json` as out-of-story — Source: Lead — Rationale: script takes only the first token of the `fr.json / en.json` bullet; the file is in the planned File List.
+
+#### Unresolved
+
+None.
+
+### Follow-ups (recorded, not blocking)
+
+- Generation and `preValidateMove` still apply the `contractHours` weekly floor for capless CONTRACT_COMPLIANCE rules including the seeded 11-3 statutory row (pre-existing since 11-3) — gen/move remain stricter than validation for capless rules. Re-scoping that floor is ticket-worthy.
+- `merge-findings.mjs` referenced by aped-review step-03 is absent from the 6.14 scaffold — merge done manually by the Lead.
+
+### Verification
+
+- Test commands: `pnpm --filter @pawly/api test` → **958/958 (35 suites)**; `pnpm --filter @pawly/web test` → **756/756 (51 files)**; filtered 3 suites → **226/226**; `tsc --noEmit` API → 24 pre-existing fixture errors only (line-level verified outside the story diff); `tsc -p tsconfig.types.json` → OK (L5); web `tsc --noEmit` → OK (after `@pawly/api` build).
+- Fix verification: Code auditor — 6/6 RESOLVED then NO-OBJECTION on m3-v2; Edge auditor — m2 RESOLVED, m3-v2 RESOLVED, APPROVED. All re-ran the suites independently.
+- Visual verification: Aria not dispatched (backend surface; frontend delta = i18n keys). Dev's Task 10 headed pass validated as credible evidence by the Spec auditor.
+
+### Ticket sync
+
+- Ticket comment posted: YES (Linear KON-125, 2026-07-12T18:10Z)
+- PR opened/updated: see below (story → sprint/epic-11)
