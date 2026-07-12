@@ -1,7 +1,7 @@
 # Story: 11-7-equity-counter-window-fix — Rolling 12-Month Equity Window + An Entry for Every Employee
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-124-11-7-equity-counter-window-fix
 **Ticket:** KON-124 (Linear · project Pawly · milestone Epic 11 · no blockers)
 **Origin:** Multi-agent planning audit 2026-07-08 — confirmed MAJOR finding. See `docs/epics-context/epic-11-context.md` § 0 ("Equity resets every January + fix inoperative for un-mapped employees"). Wave W1 (parallel, no dependencies).
@@ -26,7 +26,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 (RED): Add the failing unit spec for `getCountersForWindow`** [AC: 1]
+- [x] **Task 1 (RED): Add the failing unit spec for `getCountersForWindow`** [AC: 1]
   In `apps/api/src/modules/planning/equity-counter.service.spec.ts`, add this new `describe` block immediately **after** the `getCountersForPeriod` describe block closes (anchor on its closing `  });` that precedes `  describe('getQuarterlySummary', () => {` around line 156):
   ```ts
     // ─── getCountersForWindow (Story 11-7) ──────────────────────────────────
@@ -89,7 +89,7 @@
   Run: `pnpm --filter @pawly/api test -- equity-counter.service.spec`
   Expected: **RED** — the four new tests fail with `TypeError: service.getCountersForWindow is not a function`. Do NOT commit yet.
 
-- [ ] **Task 2 (GREEN): Implement `getCountersForWindow`** [AC: 1]
+- [x] **Task 2 (GREEN): Implement `getCountersForWindow`** [AC: 1]
   In `apps/api/src/modules/planning/equity-counter.service.ts`, insert this method immediately **after** `getCountersForPeriod` (i.e. between its closing `  }` on line 69 and the `  /**\n   * Get quarterly summary` JSDoc on line 71):
   ```ts
     /**
@@ -143,7 +143,7 @@
   Expected: **GREEN** — all `getCountersForWindow` tests pass, existing `getCountersForPeriod`/`getQuarterlySummary`/`recalculateForPeriod` tests still pass. `Tests: N passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/equity-counter.service.ts apps/api/src/modules/planning/equity-counter.service.spec.ts && git commit -m "feat(KON-124): add rolling 12-month equity window loader (getCountersForWindow)"`
 
-- [ ] **Task 3 (RED): Wire the generation mock + failing assertion that generation uses the window** [AC: 1]
+- [x] **Task 3 (RED): Wire the generation mock + failing assertion that generation uses the window** [AC: 1]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`:
   (a) Add `getCountersForWindow` to the equity mock. Replace (line 199-201):
   ```ts
@@ -204,7 +204,7 @@
   Run: `pnpm --filter @pawly/api test -- planning-generation.service.spec`
   Expected: **RED** — the new test fails (`getCountersForWindow` was not called; `loadConstraints` still calls `getCountersForPeriod`). All other tests still pass. Do NOT commit yet.
 
-- [ ] **Task 4 (GREEN): Point `loadConstraints` at the rolling window** [AC: 1]
+- [x] **Task 4 (GREEN): Point `loadConstraints` at the rolling window** [AC: 1]
   In `apps/api/src/modules/planning/planning-generation.service.ts`:
   (a) Add the window-length constant. After the line `  private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators` (line 101), add:
   ```ts
@@ -239,7 +239,7 @@
   Expected: **GREEN** — the Task-3 AC1 test passes and the whole generation suite stays green (existing tests default `getCountersForWindow` to `[]`, same as the old path). `Tests: N passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-124): score generation equity over a rolling 12-month window"`
 
-- [ ] **Task 5 (RED): Add the failing mechanism specs for seeding + create-if-absent** [AC: 2, 3]
+- [x] **Task 5 (RED): Add the failing mechanism specs for seeding + create-if-absent** [AC: 2, 3]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add this new `describe` block immediately **after** the `describe('Story 11-2 — surviving shifts visible to generator', () => { … })` block closes (find its closing `  });` — it is the block that defines `mondaySurgery2` / `twoVets` / `mockShiftQueries` / `captureCreate`). This new block defines its own local helpers so it does not depend on 11-2's scoped ones:
   ```ts
     // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
@@ -350,7 +350,7 @@
   Run: `pnpm --filter @pawly/api test -- planning-generation.service.spec`
   Expected: **RED** — both new tests error with `Cannot spy the getOrCreateEquityEntry property because it is not a function; undefined given instead` (the helper does not exist yet). All other tests still pass. Do NOT commit yet.
 
-- [ ] **Task 6 (GREEN): Seed every employee, add `getOrCreateEquityEntry`, drop the `+20` fallback, and route both live increments through create-if-absent** [AC: 2, 3]
+- [x] **Task 6 (GREEN): Seed every employee, add `getOrCreateEquityEntry`, drop the `+20` fallback, and route both live increments through create-if-absent** [AC: 2, 3]
   All edits in `apps/api/src/modules/planning/planning-generation.service.ts`.
 
   (a) Add the private helper. Insert immediately **after** `getAverageOvertimeMinutes` closes (after its `  }` on line 3537, before the `  /**\n   * Load existing shifts from DB for days in border ISO weeks …` JSDoc on line 3539):
@@ -479,7 +479,7 @@
   Expected: **GREEN** — the two Story 11-7 mechanism tests pass and the whole generation suite stays green (seeding zeros do not change relative scores: previously every un-mapped employee got a uniform `+20`, now every seeded employee gets a uniform `0`, so assignment order is unchanged; averages over all-zero entries are still `0`). `Tests: N passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-124): seed equity entries for all employees, drop flat +20 fallback"`
 
-- [ ] **Task 7: Full API suite + type-declaration build gate** [AC: 1, 2, 3]
+- [x] **Task 7: Full API suite + type-declaration build gate** [AC: 1, 2, 3]
   Run the whole API test suite and the declaration build (per lesson L5 — the `tsc` types pass is load-bearing and no `pnpm dev` type-checks the whole graph):
   ```bash
   pnpm --filter @pawly/api test
@@ -641,14 +641,53 @@
 
 ## Dev Agent Record
 
-- **Model:**
-- **Started:**
-- **Completed:**
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-12
+- **Completed:** 2026-07-12
 
 ### Summary
 
+Generation equity now scores over a rolling 12-month window ending the month before
+the target (new `EquityCounterService.getCountersForWindow`), so a January generation
+sees December N-1 and fairness never resets on 1 January (AC1). Every active employee
+is seeded with a zero-initialised equity entry up front via a new
+`getOrCreateEquityEntry` helper, the flat `+20` scoring fallback for un-mapped
+employees is removed, and both live intra-month increments (survivor + assignment)
+route through create-if-absent — so a new hire is scored on equal, deterministic
+footing and their picked-up load is recorded rather than silently dropped (AC2/AC3).
+Scope held exactly to the four planned files; no `getCountersForPeriod` caller,
+counter computation, or scheduler was touched.
+
 ### Files changed
+
+- apps/api/src/modules/planning/equity-counter.service.ts
+- apps/api/src/modules/planning/equity-counter.service.spec.ts
+- apps/api/src/modules/planning/planning-generation.service.ts
+- apps/api/src/modules/planning/planning-generation.service.spec.ts
 
 ### Deviations
 
+- **Mechanism:** None — the plan's RED/GREEN code was applied verbatim across the six
+  TDD tasks; all existing tests stayed green (seeding zeros + removing a *uniform*
+  `+20` are relative-score-preserving, as predicted).
+- **Environment (not a code change):** the freshly-dispatched worktree had no
+  installed dependencies — `pnpm install`, `pnpm db:generate`, and building the
+  internal `@pawly/*` packages (empty `dist/`) were required before the suite and the
+  `tsc` types gate (lesson L5) would run. The two `TS7006` errors surfaced by the
+  first build were pre-existing cascades of the un-built `@pawly/validators` types
+  (lines 727/1214, untouched code) and cleared once the packages were built.
+- **L4 source:** Prisma `where.OR` over `{year, month}` pairs confirmed via Context7
+  (Prisma docs, CRUD "Multiple conditions with OR/AND") — each object ANDs its fields,
+  the array ORs them; ANDed with the top-level `clinicId`/`counterType`.
+
 ### Test output
+
+```
+$ pnpm --filter @pawly/api test
+Test Suites: 34 passed, 34 total
+Tests:       937 passed, 937 total
+
+$ pnpm --filter @pawly/api build
+nest build → Successfully compiled: 144 files with swc
+tsc -p tsconfig.types.json → exit 0 (dist/trpc-types.d.ts emitted)
+```
