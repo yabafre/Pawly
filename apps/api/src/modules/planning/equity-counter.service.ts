@@ -69,6 +69,59 @@ export class EquityCounterService {
   }
 
   /**
+   * Get equity counters over a rolling window of `windowMonths` calendar months
+   * ending at the month immediately BEFORE (year, month) — i.e. the range
+   * [(year,month) − windowMonths … (year,month) − 1]. Unlike getCountersForPeriod
+   * (single `year`), this window crosses the year boundary, so a January target
+   * still sees December (and the rest) of the previous year. Story 11-7 — used by
+   * the generator so equity never resets on 1 January and reflects a true
+   * 12-month history. The target month itself is excluded (callers score against
+   * prior load only — "exclude current month to avoid circular scoring").
+   */
+  async getCountersForWindow(
+    clinicId: string,
+    year: number,
+    month: number,
+    windowMonths = 12,
+    counterTypes?: EquityCounterType[],
+  ): Promise<CounterWithEmployee[]> {
+    // A non-positive window has no prior months to load. Return early rather than
+    // issue a findMany with an empty `OR: []`, whose Prisma match semantics are
+    // ambiguous (Story 11-7 review hardening). Not reachable via the generator
+    // (it passes the constant EQUITY_WINDOW_MONTHS = 12), but keeps the method
+    // safe if ever called with a variable window.
+    if (windowMonths <= 0) return [];
+    // Absolute 0-based month index of the target; the preceding month is endAbs-1.
+    const endAbs = year * 12 + (month - 1);
+    const pairs: { year: number; month: number }[] = [];
+    for (let i = 1; i <= windowMonths; i++) {
+      const abs = endAbs - i; // endAbs-1 (prev month) … endAbs-windowMonths
+      pairs.push({ year: Math.floor(abs / 12), month: (abs % 12) + 1 });
+    }
+
+    return this.prisma.equityCounter.findMany({
+      where: {
+        clinicId,
+        OR: pairs.map((p) => ({ year: p.year, month: p.month })),
+        ...(counterTypes?.length ? { counterType: { in: counterTypes } } : {}),
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            color: true,
+            jobType: true,
+            contractHours: true,
+          },
+        },
+      },
+      orderBy: [{ employee: { lastName: 'asc' } }, { counterType: 'asc' }],
+    });
+  }
+
+  /**
    * Get quarterly summary using database-level aggregation.
    */
   async getQuarterlySummary(
@@ -148,8 +201,8 @@ export class EquityCounterService {
     });
 
     const overtimeThresholdPercent = contractRule
-      ? ((contractRule.config as Record<string, unknown>)
-          .overtimeThresholdPercent as number) ?? 0
+      ? (((contractRule.config as Record<string, unknown>)
+          .overtimeThresholdPercent as number) ?? 0)
       : 0;
 
     // Calculate counters per employee
@@ -161,9 +214,7 @@ export class EquityCounterService {
     }[] = [];
 
     for (const employee of employees) {
-      const employeeShifts = shifts.filter(
-        (s) => s.employeeId === employee.id,
-      );
+      const employeeShifts = shifts.filter((s) => s.employeeId === employee.id);
 
       let saturdayCount = 0;
       let weekendCount = 0;
@@ -207,10 +258,26 @@ export class EquityCounterService {
       );
 
       counters.push(
-        { employeeId: employee.id, counterType: 'SATURDAY_WORKED', count: saturdayCount },
-        { employeeId: employee.id, counterType: 'WEEKEND_TOTAL', count: weekendCount },
-        { employeeId: employee.id, counterType: 'HOLIDAY_WORKED', count: holidayCount },
-        { employeeId: employee.id, counterType: 'OVERTIME_HOURS', count: overtimeMinutes },
+        {
+          employeeId: employee.id,
+          counterType: 'SATURDAY_WORKED',
+          count: saturdayCount,
+        },
+        {
+          employeeId: employee.id,
+          counterType: 'WEEKEND_TOTAL',
+          count: weekendCount,
+        },
+        {
+          employeeId: employee.id,
+          counterType: 'HOLIDAY_WORKED',
+          count: holidayCount,
+        },
+        {
+          employeeId: employee.id,
+          counterType: 'OVERTIME_HOURS',
+          count: overtimeMinutes,
+        },
       );
     }
 

@@ -69,7 +69,11 @@ describe('EquityCounterService', () => {
     it('returns counters for given clinic, year, and months', async () => {
       mockPrismaService.equityCounter.findMany.mockResolvedValue([mockCounter]);
 
-      const result = await service.getCountersForPeriod(clinicId, 2026, [1, 2, 3]);
+      const result = await service.getCountersForPeriod(
+        clinicId,
+        2026,
+        [1, 2, 3],
+      );
 
       expect(result).toEqual([mockCounter]);
       expect(mockPrismaService.equityCounter.findMany).toHaveBeenCalledWith({
@@ -97,10 +101,12 @@ describe('EquityCounterService', () => {
     it('applies counterTypes filter when provided', async () => {
       mockPrismaService.equityCounter.findMany.mockResolvedValue([mockCounter]);
 
-      await service.getCountersForPeriod(clinicId, 2026, [1], [
-        'SATURDAY_WORKED' as any,
-        'WEEKEND_TOTAL' as any,
-      ]);
+      await service.getCountersForPeriod(
+        clinicId,
+        2026,
+        [1],
+        ['SATURDAY_WORKED' as any, 'WEEKEND_TOTAL' as any],
+      );
 
       expect(mockPrismaService.equityCounter.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -135,7 +141,8 @@ describe('EquityCounterService', () => {
 
       await service.getCountersForPeriod(clinicId, 2026, [5]);
 
-      const callArgs = mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
       expect(callArgs.where.counterType).toBeUndefined();
     });
 
@@ -152,16 +159,89 @@ describe('EquityCounterService', () => {
     });
   });
 
+  // ─── getCountersForWindow (Story 11-7) ──────────────────────────────────
+
+  describe('getCountersForWindow', () => {
+    it('loads a rolling 12-month window ending the month before the target, crossing the year boundary', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      // Target January 2026 → window is Jan 2025 … Dec 2025 (12 months, incl. Dec N-1).
+      await service.getCountersForWindow(clinicId, 2026, 1);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.clinicId).toBe(clinicId);
+      expect(callArgs.where.OR).toHaveLength(12);
+      // Includes December of the previous year — the exact case that used to reset.
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 12 });
+      // Oldest month of the window is January of the previous year.
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 1 });
+      // Never includes the target month itself (circular-scoring guard).
+      expect(callArgs.where.OR).not.toContainEqual({ year: 2026, month: 1 });
+    });
+
+    it('rolls the window across months mid-year (July 2026 → Jul 2025 … Jun 2026)', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow(clinicId, 2026, 7);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.OR).toHaveLength(12);
+      expect(callArgs.where.OR).toContainEqual({ year: 2026, month: 6 }); // month before target
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 7 }); // 12 months back
+      expect(callArgs.where.OR).not.toContainEqual({ year: 2026, month: 7 });
+    });
+
+    it('applies the counterTypes filter when provided', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow(clinicId, 2026, 3, 12, [
+        'WEEKEND_TOTAL',
+      ]);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.counterType).toEqual({ in: ['WEEKEND_TOTAL'] });
+    });
+
+    it('scopes the query to clinicId', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow('other-clinic', 2026, 5);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.clinicId).toBe('other-clinic');
+    });
+
+    it('returns [] without querying for a non-positive window (no ambiguous empty OR)', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      const result = await service.getCountersForWindow(clinicId, 2026, 5, 0);
+
+      expect(result).toEqual([]);
+      // No findMany with `OR: []` (whose match semantics are ambiguous) is issued.
+      expect(mockPrismaService.equityCounter.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── getQuarterlySummary ───────────────────────────────────────────────
 
   describe('getQuarterlySummary', () => {
     const mockGroupByResult = [
-      { employeeId: 'emp-1', counterType: 'SATURDAY_WORKED', _sum: { count: 5 } },
+      {
+        employeeId: 'emp-1',
+        counterType: 'SATURDAY_WORKED',
+        _sum: { count: 5 },
+      },
       { employeeId: 'emp-1', counterType: 'WEEKEND_TOTAL', _sum: { count: 8 } },
     ];
 
     it('maps Q1 to months [1, 2, 3]', async () => {
-      mockPrismaService.equityCounter.groupBy.mockResolvedValue(mockGroupByResult);
+      mockPrismaService.equityCounter.groupBy.mockResolvedValue(
+        mockGroupByResult,
+      );
 
       await service.getQuarterlySummary(clinicId, 2026, 1);
 
@@ -217,7 +297,9 @@ describe('EquityCounterService', () => {
     });
 
     it('groups by employeeId and counterType with sum aggregation', async () => {
-      mockPrismaService.equityCounter.groupBy.mockResolvedValue(mockGroupByResult);
+      mockPrismaService.equityCounter.groupBy.mockResolvedValue(
+        mockGroupByResult,
+      );
 
       const result = await service.getQuarterlySummary(clinicId, 2026, 1);
 
@@ -291,7 +373,8 @@ describe('EquityCounterService', () => {
     it('fetches closed days for holiday detection', async () => {
       await service.recalculateForPeriod(clinicId, 2026, 3);
 
-      const callArgs = mockPrismaService.clinicClosedDay.findMany.mock.calls[0][0];
+      const callArgs =
+        mockPrismaService.clinicClosedDay.findMany.mock.calls[0][0];
       expect(callArgs.where.clinicId).toBe(clinicId);
       expect(callArgs.where.date).toBeDefined();
     });
@@ -373,9 +456,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'SATURDAY_WORKED',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'SATURDAY_WORKED',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 1 }),
           update: expect.objectContaining({ count: 1 }),
@@ -386,9 +471,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'WEEKEND_TOTAL',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'WEEKEND_TOTAL',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 2 }),
           update: expect.objectContaining({ count: 2 }),
@@ -414,9 +501,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'SATURDAY_WORKED',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'SATURDAY_WORKED',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 0 }),
         }),
@@ -426,9 +515,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'WEEKEND_TOTAL',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'WEEKEND_TOTAL',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 1 }),
         }),
@@ -456,9 +547,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'HOLIDAY_WORKED',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'HOLIDAY_WORKED',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 1 }),
           update: expect.objectContaining({ count: 1 }),
@@ -483,9 +576,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'HOLIDAY_WORKED',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'HOLIDAY_WORKED',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 0 }),
         }),
@@ -503,14 +598,36 @@ describe('EquityCounterService', () => {
 
       // Create shifts totaling ~10500 minutes (175 hours)
       // 25 weekday shifts of 7 hours each = 175 hours = 10500 minutes
-      const shifts: { employeeId: string; date: Date; startTime: string; endTime: string }[] = [];
+      const shifts: {
+        employeeId: string;
+        date: Date;
+        startTime: string;
+        endTime: string;
+      }[] = [];
       // Use weekdays in March 2026
       const weekdays = [
-        2, 3, 4, 5, 6, // Week 1 (Mon-Fri, but 6 is Sat so skip last, use 2-5 + 9)
-        9, 10, 11, 12, 13,
-        16, 17, 18, 19, 20,
-        23, 24, 25, 26, 27,
-        30, 31,
+        2,
+        3,
+        4,
+        5,
+        6, // Week 1 (Mon-Fri, but 6 is Sat so skip last, use 2-5 + 9)
+        9,
+        10,
+        11,
+        12,
+        13,
+        16,
+        17,
+        18,
+        19,
+        20,
+        23,
+        24,
+        25,
+        26,
+        27,
+        30,
+        31,
       ];
       for (const day of weekdays) {
         shifts.push({
@@ -534,14 +651,19 @@ describe('EquityCounterService', () => {
       const totalMinutes = weekdays.length * 420; // 22 * 420 = 9240
       const contractLimit = 35 * 60 * 4.33; // 9093
       const adjustedLimit = contractLimit * 1.1; // 10002.3
-      const expectedOvertime = Math.max(0, Math.round(totalMinutes - adjustedLimit));
+      const expectedOvertime = Math.max(
+        0,
+        Math.round(totalMinutes - adjustedLimit),
+      );
 
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: expectedOvertime }),
           update: expect.objectContaining({ count: expectedOvertime }),
@@ -567,9 +689,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 0 }),
           update: expect.objectContaining({ count: 0 }),
@@ -598,14 +722,19 @@ describe('EquityCounterService', () => {
 
       // March 2026 = 31 days → weeksInMonth = 31/7
       const weeksInMonth = 31 / 7;
-      const expectedOvertime = Math.max(0, Math.round(300 - 1 * 60 * weeksInMonth));
+      const expectedOvertime = Math.max(
+        0,
+        Math.round(300 - 1 * 60 * weeksInMonth),
+      );
 
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: expectedOvertime }),
           update: expect.objectContaining({ count: expectedOvertime }),
@@ -614,8 +743,20 @@ describe('EquityCounterService', () => {
     });
 
     it('creates 4 counters per employee (SATURDAY_WORKED, WEEKEND_TOTAL, HOLIDAY_WORKED, OVERTIME_HOURS)', async () => {
-      mockPrismaService.employee.findMany.mockResolvedValue([employee1, employee2]);
-      mockPrismaService.$transaction.mockResolvedValue([{}, {}, {}, {}, {}, {}, {}, {}]);
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        employee1,
+        employee2,
+      ]);
+      mockPrismaService.$transaction.mockResolvedValue([
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+      ]);
 
       await service.recalculateForPeriod(clinicId, 2026, 3);
 
@@ -663,13 +804,18 @@ describe('EquityCounterService', () => {
       // contractLimit = 1 * 60 * (31/7) ≈ 265.7
       // overtime = 570 - 265.7 ≈ 304.3, rounded = 304
       const weeksInMonth = 31 / 7;
-      const expectedOvertime = Math.max(0, Math.round(570 - 1 * 60 * weeksInMonth));
+      const expectedOvertime = Math.max(
+        0,
+        Math.round(570 - 1 * 60 * weeksInMonth),
+      );
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: expectedOvertime }),
         }),
@@ -698,13 +844,18 @@ describe('EquityCounterService', () => {
       // overnight shift: 1440 - 1320 + 360 = 480 minutes
       // overtime = 480 - 265.7 ≈ 214.3, rounded = 214
       const weeksInMonth = 31 / 7;
-      const expectedOvertime = Math.max(0, Math.round(480 - 1 * 60 * weeksInMonth));
+      const expectedOvertime = Math.max(
+        0,
+        Math.round(480 - 1 * 60 * weeksInMonth),
+      );
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: expectedOvertime }),
         }),
@@ -763,9 +914,11 @@ describe('EquityCounterService', () => {
       expect(mockPrismaService.equityCounter.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            clinicId_employeeId_counterType_year_month: expect.objectContaining({
-              counterType: 'OVERTIME_HOURS',
-            }),
+            clinicId_employeeId_counterType_year_month: expect.objectContaining(
+              {
+                counterType: 'OVERTIME_HOURS',
+              },
+            ),
           },
           create: expect.objectContaining({ count: 0 }),
         }),
