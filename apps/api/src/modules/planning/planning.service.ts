@@ -493,12 +493,14 @@ export class PlanningService {
     const counterType =
       targetDay === 'saturday' ? 'SATURDAY_WORKED' : undefined;
     if (equityCounters && counterType) {
+      // Legacy fallback preserved exactly: counters supplied but none matching
+      // -> average 0, never the shift-data average (aped-review m5).
       const relevant = equityCounters.filter(
         (c) => c.counterType === counterType,
       );
-      if (relevant.length > 0) {
-        return relevant.reduce((sum, c) => sum + c.count, 0) / relevant.length;
-      }
+      return relevant.length > 0
+        ? relevant.reduce((sum, c) => sum + c.count, 0) / relevant.length
+        : 0;
     }
     const dayNameToIso: Record<string, number> = {
       monday: 1,

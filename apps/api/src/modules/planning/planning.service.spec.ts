@@ -1372,5 +1372,44 @@ describe('PlanningService', () => {
         asv.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
       ).toBe(true);
     });
+
+    it('saturday clinicAverage stays 0 when counters are provided without SATURDAY_WORKED (legacy fallback, aped-review m5)', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        rotationRule('SOFT', {
+          targetDay: 'saturday',
+          maxPerPeriod: 2,
+          trackingPeriod: 'monthly',
+        }),
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '09:00', '15:00', 0),
+        ),
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input, {
+        equityCounters: [
+          {
+            id: 'c1',
+            counterType: 'OVERTIME_HOURS' as const,
+            count: 120,
+            year: 2026,
+            month: 8,
+            lastCalculatedAt: null,
+            employee: {
+              id: 'e1',
+              firstName: 'Vé',
+              lastName: 'To',
+              color: '#fff',
+              jobType: 'VET',
+              contractHours: 35,
+            },
+          },
+        ],
+      });
+      const soft = res.softViolations.find(
+        (v) => v.category === 'ROTATION_EQUITY',
+      );
+      expect(soft?.equityContext?.clinicAverage).toBe(0);
+    });
   });
 });
