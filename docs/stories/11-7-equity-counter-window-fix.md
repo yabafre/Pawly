@@ -691,3 +691,55 @@ $ pnpm --filter @pawly/api build
 nest build → Successfully compiled: 144 files with swc
 tsc -p tsconfig.types.json → exit 0 (dist/trpc-types.d.ts emitted)
 ```
+
+## Review Record
+
+**Date:** 2026-07-12
+**Auditors:** Spec, Code, Edge & Hallucination (backend-only surface — Aria not dispatched)
+**Verdict:** done
+
+The three auditors found no correctness bug. The Edge & Hallucination auditor
+independently confirmed the window arithmetic (Jan 2026 → Jan–Dec 2025 excluding
+the target; Jul 2026 → Jul 2025–Jun 2026), multi-tenancy (`clinicId` ANDed with
+the `OR`), determinism (invariant #3 — `equityMap.size` is fixed before scoring,
+so averages are order-independent), the supporting `@@index([clinicId, year,
+month])`, and that removing the `+20` else-branch is behaviour-preserving. The
+Spec and Code auditors flagged that the AC2/AC3 coverage was mechanism-only
+(spy call-counts), plus two NITs. All were fixed in this review and re-verified.
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] AC3 — the inactive-employee-survivor create-if-absent branch (the site whose comment claims to rescue that edge) had no test [planning-generation.service.ts:404-413]
+  - Source: Spec
+  - Resolution: `3839f91` — new test seeds a surviving shift for an id absent from the active set and asserts it routes through `getOrCreateEquityEntry` (the create branch), not the pre-11-7 silent `if (equity)` skip.
+- [MAJOR] AC2 / Task-6(e) — fairness + `+20`-removal proven only by spy calls and comments, never on the generated shift distribution [planning-generation.service.spec.ts]
+  - Source: Spec + Code
+  - Resolution: `3839f91` — new behavioural test runs a real Sunday generation over three identical VETs (one mapped clean record, one heavy weekend history, one un-mapped new hire) and asserts on the generated `createManyAndReturn` rows: the un-mapped hire no longer absorbs every weekend slot, the clean-record employee gets a real share, and the shares sum to the slot count. Residual (accepted): the monthly-workload confound — documented in the story's own Testing → Known confound — limits how sharply a unit test isolates the equity term; the full behavioural proof stays a QA journey (see follow-up below).
+- [NIT] Always-true `if (equity)` guard left behind after the `else { +20 }` removal [planning-generation.service.ts:~1260]
+  - Source: Spec + Edge
+  - Resolution: `3839f91` — guard removed, scoring block de-indented, arithmetic unchanged (suite stays green).
+- [NIT] `getCountersForWindow` issued a `findMany` with an ambiguous empty `OR: []` for a non-positive window [equity-counter.service.ts]
+  - Source: Edge
+  - Resolution: `3839f91` — early `return []` for `windowMonths <= 0`, with a unit test asserting no query is issued.
+
+#### Dismissed
+
+- (none)
+
+#### Unresolved
+
+- (none — story flips to `done`)
+
+### Follow-up (not blocking)
+
+- **QA journey** (per the story's Testing → Known confound and the Spec auditor): generate a **PUBLISHED January** over a clinic seeded with December N-1 history + one new hire, and confirm live that (a) equity does not reset on 1 January and (b) the new hire's weekend share is proportionate over the full month. The unit tests added here cover the mechanism and the generated-distribution direction; the end-to-end fairness magnitude is best proven by this journey.
+
+### Verification
+
+- Test command: `pnpm --filter @pawly/api test`
+- Test output (final pass): `Test Suites: 34 passed, 34 total` · `Tests: 940 passed, 940 total` (937 pre-existing + 3 added by review), exit 0.
+- Build: `pnpm --filter @pawly/api build` → exit 0, `dist/trpc-types.d.ts` emitted (L5 declaration gate green).
+- Fix commit: `3839f91` — `fix(KON-124): cover survivor/fairness gaps, drop dead guard [aped-review]`.
+- Visual verification: n/a — backend-only story, no preview surface.
