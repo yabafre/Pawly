@@ -1264,11 +1264,19 @@ describe('PlanningService', () => {
         ), // 5 x 9h = 45h > 40h (Mon-Fri, statutory-quiet — see note above)
       );
       const res = await service.validateShiftsAgainstRules(clinicId, input);
-      const soft = res.softViolations.find(
-        (v) => v.category === 'CONTRACT_COMPLIANCE',
+      const monthly = res.softViolations.find(
+        (v) => v.messageKey === 'violations.contractCompliance.overtime',
       );
-      expect(soft).toBeDefined();
-      expect(soft?.equityContext).toBeDefined();
+      expect(monthly).toBeDefined();
+      expect(monthly?.equityContext).toBeDefined();
+      // The same fixture breaches the weekly contractHours floor (45h > 35h) — its
+      // monthly clinic-average trend is meaningless for a weekly figure, so the
+      // adapter attaches no equityContext there (aped-review m4).
+      const weekly = res.softViolations.find(
+        (v) => v.messageKey === 'violations.contractCompliance.weeklyOvertime',
+      );
+      expect(weekly).toBeDefined();
+      expect(weekly?.equityContext).toBeUndefined();
       expect(
         res.hardViolations.some((v) => v.category === 'CONTRACT_COMPLIANCE'),
       ).toBe(false);

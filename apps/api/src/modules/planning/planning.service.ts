@@ -573,17 +573,19 @@ export class PlanningService {
           category: v.category as PlanningRuleCategory,
           severity: 'blocking' as const,
         });
+      } else if (
+        v.messageKey === 'violations.contractCompliance.weeklyOvertime'
+      ) {
+        // A weekly figure against the monthly clinic average is meaningless as
+        // a trend — the weekly bucket carries no equityContext (aped-review m4).
+        softViolations.push({
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'warning' as const,
+        });
       } else {
-        const currentHours = Number(
-          v.messageParams?.currentMonthlyHours ??
-            v.messageParams?.currentWeeklyHours ??
-            0,
-        );
-        const maxHours = Number(
-          v.messageParams?.maxMonthlyHours ??
-            v.messageParams?.maxWeeklyHours ??
-            0,
-        );
+        const currentHours = Number(v.messageParams?.currentMonthlyHours ?? 0);
+        const maxHours = Number(v.messageParams?.maxMonthlyHours ?? 0);
         const trend: EquityContext['trend'] =
           currentHours > clinicAverageHours + 2
             ? 'above_average'
