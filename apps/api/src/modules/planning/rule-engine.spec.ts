@@ -143,6 +143,37 @@ describe('evaluateContractCompliance — monthly (maxMonthlyHours)', () => {
       ),
     ).toBe(true);
   });
+  it('monthly threshold is minute-precise, not rounded to hours (aped-review m6)', () => {
+    // 15 x 10h Mon-Fri over 3 weeks = 9000 min; contractHours 60 keeps the weekly floor quiet.
+    const base = [
+      '03',
+      '04',
+      '05',
+      '06',
+      '07',
+      '10',
+      '11',
+      '12',
+      '13',
+      '14',
+      '17',
+      '18',
+      '19',
+      '20',
+      '21',
+    ].map((d) => shift('e1', `2026-08-${d}`, '08:00', '18:00', 0, 60));
+    const cap = rule('HARD', 'CONTRACT_COMPLIANCE', { maxMonthlyHours: 150 });
+    // Exactly 150h00 -> at the limit, no violation.
+    expect(evaluateContractCompliance(cap, base)).toHaveLength(0);
+    // 150h29 -> violation; the legacy Math.round-then-compare would have let it pass.
+    const overBy29min = [
+      ...base,
+      shift('e1', '2026-08-24', '09:00', '09:29', 0, 60),
+    ];
+    const v = evaluateContractCompliance(cap, overBy29min);
+    expect(v).toHaveLength(1);
+    expect(v[0].messageKey).toBe('violations.contractCompliance.overtime');
+  });
   it('no threshold configured, week under contractHours -> no violations', () => {
     const shifts = [shift('e1', '2026-08-03', '08:00', '20:00', 0)]; // 12h < 35h
     expect(
