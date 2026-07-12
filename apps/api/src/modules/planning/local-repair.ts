@@ -11,10 +11,12 @@
  *   2. equity hill-climbing swaps against an explicit global objective.
  *
  * Pure: no NestJS, no Prisma, no I/O (same discipline as rule-engine.ts / french-labor-law.ts).
- * The service injects `isEligible` (the SAME predicate scoreAndAssign uses — see
- * PlanningGenerationService.evaluateEligibility) and applies/reverts the moves against its live
- * counters. Eligibility is evaluated on PRE-MOVE state: removing an assignment only relaxes
- * per-employee constraints, so a move that passes here is guaranteed valid after it is applied.
+ * The service injects the eligibility predicates (built on the SAME evaluateEligibility scoreAndAssign
+ * uses) and applies/reverts the moves against its live counters. Additions (backfill, swap) are
+ * checked on pre-apply state — sound, since adding a shift only tightens constraints. The ejection
+ * MOVER is checked on POST-removal state (isMoverEligibleForHole): a hole exists precisely because no
+ * one is eligible on the current state, so a pre-move check would never let a capped mover reach the
+ * hole it could fill after leaving its own slot. Removing only relaxes, so this stays sound.
  *
  * Determinism (invariant #3): every iteration is over deterministically-sorted keys, no RNG.
  * Dates are 'YYYY-MM-DD' interpreted in UTC (matches getWeekBounds / isoDayOf in the service).
@@ -62,6 +64,19 @@ export interface EquitySwap {
 
 /** Injected validity predicate — the service's evaluateEligibility(...).eligible closed over live state. */
 export type IsEligible = (employeeId: string, slot: RepairSlot) => boolean;
+
+/**
+ * Injected validity predicate for the ejection MOVER — whether `moverEmployeeId` may take `hole`
+ * once it has LEFT `vacated`. The service evaluates it on the post-removal state (its vacated shift
+ * discounted from the live counters), because a hole exists precisely because no one is eligible for
+ * it on the current state — checking the mover pre-move would falsely reject a mover whose own
+ * vacated slot is the only thing over its cap. Sound: leaving a slot only relaxes constraints.
+ */
+export type MoverEligibility = (
+  moverEmployeeId: string,
+  hole: RepairSlot,
+  vacated: RepairSlot,
+) => boolean;
 
 /** Objective comparisons use this epsilon so float noise never registers as an improvement. */
 const OBJECTIVE_EPSILON = 1e-9;
@@ -135,9 +150,12 @@ export function equityObjective(loads: Map<string, EmployeeLoad>): number {
 
 /**
  * Depth-<=2 ejection chain for a single hole. Scans the current assignments in deterministic
- * order; for each candidate mover eligible for the hole, scans employees in deterministic order
- * for a backfill eligible for the vacated slot (excluding the mover). Returns the first such
- * chain, or null. Eligibility is evaluated on pre-move state (conservative — see module header).
+ * order; for each candidate mover eligible for the hole ONCE IT HAS LEFT its slot (isMoverEligibleForHole,
+ * evaluated on post-removal state), scans employees in deterministic order for a backfill eligible for
+ * the vacated slot (excluding the mover). Returns the first such chain, or null. The mover is checked
+ * post-removal because a hole exists precisely because no one is eligible on the current state — a
+ * pre-move check would never let a capped mover reach its own hole. The backfill is an addition, so
+ * its pre-apply eligibility is already sound.
  */
 export function findEjectionChain(
   hole: RepairSlot,
@@ -145,6 +163,7 @@ export function findEjectionChain(
   slotById: Map<string, RepairSlot>,
   employees: string[],
   isEligible: IsEligible,
+  isMoverEligibleForHole: MoverEligibility,
 ): EjectionChain | null {
   const sortedEmployees = [...employees].sort();
   // Deterministic mover order: by the vacated slot's (date, shiftTypeCode, startTime), then employeeId.
@@ -160,9 +179,10 @@ export function findEjectionChain(
 
   for (const mover of sortedAssignments) {
     if (mover.slotId === hole.id) continue; // already on the hole slot
-    if (!isEligible(mover.employeeId, hole)) continue; // mover must be able to take the hole
     const vacated = slotById.get(mover.slotId);
     if (!vacated) continue;
+    // Mover must be able to take the hole AFTER leaving `vacated` (post-removal state).
+    if (!isMoverEligibleForHole(mover.employeeId, hole, vacated)) continue;
     for (const backfill of sortedEmployees) {
       if (backfill === mover.employeeId) continue;
       if (isEligible(backfill, vacated)) {

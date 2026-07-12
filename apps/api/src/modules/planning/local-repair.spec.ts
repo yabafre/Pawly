@@ -68,10 +68,12 @@ describe('equityObjective + computeLoads', () => {
 });
 
 describe('findEjectionChain — bin-packing counter-example (AC1)', () => {
-  // Two VET-only slots on different days. Greedy placed VET "a" on s1 (which
-  // "b" could also cover) and then cannot fill s2 (VET-only) because "a" is the
-  // only VET left with budget → hole on s2. A depth-2 ejection fixes it:
-  // move "a" from s1 → s2 (the hole), backfill s1 with "b".
+  // Two VET-only slots on different days, both at a 1-shift-per-employee cap. Greedy placed VET
+  // "a" on s1 (which "b" could also cover) and then cannot fill s2: "a" is now at its cap and "b"
+  // is unavailable on s2's day → hole on s2. No one is eligible for s2 as a plain ADDITION — that
+  // is exactly why greedy stranded it. "a" becomes eligible for s2 only AFTER it leaves s1
+  // (post-removal), which is the move a single greedy pass cannot make. Depth-2 fix: move "a"
+  // from s1 → s2, backfill s1 with the idle "b".
   const s1 = slot('s1', '2026-08-03', 'CHIR', '09:00', '17:00', 0, ['VET']); // Monday
   const s2 = slot('s2', '2026-08-05', 'CHIR', '09:00', '17:00', 0, ['VET']); // Wednesday (the hole)
   const slotById = new Map<string, RepairSlot>([
@@ -81,20 +83,22 @@ describe('findEjectionChain — bin-packing counter-example (AC1)', () => {
   const assignments = [assign('s1', 'a')];
   const employees = ['a', 'b'];
 
+  // Additions (backfill): "b" can take s1 (idle VET, available Monday); nobody can be added to the
+  // hole s2 without a removal first (a is at cap, b unavailable Wednesday).
+  const isEligibleAddition = (emp: string, s: RepairSlot): boolean =>
+    s.id === 's1' ? emp === 'a' || emp === 'b' : false;
+  // The mover, evaluated on post-removal state: "a" fits s2 once it has left s1.
+  const isMoverEligibleForHole = (mover: string, hole: RepairSlot): boolean =>
+    hole.id === 's2' && mover === 'a';
+
   it('finds the depth-2 chain that a single greedy pass cannot', () => {
-    // Eligibility: "a" is VET (fits both slots); "b" is VET but only has budget
-    // for one more shift, so "b" fits s1. "a" fits the hole s2.
-    const isEligible = (emp: string, s: RepairSlot): boolean => {
-      if (s.id === 's2') return emp === 'a'; // only "a" can take the hole
-      if (s.id === 's1') return emp === 'a' || emp === 'b'; // both can take s1
-      return false;
-    };
     const chain = findEjectionChain(
       s2,
       assignments,
       slotById,
       employees,
-      isEligible,
+      isEligibleAddition,
+      isMoverEligibleForHole,
     );
     expect(chain).toEqual({
       holeSlotId: 's2',
@@ -105,29 +109,37 @@ describe('findEjectionChain — bin-packing counter-example (AC1)', () => {
   });
 
   it('returns null when no backfill exists for the vacated slot', () => {
-    const isEligible = (emp: string, s: RepairSlot): boolean =>
-      s.id === 's2' ? emp === 'a' : emp === 'a'; // nobody but "a" fits s1 either
+    // Only "a" fits s1 — and "a" is the mover, so there is no one to backfill the vacated slot.
+    const onlyAFitsS1 = (emp: string, s: RepairSlot): boolean =>
+      s.id === 's1' && emp === 'a';
     expect(
-      findEjectionChain(s2, assignments, slotById, employees, isEligible),
+      findEjectionChain(
+        s2,
+        assignments,
+        slotById,
+        employees,
+        onlyAFitsS1,
+        isMoverEligibleForHole,
+      ),
     ).toBeNull();
   });
 
   it('is deterministic — same inputs, same chain, no RNG', () => {
-    const isEligible = (emp: string, s: RepairSlot): boolean =>
-      s.id === 's2' ? emp === 'a' : true;
     const first = findEjectionChain(
       s2,
       assignments,
       slotById,
       employees,
-      isEligible,
+      isEligibleAddition,
+      isMoverEligibleForHole,
     );
     const second = findEjectionChain(
       s2,
       assignments,
       slotById,
       employees,
-      isEligible,
+      isEligibleAddition,
+      isMoverEligibleForHole,
     );
     expect(first).toEqual(second);
   });
