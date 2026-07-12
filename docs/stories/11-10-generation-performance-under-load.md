@@ -1493,9 +1493,39 @@ Spike artefacts fully absent from the diff; branch 6A correctly not shipped (spi
 - Sabotage witnesses: `countFromDayIndex` forced to 0 → the 3 T5b tests RED (+2
   discriminating pre-existing); yield condition forced false → AC2 order test RED
   (`order[0]` flips 'immediate'→'tx'). Both restored GREEN.
-- Visual verification: n/a — backend-only surface, Aria not dispatched.
+- Visual verification: no Aria (backend-only surface), but a **headed live journey was
+  run post-review** (see below) to close the L2 gap — unit tests ≠ real user journey.
 - Git audit: diff vs develop = exactly the story's File List (2 production files) +
   APED bookkeeping (`docs/state.yaml`, story doc). Nothing out of scope.
+
+### Live verification — real stack, 50-employee clinic (post-review, headed)
+
+The unit benchmark used a **mocked Prisma**, so it measured only the generation core, and
+AC2 rested on an in-process order test. To verify the runtime claims end-to-end, an
+ephemeral 50-VET clinic (24/7 template = 3 shift types × requiredStaff 2 × 7 ISO days, plus
+one SOFT `ROTATION_EQUITY` rule "Max 2 samedis/mois" — the rule that drove the old O(E×A)
+rescan) was seeded and the real API (NestJS + real Neon DB) exercised, then torn down.
+
+- **AC3 — real end-to-end via HTTP → tRPC → NestJS → Neon (shipped code):** HTTP 200,
+  **1178 ms** wall-clock (2026-08), including real constraint queries, the pg advisory
+  lock, and inserting 186 shifts — 186/186 slots filled, 0 holes, 0 violations. Second
+  month (2026-09): 943 ms. Both **< 2 s NFR2**, and this covers the DB round-trips the
+  mocked benchmark did not.
+- **AC2 — live A/B, event-loop responsiveness during generation** (GET `/health` heartbeat
+  every 5 ms; max gap ≈ longest event-loop stall):
+  - **With the shipped 6B yield:** max stall **38.6 ms**, 153 concurrent requests served
+    mid-generation.
+  - **Yield temporarily disabled** (modulo forced never to fire, then reverted): max stall
+    **132.3 ms**, 116 served.
+  - → the yield cuts the worst-case event-loop block ~3.4× (132 → 39 ms) on the real
+    stack — the live counterpart to the deterministic unit order-test.
+- **Headed browser (next-browser, admin JWT cookie, real UI):** selected the 24/7
+  template, clicked *Générer le planning*, observed the *"Génération en cours…"* spinner
+  (NFR2 > 1 s loading feedback), the grid filled with real MORNING/DAY/NIGHT shifts
+  (8h/35h per employee), health bar *"Tout est bon — aucune violation détectée"*, *Publier*
+  enabled. Screenshots captured.
+- **Teardown:** ephemeral clinic + 552 generated shifts deleted (cascade); service source
+  reverted to the shipped `% 8` yield; no clinic repoint, no residue. Verdict unchanged: **done**.
 
 ### Ticket sync
 - Ticket comment posted: KON-127 (Linear)
