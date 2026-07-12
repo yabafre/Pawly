@@ -174,11 +174,20 @@ describe('evaluateContractCompliance — monthly (maxMonthlyHours)', () => {
     expect(v).toHaveLength(1);
     expect(v[0].messageKey).toBe('violations.contractCompliance.overtime');
   });
-  it('no threshold configured, week under contractHours -> no violations', () => {
-    const shifts = [shift('e1', '2026-08-03', '08:00', '20:00', 0)]; // 12h < 35h
+  it('capless rule (statutory / rest-only config) emits nothing, even over contractHours', () => {
+    // The seeded 11-3 statutory rule is CONTRACT_COMPLIANCE with no maxWeeklyHours /
+    // maxMonthlyHours — visibility-only ("Enforcement NEVER depends on this row").
+    // 5 x 9h = 45h > 35h contract must NOT block publication under that rule; legal
+    // overtime is not a statutory breach (aped-review m3, attempt 2).
+    const shifts = ['03', '04', '05', '06', '07'].map((d) =>
+      shift('e1', `2026-08-${d}`, '09:00', '18:00', 0, 35),
+    );
     expect(
       evaluateContractCompliance(
-        rule('HARD', 'CONTRACT_COMPLIANCE', {}),
+        rule('HARD', 'CONTRACT_COMPLIANCE', {
+          maxDailyHours: 10,
+          minWeeklyRestHours: 35,
+        }),
         shifts,
       ),
     ).toHaveLength(0);

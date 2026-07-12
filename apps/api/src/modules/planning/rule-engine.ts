@@ -124,10 +124,12 @@ function toleranceFor(rule: EvaluatorRule): number {
  * Emits one violation per (employee, breached ISO week) and one per employee for
  * maxMonthlyHours. Severity follows ruleType. Worked minutes are NET of breakMinutes.
  * Effective weekly limit = min(contractHours, maxWeeklyHours), falling back to contractHours
- * when the rule sets no weekly cap — symmetric with violatesHardContractIncremental, so a
- * roster the generator or a move would refuse can no longer validate green. Monthly limit =
- * maxMonthlyHours, only when configured. Both scaled by the HARD overtime tolerance
- * (SOFT tolerance = 1).
+ * when the rule declares only a monthly cap — symmetric with violatesHardContractIncremental,
+ * so a roster the generator or a move would refuse can no longer validate green.
+ * A rule declaring NO hour cap evaluates nothing here: the seeded 11-3 statutory row and
+ * rest-only rules are visibility/rest concerns — contractHours is a contractual base, not a
+ * legal weekly limit, and must not gate publication under a "labor law" label. Both caps
+ * scaled by the HARD overtime tolerance (SOFT tolerance = 1).
  */
 export function evaluateContractCompliance(
   rule: EvaluatorRule,
@@ -136,6 +138,7 @@ export function evaluateContractCompliance(
   const violations: RuleViolation[] = [];
   const maxWeekly = rule.config.maxWeeklyHours as number | undefined;
   const maxMonthly = rule.config.maxMonthlyHours as number | undefined;
+  if (maxWeekly === undefined && maxMonthly === undefined) return violations;
 
   const tol = toleranceFor(rule);
   const severity = severityFor(rule.ruleType);
