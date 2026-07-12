@@ -5948,6 +5948,77 @@ describe('PlanningGenerationService', () => {
         ]),
       );
     });
+
+    // ─── Story 11-8 — move validation delegates to the shared rule engine ───
+    // AC1 (verbatim from story 11-8-unified-rule-engine:17): "… a rule's ruleType
+    // decides severity (HARD → blocking, SOFT → warning)" — on the manual-move
+    // path the HARD/SOFT verdict must match the generator and the validator.
+    it('Story 11-8 — HARD maxWeeklyHours breach on a move lands in hard, not soft', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.soft.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
+
+    it('Story 11-8 — SOFT maxWeeklyHours breach on a move lands in soft, not hard', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'SOFT',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.soft).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.hard.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
   });
 
   // ─── Story 11-5 — idempotent generation & concurrency safety ──────

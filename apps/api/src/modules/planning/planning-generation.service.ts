@@ -2619,15 +2619,30 @@ export class PlanningGenerationService {
     )) {
       const config = rule.config as Record<string, unknown>;
       const maxWeekly = config.maxWeeklyHours as number | undefined;
-      const overtimeTol =
-        rule.ruleType === 'HARD'
-          ? 1 + ((config.overtimeThresholdPercent as number) || 0) / 100
-          : 1;
       const effectiveLimit = maxWeekly
         ? Math.min(employee.contractHours, maxWeekly)
         : employee.contractHours;
 
-      if (projectedWeeklyMinutes > effectiveLimit * 60 * overtimeTol) {
+      // Story 11-8 — weekly cap decision delegated to the shared rule engine.
+      // maxMonthlyHours is stripped so only the weekly cap is evaluated,
+      // matching the move's historic weekly-only semantics.
+      if (
+        violatesHardContractIncremental(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: rule.ruleType as RuleType,
+            category: rule.category,
+            config: { ...config, maxMonthlyHours: undefined },
+          },
+          {
+            weekMinutes: weeklyMinutes,
+            monthMinutes: 0,
+            candidateMinutes: shiftMinutes,
+            contractHours: employee.contractHours,
+          },
+        )
+      ) {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'CONTRACT_COMPLIANCE',
@@ -2717,7 +2732,18 @@ export class PlanningGenerationService {
         return d === ruleDayIso;
       }).length;
 
-      if (targetDayCount + 1 > maxPerPeriod) {
+      if (
+        violatesHardRotation(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: rule.ruleType as RuleType,
+            category: rule.category,
+            config: rule.config as Record<string, unknown>,
+          },
+          { currentCount: targetDayCount, jobType: employee.jobType },
+        )
+      ) {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'ROTATION_EQUITY',
