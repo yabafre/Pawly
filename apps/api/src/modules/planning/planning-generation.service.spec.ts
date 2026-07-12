@@ -1763,6 +1763,45 @@ describe('PlanningGenerationService', () => {
       // regression back to the O(E×A) scan (which blew past 2s at this scale).
       expect(elapsedMs).toBeLessThan(2000);
     });
+
+    // AC2 (verbatim from story 11-10-generation-performance-under-load:19):
+    //   "Given a full-month generation for a 50-employee clinic, When it runs,
+    //   Then the API is never blocked for the whole generation: a concurrent
+    //   request ... continues to be served while a month is being generated."
+    // Mechanism (6B fallback): the slot loop yields to the event loop every 8
+    // slots. With mocked (already-resolved) prisma promises the pre-loop awaits
+    // are pure microtasks, so a pending setImmediate macrotask can ONLY run
+    // before the persistence tx if the loop genuinely yields — asserting the
+    // order pins the yield, not an implementation detail.
+    it('Story 11-10 (AC2, 6B) — yields to the event loop during the slot loop', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: mockTemplate, // 6 slot-requirements/week → ~26 slots in March (> 8)
+        clinicId,
+      });
+      const order: string[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          order.push('tx');
+          return fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          });
+        },
+      );
+
+      setImmediate(() => order.push('immediate'));
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+
+      // The concurrent macrotask must have been served BEFORE the generation
+      // reached its persistence transaction — i.e. mid-generation, not after.
+      expect(order[0]).toBe('immediate');
+      expect(order).toContain('tx');
+    });
   });
 
   // ─── Story 11-2 — surviving shifts visible to generator + anti-duplicate ──

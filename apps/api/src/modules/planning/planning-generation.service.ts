@@ -444,7 +444,14 @@ export class PlanningGenerationService {
       constraints.quarterlyShifts,
     );
 
+    // Story 11-10 (AC2 fallback) — yield to the event loop every 8 slots so a
+    // month-long generation never blocks concurrent API requests for its whole
+    // duration. Deterministic: the yield does not reorder slot processing.
+    let slotsSinceYield = 0;
     for (const slot of slots) {
+      if (++slotsSinceYield % 8 === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
       totalPositions += slot.requiredStaff;
 
       // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage, but
