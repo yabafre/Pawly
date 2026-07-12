@@ -7481,4 +7481,144 @@ describe('PlanningGenerationService', () => {
       expect(a.holeInfo).toEqual(b.holeInfo);
     });
   });
+
+  // ─── Story 11-9 — local-repair pass integration ───────────────────────────────
+  describe('local-repair pass (Story 11-9)', () => {
+    // Bin-packing counter-example through the full generateMonthlyPlan pipeline.
+    // Template: one VET-only SURGERY slot every Monday + every Wednesday. Two VETs, each
+    // capped at 4h/ISO-week (one SURGERY). Bob (emp-2) is unavailable every Wednesday.
+    // Greedy fills each Monday with Alice (emp-1, tiebreak winner), which caps her for the
+    // week → the same-week Wednesday is stranded (Alice capped, Bob unavailable). A depth-2
+    // ejection fixes each: move Alice Monday→Wednesday (she is free once she leaves Monday),
+    // backfill Monday with the idle Bob.
+    const buildCounterExample = () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-11-9',
+        name: 'Mon+Wed VET surgery',
+        clinicId,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                {
+                  shiftTypeCode: 'SURGERY',
+                  requiredStaff: 1,
+                  requiredJobTypes: ['VET'],
+                },
+              ],
+            },
+            {
+              dayOfWeek: 3,
+              slots: [
+                {
+                  shiftTypeCode: 'SURGERY',
+                  requiredStaff: 1,
+                  requiredJobTypes: ['VET'],
+                },
+              ],
+            },
+          ],
+        },
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      // HARD weekly cap of 4h → each VET can hold only one 4h SURGERY per ISO week.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          name: 'Max 4h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          config: { maxWeeklyHours: 4, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ]);
+      // Bob unavailable every Wednesday — the reason greedy strands the Wednesday slot.
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        {
+          id: 'ua-wed',
+          employeeId: 'emp-2',
+          type: 'SCHOOL',
+          startDate: new Date('2026-03-01'),
+          endDate: new Date('2026-03-31'),
+          daysOfWeek: [3],
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]); // no border, no survivors
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                ),
+            },
+          }),
+      );
+    };
+
+    const runCounterExample = (enableRepair: boolean) => {
+      buildCounterExample();
+      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-9', {
+        enableRepair,
+      });
+    };
+
+    const runCounterExampleBothWays = async () => {
+      const withoutRepair = await runCounterExample(false);
+      const withRepair = await runCounterExample(true);
+      return {
+        holesWithoutRepair: withoutRepair.stats.holeCount,
+        holesWithRepair: withRepair.stats.holeCount,
+      };
+    };
+
+    const runCounterExampleWithRepair = () => runCounterExample(true);
+
+    it('AC1 — fills a bin-packing hole a greedy-only pass leaves (strictly fewer holes)', async () => {
+      const { holesWithoutRepair, holesWithRepair } =
+        await runCounterExampleBothWays();
+      expect(holesWithoutRepair).toBeGreaterThan(0);
+      expect(holesWithRepair).toBeLessThan(holesWithoutRepair);
+    });
+
+    it('AC3 — the repair introduces no hard-rule violation', async () => {
+      const result = await runCounterExampleWithRepair();
+      expect(result.violations.hard).toHaveLength(0);
+    });
+
+    it('AC4 — holes are recomputed after the pass and each carries a reason', async () => {
+      const result = await runCounterExampleWithRepair();
+      for (const hole of result.holes) {
+        expect(typeof hole.reason).toBe('string');
+        expect(hole.reason.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('AC4 — generation is deterministic with the pass enabled (two identical runs)', async () => {
+      const a = await runCounterExampleWithRepair();
+      const b = await runCounterExampleWithRepair();
+      expect(a.assignments).toEqual(b.assignments);
+      expect(a.holes).toEqual(b.holes);
+    });
+  });
 });
