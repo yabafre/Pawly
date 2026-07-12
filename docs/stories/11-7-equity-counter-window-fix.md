@@ -743,3 +743,8 @@ Spec and Code auditors flagged that the AC2/AC3 coverage was mechanism-only
 - Build: `pnpm --filter @pawly/api build` → exit 0, `dist/trpc-types.d.ts` emitted (L5 declaration gate green).
 - Fix commit: `3839f91` — `fix(KON-124): cover survivor/fairness gaps, drop dead guard [aped-review]`.
 - Visual verification: n/a — backend-only story, no preview surface.
+
+### Ticket sync
+
+- Ticket comment posted: YES — KON-124 (verdict DONE + Review Record location).
+- PR opened: https://github.com/yabafre/Pawly/pull/102 (draft) → `develop`. No APED sprint umbrella exists on this project (legacy BMAD sprints), so the PR targets the project base branch per the user's explicit decision; the Lead / `aped-ship` handles the merge.
