@@ -152,6 +152,63 @@ describe('EquityCounterService', () => {
     });
   });
 
+  // ─── getCountersForWindow (Story 11-7) ──────────────────────────────────
+
+  describe('getCountersForWindow', () => {
+    it('loads a rolling 12-month window ending the month before the target, crossing the year boundary', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      // Target January 2026 → window is Jan 2025 … Dec 2025 (12 months, incl. Dec N-1).
+      await service.getCountersForWindow(clinicId, 2026, 1);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.clinicId).toBe(clinicId);
+      expect(callArgs.where.OR).toHaveLength(12);
+      // Includes December of the previous year — the exact case that used to reset.
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 12 });
+      // Oldest month of the window is January of the previous year.
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 1 });
+      // Never includes the target month itself (circular-scoring guard).
+      expect(callArgs.where.OR).not.toContainEqual({ year: 2026, month: 1 });
+    });
+
+    it('rolls the window across months mid-year (July 2026 → Jul 2025 … Jun 2026)', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow(clinicId, 2026, 7);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.OR).toHaveLength(12);
+      expect(callArgs.where.OR).toContainEqual({ year: 2026, month: 6 }); // month before target
+      expect(callArgs.where.OR).toContainEqual({ year: 2025, month: 7 }); // 12 months back
+      expect(callArgs.where.OR).not.toContainEqual({ year: 2026, month: 7 });
+    });
+
+    it('applies the counterTypes filter when provided', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow(clinicId, 2026, 3, 12, [
+        'WEEKEND_TOTAL',
+      ]);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.counterType).toEqual({ in: ['WEEKEND_TOTAL'] });
+    });
+
+    it('scopes the query to clinicId', async () => {
+      mockPrismaService.equityCounter.findMany.mockResolvedValue([]);
+
+      await service.getCountersForWindow('other-clinic', 2026, 5);
+
+      const callArgs =
+        mockPrismaService.equityCounter.findMany.mock.calls[0][0];
+      expect(callArgs.where.clinicId).toBe('other-clinic');
+    });
+  });
+
   // ─── getQuarterlySummary ───────────────────────────────────────────────
 
   describe('getQuarterlySummary', () => {
