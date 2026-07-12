@@ -1,7 +1,7 @@
 # Story: 11-9-local-repair-pass-grasp — Local Repair Pass (GRASP) for Generation Completeness
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-126-11-9-local-repair-pass-grasp
 **Ticket:** KON-126 (Linear · project Pawly · milestone Epic 11 · blocked by KON-119 / 11-2 + KON-125 / 11-8 · last of the epic)
 **Origin:** Multi-agent planning audit 2026-07-08 — documented finding: *"Greedy is incomplete. Single pass, no backtracking (`:293`); hole on `No eligible employees`; bin-packing counter-example verified. Fix with a local repair pass (GRASP), **not** CP-SAT at this scale."* See `docs/epics-context/epic-11-context.md` § 0 and § 4, and `docs/reference/planning-algorithm-reference.md:321-331` ("Known Algorithm Limitations").
