@@ -102,6 +102,16 @@ function severityFor(ruleType: RuleType): 'blocking' | 'warning' {
   return ruleType === 'HARD' ? 'blocking' : 'warning';
 }
 
+/**
+ * ISO 'YYYY-MM-DD' -> French 'DD/MM/YYYY' for human-facing message params — mirrors
+ * PlanningService.formatFrDate on the statutory messages. `affectedDate` stays ISO
+ * because it keys the grid-cell conflict lookup.
+ */
+function formatFrDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return y && m && d ? `${d}/${m}/${y}` : iso;
+}
+
 /** Overtime tolerance multiplier: HARD rules honour overtimeThresholdPercent; SOFT = 1. */
 function toleranceFor(rule: EvaluatorRule): number {
   return rule.ruleType === 'HARD'
@@ -156,16 +166,17 @@ export function evaluateContractCompliance(
     for (const [wk, mins] of weekMinutes) {
       if (mins > effectiveLimit * 60 * tol) {
         const hours = Math.round((mins / 60) * 10) / 10;
+        const displayDate = formatFrDate(wk);
         violations.push({
           ruleId: rule.id,
           ruleName: rule.name,
           category: rule.category,
-          message: `Employee worked ${hours}h in week of ${wk}, exceeds weekly limit ${effectiveLimit}h`,
+          message: `Employee worked ${hours}h in week of ${displayDate}, exceeds weekly limit ${effectiveLimit}h`,
           messageKey: 'violations.contractCompliance.weeklyOvertime',
           messageParams: {
             currentWeeklyHours: hours,
             maxWeeklyHours: effectiveLimit,
-            date: wk,
+            date: displayDate,
           },
           affectedEmployeeId: employeeId,
           affectedDate: wk,

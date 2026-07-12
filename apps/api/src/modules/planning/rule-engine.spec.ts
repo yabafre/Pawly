@@ -75,8 +75,10 @@ describe('evaluateContractCompliance — weekly (maxWeeklyHours)', () => {
     expect(v).toHaveLength(1);
     expect(v[0]).toMatchObject({
       severity: 'blocking',
-      affectedDate: '2026-08-03',
+      affectedDate: '2026-08-03', // ISO — keys the grid-cell conflict lookup
     });
+    // Human-facing date is French-formatted, like the statutory messages (aped-review m2).
+    expect(v[0].messageParams?.date).toBe('03/08/2026');
     expect(v[0].messageKey).toBe(
       'violations.contractCompliance.weeklyOvertime',
     );
