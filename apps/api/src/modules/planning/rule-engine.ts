@@ -313,6 +313,10 @@ export function violatesHardContractIncremental(
  * employee's existing targetDay shifts in the tracking period. Returns true when the cap is
  * already reached (adding one more would exceed it — `count >= maxPerPeriod`, equivalent to
  * the historic `count + 1 > maxPerPeriod`). Respects applicableJobTypes.
+ *
+ * Both current call sites pre-filter applicableJobTypes before counting — preValidateMove
+ * must, to skip the lazy quarterly shift load for non-applicable rules. The guard here is
+ * deliberate defense-in-depth for future callers, not an oversight.
  */
 export function violatesHardRotation(
   rule: EvaluatorRule,
