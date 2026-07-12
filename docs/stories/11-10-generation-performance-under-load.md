@@ -1440,6 +1440,63 @@ untouched — `generatePlan` still returns a synchronous `GenerationResult`.
 
 ## Review Record
 
+**Date:** 2026-07-12
+**Auditors:** Spec, Code, Edge & Hallucination (no Aria — backend-only surface)
+**Verdict:** done
+
+All three auditors returned APPROVED / confidence HIGH. Production code confirmed correct
+independently: the rotation index is seeded at exactly the three mutation points of
+`allShiftsForScoring` (border / survivors / per-assignment, no other push/splice exists),
+the relaxation fallback flows through the normal assignment path (no double-count), the
+`setImmediate` yield sits entirely before the persistence `$transaction` and all mutable
+generation state is method-local (concurrency-safe), and every boundary path of the three
+rewritten evaluators is behaviourally identical to the old scan (early-exit order included).
+Spike artefacts fully absent from the diff; branch 6A correctly not shipped (spike KO).
+
 ### Findings
 
+#### Resolved
+- [MINOR] Dev Notes over-claimed "the pre-existing rotation tests staying green IS the
+  equivalence proof" — 2 of the named ROTATION_EQUITY tests stay green even with a
+  sabotaged index (fixture tiebreak confound predating this story: the "should-lose"
+  employee holds the only prior shifts, so the fewer-shifts tiebreak alone reproduces the
+  expected winner). [apps/api/src/modules/planning/planning-generation.service.spec.ts:2299-2368, :3032-3095]
+  - Source: Spec
+  - Resolution: `4e98965` — Testing bullet scoped to the discriminating tests (3 T5b +
+    2 pre-existing, all 5 verified RED under a sabotaged `countFromDayIndex`, GREEN restored).
+- [NIT] Commit `9beffa5` ("spike(KON-127): verdict…") implies spike code churn, but the
+  spike never entered git history (working-tree only; verified: no spike file at any
+  commit, `client.ts` / `trigger.config.ts` byte-identical to develop).
+  - Source: Spec
+  - Resolution: `4e98965` — Debug Log now states explicitly the spike artefacts were
+    never `git add`-ed; `9beffa5` touches only the story doc.
+
+#### Dismissed
+(none)
+
+#### Informational (no action required)
+- Edge: fresh-worktree Jest transform cache produced 5 false-negative failures on its
+  first run; after `jest --clearCache`, 5 consecutive full runs = 168/168 green. Not a
+  code defect (CI always starts on a cold cache).
+- Edge: a generation with < 8 slots never yields (`++slotsSinceYield % 8` — yields on
+  slots 8/16/24…). Accepted by design: the O(1) index is the real perf fix; the yield
+  targets 50-employee months (≫ 8 slots) and a < 8-slot generation runs in ~1 ms.
+
 ### Verification
+- Test command: `pnpm --filter @pawly/api test -- --testPathPatterns "planning-generation.service.spec"`
+- Test output (final pass, post-fix Lead re-run): **168/168 passed, exit 0**. Full API
+  suite re-run live by the Spec auditor: **34 suites / 935 tests green** (exact match to
+  the Dev Agent Record claim). Fresh stress benchmark: `[11-10] stress 50-emp/24-7/31d
+  generation core: 175ms` (< 2000 ms NFR2 budget). Deploy typecheck
+  `tsc -p tsconfig.types.json`: exit 0 (L5). Full `tsc -p tsconfig.json`: the 24
+  pre-existing errors in 4 unrelated spec files, 0 in story files.
+- Sabotage witnesses: `countFromDayIndex` forced to 0 → the 3 T5b tests RED (+2
+  discriminating pre-existing); yield condition forced false → AC2 order test RED
+  (`order[0]` flips 'immediate'→'tx'). Both restored GREEN.
+- Visual verification: n/a — backend-only surface, Aria not dispatched.
+- Git audit: diff vs develop = exactly the story's File List (2 production files) +
+  APED bookkeeping (`docs/state.yaml`, story doc). Nothing out of scope.
+
+### Ticket sync
+- Ticket comment posted: KON-127 (Linear)
+- PR opened/updated: see check-in / Lead merge
