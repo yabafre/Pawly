@@ -630,12 +630,43 @@ describe('PlanningGenerationService', () => {
       esc.set(a.employeeId, (esc.get(a.employeeId) || 0) + 1);
     }
 
+    // Story 11-10 — build the per-(employee, ISO-day) live index from alreadyAssigned
+    // (mirrors the production seeding) and the quarterly index from constraints.
+    const isoDayOf = (dateStr: string) => {
+      const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+      return dow === 0 ? 7 : dow;
+    };
+    const buildDayIdx = (
+      shifts: Array<{ employeeId: string; date: string }>,
+    ) => {
+      const idx = new Map<string, Map<number, number>>();
+      for (const s of shifts) {
+        const iso = isoDayOf(s.date);
+        let byDay = idx.get(s.employeeId);
+        if (!byDay) {
+          byDay = new Map<number, number>();
+          idx.set(s.employeeId, byDay);
+        }
+        byDay.set(iso, (byDay.get(iso) || 0) + 1);
+      }
+      return idx;
+    };
+    const dayOfWeekCounts = buildDayIdx(alreadyAssigned);
+    const constraints = (args[2] || {}) as {
+      quarterlyShifts?: Array<{ employeeId: string; date: string }>;
+    };
+    const quarterlyDayOfWeekCounts = buildDayIdx(
+      constraints.quarterlyShifts || [],
+    );
+
     return callPrivate(
       'scoreAndAssign',
       ...baseArgs,
       weeklyMinutesCounter,
       stc,
       esc,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
     ) as ScoreAndAssignResult;
   };
 
@@ -1667,6 +1698,148 @@ describe('PlanningGenerationService', () => {
 
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
+    });
+
+    // AC3 (verbatim from story 11-10-generation-performance-under-load:21):
+    //   "Given the stress configuration, When the month is generated, Then
+    //   generation completes within the < 2s target (NFR2) at 50 employees with
+    //   no degradation (NFR9)"
+    it('Story 11-10 — generates the 50-employee stress config well under the NFR2 budget', async () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-stress',
+        name: '24/7 stress',
+        data: { days },
+        clinicId,
+      });
+      // Deviation from the story snippet: expandTemplateToMonth resolves slot
+      // times from clinicService.listShiftTypes (the shiftTypeMap), not from the
+      // template — without this override the MORNING/DAY/NIGHT codes resolve to
+      // nothing and the run generates 0 slots.
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-stress-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // Deviation from the story snippet: put a ROTATION_EQUITY rule on the hot
+      // path — the pre-index O(E×A) re-scan only ran when such a rule existed, so
+      // a benchmark without one could never catch a regression back to it.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Max 2 Saturdays (stress)',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+          priority: 5,
+        },
+      ]);
+      // 50 active VETs
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      // No survivors, no border shifts (both queries return []).
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+
+      const start = Date.now();
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-stress',
+      );
+      const elapsedMs = Date.now() - start;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[11-10] stress 50-emp/24-7/31d generation core: ${elapsedMs}ms`,
+      );
+
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+      // NFR2 budget is 2s; wide threshold keeps CI non-flaky while still catching a
+      // regression back to the O(E×A) scan (which blew past 2s at this scale).
+      expect(elapsedMs).toBeLessThan(2000);
+    });
+
+    // AC2 (verbatim from story 11-10-generation-performance-under-load:19):
+    //   "Given a full-month generation for a 50-employee clinic, When it runs,
+    //   Then the API is never blocked for the whole generation: a concurrent
+    //   request ... continues to be served while a month is being generated."
+    // Mechanism (6B fallback): the slot loop yields to the event loop every 8
+    // slots. With mocked (already-resolved) prisma promises the pre-loop awaits
+    // are pure microtasks, so a pending setImmediate macrotask can ONLY run
+    // before the persistence tx if the loop genuinely yields — asserting the
+    // order pins the yield, not an implementation detail.
+    it('Story 11-10 (AC2, 6B) — yields to the event loop during the slot loop', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: mockTemplate, // 6 slot-requirements/week → ~26 slots in March (> 8)
+        clinicId,
+      });
+      const order: string[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          order.push('tx');
+          return fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          });
+        },
+      );
+
+      setImmediate(() => order.push('immediate'));
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+
+      // The concurrent macrotask must have been served BEFORE the generation
+      // reached its persistence transaction — i.e. mid-generation, not after.
+      expect(order[0]).toBe('immediate');
+      expect(order).toContain('tx');
     });
   });
 
@@ -2868,6 +3041,186 @@ describe('PlanningGenerationService', () => {
       // emp-1 at 34h + 4h = 38h < 38.5h tolerance → should be allowed
       expect(result.assigned.length).toBe(1);
       expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+  });
+
+  // ─── Story 11-10 — rotation index equivalence (HARD block / SOFT penalty / SOFT violation) ──
+  // AC1 (verbatim from story 11-10-generation-performance-under-load:17):
+  //   "the schedule produced — every assignment, every staffing hole, and every
+  //   hard and soft violation, including all rotation-equity outcomes (hard caps
+  //   that exclude an employee, soft penalties that reorder candidates, soft
+  //   warnings that get recorded) — is identical to the schedule produced before
+  //   this story. And the per-employee rotation-equity evaluation no longer
+  //   re-examines the whole set of already-placed shifts for each candidate of
+  //   each slot"
+  describe('Story 11-10 — rotation-equity via O(1) day index', () => {
+    const satSlot = {
+      date: '2026-03-07', // Saturday (ISO 6)
+      shiftTypeCode: 'SURGERY',
+      startTime: '08:00',
+      endTime: '12:00',
+      requiredStaff: 1,
+    };
+    const rule = (extra: Record<string, unknown> = {}) => ({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Max 2 Saturdays',
+      category: 'ROTATION_EQUITY',
+      config: { targetDay: 'saturday', maxPerPeriod: 2, ...extra },
+      priority: 5,
+    });
+    // Two prior Saturdays already worked by emp-1 (ISO 6): 2026-02-28 and 2026-03-07.
+    const priorSaturdays = (empId: string) => [
+      {
+        employeeId: empId,
+        date: '2026-02-28',
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      },
+    ];
+
+    it('HARD rotation: excludes the at-cap employee so the under-cap one wins (index == scan)', () => {
+      // maxPerPeriod 1, emp-1 already has 1 Saturday → HARD-blocked. emp-2 carries
+      // MORE prior shifts (2× SURGERY on weekdays), so both the shift-type-diversity
+      // penalty (-15/occurrence) and the fewer-shifts tiebreak would hand the slot
+      // to emp-1 if the cap did not exclude him — a broken/empty index assigns
+      // emp-1, making this assertion discriminating.
+      // NOTE (deviation from the story's single-employee version): with emp-1 alone
+      // in the pool, the PRE-EXISTING rotation-equity relaxation fallback
+      // (scoreAndAssign: "Better to slightly exceed rotation limits than create
+      // holes") re-admits the blocked employee instead of leaving a hole — the
+      // story's expected hole contradicted shipped behaviour, before and after the
+      // index. Equivalence is preserved; the expectation was corrected.
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, hardRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+      // emp-2 satisfied requiredStaff, so the relaxation fallback never fired:
+      // emp-1 was genuinely excluded by the cap, not merely outscored.
+      expect(
+        result.softViolations.some((v) =>
+          v.message.includes('despite reaching rotation limit'),
+        ),
+      ).toBe(false);
+    });
+
+    it('SOFT rotation: penalises the capped employee so the under-cap one wins', () => {
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 already has 1 Saturday (cap 1 → soft penalty −25×1.5). emp-2 carries
+      // 2 prior SURGERY weekdays, so absent the rotation penalty emp-1 would win
+      // (diversity −15 vs −30 and fewer-shifts tiebreak) — the assertion only holds
+      // when the index-backed penalty fires, making it discriminating.
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+
+    it('SOFT rotation: records a violation when the assignee exceeds the cap', () => {
+      const oneVet = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 has 1 Saturday, cap is 1; assigning this slot makes 2 → soft violation recorded.
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        oneVet,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        priorSaturdays('emp-1'),
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(
+        result.softViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
     });
   });
 
