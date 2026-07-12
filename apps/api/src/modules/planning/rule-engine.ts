@@ -111,10 +111,13 @@ function toleranceFor(rule: EvaluatorRule): number {
 
 /**
  * POST-HOC contract-compliance evaluation over a set of shifts (validateShiftsAgainstRules).
- * Emits one violation per (employee, breached ISO week) for maxWeeklyHours and one per
- * employee for maxMonthlyHours. Severity follows ruleType. Worked minutes are NET of
- * breakMinutes. Effective weekly limit = min(contractHours, maxWeeklyHours); monthly limit =
- * maxMonthlyHours. Both scaled by the HARD overtime tolerance (SOFT tolerance = 1).
+ * Emits one violation per (employee, breached ISO week) and one per employee for
+ * maxMonthlyHours. Severity follows ruleType. Worked minutes are NET of breakMinutes.
+ * Effective weekly limit = min(contractHours, maxWeeklyHours), falling back to contractHours
+ * when the rule sets no weekly cap — symmetric with violatesHardContractIncremental, so a
+ * roster the generator or a move would refuse can no longer validate green. Monthly limit =
+ * maxMonthlyHours, only when configured. Both scaled by the HARD overtime tolerance
+ * (SOFT tolerance = 1).
  */
 export function evaluateContractCompliance(
   rule: EvaluatorRule,
@@ -123,7 +126,6 @@ export function evaluateContractCompliance(
   const violations: RuleViolation[] = [];
   const maxWeekly = rule.config.maxWeeklyHours as number | undefined;
   const maxMonthly = rule.config.maxMonthlyHours as number | undefined;
-  if (maxWeekly === undefined && maxMonthly === undefined) return violations;
 
   const tol = toleranceFor(rule);
   const severity = severityFor(rule.ruleType);
@@ -138,36 +140,37 @@ export function evaluateContractCompliance(
   for (const [employeeId, empShifts] of byEmployee) {
     const contractHours = empShifts[0].contractHours;
 
-    if (maxWeekly !== undefined) {
-      const effectiveLimit = Math.min(contractHours, maxWeekly);
-      const weekMinutes = new Map<string, number>();
-      for (const s of empShifts) {
-        const wk = isoWeekStart(s.date);
-        weekMinutes.set(
-          wk,
-          (weekMinutes.get(wk) || 0) +
-            netMinutes(s.startTime, s.endTime, s.breakMinutes),
-        );
-      }
-      for (const [wk, mins] of weekMinutes) {
-        if (mins > effectiveLimit * 60 * tol) {
-          const hours = Math.round((mins / 60) * 10) / 10;
-          violations.push({
-            ruleId: rule.id,
-            ruleName: rule.name,
-            category: rule.category,
-            message: `Employee worked ${hours}h in week of ${wk}, exceeds weekly limit ${effectiveLimit}h`,
-            messageKey: 'violations.contractCompliance.weeklyOvertime',
-            messageParams: {
-              currentWeeklyHours: hours,
-              maxWeeklyHours: effectiveLimit,
-              date: wk,
-            },
-            affectedEmployeeId: employeeId,
-            affectedDate: wk,
-            severity,
-          });
-        }
+    const effectiveLimit =
+      maxWeekly !== undefined
+        ? Math.min(contractHours, maxWeekly)
+        : contractHours;
+    const weekMinutes = new Map<string, number>();
+    for (const s of empShifts) {
+      const wk = isoWeekStart(s.date);
+      weekMinutes.set(
+        wk,
+        (weekMinutes.get(wk) || 0) +
+          netMinutes(s.startTime, s.endTime, s.breakMinutes),
+      );
+    }
+    for (const [wk, mins] of weekMinutes) {
+      if (mins > effectiveLimit * 60 * tol) {
+        const hours = Math.round((mins / 60) * 10) / 10;
+        violations.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          category: rule.category,
+          message: `Employee worked ${hours}h in week of ${wk}, exceeds weekly limit ${effectiveLimit}h`,
+          messageKey: 'violations.contractCompliance.weeklyOvertime',
+          messageParams: {
+            currentWeeklyHours: hours,
+            maxWeeklyHours: effectiveLimit,
+            date: wk,
+          },
+          affectedEmployeeId: employeeId,
+          affectedDate: wk,
+          severity,
+        });
       }
     }
 

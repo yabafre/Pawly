@@ -141,14 +141,31 @@ describe('evaluateContractCompliance — monthly (maxMonthlyHours)', () => {
       ),
     ).toBe(true);
   });
-  it('no threshold configured -> no violations', () => {
-    const shifts = [shift('e1', '2026-08-03', '08:00', '20:00', 0)];
+  it('no threshold configured, week under contractHours -> no violations', () => {
+    const shifts = [shift('e1', '2026-08-03', '08:00', '20:00', 0)]; // 12h < 35h
     expect(
       evaluateContractCompliance(
         rule('HARD', 'CONTRACT_COMPLIANCE', {}),
         shifts,
       ),
     ).toHaveLength(0);
+  });
+  it('no maxWeeklyHours: weekly floor is contractHours (aped-review m3)', () => {
+    // 5 x 9h = 45h > 35h contract, rule carries only maxMonthlyHours (not breached).
+    // Generation and preValidateMove already refuse this week; post-hoc must agree.
+    const shifts = ['03', '04', '05', '06', '07'].map((d) =>
+      shift('e1', `2026-08-${d}`, '09:00', '18:00', 0, 35),
+    );
+    const v = evaluateContractCompliance(
+      rule('HARD', 'CONTRACT_COMPLIANCE', { maxMonthlyHours: 200 }),
+      shifts,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0]).toMatchObject({
+      severity: 'blocking',
+      messageKey: 'violations.contractCompliance.weeklyOvertime',
+    });
+    expect(v[0].messageParams?.maxWeeklyHours).toBe(35);
   });
 });
 
