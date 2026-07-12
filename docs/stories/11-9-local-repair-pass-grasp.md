@@ -37,7 +37,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: RED — unit-test the pure repair module in isolation** [AC: 1, 2]
+- [x] **Task 1: RED — unit-test the pure repair module in isolation** [AC: 1, 2]
   Create `apps/api/src/modules/planning/local-repair.spec.ts` with the full contents below. It fails to compile/run until Task 2 creates the module (that is the RED state). Covers the equity objective, the depth-≤2 ejection search (including the bin-packing counter-example), and the strictly-improving swap selection.
   ```ts
   import {
@@ -187,7 +187,7 @@
   Expected: the suite **fails** because `./local-repair` does not exist yet — output contains `Cannot find module './local-repair'` (this is the intended RED state; do not proceed to commit until Task 2 turns it green).
   Commit: `git add apps/api/src/modules/planning/local-repair.spec.ts && git commit -m "test(KON-126): RED — unit specs for the pure local-repair module"`
 
-- [ ] **Task 2: GREEN — create the pure repair module `local-repair.ts`** [AC: 1, 2, 4]
+- [x] **Task 2: GREEN — create the pure repair module `local-repair.ts`** [AC: 1, 2, 4]
   Create `apps/api/src/modules/planning/local-repair.ts` with the full contents below. Pure module — no NestJS, no Prisma, no I/O — mirroring `rule-engine.ts` and `french-labor-law.ts`. It decides *which* moves to try (deterministically) and evaluates the equity objective; the service owns the counters, applies the moves, and injects the `isEligible` predicate.
   ```ts
   /**
@@ -422,7 +422,7 @@
   Also run: `pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json 2>&1 | head -20` → no error lines referencing `local-repair.ts`, exit 0.
   Commit: `git add apps/api/src/modules/planning/local-repair.ts && git commit -m "feat(KON-126): pure GRASP local-repair search module (GREEN)"`
 
-- [ ] **Task 3: Extract the shared eligibility predicate `evaluateEligibility` (no divergence)** [AC: 3]
+- [x] **Task 3: Extract the shared eligibility predicate `evaluateEligibility` (no divergence)** [AC: 3]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, extract the per-employee eligibility logic currently inlined in `scoreAndAssign`'s `employees.filter(...)` (lines ~1036-1170) into a private method both `scoreAndAssign` and the repair pass call. This is the L-audit lesson applied: one eligibility implementation, no fourth divergent path.
 
   **(a) Add the private method** immediately before `private scoreAndAssign(` (line ~990). It returns whether the employee is eligible AND whether the *only* thing blocking them was HARD ROTATION_EQUITY (so `scoreAndAssign` keeps its relaxation fallback; the repair pass ignores that flag and treats rotation-blocked as ineligible):
@@ -612,7 +612,7 @@
   Expected: `Tests:` all passed (existing generation suite green + the 2 new characterization tests), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "refactor(KON-126): extract shared evaluateEligibility predicate (behaviour-preserving)"`
 
-- [ ] **Task 4: RED — integration specs for the repair pass** [AC: 1, 2, 3, 4]
+- [x] **Task 4: RED — integration specs for the repair pass** [AC: 1, 2, 3, 4]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add the block below at the end of the top-level `describe`. These fail until Task 5 wires `runLocalRepairPass` into `generateMonthlyPlan`.
   ```ts
   // ─── Story 11-9 — local-repair pass integration ───────────────────────────────
@@ -658,7 +658,7 @@
   Expected: the 5 new tests **fail** (RED) — `runLocalRepairPass is not a function` / holes not reduced — while the pre-existing suite stays green. Do not commit a green claim here; this is the RED checkpoint.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-126): RED — local-repair pass integration specs"`
 
-- [ ] **Task 5: GREEN — implement `runLocalRepairPass`, counter-safe apply/revert, and recompute** [AC: 1, 2, 3, 4]
+- [x] **Task 5: GREEN — implement `runLocalRepairPass`, counter-safe apply/revert, and recompute** [AC: 1, 2, 3, 4]
   In `apps/api/src/modules/planning/planning-generation.service.ts`.
 
   **(a) Import the pure module** immediately after the `./rule-engine` import block (currently ends at line 25):
@@ -1044,7 +1044,7 @@
   Expected: `Tests:` all passed — the 5 Task-4 integration tests now green plus the full pre-existing suite, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-126): GRASP local-repair pass — ejection chains + equity hill-climb (GREEN)"`
 
-- [ ] **Task 6: NFR2 — stress the pass at 50 employees (< 2s) and confirm the event-loop yield** [AC: 4]
+- [x] **Task 6: NFR2 — stress the pass at 50 employees (< 2s) and confirm the event-loop yield** [AC: 4]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add the block below at the end of the top-level `describe`. It pins that the repair pass does not blow the NFR2 budget at the NFR9 scale and that it yields the event loop.
   ```ts
   // ─── Story 11-9 — NFR2/NFR9 stress ────────────────────────────────────────────
@@ -1072,7 +1072,7 @@
   Expected: `Tests:` all passed (stress + yield green), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-126): NFR2/NFR9 stress for the local-repair pass"`
 
-- [ ] **Task 7: Final verification — full type-check + full API suite + docs** [AC: 1, 2, 3, 4]
+- [x] **Task 7: Final verification — full type-check + full API suite + docs** [AC: 1, 2, 3, 4]
   Confirm the whole module compiles and every test is green, then update the algorithm reference so the documented "greedy is incomplete" limitation notes the repair pass.
 
   **(a) Update `docs/reference/planning-algorithm-reference.md`** — replace the first bullet of "## Known Algorithm Limitations" (currently: `1. **Greedy with no backtracking**: The algorithm never revisits a decision. If a bad choice is made early, it cannot be corrected later.`) with:
@@ -1231,22 +1231,37 @@ _Expected files (the dev agent updates this to the actual set on completion):_
 
 ## Dev Agent Record
 
-- **Model:** _pending (filled by aped-dev)_
-- **Started:** _pending_
-- **Completed:** _pending_
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-12
+- **Completed:** 2026-07-13
 
 ### Summary
 
-_Filled by aped-dev on completion._
+Shipped the bounded GRASP local-repair pass as a pure, framework-free module (`local-repair.ts`, beside `rule-engine.ts` / `french-labor-law.ts`) plus the service wiring (`runLocalRepairPass`). Phase 1 fills holes a single greedy pass strands via depth-≤2 ejection chains; Phase 2 rebalances weekend/Saturday load via equity hill-climbing swaps against an explicit sum-of-squared-deviations objective. Every move is re-validated through the shared `evaluateEligibility` predicate (extracted in Task 3) and the live counters are mutated in lockstep with a belt-and-suspenders revert. Scope held; four grounded deviations below (all preserve the ACs and determinism).
 
 ### Files changed
 
-_Filled by aped-dev on completion._
+- `apps/api/src/modules/planning/local-repair.ts` — CREATE (pure GRASP search: `computeLoads`, `equityObjective`, `findEjectionChain`, `selectImprovingSwap`)
+- `apps/api/src/modules/planning/local-repair.spec.ts` — CREATE (8 isolated unit tests, AC1 + AC2)
+- `apps/api/src/modules/planning/planning-generation.service.ts` — MODIFY (`evaluateEligibility` extraction; `runLocalRepairPass` + counter-safe apply/remove + `recomputeHoles`)
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — MODIFY (eligibility characterization + AC1/AC3/AC4 integration + NFR2/NFR9 stress)
+- `docs/reference/planning-algorithm-reference.md` — MODIFY (Known Limitations bullet 1 → local-repair pass; bullet 4 → deterministic tiebreaker)
 
 ### Deviations
 
-_Filled by aped-dev on completion._
+- **Ejection mover evaluated on POST-removal state** (`isMoverEligibleForHole`), revising the story's locked "conservative pre-move" scope decision. A hole exists precisely because no one is eligible on the current state, so a pre-move check can never let a capped mover reach the hole it can only fill after leaving its own slot — AC1 would be unsatisfiable. User approved ("Corriger la conception"). `findEjectionChain` gained a 6th predicate param; the module stays pure and unit-tested (removing a shift only relaxes constraints, so the check stays sound).
+- **AC1 counter-example fixture rebuilt.** The Task-4 fixture stranded no *fillable* hole: the MRV slot ordering counts eligibility by availability + jobType only (never the contract cap) and processes ISO weeks in order. Replaced with a genuine MRV-defeating case — two Mondays in different ISO weeks (others closed), a HARD *monthly* 4h cap (invisible to the MRV count), and Bob on VACATION the second Monday.
+- **`selectImprovingSwap` internals optimized to O(A²)** (O(1)-per-pair objective delta since means/shiftCount are swap-invariant, plus rule-engine eligibility memoization and a delta-gate before the eligibility check) to hold NFR2 — the 50-employee 24/7 month dropped from ~7.7 s to ~0.2 s. The swap selected is identical, so every Task-1 unit test passes unchanged.
+- **Reference doc bullet 4 corrected** ("Random tiebreaker" → deterministic) — the RNG claim contradicted the determinism AC4 now guarantees. Also adjusted unit test #8's fixture (block e2 from both weekend days) because the weekendCount term made the Sunday swap eligible + improving, so the original `toBeNull()` needed a fully-blocked weekend.
 
 ### Test output
 
-_Filled by aped-dev on completion._
+```
+# pnpm --filter @pawly/api test   (full API suite, this session)
+Test Suites: 36 passed, 36 total
+Tests:       989 passed, 989 total
+
+# Story 11-9 slice — 8 unit (local-repair.spec) + 6 integration + 2 NFR2/NFR9 stress, all green.
+# NFR2: 50-employee / 24-7 / 31-day month generates in ~0.2s (< 2s budget).
+# tsc -p apps/api: 0 errors in planning files (24 pre-existing baseline errors in unrelated specs unchanged).
+```
