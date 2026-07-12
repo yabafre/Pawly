@@ -2585,6 +2585,100 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-8 — generation delegates the HARD contract decision to the engine ───
+  // AC4 (verbatim from story 11-8-unified-rule-engine:20):
+  //   Given the three write paths now share the module, When existing generation / move /
+  //   validation behaviour is exercised, Then generation determinism is preserved (no RNG
+  //   change, tiebreakers intact), soft-violation equityContext still populates the Planning
+  //   Health Bar, and every existing test passes — updated where it assumed contract/rotation
+  //   were soft-only.
+  describe('Story 11-8 — determinism preserved under the shared HARD contract decision', () => {
+    const hardWeeklyConstraints = () => ({
+      unavailableMap: new Map<string, Set<string>>(),
+      schoolDayMap: new Map<string, Set<string>>(),
+      hardRules: [
+        {
+          id: 'r-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ],
+      softRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    });
+
+    // emp-1 already at 32h net this week (8 x 4h Mon-Thu); a 4h Friday slot = 36h > 35h.
+    const overloadedFixture = () => {
+      const alreadyAssigned = Array.from({ length: 8 }, (_, i) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${String(9 + Math.floor(i / 2)).padStart(2, '0')}`,
+        startTime: i % 2 === 0 ? '08:00' : '14:00',
+        endTime: i % 2 === 0 ? '12:00' : '18:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        assignmentIndex.set(key, [...(assignmentIndex.get(key) || []), a]);
+      }
+      const slot = {
+        date: '2026-03-13',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      return { alreadyAssigned, assignmentIndex, slot };
+    };
+
+    it('repeatedly excludes the over-cap employee and yields the identical assignment set', () => {
+      const run = () => {
+        const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+        return callScore(
+          slot,
+          [mockEmployees[0], mockEmployees[1]],
+          hardWeeklyConstraints(),
+          alreadyAssigned,
+          assignmentIndex,
+          new Map(),
+        );
+      };
+      const results = [run(), run(), run()];
+      for (const r of results) {
+        expect(r.assigned.length).toBe(1);
+        expect(r.assigned[0].employeeId).toBe('emp-2');
+      }
+      expect(JSON.stringify(results[1].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+      expect(JSON.stringify(results[2].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+    });
+
+    it('leaves a hole when the only candidate would break the HARD weekly cap', () => {
+      const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]], // only emp-1, at 32h + 4h = 36h > 35h
+        hardWeeklyConstraints(),
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(0);
+    });
+  });
+
   // ─── Story 11-3 — statutory French labor-law floor in eligibility ─────
   // AC1 (verbatim from story 11-3): "Given any clinic, with or without
   // admin-configured planning rules, When the monthly schedule is generated,

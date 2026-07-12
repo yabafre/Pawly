@@ -18,6 +18,11 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import {
+  violatesHardContractIncremental,
+  violatesHardRotation,
+  type RuleType,
+} from './rule-engine';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type {
@@ -1023,28 +1028,29 @@ export class PlanningGenerationService {
         }
       }
 
-      // HARD CONTRACT_COMPLIANCE — always checked, even if rotation-blocked
-      // Per-employee contractHours is always the base; rule maxWeeklyHours is an additional cap
+      // HARD CONTRACT_COMPLIANCE — Story 11-8: weekly + monthly caps delegated to the shared
+      // rule engine (single source of truth). minRest stays inline below.
       for (const rule of hardContractRules) {
         const config = rule.config;
-        const overtimeTol =
-          1 + ((config.overtimeThresholdPercent as number) || 0) / 100;
 
-        const ruleWeekly = config.maxWeeklyHours as number | undefined;
-        const effectiveWeeklyLimit = ruleWeekly
-          ? Math.min(emp.contractHours, ruleWeekly)
-          : emp.contractHours;
-        const weekMin = weeklyMinutesMap.get(emp.id) || 0;
-        const projectedWeekMin = weekMin + slotMinutes;
-        if (projectedWeekMin > effectiveWeeklyLimit * 60 * overtimeTol)
+        if (
+          violatesHardContractIncremental(
+            {
+              id: rule.id,
+              name: rule.name,
+              ruleType: 'HARD' as RuleType,
+              category: rule.category,
+              config,
+            },
+            {
+              weekMinutes: weeklyMinutesMap.get(emp.id) || 0,
+              monthMinutes: employeeMinutes.get(emp.id) || 0,
+              candidateMinutes: slotMinutes,
+              contractHours: emp.contractHours,
+            },
+          )
+        ) {
           return false;
-
-        if (config.maxMonthlyHours) {
-          const monthMin = employeeMinutes.get(emp.id) || 0;
-          const projectedMonthMin = monthMin + slotMinutes;
-          const hardLimitMin =
-            (config.maxMonthlyHours as number) * 60 * overtimeTol;
-          if (projectedMonthMin > hardLimitMin) return false;
         }
 
         // MIN_REST_HOURS: check minimum rest between consecutive shifts
@@ -3501,7 +3507,16 @@ export class PlanningGenerationService {
       return aIsoDay === targetIsoDay;
     }).length;
 
-    return count >= maxPerPeriod;
+    return violatesHardRotation(
+      {
+        id: rule.id,
+        name: rule.name,
+        ruleType: 'HARD' as RuleType,
+        category: rule.category,
+        config: rule.config,
+      },
+      { currentCount: count, jobType: employee.jobType },
+    );
   }
 
   private getAverageEquity(
