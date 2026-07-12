@@ -264,6 +264,17 @@ export class PlanningGenerationService {
       },
     });
 
+    // Story 11-7 — seed a zero-initialised equity entry for every active
+    // employee BEFORE any scoring or live increment. This makes
+    // getAverageEquity's denominator the whole active workforce (not just
+    // employees with history), removes the need for a flat "+20" fallback for
+    // un-mapped employees, and — critically — keeps the averages deterministic
+    // (invariant #3): they no longer depend on the order in which entries would
+    // otherwise be lazily created during the slot loop.
+    for (const emp of employees) {
+      this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
+    }
+
     // Pre-check: all apprentices must have school day declarations
     const undeclared =
       await this.apprenticeDeclarationService.getUndeclaredApprentices(
@@ -392,11 +403,14 @@ export class PlanningGenerationService {
 
       const date = new Date(`${ss.date}T00:00:00.000Z`);
       const dayOfWeek = date.getUTCDay();
-      const equity = constraints.equityMap.get(ss.employeeId);
-      if (equity) {
-        if (dayOfWeek === 6) equity.saturdayCount++;
-        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-      }
+      // Story 11-7 — create the entry if absent (e.g. an inactive-employee
+      // survivor not seeded above) so its weekend load is reflected in scoring.
+      const equity = this.getOrCreateEquityEntry(
+        constraints.equityMap,
+        ss.employeeId,
+      );
+      if (dayOfWeek === 6) equity.saturdayCount++;
+      if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
     }
 
     // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
@@ -520,13 +534,16 @@ export class PlanningGenerationService {
         );
 
         // FIX 3 — Update equity counters during generation
+        // Story 11-7 — create the entry if absent so subsequent slots score
+        // against this employee's real, updated load.
         const date = new Date(`${a.date}T00:00:00.000Z`);
         const dayOfWeek = date.getUTCDay();
-        const equity = constraints.equityMap.get(a.employeeId);
-        if (equity) {
-          if (dayOfWeek === 6) equity.saturdayCount++;
-          if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-        }
+        const equity = this.getOrCreateEquityEntry(
+          constraints.equityMap,
+          a.employeeId,
+        );
+        if (dayOfWeek === 6) equity.saturdayCount++;
+        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
       }
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
@@ -1234,8 +1251,12 @@ export class PlanningGenerationService {
     const scored = eligible.map((emp) => {
       let score = 100;
 
-      // Full equity scoring (weekend, holiday, overtime)
-      const equity = constraints.equityMap.get(emp.id);
+      // Full equity scoring (weekend, holiday, overtime).
+      // Story 11-7 — every active employee is seeded up front, so `equity` is
+      // always present; the former `else { score += 20; }` fallback is gone
+      // (an un-mapped new hire no longer gets a flat bonus that made them
+      // absorb the unpopular weekend / holiday slots).
+      const equity = this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
       if (equity) {
         const date = new Date(`${slot.date}T00:00:00.000Z`);
         const dayOfWeek = date.getUTCDay();
@@ -1278,8 +1299,6 @@ export class PlanningGenerationService {
             ((equity.overtimeMinutes - avgOvertime) / 60) * 5,
           );
         }
-      } else {
-        score += 20;
       }
 
       // Monthly contract fit bonus
@@ -3538,6 +3557,35 @@ export class PlanningGenerationService {
       total += data.overtimeMinutes;
     }
     return total / equityMap.size;
+  }
+
+  /**
+   * Story 11-7 — return the employee's equity entry, creating a zero-initialised
+   * one when absent (new hire, January boundary, or an inactive-employee
+   * survivor). Guarantees every scoring / increment site sees a real entry
+   * instead of short-circuiting to a flat scoring bonus, and keeps
+   * getAverageEquity's denominator the whole seeded workforce.
+   */
+  private getOrCreateEquityEntry(
+    equityMap: ConstraintMap['equityMap'],
+    employeeId: string,
+  ): {
+    saturdayCount: number;
+    weekendCount: number;
+    holidayCount: number;
+    overtimeMinutes: number;
+  } {
+    let entry = equityMap.get(employeeId);
+    if (!entry) {
+      entry = {
+        saturdayCount: 0,
+        weekendCount: 0,
+        holidayCount: 0,
+        overtimeMinutes: 0,
+      };
+      equityMap.set(employeeId, entry);
+    }
+    return entry;
   }
 
   /**

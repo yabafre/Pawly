@@ -2085,6 +2085,111 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
+  describe('Story 11-7 — equity seeding & live increment', () => {
+    const mondaySurgery1 = {
+      id: 'tpl-11-7',
+      name: 'Monday Surgery x1',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    // Capture the rows the generator actually decided (data → createManyAndReturn).
+    const captureCreate = () => {
+      const captured: any[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) => {
+                  captured.push(...data);
+                  return data.map((d, i) => ({ id: `gen-${i}`, ...d }));
+                }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      return captured;
+    };
+
+    it('seeds an equity entry for every active employee, including those with no counters (AC2 — no more flat +20)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Default mockEmployees = emp-1, emp-2, emp-3. Only emp-1 has history in
+      // the window; emp-2 and emp-3 are un-mapped (new hires / Jan boundary).
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'c1',
+          counterType: 'WEEKEND_TOTAL',
+          count: 5,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      const seededIds = seedSpy.mock.calls.map((c) => c[1]);
+      // Un-mapped employees are seeded (an entry is created for them) rather
+      // than short-circuited to the old flat +20 during scoring.
+      expect(seededIds).toContain('emp-1');
+      expect(seededIds).toContain('emp-2');
+      expect(seededIds).toContain('emp-3');
+    });
+
+    it('routes the live intra-month increment through create-if-absent so a new hire’s load is recorded (AC3)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // A single new hire with no counters — the sole candidate for the slot.
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-new',
+          firstName: 'Zoe',
+          lastName: 'Nouvelle',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-11-7');
+
+      // The new hire is assigned the slot(s) …
+      expect(created.length).toBeGreaterThan(0);
+      expect(created.every((r) => r.employeeId === 'emp-new')).toBe(true);
+      // … and every equity touch for them (seeding + the live increment as the
+      // shift is assigned) went through create-if-absent, never the old
+      // `if (equity)` skip. At least: 1 seed + 1 increment.
+      const newHireTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-new',
+      );
+      expect(newHireTouches.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   // ─── deleteGeneratedShifts ────────────────────────────────
 
   describe('deleteGeneratedShifts', () => {
