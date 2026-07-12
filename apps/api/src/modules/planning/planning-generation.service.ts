@@ -498,6 +498,8 @@ export class PlanningGenerationService {
         weeklyMinutesCounter,
         shiftTypeCounts,
         employeeShiftCounts,
+        dayOfWeekCounts,
+        quarterlyDayOfWeekCounts,
       );
 
       assignedShifts.push(...result.assigned);
@@ -963,6 +965,8 @@ export class PlanningGenerationService {
     weeklyMinutesCounter: Map<string, number>,
     shiftTypeCounts: Map<string, Map<string, number>>,
     employeeShiftCountsMap: Map<string, number>,
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): {
     assigned: AssignedShift[];
     holeInfo?: GenerationResult['holes'][number];
@@ -1032,8 +1036,8 @@ export class PlanningGenerationService {
               rule,
               slot,
               emp,
-              alreadyAssigned,
-              constraints.quarterlyShifts,
+              dayOfWeekCounts,
+              quarterlyDayOfWeekCounts,
             )
           ) {
             blockedByRotationEquity = true;
@@ -1384,15 +1388,11 @@ export class PlanningGenerationService {
             applicableJT.length === 0 ||
             applicableJT.includes(emp.jobType)
           ) {
-            const trackingPeriod = rule.config.trackingPeriod as
-              | string
-              | undefined;
             const count = this.countTargetDayShifts(
               rule,
               emp,
-              alreadyAssigned,
-              constraints.quarterlyShifts,
-              trackingPeriod,
+              dayOfWeekCounts,
+              quarterlyDayOfWeekCounts,
             );
             const maxPerPeriod = rule.config.maxPerPeriod as number;
             if (count >= maxPerPeriod) {
@@ -1506,8 +1506,8 @@ export class PlanningGenerationService {
             rule,
             slot,
             employee,
-            alreadyAssigned,
-            constraints.quarterlyShifts,
+            dayOfWeekCounts,
+            quarterlyDayOfWeekCounts,
             softViols,
           );
         }
@@ -3193,15 +3193,15 @@ export class PlanningGenerationService {
   }
 
   // checkRotationEquity: supports trackingPeriod (monthly/quarterly) + job type filter
+  // Story 11-10 — O(1) lookup via the incremental rotation index.
   private checkRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
     softViols: GenerationResult['violations']['soft'],
   ) {
-    // Skip rule if it has applicableJobTypes and employee doesn't match
     const applicableJobTypes = rule.config.applicableJobTypes as
       | string[]
       | undefined;
@@ -3219,21 +3219,15 @@ export class PlanningGenerationService {
     const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return;
 
-    const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
-    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
-    if (slotIsoDay !== targetIsoDay) return;
+    if (this.isoDayOf(slot.date) !== targetIsoDay) return;
 
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    const count = shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
+    const count = this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
 
     if (count + 1 > maxPerPeriod) {
       softViols.push({
@@ -3520,15 +3514,15 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // violatesHardRotationEquity: supports quarterly tracking + job type filter
+  // Story 11-10 — O(1) lookup via the incremental rotation index. Behaviour
+  // preserved: applicableJobTypes gate, slot-day early-exit, quarterly inclusion.
   private violatesHardRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): boolean {
-    // Skip rule if it has applicableJobTypes and employee doesn't match
     const applicableJobTypes = rule.config.applicableJobTypes as
       | string[]
       | undefined;
@@ -3543,35 +3537,18 @@ export class PlanningGenerationService {
     const targetDay = rule.config.targetDay as string;
     const maxPerPeriod = rule.config.maxPerPeriod as number;
     const trackingPeriod = rule.config.trackingPeriod as string | undefined;
-    const dayNameToIso: Record<string, number> = {
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-      sunday: 7,
-    };
-    const targetIsoDay = dayNameToIso[targetDay];
+    const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return false;
 
-    const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
-    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
-    if (slotIsoDay !== targetIsoDay) return false;
+    if (this.isoDayOf(slot.date) !== targetIsoDay) return false;
 
-    // Include quarterly historical shifts when trackingPeriod is "quarterly"
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    const count = shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
-
+    const count = this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
     return count >= maxPerPeriod;
   }
 
@@ -3783,28 +3760,24 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // Count target-day shifts for an employee (monthly or quarterly)
+  // Story 11-10 — O(1) lookup via the incremental rotation index (was an O(A)
+  // filter over alreadyAssigned per employee per slot per rule).
   private countTargetDayShifts(
     rule: RuleEntry,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
-    trackingPeriod: string | undefined,
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): number {
     const targetDay = rule.config.targetDay as string;
     const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return 0;
-
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    return shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
+    const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+    return this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
   }
 }
