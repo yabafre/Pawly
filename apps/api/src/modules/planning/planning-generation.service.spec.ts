@@ -6324,6 +6324,40 @@ describe('PlanningGenerationService', () => {
       expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
     });
 
+    // ─── Story 11-8 — publish blocked by a HARD contract violation ───
+    // AC2 (verbatim from story 11-8-unified-rule-engine:18):
+    //   Given a month whose persisted shifts breach a HARD CONTRACT_COMPLIANCE (weekly or
+    //   monthly) or HARD ROTATION_EQUITY rule, When validateShiftsAgainstRules runs (as
+    //   publishPlan invokes it), Then those breaches appear in hardViolations — no longer
+    //   silently demoted to softViolations — and publishPlan rejects with the 409
+    //   "hard violation(s) remain" conflict.
+    // Before this story a HARD contract/rotation rule could never produce a hard
+    // violation, so this publishPlan path was unreachable for that category (L-audit:
+    // "verified" means every guard entry-point).
+    describe('publishPlan — blocks on HARD contract violation (Story 11-8)', () => {
+      it('rejects with ConflictException when a HARD CONTRACT_COMPLIANCE violation remains', async () => {
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+          hardViolations: [
+            {
+              ruleId: 'rule-cc',
+              ruleName: 'Contract cap',
+              category: 'CONTRACT_COMPLIANCE',
+              message: 'weekly overage',
+              affectedEmployeeId: 'e1',
+              severity: 'blocking',
+            },
+          ],
+          softViolations: [],
+          rules: [],
+        });
+
+        await expect(
+          service.publishPlan('clinic-123', '2026-08', 'user-1'),
+        ).rejects.toThrow(/hard violation\(s\) remain/);
+        expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+      });
+    });
+
     it('should send batch email to active employees with shifts in the month', async () => {
       mockPrismaService.employee.findMany.mockResolvedValue([
         {
