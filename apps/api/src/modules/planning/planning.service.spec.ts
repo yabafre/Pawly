@@ -1310,5 +1310,59 @@ describe('PlanningService', () => {
         res.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
       ).toBe(true);
     });
+
+    it('ROTATION_EQUITY respects applicableJobTypes on the validation path (aped-review M1)', async () => {
+      // Behaviour change accepted at review: the legacy validator counted every
+      // targetDay shift regardless of jobType; the unified engine aligns validation
+      // with generation and preValidateMove, which already filtered.
+      const rule = rotationRule('HARD', {
+        targetDay: 'saturday',
+        maxPerPeriod: 2,
+        trackingPeriod: 'monthly',
+        applicableJobTypes: ['ASV'],
+      });
+      mockPrismaService.planningRule.findMany.mockResolvedValue([rule]);
+
+      // 3 Saturdays as VET: outside the rule's jobTypes -> not counted, no violation.
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(
+            `s${i}`,
+            'e1',
+            `2026-08-${d}`,
+            '09:00',
+            '15:00',
+            0,
+            35,
+            'VET',
+          ),
+        ),
+      );
+      const vet = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        vet.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(false);
+
+      // Same 3 Saturdays as ASV: counted -> hard violation.
+      mockPrismaService.planningRule.findMany.mockResolvedValue([rule]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(
+            `s${i}`,
+            'e1',
+            `2026-08-${d}`,
+            '09:00',
+            '15:00',
+            0,
+            35,
+            'ASV',
+          ),
+        ),
+      );
+      const asv = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        asv.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
   });
 });
