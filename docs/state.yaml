@@ -173,7 +173,7 @@ sprint:
     11-7-equity-counter-window-fix: { status: pending, depends_on: [], ticket: "KON-124", worktree: null }
     11-8-unified-rule-engine: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate, 11-3-french-labor-law-hard-rules], ticket: "KON-125", worktree: null }
     11-9-local-repair-pass-grasp: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate, 11-8-unified-rule-engine], ticket: "KON-126", worktree: null }
-    11-10-generation-performance-under-load: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-127", worktree: null }
+    11-10-generation-performance-under-load: { status: ready-for-dev, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-127", worktree: null }
 
 # Optional top-level blocks (Tier 6, 3.12.0). Skills populate these as
 # needed — they are NOT scaffolded with an empty value to keep greenfield
