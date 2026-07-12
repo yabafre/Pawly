@@ -81,7 +81,7 @@
   Expected: no new type errors after the spike file is removed, exit 0.
   Commit: `git add apps/api/src/trigger/client.ts docs/stories/11-10-generation-performance-under-load.md && git commit -m "spike(KON-127): verdict on Nest-context-in-Trigger (gates async offload)"`
 
-- [ ] **Task 2: Add the pure per-`(employee, ISO-day)` index helpers** [AC: 1]
+- [x] **Task 2: Add the pure per-`(employee, ISO-day)` index helpers** [AC: 1]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, add these four private methods immediately **after** `getWeekBounds` (anchor on the closing `  }` of `getWeekBounds`, before `reorderSlotsNonWorkDaysFirst`). Full code:
   ```ts
   // Story 11-10 — per-(employee, ISO-weekday) rotation index. Maintained
@@ -140,7 +140,7 @@
   Expected: no new type errors referencing `isoDayOf` / `buildDayOfWeekIndex` / `countFromDayIndex` (methods are unused until Task 3/4 — TS does not flag unused private methods), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-127): add pure per-(employee,ISO-day) rotation index helpers"`
 
-- [ ] **Task 3: Declare, seed and increment `dayOfWeekCounts` + pre-build `quarterlyDayOfWeekCounts`** [AC: 1]
+- [x] **Task 3: Declare, seed and increment `dayOfWeekCounts` + pre-build `quarterlyDayOfWeekCounts`** [AC: 1]
   All edits in `apps/api/src/modules/planning/planning-generation.service.ts`, inside `generateMonthlyPlan`.
 
   **3a — Declare the live index next to the other FIX-4 counters.** Anchor on:
@@ -278,7 +278,7 @@
   Expected: no new type errors; `quarterlyDayOfWeekCounts` and `dayOfWeekCounts` are declared and used, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-127): seed + maintain the rotation day-of-week index"`
 
-- [ ] **Task 4: Thread the indexes through `scoreAndAssign` and rewrite the 3 evaluators to O(1)** [AC: 1]
+- [x] **Task 4: Thread the indexes through `scoreAndAssign` and rewrite the 3 evaluators to O(1)** [AC: 1]
   All edits in `apps/api/src/modules/planning/planning-generation.service.ts`.
 
   **4a — Extend `scoreAndAssign`'s signature with the two indexes** (append them after `employeeShiftCountsMap`). Anchor on:
@@ -662,7 +662,7 @@
   Expected: no new type errors; the three evaluators no longer reference `alreadyAssigned` / `quarterlyShifts`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-127): rewrite the 3 rotation evaluators to O(1) index lookups"`
 
-- [ ] **Task 5: Update the `callScore` test helper + rotation-equivalence tests** [AC: 1]
+- [x] **Task 5: Update the `callScore` test helper + rotation-equivalence tests** [AC: 1]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`.
 
   **5a — Extend `callScore` to build + append the two new indexes** (mirrors how it auto-builds the FIX-4 counters). Anchor on the tail of `callScore`:
@@ -1327,19 +1327,68 @@ const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBod
 
 ## Dev Agent Record
 
-- **Model:** {{model used}}
-- **Started:** {{timestamp}}
+- **Model:** claude-fable-5
+- **Started:** 2026-07-12
 - **Completed:** {{timestamp}}
+
+### Debug Log
+
+- **2026-07-12 — Task 1 spike attempt (verbatim):** spike file + `client.ts` re-export created per story. `dotenv -- pnpm --filter @pawly/api exec trigger dev` failed: `X Error: You must login first. Use the \`login\` CLI command.` then `404 404 page not found`. Root causes investigated in order: (1) the CLI ignores `TRIGGER_API_URL`/`TRIGGER_ACCESS_TOKEN` env for `dev` — it requires an XDG profile (`~/Library/Preferences/trigger/config.json`), which had no profiles; (2) wrote the `default` profile from the root `.env` creds (non-interactive equivalent of `trigger login`), retried → `Whoami failed: 404 404 page not found`; (3) probed the instance directly: `curl https://trigger.dkp.trafijs.com/` → **404 on every endpoint including root** (traefik default backend — the self-hosted Trigger.dev webapp is down or detached from the router; URL confirmed correct against project memory `trigger_dev_setup` and identical in main checkout `.env`); (4) Trigger MCP also unauthenticated (same instance). **Verdict: UNRESOLVABLE HERE — infra outage, not a build/boot failure.** Posted `dev-blocked` check-in; Task 6 branch decision awaits Alex (restart the Dokploy trigger webapp → run spike → real verdict, or accept 6B fallback). Spike file left in working tree (uncommitted) so the run can happen the moment the instance is back. Unconditional Tasks 2–5 proceed meanwhile.
 
 ### Summary
 
+Unconditional AC1/AC3 path (Tasks 2–5, 7a) implemented and green; Task 1 spike blocked
+by a Trigger.dev infra outage (see Debug Log), so Task 6 (AC2 branch) awaits the gate
+decision. The per-`(employee, ISO-weekday)` rotation index is seeded at the same three
+points as the FIX-4 counters (border, survivors, per-assignment) plus a one-shot
+quarterly index; the three rotation-equity evaluators (`violatesHardRotationEquity`,
+`countTargetDayShifts`, `checkRotationEquity`) are O(1) lookups via `countFromDayIndex`.
+Stress benchmark (50 VETs, 24/7, 3 shift types, 31 days, 1 SOFT ROTATION_EQUITY rule on
+the hot path): **250 ms**, well under the 2 s NFR2 budget.
+
 ### Files changed
+
+- `apps/api/src/modules/planning/planning-generation.service.ts` — 4 index helpers (T2);
+  index declaration + border/survivor/assignment seeding + quarterly build (T3);
+  `scoreAndAssign` +2 params, 5 call sites, 3 evaluators rewritten O(1) (T4).
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — `callScore`
+  builds/appends the 2 indexes (T5a); `Story 11-10 — rotation-equity via O(1) day index`
+  describe, 3 tests (T5b); stress benchmark (T7a).
+- *(uncommitted, pending spike)* `apps/api/src/trigger/tasks/_spike-nest-context.ts` +
+  `client.ts` re-export — left in working tree for the moment the instance is back.
 
 ### Deviations
 
-- **Task-1 spike verdict:** {{OK | KO}} — {{build result + run output `{ booted, hasGenerate }` or failure reason}} → Task 6 branch = {{6A async | 6B yield}}.
+- **Task-1 spike verdict:** {{OK | KO}} — BLOCKED 2026-07-12: self-hosted Trigger.dev
+  instance (trigger.dkp.trafijs.com) returns 404 on every endpoint (webapp down); spike
+  cannot run — see Debug Log. → Task 6 branch = {{6A async | 6B yield}} (awaiting Alex).
+- **Spike snippet fix:** under `moduleResolution: nodenext` the dynamic `import()` of
+  relative paths requires the `.js` extension (ESM resolution) — the story's
+  extension-less snippet fails `tsc` (TS2307). Added `.js` to both dynamic imports.
+- **T5b HARD test corrected:** the story's single-employee version expected a hole, but
+  the PRE-EXISTING rotation-equity relaxation fallback in `scoreAndAssign` ("Better to
+  slightly exceed rotation limits than create holes") re-admits a blocked employee when
+  the eligible pool is short — the expected hole contradicted shipped behaviour before
+  AND after the index (equivalence itself holds). Rewritten as a two-employee exclusion
+  pin; also made the SOFT-penalty test discriminating (a zeroed index flips all 3 tests
+  RED — verified by deliberately breaking `countFromDayIndex` then restoring).
+- **T7a benchmark strengthened:** (a) `mockClinicService.listShiftTypes` override added —
+  `expandTemplateToMonth` resolves slot times from the shiftTypeMap, so the story's
+  snippet generated 0 slots; (b) one SOFT ROTATION_EQUITY rule added — the pre-index
+  O(E×A) re-scan only ran when such a rule existed, so a rule-less benchmark could never
+  catch a regression back to it.
 
 ### Test output
+
+- T5 RED witness: 4 tests failed (`TypeError: Cannot read properties of undefined
+  (reading 'get')` at `countFromDayIndex`, via `callScore` pre-extension) — proves the
+  rotation tests exercise the index path. Deliberate-break check: index zeroed → the 3
+  T5b tests RED; restored → GREEN.
+- Focused suite: **167/167** (163 baseline + 3 equivalence + 1 benchmark).
+- Full API suite: **34 suites, 934 tests, all green** (baseline 901 post-11-6).
+- Deploy typecheck `tsc -p tsconfig.types.json`: exit 0. Full `tsc -p tsconfig.json`:
+  the 24 pre-existing errors documented by 11-6 (4 unrelated spec files), 0 in story files.
+- Benchmark: `[11-10] stress 50-emp/24-7/31d generation core: 250ms` (< 2000 ms).
 
 ## Review Record
 
