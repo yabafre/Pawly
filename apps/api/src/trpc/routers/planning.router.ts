@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { TRPCError } from '@trpc/server';
 import type { EquityCounterType } from '@prisma/client';
 import { publicProcedure, router, isAuthed, isSubscribed } from '../trpc';
@@ -54,6 +55,33 @@ const requireProfessional = (tier: string) => {
       code: 'FORBIDDEN',
       message: "Subscription tier 'professional' required",
     });
+  }
+};
+
+// Story 11-6 — best-effort schedule cache invalidation. Runs in a `finally` on
+// every shift-mutation procedure so a stale `schedule:*` / `planning:pub:*` /
+// `dashboard:stats` entry is never left behind when the handler throws
+// mid-way. Swallows its own Redis errors: a failed invalidation self-heals
+// within the 30s getScheduleView TTL and must never mask the handler result.
+const planningRouterLogger = new Logger('PlanningRouter');
+
+const invalidateScheduleCaches = async (
+  redis: {
+    invalidatePattern: (pattern: string) => Promise<unknown>;
+    del: (key: string) => Promise<unknown>;
+  },
+  clinicId: string,
+): Promise<void> => {
+  try {
+    await redis.invalidatePattern(`schedule:${clinicId}:*`);
+    await redis.invalidatePattern(`planning:pub:${clinicId}:*`);
+    await redis.del(`dashboard:stats:${clinicId}`);
+  } catch (err) {
+    planningRouterLogger.error(
+      `schedule cache invalidation failed for clinic ${clinicId}: ${
+        (err as Error).message
+      }`,
+    );
   }
 };
 
@@ -230,16 +258,16 @@ export const planningRouter = router({
     .input(generatePlanSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      const result = await ctx.planningGenerationService.generateMonthlyPlan(
-        ctx.user.clinicId,
-        input.month,
-        input.templateId,
-        { acknowledgePublishedChange: input.acknowledgePublishedChange },
-      );
-      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
-      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
-      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
-      return result;
+      try {
+        return await ctx.planningGenerationService.generateMonthlyPlan(
+          ctx.user.clinicId,
+          input.month,
+          input.templateId,
+          { acknowledgePublishedChange: input.acknowledgePublishedChange },
+        );
+      } finally {
+        await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);
+      }
     }),
 
   listShiftsForMonth: subscribedProcedure
@@ -256,15 +284,15 @@ export const planningRouter = router({
     .input(deleteGeneratedShiftsSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      const result = await ctx.planningGenerationService.deleteGeneratedShifts(
-        ctx.user.clinicId,
-        input.month,
-        { acknowledgePublishedChange: input.acknowledgePublishedChange },
-      );
-      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
-      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
-      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
-      return result;
+      try {
+        return await ctx.planningGenerationService.deleteGeneratedShifts(
+          ctx.user.clinicId,
+          input.month,
+          { acknowledgePublishedChange: input.acknowledgePublishedChange },
+        );
+      } finally {
+        await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);
+      }
     }),
 
   // Schedule view procedure (cached 30s, invalidated on shift mutations)
@@ -292,48 +320,48 @@ export const planningRouter = router({
     .input(moveShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      const result = await ctx.planningGenerationService.moveShift(
-        ctx.user.clinicId,
-        input.shiftId,
-        {
-          targetEmployeeId: input.targetEmployeeId,
-          targetDate: input.targetDate,
-        },
-        { acknowledgePublishedChange: input.acknowledgePublishedChange },
-      );
-      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
-      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
-      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
-      return result;
+      try {
+        return await ctx.planningGenerationService.moveShift(
+          ctx.user.clinicId,
+          input.shiftId,
+          {
+            targetEmployeeId: input.targetEmployeeId,
+            targetDate: input.targetDate,
+          },
+          { acknowledgePublishedChange: input.acknowledgePublishedChange },
+        );
+      } finally {
+        await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);
+      }
     }),
 
   createManualShift: subscribedProcedure
     .input(createManualShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      const result = await ctx.planningGenerationService.createManualShift(
-        ctx.user.clinicId,
-        input,
-      );
-      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
-      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
-      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
-      return result;
+      try {
+        return await ctx.planningGenerationService.createManualShift(
+          ctx.user.clinicId,
+          input,
+        );
+      } finally {
+        await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);
+      }
     }),
 
   deleteShift: subscribedProcedure
     .input(deleteShiftInputSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
-      const result = await ctx.planningGenerationService.deleteShift(
-        ctx.user.clinicId,
-        input.shiftId,
-        { acknowledgePublishedChange: input.acknowledgePublishedChange },
-      );
-      await ctx.redis.invalidatePattern(`schedule:${ctx.user.clinicId}:*`);
-      await ctx.redis.invalidatePattern(`planning:pub:${ctx.user.clinicId}:*`);
-      await ctx.redis.del(`dashboard:stats:${ctx.user.clinicId}`);
-      return result;
+      try {
+        return await ctx.planningGenerationService.deleteShift(
+          ctx.user.clinicId,
+          input.shiftId,
+          { acknowledgePublishedChange: input.acknowledgePublishedChange },
+        );
+      } finally {
+        await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);
+      }
     }),
 
   preValidateMove: subscribedProcedure

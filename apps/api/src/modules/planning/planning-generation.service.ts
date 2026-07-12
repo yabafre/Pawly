@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { MailService } from '@/modules/mail/mail.service';
 import { PushNotificationService } from '@/modules/notification/push-notification.service';
@@ -118,6 +119,38 @@ export class PlanningGenerationService {
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
   ) {}
+
+  // Story 11-5 — the (clinicId, month) advisory lock already serializes same-key
+  // runs, and both transactions run at the default READ COMMITTED isolation, so
+  // the second waiter's deleteMany takes a fresh per-statement snapshot and sees
+  // the first run's committed rows — clearing them before re-creating, no P2002
+  // in the happy path. (SERIALIZABLE would freeze the snapshot at the advisory-lock
+  // SELECT, before the lock is granted, so the waiter would NOT see the first run's
+  // rows — reintroducing the very P2002/retry it is meant to avoid.) A rare
+  // deadlock_detected (SQLSTATE 40P01) can still surface as Prisma error code P2034
+  // against an unrelated concurrent writer: retry the whole transaction (the lock is
+  // re-acquired and the delete+create replays against the now-committed state).
+  // Every other error — including P2002 (permanent under the same inputs; retrying
+  // would only repeat it) — propagates unchanged so the caller's catch can map it.
+  private async withSerializationRetry<T>(
+    op: () => Promise<T>,
+    maxAttempts = 3,
+  ): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await op();
+      } catch (error: unknown) {
+        const code = (error as { code?: string }).code;
+        if (code === 'P2034' && attempt < maxAttempts) {
+          lastError = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
+  }
 
   async generateMonthlyPlan(
     clinicId: string,
@@ -528,36 +561,53 @@ export class PlanningGenerationService {
       shiftTypeCode: string;
     }>;
     try {
-      createdShifts = await this.prisma.$transaction(async (tx) => {
-        // Story 11-1 — preserve confirmed shifts and shifts carrying variance
-        // history (VarianceEvent cascades on delete → would erase no-show /
-        // clock-in records). Only unconfirmed, history-free GENERATED shifts
-        // are cleared before regeneration.
-        await tx.shift.deleteMany({
-          where: {
-            clinicId,
-            source: 'GENERATED',
-            isConfirmed: false,
-            varianceEvents: { none: {} },
-            date: { gte: monthStart, lte: monthEnd },
-          },
-        });
+      createdShifts = await this.withSerializationRetry(() =>
+        this.prisma.$transaction(
+          async (tx) => {
+            // Story 11-5 — serialize concurrent generations of the SAME
+            // (clinic, month) so a retry (reverse-proxy 502/504 replay, or a
+            // double-click) can never interleave two delete+create passes into a
+            // duplicated month. pg_advisory_xact_lock auto-releases at COMMIT /
+            // ROLLBACK on this interactive transaction's pinned connection (safe
+            // with the Prisma pool, unlike a session-level pg_advisory_lock). Two
+            // int4 keys — hashtext of each — avoid the bigint-cast ambiguity of the
+            // single-argument form; the tagged template binds them as parameters.
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
-        if (assignedShifts.length === 0) return [];
-        return tx.shift.createManyAndReturn({
-          data: assignedShifts.map((s) => ({
-            date: new Date(`${s.date}T00:00:00.000Z`),
-            startTime: s.startTime,
-            endTime: s.endTime,
-            shiftTypeCode: s.shiftTypeCode,
-            breakMinutes: s.breakMinutes || 0,
-            source: 'GENERATED' as const,
-            employeeId: s.employeeId,
-            clinicId,
-            planningTemplateId: templateId,
-          })),
-        });
-      });
+            // Story 11-1 — preserve confirmed shifts and shifts carrying variance
+            // history (VarianceEvent cascades on delete → would erase no-show /
+            // clock-in records). Only unconfirmed, history-free GENERATED shifts
+            // are cleared before regeneration.
+            await tx.shift.deleteMany({
+              where: {
+                clinicId,
+                source: 'GENERATED',
+                isConfirmed: false,
+                varianceEvents: { none: {} },
+                date: { gte: monthStart, lte: monthEnd },
+              },
+            });
+
+            if (assignedShifts.length === 0) return [];
+            return tx.shift.createManyAndReturn({
+              data: assignedShifts.map((s) => ({
+                date: new Date(`${s.date}T00:00:00.000Z`),
+                startTime: s.startTime,
+                endTime: s.endTime,
+                shiftTypeCode: s.shiftTypeCode,
+                breakMinutes: s.breakMinutes || 0,
+                source: 'GENERATED' as const,
+                employeeId: s.employeeId,
+                clinicId,
+                planningTemplateId: templateId,
+              })),
+            });
+          },
+          {
+            timeout: 15000,
+          },
+        ),
+      );
     } catch (error: unknown) {
       const prismaError = error as { code?: string };
       if (prismaError.code === 'P2002') {
@@ -582,7 +632,7 @@ export class PlanningGenerationService {
           ...createdShifts.map((s) => s.employeeId),
         ]),
       ];
-      await this.recordAmendment(clinicId, publishedMonths);
+      await this.recordAmendment(this.prisma, clinicId, publishedMonths);
       this.notifyScheduleChange(
         clinicId,
         recipientIds.map((employeeId) => ({ employeeId, month })),
@@ -1606,7 +1656,7 @@ export class PlanningGenerationService {
     // Story 11-1 — a purge of a PUBLISHED month is an amendment: record it and
     // notify affected employees. Notification failures are logged, never block.
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
+      await this.recordAmendment(this.prisma, clinicId, publishedMonths);
       this.notifyScheduleChange(
         clinicId,
         deletedEmployeeIds.map((employeeId) => ({ employeeId, month })),
@@ -1959,12 +2009,15 @@ export class PlanningGenerationService {
     return publishedMonths;
   }
 
+  // Story 11-6 — accepts the active transaction client (or `this.prisma`) so
+  // the amendment bookkeeping commits atomically with the shift mutation.
   private async recordAmendment(
+    tx: Prisma.TransactionClient,
     clinicId: string,
     months: string[],
   ): Promise<void> {
     if (months.length === 0) return;
-    await this.prisma.planningPeriodStatus.updateMany({
+    await tx.planningPeriodStatus.updateMany({
       where: { clinicId, month: { in: months }, status: 'PUBLISHED' },
       data: { amendedAt: new Date(), amendmentCount: { increment: 1 } },
     });
@@ -2012,15 +2065,30 @@ export class PlanningGenerationService {
     ]);
     const byId = new Map(employees.map((e) => [e.id, e]));
 
+    let attemptedEmailCount = 0;
+    let failedEmailCount = 0;
     for (const r of unique) {
       const emp = byId.get(r.employeeId);
       if (!emp || !emp.email) continue;
-      await this.mailService.sendScheduleChangedEmail(
+      attemptedEmailCount++;
+      // Story 11-4 (AC2) — react to the returned status. sendScheduleChangedEmail
+      // now returns false (not throws) when both channels fail, so a change
+      // notification outage is visible in the logs (NFR3) instead of silently
+      // dropped, and one bad recipient never aborts the loop.
+      const ok = await this.mailService.sendScheduleChangedEmail(
         emp.email,
         emp.firstName,
         r.month,
         clinic.name,
         (emp.user?.locale as 'fr' | 'en') ?? 'fr',
+      );
+      if (!ok) failedEmailCount++;
+    }
+    if (failedEmailCount > 0) {
+      // Denominator is emails actually attempted (skips null-email recipients),
+      // not `unique.length`, so the ratio reflects real send attempts.
+      this.logger.error(
+        `notifyScheduleChange: ${failedEmailCount}/${attemptedEmailCount} change email(s) failed for clinic ${clinicId}`,
       );
     }
 
@@ -2119,27 +2187,40 @@ export class PlanningGenerationService {
     const dateChanged =
       !!target.targetDate && target.targetDate !== originalDateISO;
 
-    const updated = await this.prisma.shift.update({
-      where: { id: shiftId },
-      data: {
-        ...(target.targetEmployeeId && { employeeId: target.targetEmployeeId }),
-        ...(target.targetDate && {
-          date: new Date(`${target.targetDate}T00:00:00.000Z`),
-        }),
-        source: 'MANUAL',
-        // Story 7.6 — a moved shift is no longer the one the employee confirmed
-        ...((employeeChanged || dateChanged) && { isConfirmed: false }),
-      },
+    // Story 11-6 — the shift mutation and the amendment bookkeeping commit
+    // atomically. If recordAmendment throws, shift.update rolls back, so a
+    // moved shift can never be left without its amendment record. Notification
+    // fires AFTER commit (below), so a rolled-back change never notifies.
+    const amend =
+      publishedMonths.length > 0 && (employeeChanged || dateChanged);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.shift.update({
+        where: { id: shiftId },
+        data: {
+          ...(target.targetEmployeeId && {
+            employeeId: target.targetEmployeeId,
+          }),
+          ...(target.targetDate && {
+            date: new Date(`${target.targetDate}T00:00:00.000Z`),
+          }),
+          source: 'MANUAL',
+          // Story 7.6 — a moved shift is no longer the one the employee confirmed
+          ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+        },
+      });
+      if (amend) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+      return u;
     });
 
-    // Story 7.6 — amendment tracking + notifications (published months only)
-    if (publishedMonths.length > 0 && (employeeChanged || dateChanged)) {
+    // Story 7.6 — post-commit notification (published months only), fire-and-forget
+    if (amend) {
       const updatedMonth = updated.date.toISOString().split('T')[0].slice(0, 7);
       const recipients = [
         { employeeId: originalEmployeeId, month: originalMonth },
         { employeeId: updated.employeeId, month: updatedMonth },
       ].filter((r) => publishedMonths.includes(r.month));
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, recipients).catch((err: Error) =>
         this.logger.error(
           `schedule-change notification failed: ${err.message}`,
@@ -2257,22 +2338,28 @@ export class PlanningGenerationService {
       );
     }
 
-    const created = await this.prisma.shift.create({
-      data: {
-        date: new Date(`${input.date}T00:00:00.000Z`),
-        startTime: shiftType.startTime,
-        endTime: shiftType.endTime,
-        shiftTypeCode: input.shiftTypeCode,
-        breakMinutes: shiftType.breakMinutes,
-        source: 'MANUAL',
-        employeeId: input.employeeId,
-        clinicId,
-      },
+    // Story 11-6 — create + amendment commit atomically; notify post-commit.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.shift.create({
+        data: {
+          date: new Date(`${input.date}T00:00:00.000Z`),
+          startTime: shiftType.startTime,
+          endTime: shiftType.endTime,
+          shiftTypeCode: input.shiftTypeCode,
+          breakMinutes: shiftType.breakMinutes,
+          source: 'MANUAL',
+          employeeId: input.employeeId,
+          clinicId,
+        },
+      });
+      if (publishedMonths.length > 0) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+      return c;
     });
 
-    // Story 7.6 — amendment tracking + notification (published month only)
+    // Story 7.6 — post-commit notification (published month only), fire-and-forget
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, [
         { employeeId: created.employeeId, month },
       ]).catch((err: Error) =>
@@ -2319,10 +2406,15 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    await this.prisma.shift.delete({ where: { id: shiftId } });
+    // Story 11-6 — delete + amendment commit atomically; notify post-commit.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.shift.delete({ where: { id: shiftId } });
+      if (publishedMonths.length > 0) {
+        await this.recordAmendment(tx, clinicId, publishedMonths);
+      }
+    });
 
     if (publishedMonths.length > 0) {
-      await this.recordAmendment(clinicId, publishedMonths);
       this.notifyScheduleChange(clinicId, [
         { employeeId: shift.employeeId, month },
       ]).catch((err: Error) =>
@@ -2711,26 +2803,39 @@ export class PlanningGenerationService {
     }
 
     // Upsert publication status atomically
-    const now = await this.prisma.$transaction(async (tx) => {
-      const publishedAt = new Date();
-      await tx.planningPeriodStatus.upsert({
-        where: { clinicId_month: { clinicId, month } },
-        create: {
-          clinicId,
-          month,
-          status: 'PUBLISHED',
-          publishedAt,
-          publishedBy: userId,
-        },
-        update: {
-          status: 'PUBLISHED',
-          publishedAt,
-          publishedBy: userId,
-        },
-      });
+    const now = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          // Story 11-5 — take the SAME (clinicId, month) advisory lock as
+          // generation so a publish serializes against a concurrent regeneration
+          // or a double-clicked publish instead of racing. Auto-released at
+          // COMMIT / ROLLBACK on the interactive transaction's pinned connection.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
-      return publishedAt;
-    });
+          const publishedAt = new Date();
+          await tx.planningPeriodStatus.upsert({
+            where: { clinicId_month: { clinicId, month } },
+            create: {
+              clinicId,
+              month,
+              status: 'PUBLISHED',
+              publishedAt,
+              publishedBy: userId,
+            },
+            update: {
+              status: 'PUBLISHED',
+              publishedAt,
+              publishedBy: userId,
+            },
+          });
+
+          return publishedAt;
+        },
+        {
+          timeout: 15000,
+        },
+      ),
+    );
 
     // Fetch all employees with shifts in the month (for total count)
     const [allEmployeesWithShifts, clinic] = await Promise.all([
@@ -2779,21 +2884,36 @@ export class PlanningGenerationService {
       }));
 
       if (useTrigger) {
-        // Async via Trigger.dev — fire-and-forget
+        // Async via Trigger.dev — fire-and-forget. Story 11-4 (AC1): pass a
+        // stable idempotency-key seed (unique per publish via `now`, the
+        // publishedAt timestamp) so the task's retries never duplicate an
+        // already-delivered email.
         batchEmailPublishTask
-          .trigger({ emails: emailPayloads, month, clinicName: clinic.name })
+          .trigger({
+            emails: emailPayloads,
+            month,
+            clinicName: clinic.name,
+            idempotencyKey: `schedule-publish/${clinicId}:${month}:${now.getTime()}`,
+          })
           .catch((err: Error) =>
             this.logger.error(
               `Trigger batch-email-publish failed: ${err.message}`,
             ),
           );
       } else {
-        // Direct send (fallback)
-        await this.mailService.sendBatchSchedulePublicationEmails(
-          emailPayloads,
-          month,
-          clinic.name,
-        );
+        // Direct send (fallback). Story 11-4 (AC2): react to the returned count
+        // so a partial/total publication-email failure is visible (NFR3).
+        const notified =
+          await this.mailService.sendBatchSchedulePublicationEmails(
+            emailPayloads,
+            month,
+            clinic.name,
+          );
+        if (notified < emailPayloads.length) {
+          this.logger.error(
+            `publishPlan: ${emailPayloads.length - notified}/${emailPayloads.length} publication email(s) failed for clinic ${clinicId}, month ${month}`,
+          );
+        }
       }
     }
 

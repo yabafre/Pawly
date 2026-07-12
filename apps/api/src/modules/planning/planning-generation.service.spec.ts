@@ -210,7 +210,7 @@ describe('PlanningGenerationService', () => {
   const mockMailService = {
     sendSchedulePublicationEmail: jest.fn(),
     sendBatchSchedulePublicationEmails: jest.fn().mockResolvedValue(0),
-    sendScheduleChangedEmail: jest.fn().mockResolvedValue(undefined),
+    sendScheduleChangedEmail: jest.fn().mockResolvedValue(true),
   };
 
   const mockPushNotificationService = {
@@ -267,6 +267,15 @@ describe('PlanningGenerationService', () => {
     mockPrismaService.planningPeriodStatus.updateMany.mockResolvedValue({
       count: 0,
     });
+    // Story 11-6 — default interactive-tx mock: run the callback with the base
+    // mock as the tx client, so amendment paths (move/create/delete) exercise
+    // tx.shift.* + tx.planningPeriodStatus.updateMany against the same mocks.
+    // generateMonthlyPlan / deleteGeneratedShifts tests override this with a
+    // bespoke tx where they assert on tx.shift.deleteMany / createManyAndReturn.
+    mockPrismaService.$transaction.mockImplementation(
+      async (fn: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        fn(mockPrismaService),
+    );
   });
 
   // ─── expandTemplateToMonth ───────────────────────────────────
@@ -1401,6 +1410,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
@@ -1441,6 +1451,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -1595,6 +1606,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
@@ -1667,6 +1679,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
@@ -3388,6 +3401,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -3414,6 +3428,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -3453,6 +3468,7 @@ describe('PlanningGenerationService', () => {
         mockPrismaService.$transaction.mockImplementation(async (cb: any) => {
           const shifts: any[] = [];
           return cb({
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
@@ -4253,6 +4269,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -4280,6 +4297,7 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
         cb({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -4893,6 +4911,418 @@ describe('PlanningGenerationService', () => {
         expect.any(String),
       );
     });
+
+    // Story 11-4 (AC2): the caller reacts to a failed change notification.
+    it('error-logs an aggregate when a change email fails (does not throw)', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockMailService.sendScheduleChangedEmail.mockResolvedValue(false);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+      await new Promise((r) => setImmediate(r));
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
+    // Story 11-4 (AC2): "a single undeliverable recipient never prevents the
+    // other recipients from being notified" — drive notifyScheduleChange with
+    // two recipients where the first send fails; the loop must still reach the
+    // second, and the aggregate ratio counts only attempted sends.
+    it('continues the loop after a failed send so other recipients are still notified (AC2)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'en' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+      ]);
+
+      // both recipients attempted despite the first returning false
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenNthCalledWith(
+        2,
+        'bob@clinic.fr',
+        'Bob',
+        '2026-07',
+        'Clinique Test',
+        'en',
+      );
+      // ratio counts attempted sends (2), not just the failure count
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
+    // Story 11-4 (n7): the ratio denominator is attempted sends, not
+    // unique.length — a null-email recipient is skipped and must not inflate it.
+    it('excludes null-email skips from the failure-ratio denominator (n7)', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'NoMail',
+          email: null,
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-3',
+          firstName: 'Cara',
+          email: 'cara@clinic.fr',
+          user: { locale: 'fr' },
+        },
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinique Test',
+      });
+      mockMailService.sendScheduleChangedEmail
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await (
+        service as unknown as {
+          notifyScheduleChange: (
+            clinicId: string,
+            recipients: Array<{ employeeId: string; month: string }>,
+          ) => Promise<void>;
+        }
+      ).notifyScheduleChange(clinicId, [
+        { employeeId: 'emp-1', month: '2026-07' },
+        { employeeId: 'emp-2', month: '2026-07' },
+        { employeeId: 'emp-3', month: '2026-07' },
+      ]);
+
+      // emp-1 skipped (no email) → only 2 sends attempted, denominator is 2 (not 3)
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('1/2 change email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+  });
+
+  // ─── Story 11-6 — transactional amendment & cache coherence ───────
+  describe('Story 11-6 — transactional amendment', () => {
+    const publishedStatus = { month: '2026-07' };
+    const julyShift = {
+      id: 'shift-pub',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2026-07-10T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: true,
+    };
+
+    beforeEach(() => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        publishedStatus,
+      ]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Test Clinic',
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@example.com',
+          user: { locale: 'fr' },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@example.com',
+          user: { locale: 'en' },
+        },
+      ]);
+    });
+
+    // AC1 + AC2 — moveShift: mutation + recordAmendment share ONE transaction,
+    // notify fires AFTER commit.
+    it('moveShift wraps shift.update + recordAmendment in one $transaction and notifies after commit', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+
+      await service.moveShift(
+        clinicId,
+        julyShift.id,
+        { targetDate: '2026-07-20' },
+        { acknowledgePublishedChange: true },
+      );
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.shift.update).toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalledWith({
+        where: { clinicId, month: { in: ['2026-07'] }, status: 'PUBLISHED' },
+        data: { amendedAt: expect.any(Date), amendmentCount: { increment: 1 } },
+      });
+      await new Promise((r) => setImmediate(r));
+      // AC2 — "each affected employee is notified exactly once": the two
+      // recipients (origin + destination) collapse to one on a same-employee,
+      // same-month move, so exactly one email fires.
+      expect(mockMailService.sendScheduleChangedEmail).toHaveBeenCalledTimes(1);
+    });
+
+    // AC1 — rollback safety: recordAmendment failing inside the tx rejects the
+    // whole call and emits NO notification.
+    it('moveShift rejects and does not notify when recordAmendment fails inside the transaction', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.planningPeriodStatus.updateMany.mockRejectedValueOnce(
+        new Error('amend failed'),
+      );
+
+      await expect(
+        service.moveShift(
+          clinicId,
+          julyShift.id,
+          { targetDate: '2026-07-20' },
+          { acknowledgePublishedChange: true },
+        ),
+      ).rejects.toThrow('amend failed');
+
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+    });
+
+    // AC1 — createManualShift wraps create + recordAmendment in one $transaction.
+    it('createManualShift wraps shift.create + recordAmendment in one $transaction', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-07-10T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId,
+      });
+
+      await service.createManualShift(clinicId, {
+        employeeId: 'emp-1',
+        date: '2026-07-10',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        acknowledgePublishedChange: true,
+      });
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.shift.create).toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).toHaveBeenCalled();
+    });
+
+    // AC1 — deleteShift wraps delete + recordAmendment in one $transaction;
+    // rollback on amendment failure emits no notification.
+    it('deleteShift wraps shift.delete + recordAmendment in one $transaction and does not notify on rollback', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.shift.delete.mockResolvedValue(julyShift);
+      mockPrismaService.planningPeriodStatus.updateMany.mockRejectedValueOnce(
+        new Error('amend failed'),
+      );
+
+      await expect(
+        service.deleteShift(clinicId, julyShift.id, {
+          acknowledgePublishedChange: true,
+        }),
+      ).rejects.toThrow('amend failed');
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      await new Promise((r) => setImmediate(r));
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+    });
+
+    // Review AC2 (verbatim: "a notification-delivery failure neither fails nor
+    // blocks the change") — the three single-shift amendment paths this story
+    // rewired must survive a notify outage. The commit already succeeded, so the
+    // fire-and-forget .catch swallows the error (operation resolves, error
+    // logged) rather than surfacing to the caller.
+    const expectNotifyFailureIsSwallowed = async (
+      run: () => Promise<unknown>,
+    ): Promise<void> => {
+      mockMailService.sendScheduleChangedEmail.mockRejectedValueOnce(
+        new Error('Resend outage'),
+      );
+      const loggerError = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...a: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      await expect(run()).resolves.toBeDefined();
+
+      // Flush the post-commit fire-and-forget microtask → the .catch logs.
+      await new Promise((r) => setImmediate(r));
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('schedule-change notification failed'),
+      );
+      loggerError.mockRestore();
+    };
+
+    it('moveShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...julyShift,
+        date: new Date('2026-07-20T00:00:00.000Z'),
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.moveShift(
+          clinicId,
+          julyShift.id,
+          { targetDate: '2026-07-20' },
+          { acknowledgePublishedChange: true },
+        ),
+      );
+    });
+
+    it('createManualShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        clinicId,
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-07-10T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-07-10',
+          shiftTypeCode: 'SURGERY',
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 0,
+          acknowledgePublishedChange: true,
+        }),
+      );
+    });
+
+    it('deleteShift still resolves when the schedule-change notification fails', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(julyShift);
+      mockPrismaService.shift.delete.mockResolvedValue(julyShift);
+      mockPrismaService.planningPeriodStatus.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await expectNotifyFailureIsSwallowed(() =>
+        service.deleteShift(clinicId, julyShift.id, {
+          acknowledgePublishedChange: true,
+        }),
+      );
+    });
   });
 
   // ─── Story 11-1 — published-change guard on bulk regeneration ──────
@@ -4964,6 +5394,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: txDeleteMany,
               createManyAndReturn: jest.fn().mockResolvedValue([
@@ -5019,6 +5450,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
@@ -5125,6 +5557,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
               deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
               createManyAndReturn: jest.fn().mockResolvedValue([
@@ -5423,6 +5856,200 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-5 — idempotent generation & concurrency safety ──────
+  describe('Story 11-5 — idempotent generation & concurrency safety', () => {
+    const simpleTemplate = {
+      id: 'tpl-11-5',
+      name: 'Simple',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+    const oneVet = [
+      {
+        id: 'emp-1',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        jobType: 'VET',
+        contractHours: 35,
+      },
+    ];
+
+    // A tx whose $executeRaw records the raw SQL it was handed, so we can assert
+    // the advisory lock ran BEFORE any deleteMany/createManyAndReturn.
+    const buildRecordingTx = () => {
+      const calls: string[] = [];
+      const tx = {
+        $executeRaw: jest
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray) => {
+            calls.push(strings.join('?'));
+            return Promise.resolve(0);
+          }),
+        shift: {
+          deleteMany: jest.fn().mockImplementation(() => {
+            calls.push('deleteMany');
+            return Promise.resolve({ count: 0 });
+          }),
+          createManyAndReturn: jest
+            .fn()
+            .mockImplementation(({ data }: { data: any[] }) => {
+              calls.push('createManyAndReturn');
+              return Promise.resolve(
+                data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+              );
+            }),
+        },
+      };
+      return { tx, calls };
+    };
+
+    it('acquires the (clinicId, month) advisory lock before deleting on generateMonthlyPlan (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      const { tx, calls } = buildRecordingTx();
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) => fn(tx),
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5');
+
+      expect(tx.$executeRaw).toHaveBeenCalled();
+      const rawSql = tx.$executeRaw.mock.calls[0][0].join('?');
+      expect(rawSql).toContain('pg_advisory_xact_lock');
+      expect(rawSql).toContain('hashtext');
+      // lock is the FIRST db call — before deleteMany and createManyAndReturn
+      expect(calls[0]).toContain('pg_advisory_xact_lock');
+      expect(calls.indexOf('deleteMany')).toBeGreaterThan(0);
+      // aped-review — pin the transaction options: default READ COMMITTED + 15s
+      // timeout, NO isolationLevel (SERIALIZABLE would freeze the snapshot at the
+      // advisory-lock SELECT and defeat the second waiter's fresh-snapshot read).
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
+    });
+
+    it('maps a P2002 during generation to a ConflictException (AC3 — the dead catch is now a real net)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Duplicate shift detected during generation',
+      });
+    });
+
+    it('retries the generation transaction once on a P2034 serialization failure, then succeeds (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      const { tx } = buildRecordingTx();
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) => {
+          attempts += 1;
+          if (attempts === 1) return Promise.reject({ code: 'P2034' });
+          return fn(tx);
+        },
+      );
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-5',
+      );
+
+      expect(attempts).toBe(2);
+      expect(result).toBeDefined();
+    });
+
+    it('does NOT retry a P2002 (permanent) — fails on the first attempt (AC3)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(async () => {
+        attempts += 1;
+        return Promise.reject({ code: 'P2002' });
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Duplicate shift detected during generation',
+      });
+      expect(attempts).toBe(1);
+    });
+
+    it('gives up after 3 P2034 attempts and surfaces InternalServerError, never looping (AC2)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(simpleTemplate);
+      mockPrismaService.employee.findMany.mockResolvedValue(oneVet);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([]);
+      let attempts = 0;
+      mockPrismaService.$transaction.mockImplementation(async () => {
+        attempts += 1;
+        return Promise.reject({ code: 'P2034' });
+      });
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-5'),
+      ).rejects.toMatchObject({
+        message: 'Failed to persist generated shifts',
+      });
+      // bounded at maxAttempts=3: the 3rd P2034 is thrown (not retried), and the
+      // outer catch maps the non-P2002 error to InternalServerError.
+      expect(attempts).toBe(3);
+    });
+
+    it('acquires the (clinicId, month) advisory lock inside publishPlan (AC2)', async () => {
+      mockPrismaService.planningPeriodStatus.findUnique.mockResolvedValue(null);
+      (mockPrismaService as any).planningService?.validateShiftsAgainstRules;
+      jest
+        .spyOn(service['planningService'], 'validateShiftsAgainstRules')
+        .mockResolvedValue({ hardViolations: [], softViolations: [] } as any);
+      mockPrismaService.employee.findMany.mockResolvedValue([]);
+      mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
+        name: 'Clinic',
+      });
+      const lockExec = jest.fn().mockResolvedValue(0);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: lockExec,
+            planningPeriodStatus: {
+              upsert: jest.fn().mockResolvedValue({}),
+            },
+          }),
+      );
+
+      await service.publishPlan(clinicId, '2026-03', 'user-1');
+
+      expect(lockExec).toHaveBeenCalled();
+      expect(lockExec.mock.calls[0][0].join('?')).toContain(
+        'pg_advisory_xact_lock',
+      );
+      // aped-review — same options contract as generation: READ COMMITTED + 15s.
+      expect(mockPrismaService.$transaction.mock.calls[0][1]).toEqual({
+        timeout: 15000,
+      });
+    });
+  });
+
   // ─── publishPlan ──────────────────────────────────────────────────
   describe('publishPlan', () => {
     const userId = 'user-admin-1';
@@ -5467,6 +6094,7 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
           const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
             planningPeriodStatus: mockTxPlanningPeriodStatus,
           };
           return fn(tx);
@@ -5627,6 +6255,37 @@ describe('PlanningGenerationService', () => {
       expect(result.totalWithShifts).toBe(0);
     });
 
+    // Story 11-4 (AC2): publishPlan reacts to the direct batch send count.
+    it('error-logs when the direct batch send reports fewer sent than eligible', async () => {
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          email: 'alice@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 5 },
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          email: 'bob@clinic.fr',
+          notifyOnPublish: true,
+          _count: { shifts: 3 },
+        },
+      ]);
+      mockMailService.sendBatchSchedulePublicationEmails.mockResolvedValue(1);
+      const errorSpy = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await service.publishPlan(clinicId, month, userId);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('publication email(s) failed'),
+      );
+      errorSpy.mockRestore();
+    });
+
     it('should be idempotent — re-publishing updates timestamp', async () => {
       // First publish
       await service.publishPlan(clinicId, month, userId);
@@ -5658,7 +6317,10 @@ describe('PlanningGenerationService', () => {
       });
       mockPrismaService.$transaction.mockImplementation(
         async (fn: (tx: unknown) => Promise<unknown>) => {
-          const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            planningPeriodStatus: mockTxPlanningPeriodStatus,
+          };
           return fn(tx);
         },
       );
@@ -5722,7 +6384,10 @@ describe('PlanningGenerationService', () => {
         });
         mockPrismaService.$transaction.mockImplementation(
           async (fn: (tx: unknown) => Promise<unknown>) => {
-            const tx = { planningPeriodStatus: mockTxPlanningPeriodStatus };
+            const tx = {
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              planningPeriodStatus: mockTxPlanningPeriodStatus,
+            };
             return fn(tx);
           },
         );
@@ -5760,24 +6425,29 @@ describe('PlanningGenerationService', () => {
         await service.publishPlan(clinicId, month, userId);
 
         expect(batchEmailPublishTask.trigger).toHaveBeenCalledTimes(1);
-        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith({
-          emails: [
-            {
-              to: 'alice@clinic.fr',
-              firstName: 'Alice',
-              shiftCount: 5,
-              locale: 'fr',
-            },
-            {
-              to: 'bob@clinic.fr',
-              firstName: 'Bob',
-              shiftCount: 3,
-              locale: 'fr',
-            },
-          ],
-          month,
-          clinicName: 'Clinique Test',
-        });
+        expect(batchEmailPublishTask.trigger).toHaveBeenCalledWith(
+          expect.objectContaining({
+            emails: [
+              {
+                to: 'alice@clinic.fr',
+                firstName: 'Alice',
+                shiftCount: 5,
+                locale: 'fr',
+              },
+              {
+                to: 'bob@clinic.fr',
+                firstName: 'Bob',
+                shiftCount: 3,
+                locale: 'fr',
+              },
+            ],
+            month,
+            clinicName: 'Clinique Test',
+            idempotencyKey: expect.stringContaining(
+              `schedule-publish/${clinicId}:${month}:`,
+            ),
+          }),
+        );
         expect(
           mockMailService.sendBatchSchedulePublicationEmails,
         ).not.toHaveBeenCalled();
