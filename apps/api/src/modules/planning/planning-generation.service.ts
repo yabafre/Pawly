@@ -3386,6 +3386,58 @@ export class PlanningGenerationService {
     };
   }
 
+  // Story 11-10 — per-(employee, ISO-weekday) rotation index. Maintained
+  // incrementally (mirrors the FIX-4 O(1) counters) so the three rotation-equity
+  // evaluators do an O(1) lookup instead of re-filtering the flat alreadyAssigned
+  // array (O(A), allocating a Date per element) per employee per slot per rule —
+  // the last O(E×A) scan in the generation loop. Outer key: employeeId. Inner key:
+  // ISO weekday 1..7. Value: shift count on that weekday.
+  private isoDayOf(dateStr: string): number {
+    const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+    return dow === 0 ? 7 : dow;
+  }
+
+  private incrementDayOfWeekCount(
+    index: Map<string, Map<number, number>>,
+    employeeId: string,
+    dateStr: string,
+  ): void {
+    const iso = this.isoDayOf(dateStr);
+    let byDay = index.get(employeeId);
+    if (!byDay) {
+      byDay = new Map<number, number>();
+      index.set(employeeId, byDay);
+    }
+    byDay.set(iso, (byDay.get(iso) || 0) + 1);
+  }
+
+  private buildDayOfWeekIndex(
+    shifts: AssignedShift[],
+  ): Map<string, Map<number, number>> {
+    const index = new Map<string, Map<number, number>>();
+    for (const s of shifts) {
+      this.incrementDayOfWeekCount(index, s.employeeId, s.date);
+    }
+    return index;
+  }
+
+  // Equivalent to the old `[...alreadyAssigned, ...quarterlyShifts].filter(...)`:
+  // the live index reflects alreadyAssigned (border + survivors + assigned), the
+  // quarterly index reflects constraints.quarterlyShifts. Sum only when quarterly.
+  private countFromDayIndex(
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
+    employeeId: string,
+    targetIsoDay: number,
+    trackingPeriod: string | undefined,
+  ): number {
+    const live = dayOfWeekCounts.get(employeeId)?.get(targetIsoDay) || 0;
+    if (trackingPeriod !== 'quarterly') return live;
+    const historical =
+      quarterlyDayOfWeekCounts.get(employeeId)?.get(targetIsoDay) || 0;
+    return live + historical;
+  }
+
   /**
    * Reorder slots so that within each ISO week, non-workday slots are processed
    * BEFORE workday slots, with edge work days (last work day before an off day)
