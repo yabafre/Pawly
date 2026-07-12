@@ -1,7 +1,7 @@
 # Story: 11-8-unified-rule-engine — Unify the Rule Engine (single HARD/SOFT evaluator)
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-125-11-8-unified-rule-engine
 **Ticket:** KON-125 (Linear · project Pawly · milestone Epic 11 · blocked by KON-119 / 11-2 + KON-120 / 11-3 · blocks KON-126 / 11-9)
 **Origin:** Multi-agent planning audit 2026-07-08 — confirmed critical finding: *"Rule engine in 3 divergent implementations. `evaluateRotationEquity` / `evaluateContractCompliance` push to `softViolations` regardless of `ruleType`; `validateShiftsAgainstRules` ignores `maxWeeklyHours` and does not deduct `breakMinutes`, unlike `preValidateMove` and `scoreAndAssign`. `publishPlan` only blocks on `hard` → HARD contract/rotation violations pass publication."* See `docs/epics-context/epic-11-context.md` § 0 and § 4.
@@ -32,7 +32,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: Create the pure unified rule-engine module `rule-engine.ts`** [AC: 1, 3]
+- [x] **Task 1: Create the pure unified rule-engine module `rule-engine.ts`** [AC: 1, 3]
   Create `apps/api/src/modules/planning/rule-engine.ts` with the full contents below. Pure module — no NestJS, no Prisma, no I/O (same discipline as the sibling `french-labor-law.ts`). This is the single source of truth every path delegates to.
   ```ts
   /**
@@ -338,7 +338,7 @@
   Expected: no error lines referencing `rule-engine.ts`, exit 0.
   Commit: `git add apps/api/src/modules/planning/rule-engine.ts && git commit -m "feat(KON-125): add unified pure rule-engine module"`
 
-- [ ] **Task 2: Unit-test the rule engine in isolation** [AC: 3]
+- [x] **Task 2: Unit-test the rule engine in isolation** [AC: 3]
   Create `apps/api/src/modules/planning/rule-engine.spec.ts`. Cover each export with passing / breaching / boundary cases. Minimum cases below (add more if a branch is uncovered).
   ```ts
   import {
@@ -497,7 +497,7 @@
   Expected: `Tests:` all passed (≥ 15 passing), exit 0.
   Commit: `git add apps/api/src/modules/planning/rule-engine.spec.ts && git commit -m "test(KON-125): unit-test the unified rule engine"`
 
-- [ ] **Task 3: Wire `validateShiftsAgainstRules` onto the shared engine (the security fix)** [AC: 1, 2, 4]
+- [x] **Task 3: Wire `validateShiftsAgainstRules` onto the shared engine (the security fix)** [AC: 1, 2, 4]
   In `apps/api/src/modules/planning/planning.service.ts`, make the contract + rotation evaluators delegate the decision to `rule-engine.ts`, routing HARD vs SOFT by the rule's `ruleType`, while preserving each soft violation's `equityContext`.
 
   **(a) Add the import** immediately after the `./french-labor-law` import block (currently ends line 34):
@@ -788,7 +788,7 @@
   Expected: exit 0, no errors referencing `planning.service.ts` or `rule-engine`.
   Commit: `git add apps/api/src/modules/planning/planning.service.ts && git commit -m "feat(KON-125): validateShiftsAgainstRules honors ruleType via shared engine"`
 
-- [ ] **Task 4: Spec the validation path — HARD contract/rotation now surface as `hardViolations`** [AC: 1, 2, 4]
+- [x] **Task 4: Spec the validation path — HARD contract/rotation now surface as `hardViolations`** [AC: 1, 2, 4]
   In `apps/api/src/modules/planning/planning.service.spec.ts`, add a new `describe` block. The existing mock scaffold (`mockPrismaService.planningRule.findMany`, `mockPrismaService.shift.findMany`) is reused. Add these helpers + cases at the end of the top-level `describe('PlanningService', …)` block (before its closing `});`):
   ```ts
   // ─── validateShiftsAgainstRules — unified rule engine (Story 11-8) ───────────
@@ -905,7 +905,7 @@
   Expected: `Tests:` all passed (existing + new), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning.service.spec.ts && git commit -m "test(KON-125): cover HARD contract/rotation surfacing in validation"`
 
-- [ ] **Task 5: Delegate the generation HARD contract + rotation decision to the engine** [AC: 1, 4]
+- [x] **Task 5: Delegate the generation HARD contract + rotation decision to the engine** [AC: 1, 4]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, keep the generator's orchestration (scoring, tiebreakers, incremental counters) untouched — only route the HARD *decision* through the shared engine.
 
   **(a) Add the import** after the `./french-labor-law` import (currently line 20):
@@ -1014,7 +1014,7 @@
   Expected: `Tests:` all passed, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-125): generation delegates HARD contract/rotation to shared engine"`
 
-- [ ] **Task 6: Delegate the manual-move contract + rotation decision to the engine** [AC: 1, 4]
+- [x] **Task 6: Delegate the manual-move contract + rotation decision to the engine** [AC: 1, 4]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, inside `preValidateMove`, route the contract + rotation decisions through the same primitives (keep the terse `{ rule, message }` output shape the drag UI expects).
 
   **(a) Replace the CONTRACT_COMPLIANCE rule loop** (currently lines 2611–2632) — anchor on:
@@ -1118,7 +1118,7 @@
   Expected: `Tests:` all passed, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "feat(KON-125): preValidateMove delegates contract/rotation to shared engine"`
 
-- [ ] **Task 7: Prove publication is blocked by a HARD contract violation** [AC: 2]
+- [x] **Task 7: Prove publication is blocked by a HARD contract violation** [AC: 2]
   No production code changes — `publishPlan` (currently line 2799) already throws `ConflictException` when `validateShiftsAgainstRules` returns any `hardViolations`. This test closes the loop (L-audit: *"verified means every guard entry-point"*): before this story, a HARD contract/rotation rule could never produce a hard violation, so this path was unreachable.
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add (wire the two mocks to the file's existing `mockPlanningService` / `mockPrisma` doubles — the injected `PlanningService` mock must expose `validateShiftsAgainstRules`):
   ```ts
@@ -1152,7 +1152,7 @@
   Expected: `Tests:` all passed, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-125): publish blocked by HARD contract violation"`
 
-- [ ] **Task 8: Localize the new weekly-overtime hard/soft violation (fr/en)** [AC: 1]
+- [x] **Task 8: Localize the new weekly-overtime hard/soft violation (fr/en)** [AC: 1]
   The unified contract evaluator emits a new `messageKey: 'violations.contractCompliance.weeklyOvertime'` for weekly caps (the monthly `overtime` key already exists). Add its translation so the Planning Health Bar renders it (the popover already resolves `messageKey` via `t(...)` since story 11-3).
   **(a)** In `apps/web/src/i18n/langs/fr.json`, inside `admin.planningRules.healthBar.violations.contractCompliance` (currently holds only `"overtime"`), add the `weeklyOvertime` sibling:
   ```json
@@ -1167,7 +1167,7 @@
   Expected: `tsc` exit 0 (no output) and `json ok` printed (both files parse).
   Commit: `git add apps/web/src/i18n/langs/fr.json apps/web/src/i18n/langs/en.json && git commit -m "feat(KON-125): localize weekly-overtime violation (fr/en)"`
 
-- [ ] **Task 9: Typecheck + full test sweep across affected packages** [AC: 1, 2, 3, 4]
+- [x] **Task 9: Typecheck + full test sweep across affected packages** [AC: 1, 2, 3, 4]
   Run each and confirm green:
   ```bash
   pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json
@@ -1177,7 +1177,7 @@
   Expected: every `tsc --noEmit` exits 0 with no output; every test run reports all passed, exit 0. Per lesson **L5**, if the API declaration build matters for consumers, also run `pnpm --filter @pawly/api exec tsc -p tsconfig.types.json` (must exit 0). If any fix is needed, fold it into the relevant task's commit.
   Commit: none (verification only).
 
-- [ ] **Task 10: Live verification (headed) — one path can no longer diverge from another** [AC: 1, 2]
+- [x] **Task 10: Live verification (headed) — one path can no longer diverge from another** [AC: 1, 2]
   With `pnpm dev` running (web:3020 / API:3001 per the L2-journey memo — confirm the live ports before driving), sign in as the seed admin, repoint to the "Simulation E2E" clinic if needed. Use `mcp__react-grab-mcp__get_element_context` at the GREEN check on the Health Bar (frontend visual verification is mandatory per CLAUDE.md).
   1. **Create a HARD contract rule.** In Settings → Planning Rules, add a HARD `CONTRACT_COMPLIANCE` rule with `maxWeeklyHours` low enough that the current month breaches it for at least one employee (e.g. 20h).
   2. **Health Bar surfaces it as HARD + publish blocked.** Open the Planning Health Bar detail popover; confirm a red HARD entry under "Conformité contrat" with the localized weekly message, and that Publish is disabled / `publishPlan` returns the 409 "hard violation(s) remain". Before this story the same rule showed only as a soft warning and publication succeeded.
@@ -1255,15 +1255,87 @@ The pure engine returns violations WITHOUT `equityContext` (it is a validators t
 
 ## Dev Agent Record
 
-- **Model:** _(set by aped-dev)_
-- **Started:** _(set by aped-dev)_
-- **Completed:** _(set by aped-dev)_
+- **Model:** claude-fable-5
+- **Started:** 2026-07-12
+- **Completed:** 2026-07-12
 
 ### Summary
 
+Unified rule engine shipped exactly per spec. The pure module `rule-engine.ts` (no
+NestJS/Prisma/I/O, sibling of `french-labor-law.ts`) is now the single decision point for
+CONTRACT_COMPLIANCE + ROTATION_EQUITY on all three write paths: `validateShiftsAgainstRules`
+delegates through HARD/SOFT-routing adapters that preserve `equityContext` (the security fix —
+`ruleType` honoured, `maxWeeklyHours` enforced ISO-week-bucketed, minutes net of
+`breakMinutes`); `scoreAndAssign` and `preValidateMove` delegate their weekly/monthly and
+rotation cap decisions to the same incremental primitives with orchestration, tiebreakers and
+O(1) counters untouched. A HARD contract/rotation breach now lands in `hardViolations` and
+blocks publication (409) — proven by unit test and live.
+
 ### Files changed
+
+- `apps/api/src/modules/planning/rule-engine.ts` — **new**: pure unified evaluator (post-hoc
+  + incremental primitives, `netMinutes`/`isoWeekStart`/`isoWeekday`).
+- `apps/api/src/modules/planning/rule-engine.spec.ts` — **new**: 15 isolated unit tests
+  (passing/breaching/boundary per primitive).
+- `apps/api/src/modules/planning/planning.service.ts` — contract/rotation evaluators replaced
+  by delegating adapters (+`computeRotationClinicAverage`/`computeClinicAverageHours` helpers);
+  switch arms pass `hardViolations`; `calculateShiftMinutes` deleted.
+- `apps/api/src/modules/planning/planning.service.spec.ts` — +4 tests
+  (`validateShiftsAgainstRules — unified engine`).
+- `apps/api/src/modules/planning/planning-generation.service.ts` — `scoreAndAssign` weekly+
+  monthly HARD caps via `violatesHardContractIncremental`; `violatesHardRotationEquity` final
+  decision via `violatesHardRotation`; `preValidateMove` contract loop + rotation check
+  delegated (weekly-only semantics kept via stripped `maxMonthlyHours`).
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` — +2 determinism tests,
+  +2 preValidateMove HARD/SOFT tests, +1 publish-blocked-by-HARD-contract test.
+- `apps/web/src/i18n/langs/fr.json` / `en.json` — `weeklyOvertime` key added.
 
 ### Deviations
 
+- **Task 4 fixtures (Mon-Sat → Mon-Fri).** The story's sketched fixtures (6 days Mon-Sat)
+  trip the always-on 11-3 statutory weekly-rest check (≥35h/ISO week — max rest was 30h),
+  contaminating `hardViolations` with statutory CONTRACT_COMPLIANCE entries and making the
+  HARD-weekly assertion pass/fail for the wrong reason. Fixtures use Mon-Fri (5×9h = 45h,
+  statutory-quiet); the SOFT-monthly case uses 08:00-17:00 to stay off the 10h/day boundary.
+- **Task 4 "flip existing soft-only assertions": none existed.** Recon of
+  `planning.service.spec.ts` found every configured contract/rotation rule in existing tests
+  is SOFT — the HARD-surfacing cases are net-new; zero existing assertions were flipped.
+- **Task 8 extended to a second i18n location.** `weeklyOvertime` was added under BOTH
+  `admin.planningRules.healthBar.violations.contractCompliance` (HealthBarDetailPopover) AND
+  `admin.violations.contractCompliance` (ConflictIndicator/WarningBadge grid badges) in fr+en —
+  the story listed only the first, but the grid badge resolves the same `messageKey` under the
+  second namespace (verified live: both render the fr message).
+- **TDD ordering per the Iron Law**: Task 2's spec was written before Task 1's module (RED:
+  `Cannot find module './rule-engine'`); Tasks 5/6 are pure delegations of already-correct
+  paths, so their preservation tests were validated by mutation (delegation inverted → RED
+  witnessed → restored) rather than a first-run failure. Commits still match the story's plan
+  (one per task).
+- **Env gotchas (worktree)**: Prisma client + `@pawly/*` dist + API `tsc -p
+  tsconfig.types.json` had to be generated/built fresh in this worktree before typechecks
+  passed (known L5/epic11 gotchas); jest pattern `rule-engine` matches the worktree PATH —
+  used `--testPathPatterns "rule-engine\.spec"`.
+
 ### Test output
+
+- `pnpm --filter @pawly/api test -- --testPathPatterns "rule-engine\.spec|planning\.service\.spec|planning-generation\.service\.spec"`
+  → **Test Suites: 3 passed / Tests: 222 passed, 222 total**, exit 0 (rule-engine 15,
+  planning.service 39 incl. 4 new, planning-generation 168 incl. 5 new).
+- Full sweeps: API `pnpm --filter @pawly/api test` → **954/954** (35 suites); web
+  `pnpm --filter @pawly/web test` → **756/756** (51 files); `tsc --noEmit` web exit 0 after
+  `@pawly/api build` (L5 types pass exit 0); API tsc: **0 errors in story files** (24 residual
+  errors = pre-existing spec-fixture noise in clinic/employee/variance/planning.service specs,
+  documented since 11-5).
+- **Live verification (headed Chrome, web:3020/API:3001, Clinique test, July 2026):** HARD
+  `CONTRACT_COMPLIANCE { maxWeeklyHours: 20 }` rule created via Settings→Planning Rules UI;
+  seeded veto 4×7h net (28h) + fredy 2×7h. Health Bar → **"1 conflit … 83% prêt"**, popover
+  **"Conformité contrat (1) — veto veo — 28h la semaine du 2026-07-13, dépasse la limite
+  hebdomadaire de 20h"** (new `weeklyOvertime` key, fr), **Publier disabled** ("Publication
+  impossible — résolvez les conflits d'abord"); grid badge "Conflit (1)" renders the same
+  message (second i18n namespace). Keyboard drag (dnd-kit) veto→fredy Thursday: **drop
+  refused** — "Dépôt impossible ici — Overtime risk: 21h this week, effective limit 20h" —
+  the same shared-engine verdict on the move path. React Grab `get_element_context` confirmed
+  the Health Bar `PopoverContent` (components/ui/popover.tsx:27) mounted in the Radix tree.
+  Console: no runtime errors (only pre-existing dev CSP noise). Test data fully cleaned up
+  (6 shifts deleted, rule deleted via UI, seed admin repointed to Zen Dev, Upstash user-cache
+  key purged).
 
