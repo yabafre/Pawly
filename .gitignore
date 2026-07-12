@@ -71,3 +71,6 @@ _bmad/
 # CLAUDE.md context files (keep only root CLAUDE.md)
 **/CLAUDE.md
 !/CLAUDE.md
+
+# workmux worktree config (bootstrapped from .aped/templates by aped-sprint)
+.workmux.yaml
