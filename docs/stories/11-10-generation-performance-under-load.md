@@ -26,7 +26,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: SPIKE — prove `NestFactory.createApplicationContext(AppModule)` inside a Trigger.dev task** ⏸ **GATE** [AC: 2]
+- [x] **Task 1: SPIKE — prove `NestFactory.createApplicationContext(AppModule)` inside a Trigger.dev task** ⏸ **GATE** [AC: 2]
   This gates the whole of Task 6. Create a throwaway spike task at `apps/api/src/trigger/tasks/_spike-nest-context.ts`:
   ```ts
   import { task, logger } from '@trigger.dev/sdk';
@@ -1333,6 +1333,34 @@ const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBod
 
 ### Debug Log
 
+- **2026-07-12 — Task 1 spike VERDICT: KO (verbatim).** Alex restarted the self-hosted
+  instance (root → 302, `trigger whoami` OK: project pawly / org hakubo). Run 1 —
+  **build failed**: esbuild `Could not resolve "@nestjs/microservices"` /
+  `"@nestjs/microservices/microservices-module"` / `"@nestjs/websockets/socket-module"` /
+  `"class-transformer/storage"` (NestJS optional lazy requires). `build.external`
+  entries did NOT fix it — the CLI's externals collector requires the package to
+  resolve locally (`isExternalResolvable` → `resolveSync` throws → external silently
+  dropped) and these optional peers are not installed. Worked around with a custom
+  BuildExtension registering a raw esbuild `onResolve` → `{ external: true }` plugin →
+  **build OK** (`Local worker ready [node-22] -> 20260712.1`). Run 2 — ESM/CJS interop:
+  `TypeError: Cannot read properties of undefined (reading 'createApplicationContext')`
+  (`NestFactory` lands on `.default` after bundling, same interop as
+  `trigger/lib/prisma.ts`); fixed with an interop-safe destructure → rebuilt
+  `20260712.2`. Run 3 (`run_cmri1njh6000l35ozxuppn5ir`) — **boot failure inside the DI
+  graph**: `TypeError: Cannot read properties of undefined (reading 'get')` at
+  `new HttpExceptionFilter (src/common/filters/http-exception.filter.ts:51)` —
+  `ConfigService` injected as `undefined`. Root cause: **esbuild does not emit
+  `emitDecoratorMetadata`**, so `design:paramtypes` is stripped for every class in the
+  bundle and Nest constructor-injection-by-type silently injects `undefined` graph-wide
+  (the API normally builds with SWC, which does emit it). Not resolvable via
+  `build.external`/`additionalPackages` — a compiler-capability gap, i.e. the story's
+  "run errors on boot … cannot be resolved within ~30 min" KO criterion. → **Task 6 =
+  branch 6B (in-process `setImmediate` yield).** Spike file + `client.ts` re-export
+  deleted; `trigger.config.ts` experiments reverted (the esbuild-plugin finding above is
+  the reusable knowledge if a future story re-attempts 6A — it would additionally need
+  decorator-metadata support, e.g. `@anatine/esbuild-decorators`, or explicit `@Inject()`
+  tokens everywhere).
+
 - **2026-07-12 — Task 1 spike attempt (verbatim):** spike file + `client.ts` re-export created per story. `dotenv -- pnpm --filter @pawly/api exec trigger dev` failed: `X Error: You must login first. Use the \`login\` CLI command.` then `404 404 page not found`. Root causes investigated in order: (1) the CLI ignores `TRIGGER_API_URL`/`TRIGGER_ACCESS_TOKEN` env for `dev` — it requires an XDG profile (`~/Library/Preferences/trigger/config.json`), which had no profiles; (2) wrote the `default` profile from the root `.env` creds (non-interactive equivalent of `trigger login`), retried → `Whoami failed: 404 404 page not found`; (3) probed the instance directly: `curl https://trigger.dkp.trafijs.com/` → **404 on every endpoint including root** (traefik default backend — the self-hosted Trigger.dev webapp is down or detached from the router; URL confirmed correct against project memory `trigger_dev_setup` and identical in main checkout `.env`); (4) Trigger MCP also unauthenticated (same instance). **Verdict: UNRESOLVABLE HERE — infra outage, not a build/boot failure.** Posted `dev-blocked` check-in; Task 6 branch decision awaits Alex (restart the Dokploy trigger webapp → run spike → real verdict, or accept 6B fallback). Spike file left in working tree (uncommitted) so the run can happen the moment the instance is back. Unconditional Tasks 2–5 proceed meanwhile.
 
 ### Summary
@@ -1359,9 +1387,12 @@ the hot path): **250 ms**, well under the 2 s NFR2 budget.
 
 ### Deviations
 
-- **Task-1 spike verdict:** {{OK | KO}} — BLOCKED 2026-07-12: self-hosted Trigger.dev
-  instance (trigger.dkp.trafijs.com) returns 404 on every endpoint (webapp down); spike
-  cannot run — see Debug Log. → Task 6 branch = {{6A async | 6B yield}} (awaiting Alex).
+- **Task-1 spike verdict:** **KO** — build only passed with a custom esbuild-plugin
+  workaround, and the run then failed on boot: esbuild strips `emitDecoratorMetadata`,
+  so Nest constructor injection resolves `undefined` graph-wide
+  (`HttpExceptionFilter` ← `ConfigService`); unresolvable via
+  `build.external`/`additionalPackages` — see Debug Log for the full 3-run trace.
+  → Task 6 branch = **6B yield**.
 - **Spike snippet fix:** under `moduleResolution: nodenext` the dynamic `import()` of
   relative paths requires the `.js` extension (ESM resolution) — the story's
   extension-less snippet fails `tsc` (TS2307). Added `.js` to both dynamic imports.
