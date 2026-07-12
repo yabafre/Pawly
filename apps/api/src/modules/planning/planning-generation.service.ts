@@ -1252,53 +1252,48 @@ export class PlanningGenerationService {
       let score = 100;
 
       // Full equity scoring (weekend, holiday, overtime).
-      // Story 11-7 — every active employee is seeded up front, so `equity` is
-      // always present; the former `else { score += 20; }` fallback is gone
-      // (an un-mapped new hire no longer gets a flat bonus that made them
-      // absorb the unpopular weekend / holiday slots).
+      // Story 11-7 — every active employee is seeded up front and both live
+      // increments create-if-absent, so getOrCreateEquityEntry always returns a
+      // real entry: the former `if (equity) … else { score += 20; }` guard is
+      // gone. An un-mapped new hire no longer gets a flat bonus that made them
+      // absorb the unpopular weekend / holiday slots.
       const equity = this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
-      if (equity) {
-        const date = new Date(`${slot.date}T00:00:00.000Z`);
-        const dayOfWeek = date.getUTCDay();
-        const isSaturday = dayOfWeek === 6;
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const date = new Date(`${slot.date}T00:00:00.000Z`);
+      const dayOfWeek = date.getUTCDay();
+      const isSaturday = dayOfWeek === 6;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-        if (isWeekend) {
-          const avgWeekend = this.getAverageEquity(
+      if (isWeekend) {
+        const avgWeekend = this.getAverageEquity(
+          constraints.equityMap,
+          'weekendCount',
+        );
+        if (equity.weekendCount < avgWeekend) score += 10;
+
+        if (isSaturday) {
+          const avgSaturday = this.getAverageEquity(
             constraints.equityMap,
-            'weekendCount',
+            'saturdayCount',
           );
-          if (equity.weekendCount < avgWeekend) score += 10;
-
-          if (isSaturday) {
-            const avgSaturday = this.getAverageEquity(
-              constraints.equityMap,
-              'saturdayCount',
-            );
-            if (equity.saturdayCount < avgSaturday) score += 10;
-          }
+          if (equity.saturdayCount < avgSaturday) score += 10;
         }
+      }
 
-        // Holiday equity — prefer employees with fewer holiday shifts
-        const avgHoliday = this.getAverageEquity(
-          constraints.equityMap,
-          'holidayCount',
-        );
-        if (equity.holidayCount < avgHoliday) {
-          score += 5;
-        } else if (equity.holidayCount > avgHoliday + 1) {
-          score -= 5;
-        }
+      // Holiday equity — prefer employees with fewer holiday shifts
+      const avgHoliday = this.getAverageEquity(
+        constraints.equityMap,
+        'holidayCount',
+      );
+      if (equity.holidayCount < avgHoliday) {
+        score += 5;
+      } else if (equity.holidayCount > avgHoliday + 1) {
+        score -= 5;
+      }
 
-        // Overtime equity — penalize employees with more historical overtime
-        const avgOvertime = this.getAverageOvertimeMinutes(
-          constraints.equityMap,
-        );
-        if (equity.overtimeMinutes > avgOvertime) {
-          score -= Math.round(
-            ((equity.overtimeMinutes - avgOvertime) / 60) * 5,
-          );
-        }
+      // Overtime equity — penalize employees with more historical overtime
+      const avgOvertime = this.getAverageOvertimeMinutes(constraints.equityMap);
+      if (equity.overtimeMinutes > avgOvertime) {
+        score -= Math.round(((equity.overtimeMinutes - avgOvertime) / 60) * 5);
       }
 
       // Monthly contract fit bonus

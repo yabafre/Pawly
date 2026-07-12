@@ -85,6 +85,12 @@ export class EquityCounterService {
     windowMonths = 12,
     counterTypes?: EquityCounterType[],
   ): Promise<CounterWithEmployee[]> {
+    // A non-positive window has no prior months to load. Return early rather than
+    // issue a findMany with an empty `OR: []`, whose Prisma match semantics are
+    // ambiguous (Story 11-7 review hardening). Not reachable via the generator
+    // (it passes the constant EQUITY_WINDOW_MONTHS = 12), but keeps the method
+    // safe if ever called with a variable window.
+    if (windowMonths <= 0) return [];
     // Absolute 0-based month index of the target; the preceding month is endAbs-1.
     const endAbs = year * 12 + (month - 1);
     const pairs: { year: number; month: number }[] = [];

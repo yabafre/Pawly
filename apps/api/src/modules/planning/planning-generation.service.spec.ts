@@ -2188,6 +2188,148 @@ describe('PlanningGenerationService', () => {
       );
       expect(newHireTouches.length).toBeGreaterThanOrEqual(2);
     });
+
+    it('records the weekend load of an inactive-employee survivor absent from the seeded active set, via create-if-absent (AC3 — no silent drop)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Active workforce = default emp-1/2/3, all seeded up front. The survivor
+      // below belongs to `emp-inactive`, who is NOT in that set — the exact edge
+      // the survivor-increment comment claims to rescue. Before Story 11-7 this
+      // site did `equityMap.get(id); if (equity) …`, silently dropping the load.
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) {
+          return Promise.resolve([
+            {
+              employeeId: 'emp-inactive',
+              date: new Date('2026-03-07'), // a Saturday (loader → '2026-03-07')
+              startTime: '08:00',
+              endTime: '12:00',
+              shiftTypeCode: 'SURGERY',
+              breakMinutes: 0,
+              employee: { jobType: 'VET' },
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      // The survivor's live increment routed through create-if-absent for the
+      // un-seeded employee — the load is recorded rather than silently dropped.
+      const inactiveTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-inactive',
+      );
+      expect(inactiveTouches.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not let an un-mapped new hire absorb every weekend slot — fair, deterministic rotation replaces the old flat +20 (AC2 behavioural)', async () => {
+      // Weekend must be a workday for the Sunday slots to materialise.
+      // Convention is ISO 1..7 (Monday=1 … Sunday=7), not getUTCDay's 0..6.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['1', '2', '3', '4', '5', '6', '7'],
+      });
+      const sundaySurgery = {
+        id: 'tpl-11-7-fair',
+        name: 'Sunday Surgery x1',
+        data: {
+          days: [
+            {
+              dayOfWeek: 7, // Sunday (ISO)
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(sundaySurgery);
+      // Three identical VETs (same contract, same jobType) so ONLY equity
+      // history differs: emp-a-fair mapped with a clean weekend record,
+      // emp-c-hog with a heavy one, emp-b-fresh an un-mapped new hire (seeded 0).
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-a-fair',
+          firstName: 'Fair',
+          lastName: 'Aaa',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-b-fresh',
+          firstName: 'Fresh',
+          lastName: 'Bbb',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-c-hog',
+          firstName: 'Hog',
+          lastName: 'Ccc',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'w-hog',
+          counterType: 'WEEKEND_TOTAL',
+          count: 6,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-c-hog',
+            firstName: 'Hog',
+            lastName: 'Ccc',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+        {
+          id: 'w-fair',
+          counterType: 'WEEKEND_TOTAL',
+          count: 0,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-a-fair',
+            firstName: 'Fair',
+            lastName: 'Aaa',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7-fair');
+
+      const countFor = (id: string) =>
+        created.filter((r) => r.employeeId === id).length;
+      const total = created.length;
+      // March 2026 has five Sundays — enough slots to expose absorption.
+      expect(total).toBeGreaterThan(1);
+      // Old bug: the un-mapped hire got a flat +20 on every slot AND its live
+      // increment was skipped, so it absorbed 100% of the weekends. Now it takes
+      // only a fair share — strictly fewer than all of them.
+      expect(countFor('emp-b-fresh')).toBeLessThan(total);
+      // The clean-record mapped employee gets a real share of the weekends
+      // (was crowded out to 0 under the old flat +20).
+      expect(countFor('emp-a-fair')).toBeGreaterThan(0);
+      // Every weekend slot is filled by a real, seeded employee — no phantom /
+      // un-mapped absorption; the three shares sum to the full slot count.
+      expect(
+        countFor('emp-a-fair') +
+          countFor('emp-b-fresh') +
+          countFor('emp-c-hog'),
+      ).toBe(total);
+    });
   });
 
   // ─── deleteGeneratedShifts ────────────────────────────────
