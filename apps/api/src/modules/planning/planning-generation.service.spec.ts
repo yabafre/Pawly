@@ -198,6 +198,7 @@ describe('PlanningGenerationService', () => {
 
   const mockEquityService = {
     getCountersForPeriod: jest.fn(),
+    getCountersForWindow: jest.fn(),
   };
 
   const mockApprenticeDeclarationService = {
@@ -254,6 +255,7 @@ describe('PlanningGenerationService', () => {
     mockClinicService.listShiftTypes.mockResolvedValue(mockShiftTypes);
     mockPlanningService.listRules.mockResolvedValue([]);
     mockEquityService.getCountersForPeriod.mockResolvedValue([]);
+    mockEquityService.getCountersForWindow.mockResolvedValue([]);
     mockPrismaService.unavailability.findMany.mockResolvedValue([]);
     mockPrismaService.employee.findMany.mockResolvedValue(mockEmployees);
     mockPrismaService.shift.findMany.mockResolvedValue([]);
@@ -1377,6 +1379,43 @@ describe('PlanningGenerationService', () => {
   // ─── generateMonthlyPlan ──────────────────────────────────
 
   describe('generateMonthlyPlan', () => {
+    it('scores equity over a rolling 12-month window — a January generation still sees December N-1 (Story 11-7 AC1)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          }),
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-1');
+
+      // Generation must load equity via the rolling window (not the old
+      // current-calendar-year path, which returned [] in January).
+      expect(mockEquityService.getCountersForWindow).toHaveBeenCalledWith(
+        clinicId,
+        2026,
+        1,
+        12,
+      );
+    });
+
     it('creates Shift records via $transaction', async () => {
       const templateData = {
         days: [
@@ -2043,6 +2082,253 @@ describe('PlanningGenerationService', () => {
       expect(mar2.length).toBe(1);
       // emp-1 is overlap-excluded; the remaining position goes to emp-2.
       expect(mar2[0].employeeId).toBe('emp-2');
+    });
+  });
+
+  // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
+  describe('Story 11-7 — equity seeding & live increment', () => {
+    const mondaySurgery1 = {
+      id: 'tpl-11-7',
+      name: 'Monday Surgery x1',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    // Capture the rows the generator actually decided (data → createManyAndReturn).
+    const captureCreate = () => {
+      const captured: any[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) => {
+                  captured.push(...data);
+                  return data.map((d, i) => ({ id: `gen-${i}`, ...d }));
+                }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      return captured;
+    };
+
+    it('seeds an equity entry for every active employee, including those with no counters (AC2 — no more flat +20)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Default mockEmployees = emp-1, emp-2, emp-3. Only emp-1 has history in
+      // the window; emp-2 and emp-3 are un-mapped (new hires / Jan boundary).
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'c1',
+          counterType: 'WEEKEND_TOTAL',
+          count: 5,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      const seededIds = seedSpy.mock.calls.map((c) => c[1]);
+      // Un-mapped employees are seeded (an entry is created for them) rather
+      // than short-circuited to the old flat +20 during scoring.
+      expect(seededIds).toContain('emp-1');
+      expect(seededIds).toContain('emp-2');
+      expect(seededIds).toContain('emp-3');
+    });
+
+    it('routes the live intra-month increment through create-if-absent so a new hire’s load is recorded (AC3)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // A single new hire with no counters — the sole candidate for the slot.
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-new',
+          firstName: 'Zoe',
+          lastName: 'Nouvelle',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-11-7');
+
+      // The new hire is assigned the slot(s) …
+      expect(created.length).toBeGreaterThan(0);
+      expect(created.every((r) => r.employeeId === 'emp-new')).toBe(true);
+      // … and every equity touch for them (seeding + the live increment as the
+      // shift is assigned) went through create-if-absent, never the old
+      // `if (equity)` skip. At least: 1 seed + 1 increment.
+      const newHireTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-new',
+      );
+      expect(newHireTouches.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('records the weekend load of an inactive-employee survivor absent from the seeded active set, via create-if-absent (AC3 — no silent drop)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Active workforce = default emp-1/2/3, all seeded up front. The survivor
+      // below belongs to `emp-inactive`, who is NOT in that set — the exact edge
+      // the survivor-increment comment claims to rescue. Before Story 11-7 this
+      // site did `equityMap.get(id); if (equity) …`, silently dropping the load.
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) {
+          return Promise.resolve([
+            {
+              employeeId: 'emp-inactive',
+              date: new Date('2026-03-07'), // a Saturday (loader → '2026-03-07')
+              startTime: '08:00',
+              endTime: '12:00',
+              shiftTypeCode: 'SURGERY',
+              breakMinutes: 0,
+              employee: { jobType: 'VET' },
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      // The survivor's live increment routed through create-if-absent for the
+      // un-seeded employee — the load is recorded rather than silently dropped.
+      const inactiveTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-inactive',
+      );
+      expect(inactiveTouches.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not let an un-mapped new hire absorb every weekend slot — fair, deterministic rotation replaces the old flat +20 (AC2 behavioural)', async () => {
+      // Weekend must be a workday for the Sunday slots to materialise.
+      // Convention is ISO 1..7 (Monday=1 … Sunday=7), not getUTCDay's 0..6.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['1', '2', '3', '4', '5', '6', '7'],
+      });
+      const sundaySurgery = {
+        id: 'tpl-11-7-fair',
+        name: 'Sunday Surgery x1',
+        data: {
+          days: [
+            {
+              dayOfWeek: 7, // Sunday (ISO)
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(sundaySurgery);
+      // Three identical VETs (same contract, same jobType) so ONLY equity
+      // history differs: emp-a-fair mapped with a clean weekend record,
+      // emp-c-hog with a heavy one, emp-b-fresh an un-mapped new hire (seeded 0).
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-a-fair',
+          firstName: 'Fair',
+          lastName: 'Aaa',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-b-fresh',
+          firstName: 'Fresh',
+          lastName: 'Bbb',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-c-hog',
+          firstName: 'Hog',
+          lastName: 'Ccc',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'w-hog',
+          counterType: 'WEEKEND_TOTAL',
+          count: 6,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-c-hog',
+            firstName: 'Hog',
+            lastName: 'Ccc',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+        {
+          id: 'w-fair',
+          counterType: 'WEEKEND_TOTAL',
+          count: 0,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-a-fair',
+            firstName: 'Fair',
+            lastName: 'Aaa',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7-fair');
+
+      const countFor = (id: string) =>
+        created.filter((r) => r.employeeId === id).length;
+      const total = created.length;
+      // March 2026 has five Sundays — enough slots to expose absorption.
+      expect(total).toBeGreaterThan(1);
+      // Old bug: the un-mapped hire got a flat +20 on every slot AND its live
+      // increment was skipped, so it absorbed 100% of the weekends. Now it takes
+      // only a fair share — strictly fewer than all of them.
+      expect(countFor('emp-b-fresh')).toBeLessThan(total);
+      // The clean-record mapped employee gets a real share of the weekends
+      // (was crowded out to 0 under the old flat +20).
+      expect(countFor('emp-a-fair')).toBeGreaterThan(0);
+      // Every weekend slot is filled by a real, seeded employee — no phantom /
+      // un-mapped absorption; the three shares sum to the full slot count.
+      expect(
+        countFor('emp-a-fair') +
+          countFor('emp-b-fresh') +
+          countFor('emp-c-hog'),
+      ).toBe(total);
     });
   });
 

@@ -99,6 +99,7 @@ export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
+  private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
     tuesday: 2,
@@ -263,6 +264,17 @@ export class PlanningGenerationService {
       },
     });
 
+    // Story 11-7 — seed a zero-initialised equity entry for every active
+    // employee BEFORE any scoring or live increment. This makes
+    // getAverageEquity's denominator the whole active workforce (not just
+    // employees with history), removes the need for a flat "+20" fallback for
+    // un-mapped employees, and — critically — keeps the averages deterministic
+    // (invariant #3): they no longer depend on the order in which entries would
+    // otherwise be lazily created during the slot loop.
+    for (const emp of employees) {
+      this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
+    }
+
     // Pre-check: all apprentices must have school day declarations
     const undeclared =
       await this.apprenticeDeclarationService.getUndeclaredApprentices(
@@ -391,11 +403,14 @@ export class PlanningGenerationService {
 
       const date = new Date(`${ss.date}T00:00:00.000Z`);
       const dayOfWeek = date.getUTCDay();
-      const equity = constraints.equityMap.get(ss.employeeId);
-      if (equity) {
-        if (dayOfWeek === 6) equity.saturdayCount++;
-        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-      }
+      // Story 11-7 — create the entry if absent (e.g. an inactive-employee
+      // survivor not seeded above) so its weekend load is reflected in scoring.
+      const equity = this.getOrCreateEquityEntry(
+        constraints.equityMap,
+        ss.employeeId,
+      );
+      if (dayOfWeek === 6) equity.saturdayCount++;
+      if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
     }
 
     // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
@@ -519,13 +534,16 @@ export class PlanningGenerationService {
         );
 
         // FIX 3 — Update equity counters during generation
+        // Story 11-7 — create the entry if absent so subsequent slots score
+        // against this employee's real, updated load.
         const date = new Date(`${a.date}T00:00:00.000Z`);
         const dayOfWeek = date.getUTCDay();
-        const equity = constraints.equityMap.get(a.employeeId);
-        if (equity) {
-          if (dayOfWeek === 6) equity.saturdayCount++;
-          if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-        }
+        const equity = this.getOrCreateEquityEntry(
+          constraints.equityMap,
+          a.employeeId,
+        );
+        if (dayOfWeek === 6) equity.saturdayCount++;
+        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
       }
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
@@ -832,13 +850,16 @@ export class PlanningGenerationService {
     const hardRules = rules.filter((r) => r.ruleType === 'HARD').map(mapRule);
     const softRules = rules.filter((r) => r.ruleType === 'SOFT').map(mapRule);
 
-    // Load months before the target month for cumulative equity data (exclude current month to avoid circular scoring)
-    const allMonths =
-      month > 1 ? Array.from({ length: month - 1 }, (_, i) => i + 1) : [];
-    const counters = await this.equityCounterService.getCountersForPeriod(
+    // Story 11-7 — cumulative equity over a rolling 12-month window ending the
+    // month BEFORE the target (excludes the current month to avoid circular
+    // scoring). Unlike the old current-calendar-year query, this crosses the
+    // year boundary, so a January generation still sees December N-1 and equity
+    // never resets on 1 January.
+    const counters = await this.equityCounterService.getCountersForWindow(
       clinicId,
       year,
-      allMonths,
+      month,
+      PlanningGenerationService.EQUITY_WINDOW_MONTHS,
     );
     const equityMap = new Map<
       string,
@@ -1230,52 +1251,49 @@ export class PlanningGenerationService {
     const scored = eligible.map((emp) => {
       let score = 100;
 
-      // Full equity scoring (weekend, holiday, overtime)
-      const equity = constraints.equityMap.get(emp.id);
-      if (equity) {
-        const date = new Date(`${slot.date}T00:00:00.000Z`);
-        const dayOfWeek = date.getUTCDay();
-        const isSaturday = dayOfWeek === 6;
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Full equity scoring (weekend, holiday, overtime).
+      // Story 11-7 — every active employee is seeded up front and both live
+      // increments create-if-absent, so getOrCreateEquityEntry always returns a
+      // real entry: the former `if (equity) … else { score += 20; }` guard is
+      // gone. An un-mapped new hire no longer gets a flat bonus that made them
+      // absorb the unpopular weekend / holiday slots.
+      const equity = this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
+      const date = new Date(`${slot.date}T00:00:00.000Z`);
+      const dayOfWeek = date.getUTCDay();
+      const isSaturday = dayOfWeek === 6;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-        if (isWeekend) {
-          const avgWeekend = this.getAverageEquity(
+      if (isWeekend) {
+        const avgWeekend = this.getAverageEquity(
+          constraints.equityMap,
+          'weekendCount',
+        );
+        if (equity.weekendCount < avgWeekend) score += 10;
+
+        if (isSaturday) {
+          const avgSaturday = this.getAverageEquity(
             constraints.equityMap,
-            'weekendCount',
+            'saturdayCount',
           );
-          if (equity.weekendCount < avgWeekend) score += 10;
-
-          if (isSaturday) {
-            const avgSaturday = this.getAverageEquity(
-              constraints.equityMap,
-              'saturdayCount',
-            );
-            if (equity.saturdayCount < avgSaturday) score += 10;
-          }
+          if (equity.saturdayCount < avgSaturday) score += 10;
         }
+      }
 
-        // Holiday equity — prefer employees with fewer holiday shifts
-        const avgHoliday = this.getAverageEquity(
-          constraints.equityMap,
-          'holidayCount',
-        );
-        if (equity.holidayCount < avgHoliday) {
-          score += 5;
-        } else if (equity.holidayCount > avgHoliday + 1) {
-          score -= 5;
-        }
+      // Holiday equity — prefer employees with fewer holiday shifts
+      const avgHoliday = this.getAverageEquity(
+        constraints.equityMap,
+        'holidayCount',
+      );
+      if (equity.holidayCount < avgHoliday) {
+        score += 5;
+      } else if (equity.holidayCount > avgHoliday + 1) {
+        score -= 5;
+      }
 
-        // Overtime equity — penalize employees with more historical overtime
-        const avgOvertime = this.getAverageOvertimeMinutes(
-          constraints.equityMap,
-        );
-        if (equity.overtimeMinutes > avgOvertime) {
-          score -= Math.round(
-            ((equity.overtimeMinutes - avgOvertime) / 60) * 5,
-          );
-        }
-      } else {
-        score += 20;
+      // Overtime equity — penalize employees with more historical overtime
+      const avgOvertime = this.getAverageOvertimeMinutes(constraints.equityMap);
+      if (equity.overtimeMinutes > avgOvertime) {
+        score -= Math.round(((equity.overtimeMinutes - avgOvertime) / 60) * 5);
       }
 
       // Monthly contract fit bonus
@@ -3534,6 +3552,35 @@ export class PlanningGenerationService {
       total += data.overtimeMinutes;
     }
     return total / equityMap.size;
+  }
+
+  /**
+   * Story 11-7 — return the employee's equity entry, creating a zero-initialised
+   * one when absent (new hire, January boundary, or an inactive-employee
+   * survivor). Guarantees every scoring / increment site sees a real entry
+   * instead of short-circuiting to a flat scoring bonus, and keeps
+   * getAverageEquity's denominator the whole seeded workforce.
+   */
+  private getOrCreateEquityEntry(
+    equityMap: ConstraintMap['equityMap'],
+    employeeId: string,
+  ): {
+    saturdayCount: number;
+    weekendCount: number;
+    holidayCount: number;
+    overtimeMinutes: number;
+  } {
+    let entry = equityMap.get(employeeId);
+    if (!entry) {
+      entry = {
+        saturdayCount: 0,
+        weekendCount: 0,
+        holidayCount: 0,
+        overtimeMinutes: 0,
+      };
+      equityMap.set(employeeId, entry);
+    }
+    return entry;
   }
 
   /**

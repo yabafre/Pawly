@@ -170,7 +170,7 @@ sprint:
     11-4-reliable-publication-notifications: { status: done, depends_on: [], ticket: "KON-121", worktree: null, started_at: '2026-07-10', completed_at: '2026-07-10', merged_into_umbrella: true }
     11-5-idempotent-generation-concurrency-safety: { status: done, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-122", worktree: null, started_at: '2026-07-10', completed_at: '2026-07-10', merged_into_umbrella: true }
     11-6-transactional-amendment-cache-coherence: { status: done, depends_on: [11-1-published-change-guard-bulk-regeneration], ticket: "KON-123", worktree: null, started_at: '2026-07-10', completed_at: '2026-07-10', merged_into_umbrella: true }
-    11-7-equity-counter-window-fix: { status: pending, depends_on: [], ticket: "KON-124", worktree: null }
+    11-7-equity-counter-window-fix: { status: done, depends_on: [], ticket: "KON-124", worktree: null, started_at: '2026-07-12', completed_at: '2026-07-12' }
     11-8-unified-rule-engine: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate, 11-3-french-labor-law-hard-rules], ticket: "KON-125", worktree: null }
     11-9-local-repair-pass-grasp: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate, 11-8-unified-rule-engine], ticket: "KON-126", worktree: null }
     11-10-generation-performance-under-load: { status: pending, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-127", worktree: null }
