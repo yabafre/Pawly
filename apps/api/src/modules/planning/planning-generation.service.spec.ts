@@ -7399,4 +7399,86 @@ describe('PlanningGenerationService', () => {
       expect(result.amendmentCount).toBe(3);
     });
   });
+
+  // ─── Story 11-9 — evaluateEligibility extraction is behaviour-preserving ───────
+  describe('scoreAndAssign eligibility after extraction (Story 11-9)', () => {
+    // scoreAndAssign's eligibility filter now delegates to the shared evaluateEligibility
+    // predicate (also consumed by the local-repair pass). These pin the two behaviours most
+    // at risk in that extraction: the rotation-relaxation fallback and determinism.
+    const rotationCappedScenario = (): ScoreAndAssignResult => {
+      const constraints = {
+        unavailableMap: new Map<string, Set<string>>(),
+        schoolDayMap: new Map<string, Set<string>>(),
+        hardRules: [
+          {
+            id: 'r-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            config: { targetDay: 'saturday', maxPerPeriod: 1 },
+            priority: 0,
+          },
+        ],
+        softRules: [] as Array<{
+          id: string;
+          name: string;
+          category: string;
+          config: Record<string, unknown>;
+          priority: number;
+        }>,
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+      const alreadyAssigned = [
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-07',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-07',
+          startTime: '14:00',
+          endTime: '18:00',
+          shiftTypeCode: 'SURGERY',
+        },
+      ];
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        assignmentIndex.set(`${a.employeeId}|${a.date}`, [a]);
+      }
+      const slot = {
+        date: '2026-03-14', // another Saturday — both employees are at the cap
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      return callScore(
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+    };
+
+    it('still relaxes HARD ROTATION_EQUITY when it is the only blocker (fallback intact)', () => {
+      const result = rotationCappedScenario();
+      expect(result.assigned.length).toBe(1);
+      expect(result.holeInfo).toBeUndefined();
+      expect(
+        result.softViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
+
+    it('produces identical output across two runs (determinism preserved)', () => {
+      const a = rotationCappedScenario();
+      const b = rotationCappedScenario();
+      expect(a.assigned).toEqual(b.assigned);
+      expect(a.holeInfo).toEqual(b.holeInfo);
+    });
+  });
 });

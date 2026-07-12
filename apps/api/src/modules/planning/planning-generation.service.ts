@@ -987,6 +987,165 @@ export class PlanningGenerationService {
     };
   }
 
+  /**
+   * Story 11-9 — the single per-employee eligibility predicate, shared by scoreAndAssign's
+   * greedy filter and the local-repair pass. Mirrors the non-disableable HARD checks exactly:
+   * unavailability, time overlap, requiredJobTypes, HARD CONTRACT_COMPLIANCE (weekly/monthly via
+   * the unified rule engine) + minRestHoursBetweenShifts, French statutory limits, and HARD
+   * ROTATION_EQUITY. `blockedOnlyByRotation` is true iff every other check passed and only the
+   * rotation cap failed — scoreAndAssign uses it to feed its relaxation fallback; the repair pass
+   * ignores it (rotation breach = ineligible, no relaxation). Evaluated on current live state.
+   */
+  private evaluateEligibility(
+    emp: EmployeeInfo,
+    slot: SlotRequirement,
+    ctx: {
+      constraints: ConstraintMap;
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+      quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): { eligible: boolean; blockedOnlyByRotation: boolean } {
+    const slotMinutes =
+      this.calculateShiftMinutes(slot.startTime, slot.endTime) -
+      (slot.breakMinutes || 0);
+    const weekBounds = this.getWeekBounds(slot.date);
+
+    // 1) Unavailability
+    const unavailDates = ctx.constraints.unavailableMap.get(emp.id);
+    if (unavailDates?.has(slot.date))
+      return { eligible: false, blockedOnlyByRotation: false };
+
+    // 2) Time overlap with an existing assignment on the same date
+    const existingOnDate =
+      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || [];
+    for (const existing of existingOnDate) {
+      if (
+        this.timesOverlap(
+          slot.startTime,
+          slot.endTime,
+          existing.startTime,
+          existing.endTime,
+        )
+      ) {
+        return { eligible: false, blockedOnlyByRotation: false };
+      }
+    }
+
+    // 3) Required job type
+    if (
+      slot.requiredJobTypes &&
+      slot.requiredJobTypes.length > 0 &&
+      !slot.requiredJobTypes.includes(emp.jobType)
+    ) {
+      return { eligible: false, blockedOnlyByRotation: false };
+    }
+
+    // 4) HARD CONTRACT_COMPLIANCE (weekly + monthly via the unified engine) + minRest
+    const weekMinutes =
+      ctx.weeklyMinutesCounter.get(`${emp.id}|${weekBounds.start}`) || 0;
+    const hardContractRules = ctx.constraints.hardRules.filter(
+      (r) => r.category === 'CONTRACT_COMPLIANCE',
+    );
+    for (const rule of hardContractRules) {
+      const config = rule.config;
+      if (
+        violatesHardContractIncremental(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: 'HARD' as RuleType,
+            category: rule.category,
+            config,
+          },
+          {
+            weekMinutes,
+            monthMinutes: ctx.employeeMinutes.get(emp.id) || 0,
+            candidateMinutes: slotMinutes,
+            contractHours: emp.contractHours,
+          },
+        )
+      ) {
+        return { eligible: false, blockedOnlyByRotation: false };
+      }
+
+      const minRest = config.minRestHoursBetweenShifts as number | undefined;
+      if (minRest) {
+        const minRestMin = minRest * 60;
+        const prevDate = this.getPreviousDate(slot.date);
+        const prevShifts =
+          ctx.assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
+        for (const prev of prevShifts) {
+          const rest =
+            24 * 60 -
+            this.toMinutes(prev.endTime) +
+            this.toMinutes(slot.startTime);
+          if (rest < minRestMin)
+            return { eligible: false, blockedOnlyByRotation: false };
+        }
+        const nextDate = this.getNextDate(slot.date);
+        const nextShifts =
+          ctx.assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
+        for (const next of nextShifts) {
+          const rest =
+            24 * 60 -
+            this.toMinutes(slot.endTime) +
+            this.toMinutes(next.startTime);
+          if (rest < minRestMin)
+            return { eligible: false, blockedOnlyByRotation: false };
+        }
+      }
+    }
+
+    // 5) French labor-law HARD limits (Story 11-3) — +/-8 day window around the slot
+    {
+      const statutoryWindow: StatutoryShift[] = [];
+      let cursor = this.getPreviousDate(slot.date);
+      for (let i = 0; i < 8; i++) {
+        statutoryWindow.push(
+          ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+        );
+        cursor = this.getPreviousDate(cursor);
+      }
+      cursor = slot.date;
+      for (let i = 0; i < 9; i++) {
+        statutoryWindow.push(
+          ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+        );
+        cursor = this.getNextDate(cursor);
+      }
+      const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        breakMinutes: slot.breakMinutes,
+      });
+      if (statutoryBreach.length > 0)
+        return { eligible: false, blockedOnlyByRotation: false };
+    }
+
+    // 6) HARD ROTATION_EQUITY — the ONLY check that feeds the relaxation fallback
+    for (const rule of ctx.constraints.hardRules) {
+      if (rule.category === 'ROTATION_EQUITY') {
+        if (
+          this.violatesHardRotationEquity(
+            rule,
+            slot,
+            emp,
+            ctx.dayOfWeekCounts,
+            ctx.quarterlyDayOfWeekCounts,
+          )
+        ) {
+          return { eligible: false, blockedOnlyByRotation: true };
+        }
+      }
+    }
+
+    return { eligible: true, blockedOnlyByRotation: false };
+  }
+
   private scoreAndAssign(
     slot: SlotRequirement,
     employees: EmployeeInfo[],
@@ -1026,147 +1185,25 @@ export class PlanningGenerationService {
     // FIX 4 — Use pre-maintained shift type counts (O(1) lookup)
     const employeeShiftTypeCounts = shiftTypeCounts;
 
-    // Extract HARD CONTRACT_COMPLIANCE rules for eligibility filter
-    const hardContractRules = constraints.hardRules.filter(
-      (r) => r.category === 'CONTRACT_COMPLIANCE',
-    );
-
-    // Filter eligible employees — track rotation-equity-blocked separately for fallback
+    // Filter eligible employees — track rotation-equity-blocked separately for fallback.
+    // Story 11-9 — eligibility is the shared evaluateEligibility predicate (also used by the
+    // local-repair pass). Behaviour is unchanged: an employee blocked only by HARD ROTATION_EQUITY
+    // is bucketed for the relaxation fallback below; any other HARD breach eliminates them.
     const rotationEquityBlocked: EmployeeInfo[] = [];
+    const eligibilityCtx = {
+      constraints,
+      assignmentIndex,
+      weeklyMinutesCounter,
+      employeeMinutes,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+    };
     const eligible = employees.filter((emp) => {
-      const unavailDates = constraints.unavailableMap.get(emp.id);
-      if (unavailDates?.has(slot.date)) return false;
-
-      const key = `${emp.id}|${slot.date}`;
-      const existingOnDate = assignmentIndex.get(key) || [];
-      for (const existing of existingOnDate) {
-        if (
-          this.timesOverlap(
-            slot.startTime,
-            slot.endTime,
-            existing.startTime,
-            existing.endTime,
-          )
-        ) {
-          return false;
-        }
-      }
-
-      if (
-        slot.requiredJobTypes &&
-        slot.requiredJobTypes.length > 0 &&
-        !slot.requiredJobTypes.includes(emp.jobType)
-      ) {
-        return false;
-      }
-
-      // HARD ROTATION_EQUITY with trackingPeriod support
-      let blockedByRotationEquity = false;
-      for (const rule of constraints.hardRules) {
-        if (rule.category === 'ROTATION_EQUITY') {
-          if (
-            this.violatesHardRotationEquity(
-              rule,
-              slot,
-              emp,
-              dayOfWeekCounts,
-              quarterlyDayOfWeekCounts,
-            )
-          ) {
-            blockedByRotationEquity = true;
-            break;
-          }
-        }
-      }
-
-      // HARD CONTRACT_COMPLIANCE — Story 11-8: weekly + monthly caps delegated to the shared
-      // rule engine (single source of truth). minRest stays inline below.
-      for (const rule of hardContractRules) {
-        const config = rule.config;
-
-        if (
-          violatesHardContractIncremental(
-            {
-              id: rule.id,
-              name: rule.name,
-              ruleType: 'HARD' as RuleType,
-              category: rule.category,
-              config,
-            },
-            {
-              weekMinutes: weeklyMinutesMap.get(emp.id) || 0,
-              monthMinutes: employeeMinutes.get(emp.id) || 0,
-              candidateMinutes: slotMinutes,
-              contractHours: emp.contractHours,
-            },
-          )
-        ) {
-          return false;
-        }
-
-        // MIN_REST_HOURS: check minimum rest between consecutive shifts
-        const minRest = config.minRestHoursBetweenShifts as number | undefined;
-        if (minRest) {
-          const minRestMin = minRest * 60;
-          // Check previous day: rest = gap from prev shift end to this shift start
-          const prevDate = this.getPreviousDate(slot.date);
-          const prevShifts = assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
-          for (const prev of prevShifts) {
-            const rest =
-              24 * 60 -
-              this.toMinutes(prev.endTime) +
-              this.toMinutes(slot.startTime);
-            if (rest < minRestMin) return false;
-          }
-          // Check next day: rest = gap from this shift end to next shift start
-          const nextDate = this.getNextDate(slot.date);
-          const nextShifts = assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
-          for (const next of nextShifts) {
-            const rest =
-              24 * 60 -
-              this.toMinutes(slot.endTime) +
-              this.toMinutes(next.startTime);
-            if (rest < minRestMin) return false;
-          }
-        }
-      }
-
-      // Story 11-3 — French labor-law HARD limits (non-disableable, independent of DB
-      // rules). Reject any candidate whose assignment would newly breach 10h/day worked,
-      // 13h amplitude, a 7th consecutive worked day, or the 35h weekly rest. Window =
-      // this employee's already-assigned shifts within +/-8 days of the slot (covers the
-      // ISO week and any run/rest that straddles a week boundary).
-      {
-        const statutoryWindow: StatutoryShift[] = [];
-        let cursor = this.getPreviousDate(slot.date);
-        for (let i = 0; i < 8; i++) {
-          statutoryWindow.push(
-            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
-          );
-          cursor = this.getPreviousDate(cursor);
-        }
-        cursor = slot.date;
-        for (let i = 0; i < 9; i++) {
-          statutoryWindow.push(
-            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
-          );
-          cursor = this.getNextDate(cursor);
-        }
-        const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
-          date: slot.date,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          breakMinutes: slot.breakMinutes,
-        });
-        if (statutoryBreach.length > 0) return false;
-      }
-
-      if (blockedByRotationEquity) {
+      const verdict = this.evaluateEligibility(emp, slot, eligibilityCtx);
+      if (!verdict.eligible && verdict.blockedOnlyByRotation) {
         rotationEquityBlocked.push(emp);
-        return false;
       }
-
-      return true;
+      return verdict.eligible;
     });
 
     // Fallback: if not enough eligible employees but some were only blocked by
