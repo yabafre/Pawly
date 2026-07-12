@@ -2871,6 +2871,100 @@ describe('PlanningGenerationService', () => {
     });
   });
 
+  // ─── Story 11-8 — generation delegates the HARD contract decision to the engine ───
+  // AC4 (verbatim from story 11-8-unified-rule-engine:20):
+  //   Given the three write paths now share the module, When existing generation / move /
+  //   validation behaviour is exercised, Then generation determinism is preserved (no RNG
+  //   change, tiebreakers intact), soft-violation equityContext still populates the Planning
+  //   Health Bar, and every existing test passes — updated where it assumed contract/rotation
+  //   were soft-only.
+  describe('Story 11-8 — determinism preserved under the shared HARD contract decision', () => {
+    const hardWeeklyConstraints = () => ({
+      unavailableMap: new Map<string, Set<string>>(),
+      schoolDayMap: new Map<string, Set<string>>(),
+      hardRules: [
+        {
+          id: 'r-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ],
+      softRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    });
+
+    // emp-1 already at 32h net this week (8 x 4h Mon-Thu); a 4h Friday slot = 36h > 35h.
+    const overloadedFixture = () => {
+      const alreadyAssigned = Array.from({ length: 8 }, (_, i) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${String(9 + Math.floor(i / 2)).padStart(2, '0')}`,
+        startTime: i % 2 === 0 ? '08:00' : '14:00',
+        endTime: i % 2 === 0 ? '12:00' : '18:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        assignmentIndex.set(key, [...(assignmentIndex.get(key) || []), a]);
+      }
+      const slot = {
+        date: '2026-03-13',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      return { alreadyAssigned, assignmentIndex, slot };
+    };
+
+    it('repeatedly excludes the over-cap employee and yields the identical assignment set', () => {
+      const run = () => {
+        const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+        return callScore(
+          slot,
+          [mockEmployees[0], mockEmployees[1]],
+          hardWeeklyConstraints(),
+          alreadyAssigned,
+          assignmentIndex,
+          new Map(),
+        );
+      };
+      const results = [run(), run(), run()];
+      for (const r of results) {
+        expect(r.assigned.length).toBe(1);
+        expect(r.assigned[0].employeeId).toBe('emp-2');
+      }
+      expect(JSON.stringify(results[1].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+      expect(JSON.stringify(results[2].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+    });
+
+    it('leaves a hole when the only candidate would break the HARD weekly cap', () => {
+      const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]], // only emp-1, at 32h + 4h = 36h > 35h
+        hardWeeklyConstraints(),
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(0);
+    });
+  });
+
   // ─── Story 11-3 — statutory French labor-law floor in eligibility ─────
   // AC1 (verbatim from story 11-3): "Given any clinic, with or without
   // admin-configured planning rules, When the monthly schedule is generated,
@@ -6140,6 +6234,77 @@ describe('PlanningGenerationService', () => {
         ]),
       );
     });
+
+    // ─── Story 11-8 — move validation delegates to the shared rule engine ───
+    // AC1 (verbatim from story 11-8-unified-rule-engine:17): "… a rule's ruleType
+    // decides severity (HARD → blocking, SOFT → warning)" — on the manual-move
+    // path the HARD/SOFT verdict must match the generator and the validator.
+    it('Story 11-8 — HARD maxWeeklyHours breach on a move lands in hard, not soft', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.soft.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
+
+    it('Story 11-8 — SOFT maxWeeklyHours breach on a move lands in soft, not hard', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'SOFT',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.soft).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.hard.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
   });
 
   // ─── Story 11-5 — idempotent generation & concurrency safety ──────
@@ -6443,6 +6608,40 @@ describe('PlanningGenerationService', () => {
 
       // tx.planningPeriodStatus.upsert should NOT have been called
       expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+    });
+
+    // ─── Story 11-8 — publish blocked by a HARD contract violation ───
+    // AC2 (verbatim from story 11-8-unified-rule-engine:18):
+    //   Given a month whose persisted shifts breach a HARD CONTRACT_COMPLIANCE (weekly or
+    //   monthly) or HARD ROTATION_EQUITY rule, When validateShiftsAgainstRules runs (as
+    //   publishPlan invokes it), Then those breaches appear in hardViolations — no longer
+    //   silently demoted to softViolations — and publishPlan rejects with the 409
+    //   "hard violation(s) remain" conflict.
+    // Before this story a HARD contract/rotation rule could never produce a hard
+    // violation, so this publishPlan path was unreachable for that category (L-audit:
+    // "verified" means every guard entry-point).
+    describe('publishPlan — blocks on HARD contract violation (Story 11-8)', () => {
+      it('rejects with ConflictException when a HARD CONTRACT_COMPLIANCE violation remains', async () => {
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+          hardViolations: [
+            {
+              ruleId: 'rule-cc',
+              ruleName: 'Contract cap',
+              category: 'CONTRACT_COMPLIANCE',
+              message: 'weekly overage',
+              affectedEmployeeId: 'e1',
+              severity: 'blocking',
+            },
+          ],
+          softViolations: [],
+          rules: [],
+        });
+
+        await expect(
+          service.publishPlan('clinic-123', '2026-08', 'user-1'),
+        ).rejects.toThrow(/hard violation\(s\) remain/);
+        expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+      });
     });
 
     it('should send batch email to active employees with shifts in the month', async () => {

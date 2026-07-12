@@ -1157,4 +1157,259 @@ describe('PlanningService', () => {
       });
     });
   });
+
+  // ─── validateShiftsAgainstRules — unified rule engine (Story 11-8) ───────────
+  // AC1 (verbatim from story 11-8-unified-rule-engine:17):
+  //   Given persisted shifts and configured CONTRACT_COMPLIANCE / ROTATION_EQUITY planning
+  //   rules, When rules are evaluated on any of the three write paths (generation eligibility
+  //   in scoreAndAssign, post-hoc validation in validateShiftsAgainstRules, manual-move
+  //   validation in preValidateMove), Then all three delegate the rule decision to the shared
+  //   pure module rule-engine.ts: worked minutes are computed net of breakMinutes,
+  //   maxWeeklyHours is enforced in validation (ISO-week bucketed, effective weekly limit =
+  //   min(contractHours, maxWeeklyHours)), and a rule's ruleType decides severity
+  //   (HARD → blocking, SOFT → warning).
+  // AC2 (verbatim from story 11-8-unified-rule-engine:18):
+  //   Given a month whose persisted shifts breach a HARD CONTRACT_COMPLIANCE (weekly or
+  //   monthly) or HARD ROTATION_EQUITY rule, When validateShiftsAgainstRules runs (as
+  //   publishPlan invokes it), Then those breaches appear in hardViolations — no longer
+  //   silently demoted to softViolations — and publishPlan rejects with the 409
+  //   "hard violation(s) remain" conflict.
+  describe('validateShiftsAgainstRules — unified engine', () => {
+    const empShift = (
+      id: string,
+      employeeId: string,
+      date: string,
+      startTime: string,
+      endTime: string,
+      breakMinutes = 0,
+      contractHours = 35,
+      jobType = 'VET',
+    ) => ({
+      id,
+      date: new Date(`${date}T00:00:00.000Z`),
+      startTime,
+      endTime,
+      shiftTypeCode: 'CHIR',
+      breakMinutes,
+      employeeId,
+      clinicId,
+      employee: { id: employeeId, jobType, contractHours },
+    });
+
+    const contractRule = (
+      ruleType: 'HARD' | 'SOFT',
+      config: Record<string, unknown>,
+    ) => ({
+      id: 'rule-cc',
+      name: 'Contract cap',
+      ruleType,
+      category: 'CONTRACT_COMPLIANCE',
+      isActive: true,
+      config,
+      priority: 0,
+      clinicId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const rotationRule = (
+      ruleType: 'HARD' | 'SOFT',
+      config: Record<string, unknown>,
+    ) => ({
+      id: 'rule-rot',
+      name: 'Rotation cap',
+      ruleType,
+      category: 'ROTATION_EQUITY',
+      isActive: true,
+      config,
+      priority: 0,
+      clinicId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const input = {
+      startDate: '2026-08-01T00:00:00.000Z',
+      endDate: '2026-08-31T23:59:59.999Z',
+    };
+
+    it('HARD CONTRACT_COMPLIANCE weekly overage -> hardViolations (blocks publish)', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        contractRule('HARD', { maxWeeklyHours: 35 }),
+      ]);
+      // Mon-Fri 09:00-18:00 (9h/day x 5 = 45h) in one ISO week. Mon-Fri (not Mon-Sat as the
+      // story sketched) so the always-on 11-3 statutory weekly-rest check (>=35h) stays quiet
+      // and the hardViolations assertion isolates the configured rule.
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['03', '04', '05', '06', '07'].map((d, i) =>
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '09:00', '18:00', 0),
+        ),
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        res.hardViolations.some((v) => v.category === 'CONTRACT_COMPLIANCE'),
+      ).toBe(true);
+      expect(
+        res.softViolations.some((v) => v.category === 'CONTRACT_COMPLIANCE'),
+      ).toBe(false);
+    });
+
+    it('SOFT CONTRACT_COMPLIANCE monthly overage -> softViolations with equityContext', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        contractRule('SOFT', { maxMonthlyHours: 40 }),
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['03', '04', '05', '06', '07'].map((d, i) =>
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '17:00', 0),
+        ), // 5 x 9h = 45h > 40h (Mon-Fri, statutory-quiet — see note above)
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input);
+      const monthly = res.softViolations.find(
+        (v) => v.messageKey === 'violations.contractCompliance.overtime',
+      );
+      expect(monthly).toBeDefined();
+      expect(monthly?.equityContext).toBeDefined();
+      // The same fixture breaches the weekly contractHours floor (45h > 35h) — its
+      // monthly clinic-average trend is meaningless for a weekly figure, so the
+      // adapter attaches no equityContext there (aped-review m4).
+      const weekly = res.softViolations.find(
+        (v) => v.messageKey === 'violations.contractCompliance.weeklyOvertime',
+      );
+      expect(weekly).toBeDefined();
+      expect(weekly?.equityContext).toBeUndefined();
+      expect(
+        res.hardViolations.some((v) => v.category === 'CONTRACT_COMPLIANCE'),
+      ).toBe(false);
+    });
+
+    it('deducts breakMinutes: 5 x (08:00-16:00 net 7h) = 35h is NOT over a 35h HARD cap', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        contractRule('HARD', { maxWeeklyHours: 35 }),
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['03', '04', '05', '06', '07'].map(
+          (d, i) =>
+            empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '16:00', 60), // 8h gross - 1h = 7h net
+        ),
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input);
+      // Would be 40h gross (> 35, violation) if break were ignored; 35h net = at the limit, no violation.
+      expect(
+        res.hardViolations.some((v) => v.category === 'CONTRACT_COMPLIANCE'),
+      ).toBe(false);
+    });
+
+    it('HARD ROTATION_EQUITY overage -> hardViolations', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        rotationRule('HARD', {
+          targetDay: 'saturday',
+          maxPerPeriod: 2,
+          trackingPeriod: 'monthly',
+        }),
+      ]);
+      // Saturdays 2026-08-01, 08, 15 = 3 > 2
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '09:00', '15:00', 0),
+        ),
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        res.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
+
+    it('ROTATION_EQUITY respects applicableJobTypes on the validation path (aped-review M1)', async () => {
+      // Behaviour change accepted at review: the legacy validator counted every
+      // targetDay shift regardless of jobType; the unified engine aligns validation
+      // with generation and preValidateMove, which already filtered.
+      const rule = rotationRule('HARD', {
+        targetDay: 'saturday',
+        maxPerPeriod: 2,
+        trackingPeriod: 'monthly',
+        applicableJobTypes: ['ASV'],
+      });
+      mockPrismaService.planningRule.findMany.mockResolvedValue([rule]);
+
+      // 3 Saturdays as VET: outside the rule's jobTypes -> not counted, no violation.
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(
+            `s${i}`,
+            'e1',
+            `2026-08-${d}`,
+            '09:00',
+            '15:00',
+            0,
+            35,
+            'VET',
+          ),
+        ),
+      );
+      const vet = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        vet.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(false);
+
+      // Same 3 Saturdays as ASV: counted -> hard violation.
+      mockPrismaService.planningRule.findMany.mockResolvedValue([rule]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(
+            `s${i}`,
+            'e1',
+            `2026-08-${d}`,
+            '09:00',
+            '15:00',
+            0,
+            35,
+            'ASV',
+          ),
+        ),
+      );
+      const asv = await service.validateShiftsAgainstRules(clinicId, input);
+      expect(
+        asv.hardViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
+
+    it('saturday clinicAverage stays 0 when counters are provided without SATURDAY_WORKED (legacy fallback, aped-review m5)', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        rotationRule('SOFT', {
+          targetDay: 'saturday',
+          maxPerPeriod: 2,
+          trackingPeriod: 'monthly',
+        }),
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['01', '08', '15'].map((d, i) =>
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '09:00', '15:00', 0),
+        ),
+      );
+      const res = await service.validateShiftsAgainstRules(clinicId, input, {
+        equityCounters: [
+          {
+            id: 'c1',
+            counterType: 'OVERTIME_HOURS' as const,
+            count: 120,
+            year: 2026,
+            month: 8,
+            lastCalculatedAt: null,
+            employee: {
+              id: 'e1',
+              firstName: 'Vé',
+              lastName: 'To',
+              color: '#fff',
+              jobType: 'VET',
+              contractHours: 35,
+            },
+          },
+        ],
+      });
+      const soft = res.softViolations.find(
+        (v) => v.category === 'ROTATION_EQUITY',
+      );
+      expect(soft?.equityContext?.clinicAverage).toBe(0);
+    });
+  });
 });
