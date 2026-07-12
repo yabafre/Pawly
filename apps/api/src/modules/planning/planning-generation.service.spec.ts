@@ -628,12 +628,43 @@ describe('PlanningGenerationService', () => {
       esc.set(a.employeeId, (esc.get(a.employeeId) || 0) + 1);
     }
 
+    // Story 11-10 — build the per-(employee, ISO-day) live index from alreadyAssigned
+    // (mirrors the production seeding) and the quarterly index from constraints.
+    const isoDayOf = (dateStr: string) => {
+      const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+      return dow === 0 ? 7 : dow;
+    };
+    const buildDayIdx = (
+      shifts: Array<{ employeeId: string; date: string }>,
+    ) => {
+      const idx = new Map<string, Map<number, number>>();
+      for (const s of shifts) {
+        const iso = isoDayOf(s.date);
+        let byDay = idx.get(s.employeeId);
+        if (!byDay) {
+          byDay = new Map<number, number>();
+          idx.set(s.employeeId, byDay);
+        }
+        byDay.set(iso, (byDay.get(iso) || 0) + 1);
+      }
+      return idx;
+    };
+    const dayOfWeekCounts = buildDayIdx(alreadyAssigned);
+    const constraints = (args[2] || {}) as {
+      quarterlyShifts?: Array<{ employeeId: string; date: string }>;
+    };
+    const quarterlyDayOfWeekCounts = buildDayIdx(
+      constraints.quarterlyShifts || [],
+    );
+
     return callPrivate(
       'scoreAndAssign',
       ...baseArgs,
       weeklyMinutesCounter,
       stc,
       esc,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
     ) as ScoreAndAssignResult;
   };
 
@@ -2582,6 +2613,186 @@ describe('PlanningGenerationService', () => {
       // emp-1 at 34h + 4h = 38h < 38.5h tolerance → should be allowed
       expect(result.assigned.length).toBe(1);
       expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+  });
+
+  // ─── Story 11-10 — rotation index equivalence (HARD block / SOFT penalty / SOFT violation) ──
+  // AC1 (verbatim from story 11-10-generation-performance-under-load:17):
+  //   "the schedule produced — every assignment, every staffing hole, and every
+  //   hard and soft violation, including all rotation-equity outcomes (hard caps
+  //   that exclude an employee, soft penalties that reorder candidates, soft
+  //   warnings that get recorded) — is identical to the schedule produced before
+  //   this story. And the per-employee rotation-equity evaluation no longer
+  //   re-examines the whole set of already-placed shifts for each candidate of
+  //   each slot"
+  describe('Story 11-10 — rotation-equity via O(1) day index', () => {
+    const satSlot = {
+      date: '2026-03-07', // Saturday (ISO 6)
+      shiftTypeCode: 'SURGERY',
+      startTime: '08:00',
+      endTime: '12:00',
+      requiredStaff: 1,
+    };
+    const rule = (extra: Record<string, unknown> = {}) => ({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Max 2 Saturdays',
+      category: 'ROTATION_EQUITY',
+      config: { targetDay: 'saturday', maxPerPeriod: 2, ...extra },
+      priority: 5,
+    });
+    // Two prior Saturdays already worked by emp-1 (ISO 6): 2026-02-28 and 2026-03-07.
+    const priorSaturdays = (empId: string) => [
+      {
+        employeeId: empId,
+        date: '2026-02-28',
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      },
+    ];
+
+    it('HARD rotation: excludes the at-cap employee so the under-cap one wins (index == scan)', () => {
+      // maxPerPeriod 1, emp-1 already has 1 Saturday → HARD-blocked. emp-2 carries
+      // MORE prior shifts (2× SURGERY on weekdays), so both the shift-type-diversity
+      // penalty (-15/occurrence) and the fewer-shifts tiebreak would hand the slot
+      // to emp-1 if the cap did not exclude him — a broken/empty index assigns
+      // emp-1, making this assertion discriminating.
+      // NOTE (deviation from the story's single-employee version): with emp-1 alone
+      // in the pool, the PRE-EXISTING rotation-equity relaxation fallback
+      // (scoreAndAssign: "Better to slightly exceed rotation limits than create
+      // holes") re-admits the blocked employee instead of leaving a hole — the
+      // story's expected hole contradicted shipped behaviour, before and after the
+      // index. Equivalence is preserved; the expectation was corrected.
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, hardRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+      // emp-2 satisfied requiredStaff, so the relaxation fallback never fired:
+      // emp-1 was genuinely excluded by the cap, not merely outscored.
+      expect(
+        result.softViolations.some((v) =>
+          v.message.includes('despite reaching rotation limit'),
+        ),
+      ).toBe(false);
+    });
+
+    it('SOFT rotation: penalises the capped employee so the under-cap one wins', () => {
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 already has 1 Saturday (cap 1 → soft penalty −25×1.5). emp-2 carries
+      // 2 prior SURGERY weekdays, so absent the rotation penalty emp-1 would win
+      // (diversity −15 vs −30 and fewer-shifts tiebreak) — the assertion only holds
+      // when the index-backed penalty fires, making it discriminating.
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+
+    it('SOFT rotation: records a violation when the assignee exceeds the cap', () => {
+      const oneVet = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 has 1 Saturday, cap is 1; assigning this slot makes 2 → soft violation recorded.
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        oneVet,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        priorSaturdays('emp-1'),
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(
+        result.softViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
     });
   });
 
