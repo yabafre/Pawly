@@ -198,6 +198,7 @@ describe('PlanningGenerationService', () => {
 
   const mockEquityService = {
     getCountersForPeriod: jest.fn(),
+    getCountersForWindow: jest.fn(),
   };
 
   const mockApprenticeDeclarationService = {
@@ -254,6 +255,7 @@ describe('PlanningGenerationService', () => {
     mockClinicService.listShiftTypes.mockResolvedValue(mockShiftTypes);
     mockPlanningService.listRules.mockResolvedValue([]);
     mockEquityService.getCountersForPeriod.mockResolvedValue([]);
+    mockEquityService.getCountersForWindow.mockResolvedValue([]);
     mockPrismaService.unavailability.findMany.mockResolvedValue([]);
     mockPrismaService.employee.findMany.mockResolvedValue(mockEmployees);
     mockPrismaService.shift.findMany.mockResolvedValue([]);
@@ -1377,6 +1379,43 @@ describe('PlanningGenerationService', () => {
   // ─── generateMonthlyPlan ──────────────────────────────────
 
   describe('generateMonthlyPlan', () => {
+    it('scores equity over a rolling 12-month window — a January generation still sees December N-1 (Story 11-7 AC1)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          }),
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-1');
+
+      // Generation must load equity via the rolling window (not the old
+      // current-calendar-year path, which returned [] in January).
+      expect(mockEquityService.getCountersForWindow).toHaveBeenCalledWith(
+        clinicId,
+        2026,
+        1,
+        12,
+      );
+    });
+
     it('creates Shift records via $transaction', async () => {
       const templateData = {
         days: [

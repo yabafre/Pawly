@@ -99,6 +99,7 @@ export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
+  private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
     tuesday: 2,
@@ -832,13 +833,16 @@ export class PlanningGenerationService {
     const hardRules = rules.filter((r) => r.ruleType === 'HARD').map(mapRule);
     const softRules = rules.filter((r) => r.ruleType === 'SOFT').map(mapRule);
 
-    // Load months before the target month for cumulative equity data (exclude current month to avoid circular scoring)
-    const allMonths =
-      month > 1 ? Array.from({ length: month - 1 }, (_, i) => i + 1) : [];
-    const counters = await this.equityCounterService.getCountersForPeriod(
+    // Story 11-7 — cumulative equity over a rolling 12-month window ending the
+    // month BEFORE the target (excludes the current month to avoid circular
+    // scoring). Unlike the old current-calendar-year query, this crosses the
+    // year boundary, so a January generation still sees December N-1 and equity
+    // never resets on 1 January.
+    const counters = await this.equityCounterService.getCountersForWindow(
       clinicId,
       year,
-      allMonths,
+      month,
+      PlanningGenerationService.EQUITY_WINDOW_MONTHS,
     );
     const equityMap = new Map<
       string,
