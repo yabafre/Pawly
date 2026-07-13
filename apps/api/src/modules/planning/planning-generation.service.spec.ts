@@ -8567,7 +8567,12 @@ describe('PlanningGenerationService', () => {
           ? 6000
           : 2000;
       expect(elapsedMs).toBeLessThan(budgetMs);
-    });
+      // This test runs TWO full generations (repaired + greedy-only baseline), so
+      // its total wall time can exceed Jest's 5000ms DEFAULT test timeout on a
+      // contended CI runner even while each stays inside the 8000ms perf budget
+      // above. Raise the wrapper past the budget so the assertion — not Jest's
+      // default — is what gates. (Fixes the pre-existing red CI build on KON-129.)
+    }, 20000);
 
     // KON-129 (AC5) — the opt-in solver must respect the same NFR2 envelope. This
     // is the suite's biggest model (~9,300 assignment vars: 50 VETs × 186 monthly
@@ -8587,6 +8592,9 @@ describe('PlanningGenerationService', () => {
           ? 6000
           : 2000;
       expect(elapsedMs).toBeLessThan(budgetMs);
-    });
+      // Jest's 5000ms default timeout is below this test's 8000ms CI budget — the
+      // cpsat stress solve on the 50-emp fixture can legitimately run longer than
+      // 5s on a contended CI runner. Raise the wrapper so the budget assertion gates.
+    }, 20000);
   });
 });
