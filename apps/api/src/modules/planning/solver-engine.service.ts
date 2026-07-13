@@ -19,6 +19,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { createRequire } from 'node:module';
+import type { BoolVar, IntVar } from 'or-tools-wasm/cp-sat';
 import type { SolverModel } from './solver-model';
 
 export type SolveStatus = 'OPTIMAL' | 'FEASIBLE' | 'INFEASIBLE' | 'UNKNOWN';
@@ -81,13 +82,14 @@ export class SolverEngineService {
     const { CpModel, CpSolver, LinearExpr } = loadCpSat();
 
     const cp = new CpModel();
-    const assignmentVars = new Map<
-      string,
-      ReturnType<InstanceType<typeof CpModel>['newBoolVar']>
-    >();
+    const assignmentVars = new Map<string, BoolVar>();
     for (const v of model.vars) {
       assignmentVars.set(v.name, cp.newBoolVar(v.name));
     }
+    // Spread target IntVars, keyed by their constraint tag (objective references them by name).
+    const spreadVars = new Map<string, IntVar>();
+    const varByName = (name: string): IntVar =>
+      assignmentVars.get(name) ?? spreadVars.get(name)!;
 
     // `day:{emp}:{date}` pseudo-vars referenced by `consecutive:` constraints —
     // dayVar is an OR over that (employee, date)'s assignment vars, encoded as
@@ -153,13 +155,13 @@ export class SolverEngineService {
           spreadVar,
           LinearExpr.weightedSum([maxVar, minVar], [1, -1]),
         );
-        assignmentVars.set(c.tag, spreadVar);
+        spreadVars.set(c.tag, spreadVar);
       }
     }
 
     cp.maximize(
       LinearExpr.weightedSum(
-        model.objective.map((t) => assignmentVars.get(t.varName)!),
+        model.objective.map((t) => varByName(t.varName)),
         model.objective.map((t) => t.weight),
       ),
     );
@@ -190,7 +192,7 @@ export class SolverEngineService {
 
     const chosen = new Set<string>();
     for (const v of model.vars) {
-      if (solver.booleanValue(assignmentVars.get(v.name)!)) chosen.add(v.name);
+      if (solver.value(assignmentVars.get(v.name)!) === 1) chosen.add(v.name);
     }
     return {
       status: statusName === 'OPTIMAL' ? 'OPTIMAL' : 'FEASIBLE',

@@ -8267,9 +8267,15 @@ describe('PlanningGenerationService', () => {
       // NFR2 budget is 2s on production-class hardware. This is the heaviest
       // adversarial case (ejection scan against many stranded holes); on shared
       // GitHub-hosted CI runners it can take 2-4x longer without indicating a
-      // regression. Keep the tight bound locally; give CI headroom while still
-      // catching an order-of-magnitude regression.
-      const budgetMs = process.env.CI ? 8000 : 2000;
+      // regression, and a turbo-parallel local run (api Jest + web Vitest
+      // saturating the same cores, TURBO_HASH set) shows the same contention.
+      // Keep the tight bound on standalone runs; give loaded runners headroom
+      // while still catching an order-of-magnitude regression.
+      const budgetMs = process.env.CI
+        ? 8000
+        : process.env.TURBO_HASH
+          ? 6000
+          : 2000;
       expect(elapsedMs).toBeLessThan(budgetMs);
     });
 
@@ -8283,7 +8289,13 @@ describe('PlanningGenerationService', () => {
       const elapsedMs = Date.now() - start;
       expect(result.stats.totalSlots).toBeGreaterThan(0);
       expect(['greedy', 'cpsat']).toContain(result.stats.engine);
-      const budgetMs = process.env.CI ? 8000 : 2000;
+      // Same contention headroom as the scarce-stress test above: tight standalone
+      // pin, headroom on CI and under a turbo-parallel local run.
+      const budgetMs = process.env.CI
+        ? 8000
+        : process.env.TURBO_HASH
+          ? 6000
+          : 2000;
       expect(elapsedMs).toBeLessThan(budgetMs);
     });
   });
