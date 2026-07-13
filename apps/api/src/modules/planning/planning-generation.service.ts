@@ -24,6 +24,7 @@ import {
   type RuleType,
 } from './rule-engine';
 import {
+  deriveEquityWeights,
   findEjectionChain,
   selectImprovingSwap,
   type RepairSlot,
@@ -111,8 +112,10 @@ export class PlanningGenerationService {
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
   private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
-  // Story 11-9 — local-repair bounds (AC4). Depth is fixed at <=2 by findEjectionChain.
+  // Story 11-9 — local-repair bounds (AC4). Ejection depth is <=3 (KON-128): depth 2 first,
+  // depth-3 fallback behind ONE shared evaluation budget for the whole repair pass.
   private static readonly MAX_HILLCLIMB_ITERATIONS = 200;
+  private static readonly DEPTH3_PASS_EVALUATION_BUDGET = 4_000;
   private static readonly REPAIR_YIELD_EVERY = 8; // mirror the generation-loop event-loop yield
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
@@ -3830,10 +3833,11 @@ export class PlanningGenerationService {
       ).eligible;
     };
 
-    // The ejection MOVER — eligibility for the hole evaluated on POST-removal state: lift its vacated
-    // shift off the live counters, test, then restore exactly. Sound because removing only relaxes;
-    // this is what lets a capped mover reach a hole it could not fill while still on its slot.
-    const isMoverEligibleForHole = (
+    // An ejection MOVER — eligibility for its target slot (the hole, or a previously vacated slot
+    // in a depth-3 chain) evaluated on POST-removal state: lift its vacated shift off the live
+    // counters, test, then restore exactly. Sound because removing only relaxes; this is what lets
+    // a capped mover reach a slot it could not fill while still on its own.
+    const isMoverEligible = (
       moverEmployeeId: string,
       holeR: RepairSlot,
       vacatedR: RepairSlot,
@@ -3900,6 +3904,11 @@ export class PlanningGenerationService {
     }
 
     // ── Phase 1: hole-repair via ejection chains ────────────────────────────────
+    // KON-128 — ONE depth-3 budget for the whole pass: a scarce month with many
+    // depth-2-unrepairable holes must not pay the full budget per hole (NFR2).
+    const depth3Budget = {
+      remaining: PlanningGenerationService.DEPTH3_PASS_EVALUATION_BUDGET,
+    };
     let yields = 0;
     const holes = this.recomputeHoles(
       ctx.slots,
@@ -3932,49 +3941,68 @@ export class PlanningGenerationService {
         slotById,
         employeeIds,
         isEligible,
-        isMoverEligibleForHole,
+        isMoverEligible,
+        { depth3Budget },
       );
       if (!chain) continue;
 
-      const moverShift = ctx.assignedShifts.find(
-        (s) =>
-          s.employeeId === chain.moverEmployeeId &&
-          slotIdOf(s.date, s.shiftTypeCode, s.startTime) ===
-            chain.ejectFromSlotId,
-      );
-      const vacated = slotById.get(chain.ejectFromSlotId);
-      if (!moverShift || !vacated) continue;
+      // Resolve every mover's current shift and target slot before touching any counter.
+      const moverShifts: AssignedShift[] = [];
+      const targetSlots: RepairSlot[] = [];
+      let chainResolved = true;
+      for (const move of chain.moves) {
+        const shift = ctx.assignedShifts.find(
+          (s) =>
+            s.employeeId === move.employeeId &&
+            slotIdOf(s.date, s.shiftTypeCode, s.startTime) === move.fromSlotId,
+        );
+        const target = slotById.get(move.toSlotId);
+        if (!shift || !target) {
+          chainResolved = false;
+          break;
+        }
+        moverShifts.push(shift);
+        targetSlots.push(target);
+      }
+      const backfillSlot = slotById.get(chain.backfillSlotId);
+      if (!chainResolved || !backfillSlot) continue;
 
-      // Apply: eject mover from its slot, place mover on the hole, backfill the vacated slot.
-      this.removeAssignment(moverShift, ctx);
-      const moverOnHole: AssignedShift = {
-        employeeId: chain.moverEmployeeId,
-        date: holeSlot.date,
-        startTime: holeSlot.startTime,
-        endTime: holeSlot.endTime,
-        shiftTypeCode: holeSlot.shiftTypeCode,
-        breakMinutes: holeSlot.breakMinutes,
-      };
-      const backfill: AssignedShift = {
+      // Apply: eject every mover, place each on its target, backfill the last vacated slot.
+      for (const shift of moverShifts) this.removeAssignment(shift, ctx);
+      const applied: AssignedShift[] = chain.moves.map((move, i) => ({
+        employeeId: move.employeeId,
+        date: targetSlots[i].date,
+        startTime: targetSlots[i].startTime,
+        endTime: targetSlots[i].endTime,
+        shiftTypeCode: targetSlots[i].shiftTypeCode,
+        breakMinutes: targetSlots[i].breakMinutes,
+      }));
+      applied.push({
         employeeId: chain.backfillEmployeeId,
-        date: vacated.date,
-        startTime: vacated.startTime,
-        endTime: vacated.endTime,
-        shiftTypeCode: vacated.shiftTypeCode,
-        breakMinutes: vacated.breakMinutes,
-      };
-      this.applyAssignment(moverOnHole, ctx);
-      this.applyAssignment(backfill, ctx);
+        date: backfillSlot.date,
+        startTime: backfillSlot.startTime,
+        endTime: backfillSlot.endTime,
+        shiftTypeCode: backfillSlot.shiftTypeCode,
+        breakMinutes: backfillSlot.breakMinutes,
+      });
+      for (const shift of applied) this.applyAssignment(shift, ctx);
 
-      // Revert the whole chain if either applied shift is somehow invalid (unreachable by design).
-      if (!isAppliedShiftValid(moverOnHole) || !isAppliedShiftValid(backfill)) {
-        this.removeAssignment(backfill, ctx);
-        this.removeAssignment(moverOnHole, ctx);
-        this.applyAssignment(moverShift, ctx);
+      // Revert the whole chain if any applied shift is somehow invalid (unreachable by design).
+      if (applied.some((shift) => !isAppliedShiftValid(shift))) {
+        for (const shift of [...applied].reverse())
+          this.removeAssignment(shift, ctx);
+        for (const shift of moverShifts) this.applyAssignment(shift, ctx);
       }
     }
 
     // ── Phase 2: equity hill-climbing swaps ─────────────────────────────────────
+    // KON-128 — the objective is scale-normalized per metric and weighted from the clinic's
+    // ROTATION_EQUITY rule priorities (saturday rules boost the saturday term, sunday rules the
+    // weekend term, via the codebase-wide 1 + priority/10 convention).
+    const equityWeights = deriveEquityWeights([
+      ...ctx.constraints.hardRules,
+      ...ctx.constraints.softRules,
+    ]);
     // Unlike Phase 1 (ejection), swaps need no post-apply revert: selectImprovingSwap checks each
     // employee against the target slot on PRE-swap state, where each still carries its old slot's
     // load, so the pre-swap check is strictly stricter than the true post-swap state (every
@@ -3992,7 +4020,12 @@ export class PlanningGenerationService {
         slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
         employeeId: s.employeeId,
       }));
-      const swap = selectImprovingSwap(assignments, slotById, isEligible);
+      const swap = selectImprovingSwap(
+        assignments,
+        slotById,
+        isEligible,
+        equityWeights,
+      );
       if (!swap) break; // local optimum reached — objective is monotone non-increasing
 
       const shiftA = ctx.assignedShifts.find(
