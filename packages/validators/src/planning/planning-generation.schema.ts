@@ -15,6 +15,9 @@ export const generatePlanSchema = z.object({
   templateId: z.string().uuid('Template ID must be a valid UUID'),
   // Story 11-1 — bulk regeneration now honours the 7-6 published-change guard.
   acknowledgePublishedChange: z.boolean().default(false),
+  // Story 12-1 (KON-129) — opt-in exact-solver improve pass. Default preserves
+  // today's behavior byte-for-byte.
+  engine: z.enum(['greedy', 'cpsat']).default('greedy'),
 });
 export type GeneratePlanInput = z.infer<typeof generatePlanSchema>;
 
@@ -104,6 +107,9 @@ export const generationStatsSchema = z.object({
   holeCount: z.number().int().min(0),
   hardViolationCount: z.number().int().min(0),
   softWarningCount: z.number().int().min(0),
+  // Story 12-1 — which engine produced the SERVED assignments ('cpsat' only when
+  // the solver strictly improved on greedy+repair and re-validation passed).
+  engine: z.enum(['greedy', 'cpsat']).default('greedy'),
 });
 export type GenerationStats = z.infer<typeof generationStatsSchema>;
 
