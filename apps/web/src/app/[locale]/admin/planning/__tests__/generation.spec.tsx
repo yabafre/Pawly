@@ -373,6 +373,7 @@ describe('GenerationResultView', () => {
       holeCount: 1,
       hardViolationCount: 1,
       softWarningCount: 1,
+      engine: 'greedy',
     },
   };
 
@@ -408,6 +409,7 @@ describe('GenerationResultView', () => {
         holeCount: 0,
         hardViolationCount: 0,
         softWarningCount: 0,
+        engine: 'greedy',
       },
     };
 
