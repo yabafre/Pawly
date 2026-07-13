@@ -165,6 +165,59 @@ describe('SolverEngineService (KON-129)', () => {
     expect(byEmployee.size).toBe(2);
   });
 
+  // AC6 (modeled <=6 consecutive worked days) + KON-129 adapter coverage: the
+  // `consecutive:` IR constraint is the only one whose terms are `day:{emp}:{date}`
+  // pseudo-vars, which the adapter channels through cp.addImplication (x => dayVar).
+  // A rolling week of 7 candidate worked days for one employee is the only shape
+  // that emits that constraint, so this is the case that exercises addImplication
+  // end-to-end in a real solve.
+  it('caps one employee at 6 of 7 consecutive worked days (exercises addImplication day-vars)', async () => {
+    const dates = [
+      '2026-08-03', // Mon
+      '2026-08-04',
+      '2026-08-05',
+      '2026-08-06',
+      '2026-08-07',
+      '2026-08-08',
+      '2026-08-09', // Sun — 7 consecutive days, one ISO week
+    ];
+    const consecutiveInput: SolverInput = {
+      ...input,
+      employees: [
+        {
+          id: 'a',
+          jobType: 'VET',
+          // High enough that only the <=6-consecutive constraint binds (not the cap).
+          weeklyCapMinutes: 100000,
+          monthlyCapMinutes: null,
+        },
+      ],
+      slots: dates.map((d) => ({
+        id: `${d}|CHIR|09:00`,
+        date: d,
+        shiftTypeCode: 'CHIR',
+        startTime: '09:00',
+        endTime: '17:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      })),
+      unavailable: new Map(),
+    };
+    const model = buildSolverModel(consecutiveInput);
+    // The IR must carry the <=6 consecutive-days constraint (day-var terms).
+    expect(
+      model.constraints.some(
+        (c) => c.kind === 'linearLe' && c.tag.startsWith('consecutive:a'),
+      ),
+    ).toBe(true);
+    const result = await service.solve(model, {
+      deterministicTimeBudget: 1.0,
+    });
+    expect(result.status).toBe('OPTIMAL');
+    // 7 slots, one employee, <=6 consecutive worked days -> exactly one stays empty.
+    expect(result.chosenVarNames.size).toBe(6);
+  });
+
   it('reports a terminal status instead of throwing on an exhausted deterministic budget', async () => {
     const model = buildSolverModel(input);
     const result = await service.solve(model, {

@@ -117,7 +117,10 @@ function toMin(t: string): number {
 
 function netMinutes(s: SolverSlot): number {
   const raw = toMin(s.endTime) - toMin(s.startTime);
-  const span = raw <= 0 ? raw + 1440 : raw; // overnight wrap
+  // Overnight wrap only when end is strictly before start; end === start is a
+  // zero-length slot (0), matching calculateShiftMinutes in the service so the
+  // model coeffs and the fixed baseline share one minutes convention (KON-129).
+  const span = raw < 0 ? raw + 1440 : raw;
   return Math.max(0, span - s.breakMinutes);
 }
 
@@ -307,10 +310,16 @@ export function buildSolverModel(input: SolverInput): SolverModel {
       constraints.push({
         kind: 'linearLe',
         tag: `consecutive:${e.id}:${start}`,
+        // A fixed-worked date already counts toward fixedCount (it lowers the
+        // bound), so it must NOT also appear as a free day-var term — otherwise
+        // the same day is double-counted. Clamp the bound at 0: an already-illegal
+        // baseline (>6 fixed days in a window) yields an infeasible model, and the
+        // improve pass safely falls back to greedy rather than emitting a negative
+        // bound the adapter would translate into an always-UNSAT constraint.
         terms: window
-          .filter((d) => byDate.has(d))
+          .filter((d) => byDate.has(d) && !fixedWorked.has(d))
           .map((d) => ({ varName: `day:${e.id}:${d}`, coeff: 1 })),
-        bound: MAX_CONSECUTIVE_DAYS - fixedCount,
+        bound: Math.max(0, MAX_CONSECUTIVE_DAYS - fixedCount),
       });
     }
 

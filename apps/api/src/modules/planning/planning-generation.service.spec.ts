@@ -7976,11 +7976,12 @@ describe('PlanningGenerationService', () => {
       // produces a not-strictly-better or re-validation-failing solution, Then the
       // greedy+repair result is served unchanged, stats.engine === 'greedy', and a
       // structured warn log records the solver status."
-      it('AC3 — solver failure serves the greedy+repair result unchanged', async () => {
+      it('AC3 — solver failure serves the greedy+repair result unchanged (visible warn, NFR3)', async () => {
         jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
           status: 'UNKNOWN',
           chosenVarNames: new Set(),
         });
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
         buildDepth3CounterExample();
         const result = await service.generateMonthlyPlan(
           clinicId,
@@ -7990,9 +7991,14 @@ describe('PlanningGenerationService', () => {
         );
         expect(result.stats.engine).toBe('greedy');
         expect(result.stats.holeCount).toBe(0); // depth-3 repair already fills this fixture
+        // NFR3 — the non-served outcome must be visible in a structured warn, not silent.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('KON-129 solver status UNKNOWN'),
+        );
       });
 
       it('AC3 — a not-strictly-better solver plan is discarded (strictness gate)', async () => {
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
         buildDepth3CounterExample();
         // With repair ON, greedy+repair reaches 0 holes; every full assignment of
         // this fixture has identical equity (one Monday each) -> the real solver
@@ -8005,6 +8011,11 @@ describe('PlanningGenerationService', () => {
         );
         expect(result.stats.holeCount).toBe(0);
         expect(result.stats.engine).toBe('greedy');
+        // NFR3 (AC3) — the "not strictly better" outcome is a structured warn, not
+        // silent, at the same level as the other non-served branches.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('greedy plan kept'),
+        );
       });
 
       // AC4 (verbatim): "Given the same inputs and engine: 'cpsat' twice, Then the
@@ -8032,12 +8043,25 @@ describe('PlanningGenerationService', () => {
 
       // AC6 (verbatim): "the 35h-weekly-rest constraint is deliberately relaxed in
       // the model and enforced by re-validation — a fixture proves a rest-violating
-      // solver solution is rejected and the greedy result served." Same rejection
-      // path, exercised here with a monthly-cap violation: the mocked solve returns
-      // MODEL-EXISTING vars (3 fills > greedy-alone's 2, so it passes the strictness
-      // gate) that double-book Alice past her 4h/month cap — re-validation must
-      // reject and serve the greedy plan.
-      it('AC6 — a re-validation-failing solver plan is rejected and greedy served', async () => {
+      // solver solution is rejected and the greedy result served."
+      //
+      // What this test proves: the improve pass's re-validation REPLAY rejects a
+      // model-passing solver plan and serves greedy. The rejection here is a
+      // monthly-cap breach, chosen deliberately: constructing a plan that satisfies
+      // every MODELED constraint (incl. the modeled <=6-consecutive-days) yet
+      // violates ONLY the un-modeled 35h weekly rest requires pathological shift
+      // geometry (a <35h gap around a single off day needs >13h daily amplitude,
+      // itself illegal) — impractical on any realistic fixture. The 35h rule itself
+      // is enforced by the SAME shared predicate the replay calls
+      // (evaluateEligibility -> wouldExceedStatutory, WEEKLY_REST kind), and its
+      // detection is proven independently in french-labor-law.spec.ts. So the
+      // rejection PATH (this test) + the WEEKLY_REST DETECTION (french-labor-law
+      // spec) compose to cover AC6's relaxed-then-rejected guarantee. See the story
+      // Review Record for the full rationale.
+      //
+      // The mocked solve returns MODEL-EXISTING vars (3 fills > greedy-alone's 2, so
+      // it passes the strictness gate) that double-book Alice past her 4h/month cap.
+      it('AC6 — a re-validation-failing solver plan is rejected and greedy served (visible warn)', async () => {
         jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
           status: 'OPTIMAL',
           chosenVarNames: new Set([
@@ -8046,6 +8070,7 @@ describe('PlanningGenerationService', () => {
             'emp-3@2026-03-09|SURGERY|08:00',
           ]),
         });
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
         buildDepth3CounterExample();
         const result = await service.generateMonthlyPlan(
           clinicId,
@@ -8055,6 +8080,124 @@ describe('PlanningGenerationService', () => {
         );
         expect(result.stats.engine).toBe('greedy');
         expect(result.stats.holeCount).toBe(1); // greedy-alone baseline kept
+        // NFR3 — the rejection must surface through the shared re-validation replay,
+        // visibly, in a structured warn (the same path the 35h weekly-rest breach
+        // would take, since both go through evaluateEligibility).
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('rejected by re-validation'),
+        );
+      });
+
+      // Regression lock for the aped-review M1 fix: a HARD CONTRACT_COMPLIANCE rule
+      // with ONLY maxMonthlyHours must still bound the solver's weekly cap at the
+      // employee's contractHours (mirroring violatesHardContractIncremental). The
+      // pre-fix bug left the weekly bound at PHYSICAL_WEEK_MINUTES (168h = 10080),
+      // so the solver searched a space where an employee could be packed far past a
+      // real 35h contract — the resulting candidate then tripped the exact weekly
+      // check on replay and the whole plan was discarded (AC1 silently → greedy).
+      // We assert the MODEL BOUND directly (spy on solve, capture the model) so the
+      // lock is precise and independent of solver search.
+      it('M1 — maxMonthlyHours-only rule still caps the solver weekly bound at contractHours', async () => {
+        // Two same-week SURGERY slots (Mon + Tue, ISO week of 2026-03-02) so the IR
+        // emits a `weekly:` constraint for the employee.
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-m1',
+          name: 'Mon+Tue VET surgery',
+          clinicId,
+          data: {
+            days: [
+              {
+                dayOfWeek: 1,
+                slots: [
+                  {
+                    shiftTypeCode: 'SURGERY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+              {
+                dayOfWeek: 2,
+                slots: [
+                  {
+                    shiftTypeCode: 'SURGERY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        mockClinicService.getOperationalConfig.mockResolvedValue({
+          ...mockOperationalConfig,
+          // Keep a single ISO week open so only one weekly constraint is emitted.
+          closedDays: [
+            { id: 'c1', date: '2026-03-09', reason: null },
+            { id: 'c2', date: '2026-03-10', reason: null },
+            { id: 'c3', date: '2026-03-16', reason: null },
+            { id: 'c4', date: '2026-03-17', reason: null },
+            { id: 'c5', date: '2026-03-23', reason: null },
+            { id: 'c6', date: '2026-03-24', reason: null },
+            { id: 'c7', date: '2026-03-30', reason: null },
+            { id: 'c8', date: '2026-03-31', reason: null },
+          ],
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 8, // 8h/week -> 480 net minutes weekly cap
+          },
+        ]);
+        mockPlanningService.listRules.mockResolvedValue([
+          {
+            id: '44444444-4444-4444-4444-444444444444',
+            name: 'Max 100h/month (no weekly cap)',
+            category: 'CONTRACT_COMPLIANCE',
+            ruleType: 'HARD',
+            config: { maxMonthlyHours: 100, overtimeThresholdPercent: 0 },
+            priority: 10,
+          },
+        ]);
+        mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+        mockPrismaService.shift.findMany.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) =>
+            fn({
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest
+                  .fn()
+                  .mockImplementation(({ data }: { data: any[] }) =>
+                    data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                  ),
+              },
+            }),
+        );
+
+        let capturedModel: any;
+        jest
+          .spyOn(solverEngine, 'solve')
+          .mockImplementation(async (model: any) => {
+            capturedModel = model;
+            return { status: 'UNKNOWN', chosenVarNames: new Set<string>() };
+          });
+
+        await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-m1', {
+          engine: 'cpsat',
+        });
+
+        const weekly = capturedModel.constraints.find(
+          (c: { kind: string; tag: string }) =>
+            c.kind === 'linearLe' && c.tag.startsWith('weekly:emp-1'),
+        );
+        expect(weekly).toBeDefined();
+        // contractHours 8h * 60 = 480; the pre-fix bug would leave this at 10080.
+        expect(weekly.bound).toBe(480);
       });
     });
   });

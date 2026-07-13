@@ -4224,14 +4224,19 @@ export class PlanningGenerationService {
           overtimeThresholdPercent?: number;
         };
         const tol = 1 + (cfg.overtimeThresholdPercent ?? 0) / 100;
-        if (cfg.maxWeeklyHours !== undefined) {
-          weekly = Math.min(
-            weekly,
-            Math.floor(
-              Math.min(emp.contractHours, cfg.maxWeeklyHours) * 60 * tol,
-            ),
-          );
-        }
+        // Mirror violatesHardContractIncremental (rule-engine.ts) EXACTLY: a HARD
+        // CONTRACT_COMPLIANCE rule with no maxWeeklyHours still caps the week at the
+        // employee's contractHours. Omitting that fallback (KON-129 regression) let
+        // the solver search a ~168h/week space for maxMonthlyHours-only rules, so
+        // its optimum tripped the real weekly cap on replay and the whole candidate
+        // was discarded — AC1 silently degraded to "always serve greedy" for that
+        // clinic class. The replay stays the exact gate; this only makes the model's
+        // bound match reality so a genuinely-better plan can actually be served.
+        const ruleWeekly =
+          cfg.maxWeeklyHours !== undefined
+            ? Math.min(emp.contractHours, cfg.maxWeeklyHours)
+            : emp.contractHours;
+        weekly = Math.min(weekly, Math.floor(ruleWeekly * 60 * tol));
         if (cfg.maxMonthlyHours !== undefined) {
           const cap = Math.floor(cfg.maxMonthlyHours * 60 * tol);
           monthly = monthly === null ? cap : Math.min(monthly, cap);
@@ -4432,7 +4437,10 @@ export class PlanningGenerationService {
       (candidate.length === greedyFilled &&
         candidateEquity < greedyEquity - 1e-9);
     if (!strictlyBetter) {
-      this.logger.log(
+      // AC3 groups "not strictly better" with the other non-served outcomes under a
+      // structured warn log (NFR3 — never silent). warn, not log, so it surfaces at
+      // the same level as the timeout / infeasible / re-validation-reject branches.
+      this.logger.warn(
         `KON-129 solver ${result.status}: filled ${candidate.length}/${greedyFilled}, equity ${candidateEquity.toFixed(4)} vs ${greedyEquity.toFixed(4)} — greedy plan kept`,
       );
       return null;
