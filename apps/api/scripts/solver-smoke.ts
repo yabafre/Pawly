@@ -20,6 +20,7 @@ async function main(): Promise<void> {
   model.maximize(LinearExpr.weightedSum([x, y, z], [3, 2, 1]));
 
   const solver = new CpSolver();
+  solver.parameters.numWorkers = 1; // current field; deprecated alias below only read when this is 0
   solver.parameters.numSearchWorkers = 1;
   solver.parameters.randomSeed = 12;
   solver.parameters.maxDeterministicTime = 1.0;
@@ -54,6 +55,7 @@ async function main(): Promise<void> {
   hinted.addHint(hy, 1);
   hinted.addHint(hz, 0);
   const hintedSolver = new CpSolver();
+  hintedSolver.parameters.numWorkers = 1;
   hintedSolver.parameters.numSearchWorkers = 1;
   hintedSolver.parameters.randomSeed = 12;
   hintedSolver.parameters.maxDeterministicTime = 1.0;

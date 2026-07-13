@@ -176,6 +176,11 @@ export class SolverEngineService {
     }
 
     const solver = new CpSolver();
+    // numWorkers is the CURRENT field (0 = auto, and only then is the deprecated
+    // numSearchWorkers alias read) — set BOTH so determinism survives either
+    // resolution order across package versions. Single worker is load-bearing:
+    // auto (multi-worker) search is non-reproducible (invariant #3).
+    solver.parameters.numWorkers = 1;
     solver.parameters.numSearchWorkers = 1;
     solver.parameters.randomSeed = RANDOM_SEED;
     solver.parameters.maxDeterministicTime = options.deterministicTimeBudget;
