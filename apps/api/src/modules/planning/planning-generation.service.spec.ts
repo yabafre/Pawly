@@ -7754,6 +7754,175 @@ describe('PlanningGenerationService', () => {
       );
       expect(withRepair.stats.holeCount).toBe(withoutRepair.stats.holeCount);
     });
+
+    // KON-128 — depth-3 fallback end-to-end. Three open Mondays (the rest closed), three VETs
+    // each capped at ONE 4h shift per month, availabilities crossed so the greedy pass strands
+    // the third Monday AND no depth-2 chain can repair it:
+    //   Alice: free Mon1 + Mon3 (leave Mon2) — greedy puts her on Mon1 (tiebreak winner)
+    //   Bob:   free Mon1 + Mon2 (leave Mon3) — greedy puts him on Mon2
+    //   Carol: free Mon2 only (leave Mon1 + Mon3) — greedy leaves her idle
+    // Hole = Mon3. Depth-2 fails: the only mover reaching Mon3 is Alice (post-removal of Mon1),
+    // but nobody can backfill Mon1 as an addition (Bob capped by his Mon2 shift, Carol on leave).
+    // Depth-3 succeeds: Alice Mon1→Mon3, Bob Mon2→Mon1 (free of his cap once he leaves Mon2),
+    // idle Carol backfills Mon2.
+    const buildDepth3CounterExample = () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-kon-128',
+        name: 'Monday VET surgery',
+        clinicId,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                {
+                  shiftTypeCode: 'SURGERY',
+                  requiredStaff: 1,
+                  requiredJobTypes: ['VET'],
+                },
+              ],
+            },
+          ],
+        },
+      });
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        closedDays: [
+          { id: 'c1', date: '2026-03-23', reason: null },
+          { id: 'c2', date: '2026-03-30', reason: null },
+        ],
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-3',
+          firstName: 'Carol',
+          lastName: 'Bernard',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          name: 'Max 4h/month',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ]);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        {
+          id: 'ua-a-mon2',
+          employeeId: 'emp-1',
+          type: 'VACATION',
+          startDate: new Date('2026-03-09'),
+          endDate: new Date('2026-03-09'),
+          daysOfWeek: [],
+        },
+        {
+          id: 'ua-b-mon3',
+          employeeId: 'emp-2',
+          type: 'VACATION',
+          startDate: new Date('2026-03-16'),
+          endDate: new Date('2026-03-16'),
+          daysOfWeek: [],
+        },
+        {
+          id: 'ua-c-mon1',
+          employeeId: 'emp-3',
+          type: 'VACATION',
+          startDate: new Date('2026-03-02'),
+          endDate: new Date('2026-03-02'),
+          daysOfWeek: [],
+        },
+        {
+          id: 'ua-c-mon3',
+          employeeId: 'emp-3',
+          type: 'VACATION',
+          startDate: new Date('2026-03-16'),
+          endDate: new Date('2026-03-16'),
+          daysOfWeek: [],
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                ),
+            },
+          }),
+      );
+    };
+
+    const runDepth3 = (enableRepair: boolean) => {
+      buildDepth3CounterExample();
+      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-kon-128', {
+        enableRepair,
+      });
+    };
+
+    it('KON-128 — fills a hole only a two-relocation chain can reach (both ways)', async () => {
+      const withoutRepair = await runDepth3(false);
+      const withRepair = await runDepth3(true);
+      expect(withoutRepair.stats.holeCount).toBe(1);
+      expect(withRepair.stats.holeCount).toBe(0);
+      // The repaired month is exactly the full feasible assignment the greedy pass missed.
+      const byDate = new Map(
+        withRepair.assignments.map((a) => [a.date, a.employeeId]),
+      );
+      expect(byDate.get('2026-03-02')).toBe('emp-2'); // Bob, relocated from Mon2
+      expect(byDate.get('2026-03-09')).toBe('emp-3'); // Carol, the idle backfill
+      expect(byDate.get('2026-03-16')).toBe('emp-1'); // Alice, relocated onto the hole
+    });
+
+    it('KON-128 — the depth-3 chain respects the monthly cap and availabilities', async () => {
+      const result = await runDepth3(true);
+      const countByEmp = new Map<string, number>();
+      for (const a of result.assignments) {
+        countByEmp.set(a.employeeId, (countByEmp.get(a.employeeId) || 0) + 1);
+      }
+      for (const count of countByEmp.values()) {
+        expect(count).toBeLessThanOrEqual(1); // 4h/month cap ⇒ ≤ 1 SURGERY per VET
+      }
+      // Nobody landed on a day they are on leave for.
+      const leaveByEmp = new Map<string, string[]>([
+        ['emp-1', ['2026-03-09']],
+        ['emp-2', ['2026-03-16']],
+        ['emp-3', ['2026-03-02', '2026-03-16']],
+      ]);
+      for (const a of result.assignments) {
+        expect(leaveByEmp.get(a.employeeId) ?? []).not.toContain(a.date);
+      }
+    });
+
+    it('KON-128 — generation stays deterministic with the depth-3 fallback', async () => {
+      const a = await runDepth3(true);
+      const b = await runDepth3(true);
+      expect(a.assignments).toEqual(b.assignments);
+      expect(a.holes).toEqual(b.holes);
+    });
   });
 
   // ─── Story 11-9 — NFR2/NFR9 stress ────────────────────────────────────────────
