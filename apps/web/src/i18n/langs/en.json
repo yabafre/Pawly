@@ -555,13 +555,23 @@
         "warnings": "warnings",
         "warningsTitle": "Warnings & violations"
       },
+      "engine": {
+        "label": "Exact engine (CP-SAT)",
+        "hint": "The solver tries to improve the generated schedule — served only when strictly better.",
+        "proHint": "Available with the Professional plan.",
+        "proBadge": "Pro",
+        "servedCpsat": "Solver-optimized",
+        "servedGreedy": "Standard engine"
+      },
       "toast": {
         "generated": "Planning generated successfully",
         "regenerated": "Planning regenerated successfully",
         "deleted": "Generated shifts deleted",
         "generateFailed": "Unable to generate planning",
         "deleteFailed": "Unable to delete generated shifts",
-        "publishedChangeRequired": "This schedule is published: confirm the change via the dialog."
+        "publishedChangeRequired": "This schedule is published: confirm the change via the dialog.",
+        "generatedCpsat": "Schedule optimized by the solver",
+        "cpsatNoImprovement": "The solver found no improvement — standard plan served (already optimal)."
       },
       "errors": {
         "noTemplate": "Please select a template",
