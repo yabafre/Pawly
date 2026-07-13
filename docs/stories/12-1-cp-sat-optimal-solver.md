@@ -1,7 +1,7 @@
 # Story: 12-1-cp-sat-optimal-solver — CP-SAT Optimal Solver behind the Greedy Path
 
 **Epic:** Epic 12 — Planning Optimality (Phase 3)
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-129-12-1-cp-sat-optimal-solver
 **Ticket:** KON-129 (Linear · project Pawly · blocked by KON-128 / PR #108)
 **Origin:** PRD Product Scope, Phase 3 Vision — *"AI Engine: Global optimization algorithms for complex fairness balancing."* The 2026-07-08 audit deliberately chose GRASP over CP-SAT *at Epic 11's scale and priorities* (`docs/epics-context/epic-11-context.md` § 0); this story revisits that decision as a measured, **opt-in improve pass** — never a replacement of the greedy engine.
