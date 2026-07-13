@@ -598,8 +598,9 @@ export class PlanningGenerationService {
     // Story 11-9 — bounded GRASP local-repair pass. Runs on the fully-populated in-memory
     // counters, before persistence, so it can move GENERATED assignments the single greedy pass
     // could not. Mutates assignedShifts + every counter in lockstep; recomputes holes after.
-    // The `enableRepair` flag is a test hook (defaults on) so a fixture can measure the
-    // greedy-only baseline against the repaired result.
+    // `enableRepair` is an internal test seam (defaults ON) so a fixture can measure the greedy-only
+    // baseline against the repaired result — the both-ways proof AC1/AC2 rely on. It is NOT forwarded
+    // by the tRPC generate route (planning.router.ts), so no external caller can disable the pass.
     if (options.enableRepair ?? true) {
       const repairedHoles = await this.runLocalRepairPass({
         employees,
@@ -3974,6 +3975,11 @@ export class PlanningGenerationService {
     }
 
     // ── Phase 2: equity hill-climbing swaps ─────────────────────────────────────
+    // Unlike Phase 1 (ejection), swaps need no post-apply revert: selectImprovingSwap checks each
+    // employee against the target slot on PRE-swap state, where each still carries its old slot's
+    // load, so the pre-swap check is strictly stricter than the true post-swap state (every
+    // eligibility counter is monotone in the employee's own shift set; a swap only ever removes one
+    // shift and adds one). A pair that passes therefore stays valid after the swap — no false accept.
     for (
       let iter = 0;
       iter < PlanningGenerationService.MAX_HILLCLIMB_ITERATIONS;

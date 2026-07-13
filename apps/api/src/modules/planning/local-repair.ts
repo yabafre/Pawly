@@ -124,6 +124,12 @@ export function computeLoads(
  * Explicit global equity objective (LOWER is fairer): the sum of squared deviations of each
  * employee's saturdayCount / weekendCount / shiftCount from their respective workforce means.
  * Pure function of the load map — deterministic. 0 iff every metric is identical across employees.
+ *
+ * Scope: the caller builds the load map from the GENERATED assignments only. Survivor (MANUAL /
+ * confirmed) and border-week shifts are immovable and out of scope (story §36), so the objective
+ * is deliberately blind to their load — it rebalances what the pass can actually move. Eligibility,
+ * by contrast, DOES account for survivors (via the live counters), so this blindness only affects
+ * fairness quality, never validity.
  */
 export function equityObjective(loads: Map<string, EmployeeLoad>): number {
   const n = loads.size;
@@ -201,8 +207,9 @@ export function findEjectionChain(
 /**
  * Best-improvement equity swap: over all ordered assignment pairs (a before b by slot key then
  * employeeId), pick the eligible swap that yields the greatest strict decrease of equityObjective.
- * Deterministic tiebreak by (slotIdA, slotIdB). Returns null when no eligible swap improves the
- * objective. Eligibility is evaluated on pre-move state (conservative — see module header).
+ * Deterministic: pairs are scanned in `keyOf` order (date|shiftTypeCode|startTime|employeeId) and a
+ * strict-`<` gate keeps the first pair on equal deltas. Returns null when no eligible swap improves
+ * the objective. Eligibility is evaluated on pre-move state (conservative — see module header).
  *
  * Each candidate pair is scored in O(1) as a delta off the base objective rather than recomputing
  * the whole objective, so the scan is O(A²) not O(A³) (NFR2, Story 11-10). This is exact, not an
