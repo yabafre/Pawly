@@ -243,8 +243,21 @@ describe('GenerationPanel', () => {
   });
 
   describe('engine selector (KON-130)', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       mockCanAccessFeature.mockReturnValue(true);
+      // The story-11-1 tests above flip usePublish to PUBLISHED via
+      // mockReturnValue; with no global mock reset that leaks here and would
+      // route generate through the published-change dialog. Restore DRAFT so the
+      // guard runs straight through — these ACs describe a normal generation.
+      const { usePublish } = await import('../_hooks/usePublish');
+      vi.mocked(usePublish).mockReturnValue({
+        publicationStatus: { status: 'DRAFT', publishedAt: null, publishedBy: null },
+        isLoadingStatus: false,
+        publishPreview: undefined,
+        isLoadingPreview: false,
+        publishPlan: vi.fn(),
+        isPublishing: false,
+      } as any);
     });
 
     // AC1 (verbatim from story 12-2): "When they enable the exact-engine switch and
@@ -304,8 +317,10 @@ describe('GenerationPanel', () => {
       mockCanAccessFeature.mockReturnValue(false);
       render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
       expect(screen.getByRole('switch')).toBeDisabled();
-      expect(screen.getByText('engine.proBadge')).toBeInTheDocument();
-      expect(screen.getByText('engine.proHint')).toBeInTheDocument();
+      // next-intl is globally mocked to echo the bare key (namespace ignored):
+      // tEngine('proBadge') renders 'proBadge', not 'engine.proBadge'.
+      expect(screen.getByText('proBadge')).toBeInTheDocument();
+      expect(screen.getByText('proHint')).toBeInTheDocument();
     });
   });
 });
