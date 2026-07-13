@@ -55,9 +55,20 @@ export const useGeneration = (month?: string) => {
   const { mutate: generatePlan, isPending: isGenerating } = useServerActionMutation(
     generatePlanAction,
     {
-      onSuccess: () => {
+      onSuccess: (
+        result: { stats?: { engine?: 'greedy' | 'cpsat' } } | undefined,
+        variables: { engine?: 'greedy' | 'cpsat' }
+      ) => {
         invalidateAll();
-        toast.success(t('generated'));
+        // Story 12-2 — served-engine transparency: the solver legitimately serves
+        // the greedy plan when it finds no strict improvement (System Never Lies).
+        if (variables?.engine === 'cpsat' && result?.stats?.engine === 'greedy') {
+          toast.info(t('cpsatNoImprovement'));
+        } else if (result?.stats?.engine === 'cpsat') {
+          toast.success(t('generatedCpsat'));
+        } else {
+          toast.success(t('generated'));
+        }
       },
       onError: (err: { message?: string }) => {
         if (err?.message === 'PUBLISHED_CHANGE_REQUIRES_ACK') {
