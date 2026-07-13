@@ -314,13 +314,13 @@ Optional field `applicableJobTypes: string[]` on `ROTATION_EQUITY` rule config.
 | `minStaff` (rule) | Settings > Planning Rules | Minimum required per slot |
 | `targetDays` + `maxPerPeriod` (rule) | Settings > Planning Rules | Fair rotation (e.g., max 2 Saturdays/month) |
 | `trackingPeriod` (rule) | Settings > Planning Rules | `monthly` or `quarterly` for rotation |
-| `priority` (rule) | Settings > Planning Rules | Multiplier weight for soft penalties (0-10) |
+| `priority` (rule) | Settings > Planning Rules | Multiplier weight for soft penalties (0-10); on ROTATION_EQUITY rules it also weights the repair pass's equity objective (saturday rules boost the Saturday term, sunday rules the weekend term) |
 
 ---
 
 ## Known Algorithm Limitations
 
-1. **Greedy with a bounded local-repair pass (Story 11-9)**: The greedy assignment never revisits a decision mid-pass, but after the pass a bounded GRASP local-repair runs: depth-≤2 ejection chains fill holes a single pass strands (bin-packing counter-example), and equity hill-climbing swaps rebalance weekend/Saturday load — every move re-validated through the shared eligibility predicate so no repair introduces a hard-rule violation. It is not a global optimum (CP-SAT remains a Phase-3 item), but it closes the proven incompleteness gap.
+1. **Greedy with a bounded local-repair pass (Story 11-9, extended by KON-128)**: The greedy assignment never revisits a decision mid-pass, but after the pass a bounded GRASP local-repair runs: ejection chains of depth ≤3 fill holes a single pass strands (depth 2 — one relocation plus an idle backfill — is searched first and unchanged from Story 11-9; a depth-3 fallback relocating two employees runs only on a depth-2 miss, behind one shared evaluation budget for the whole pass), and equity hill-climbing swaps rebalance weekend/Saturday load — every move re-validated through the shared eligibility predicate so no repair introduces a hard-rule violation. The equity objective is scale-normalized per metric (each term divided by its workforce mean, so rare metrics like Saturdays are not drowned by total-shift spread) and weighted from the clinic's ROTATION_EQUITY rule priorities (`1 + priority/10`). It is not a global optimum (CP-SAT remains a Phase-3 item), and holes needing chains deeper than 3 stay unrepaired, but it closes the proven depth-2 incompleteness gap.
 
 2. **No global optimization**: Does not seek the mathematically "optimal" solution. Heuristic scoring produces good results but not necessarily the best.
 
