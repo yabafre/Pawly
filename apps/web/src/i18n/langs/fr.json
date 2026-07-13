@@ -336,7 +336,8 @@
             "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
           },
           "contractCompliance": {
-            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h",
+            "weeklyOvertime": "{currentWeeklyHours}h la semaine du {date}, dépasse la limite hebdomadaire de {maxWeeklyHours}h"
           },
           "statutory": {
             "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
@@ -709,7 +710,8 @@
         "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
       },
       "contractCompliance": {
-        "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+        "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h",
+        "weeklyOvertime": "{currentWeeklyHours}h la semaine du {date}, dépasse la limite hebdomadaire de {maxWeeklyHours}h"
       },
       "statutory": {
         "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",

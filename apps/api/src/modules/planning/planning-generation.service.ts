@@ -18,6 +18,17 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import {
+  violatesHardContractIncremental,
+  violatesHardRotation,
+  type RuleType,
+} from './rule-engine';
+import {
+  findEjectionChain,
+  selectImprovingSwap,
+  type RepairSlot,
+  type RepairAssignment,
+} from './local-repair';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type {
@@ -99,6 +110,10 @@ export class PlanningGenerationService {
   private readonly logger = new Logger(PlanningGenerationService.name);
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
+  private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
+  // Story 11-9 — local-repair bounds (AC4). Depth is fixed at <=2 by findEjectionChain.
+  private static readonly MAX_HILLCLIMB_ITERATIONS = 200;
+  private static readonly REPAIR_YIELD_EVERY = 8; // mirror the generation-loop event-loop yield
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
     tuesday: 2,
@@ -156,7 +171,10 @@ export class PlanningGenerationService {
     clinicId: string,
     month: string,
     templateId: string,
-    options: { acknowledgePublishedChange?: boolean } = {},
+    options: {
+      acknowledgePublishedChange?: boolean;
+      enableRepair?: boolean;
+    } = {},
   ): Promise<GenerationResult> {
     const generationStart = Date.now();
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
@@ -263,6 +281,17 @@ export class PlanningGenerationService {
       },
     });
 
+    // Story 11-7 — seed a zero-initialised equity entry for every active
+    // employee BEFORE any scoring or live increment. This makes
+    // getAverageEquity's denominator the whole active workforce (not just
+    // employees with history), removes the need for a flat "+20" fallback for
+    // un-mapped employees, and — critically — keeps the averages deterministic
+    // (invariant #3): they no longer depend on the order in which entries would
+    // otherwise be lazily created during the slot loop.
+    for (const emp of employees) {
+      this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
+    }
+
     // Pre-check: all apprentices must have school day declarations
     const undeclared =
       await this.apprenticeDeclarationService.getUndeclaredApprentices(
@@ -288,12 +317,21 @@ export class PlanningGenerationService {
     const assignedShifts: AssignedShift[] = [];
     const assignmentIndex = new Map<string, AssignedShift[]>();
 
+    // Story 11-10 — O(1) per-(employee, ISO-weekday) rotation index. Reflects the
+    // exact multiset in allShiftsForScoring (border + survivors + assigned) so the
+    // rotation-equity evaluators lookup instead of re-scanning alreadyAssigned.
+    const dayOfWeekCounts = new Map<string, Map<number, number>>();
+
     // Pre-seed assignmentIndex with border shifts (for overlap/consecutive checks)
     for (const bs of borderShifts) {
       const key = `${bs.employeeId}|${bs.date}`;
       const existing = assignmentIndex.get(key) || [];
       existing.push(bs);
       assignmentIndex.set(key, existing);
+      // Story 11-10 — border shifts are already part of allShiftsForScoring, so
+      // the pre-index rotation scan counted them too. Seed them here to preserve
+      // bit-for-bit equivalence (see Dev Notes → Equivalence).
+      this.incrementDayOfWeekCount(dayOfWeekCounts, bs.employeeId, bs.date);
     }
 
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
@@ -391,11 +429,16 @@ export class PlanningGenerationService {
 
       const date = new Date(`${ss.date}T00:00:00.000Z`);
       const dayOfWeek = date.getUTCDay();
-      const equity = constraints.equityMap.get(ss.employeeId);
-      if (equity) {
-        if (dayOfWeek === 6) equity.saturdayCount++;
-        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-      }
+      // Story 11-7 — create the entry if absent (e.g. an inactive-employee
+      // survivor not seeded above) so its weekend load is reflected in scoring.
+      const equity = this.getOrCreateEquityEntry(
+        constraints.equityMap,
+        ss.employeeId,
+      );
+      if (dayOfWeek === 6) equity.saturdayCount++;
+      if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
+      // Story 11-10 — survivors are in allShiftsForScoring; seed the rotation index.
+      this.incrementDayOfWeekCount(dayOfWeekCounts, ss.employeeId, ss.date);
     }
 
     // Story 11-2 (AC3) — index the pre-existing surviving coverage per slot key
@@ -427,7 +470,20 @@ export class PlanningGenerationService {
       preExistingSlotCoverage.set(coverageKey, bucket);
     }
 
+    // Story 11-10 — quarterly history is fixed for the whole run; index it once
+    // (was spread + filtered on every quarterly rotation check, per emp per slot).
+    const quarterlyDayOfWeekCounts = this.buildDayOfWeekIndex(
+      constraints.quarterlyShifts,
+    );
+
+    // Story 11-10 (AC2 fallback) — yield to the event loop every 8 slots so a
+    // month-long generation never blocks concurrent API requests for its whole
+    // duration. Deterministic: the yield does not reorder slot processing.
+    let slotsSinceYield = 0;
     for (const slot of slots) {
+      if (++slotsSinceYield % 8 === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
       totalPositions += slot.requiredStaff;
 
       // Story 11-2 (AC3) — reduce the requirement by pre-existing coverage, but
@@ -481,6 +537,8 @@ export class PlanningGenerationService {
         weeklyMinutesCounter,
         shiftTypeCounts,
         employeeShiftCounts,
+        dayOfWeekCounts,
+        quarterlyDayOfWeekCounts,
       );
 
       assignedShifts.push(...result.assigned);
@@ -519,17 +577,49 @@ export class PlanningGenerationService {
         );
 
         // FIX 3 — Update equity counters during generation
+        // Story 11-7 — create the entry if absent so subsequent slots score
+        // against this employee's real, updated load.
         const date = new Date(`${a.date}T00:00:00.000Z`);
         const dayOfWeek = date.getUTCDay();
-        const equity = constraints.equityMap.get(a.employeeId);
-        if (equity) {
-          if (dayOfWeek === 6) equity.saturdayCount++;
-          if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
-        }
+        const equity = this.getOrCreateEquityEntry(
+          constraints.equityMap,
+          a.employeeId,
+        );
+        if (dayOfWeek === 6) equity.saturdayCount++;
+        if (dayOfWeek === 0 || dayOfWeek === 6) equity.weekendCount++;
+        // Story 11-10 — keep the rotation index in lockstep with allShiftsForScoring.
+        this.incrementDayOfWeekCount(dayOfWeekCounts, a.employeeId, a.date);
       }
       if (result.holeInfo) holes.push(result.holeInfo);
       hardViolations.push(...result.hardViolations);
       softViolations.push(...result.softViolations);
+    }
+
+    // Story 11-9 — bounded GRASP local-repair pass. Runs on the fully-populated in-memory
+    // counters, before persistence, so it can move GENERATED assignments the single greedy pass
+    // could not. Mutates assignedShifts + every counter in lockstep; recomputes holes after.
+    // `enableRepair` is an internal test seam (defaults ON) so a fixture can measure the greedy-only
+    // baseline against the repaired result — the both-ways proof AC1/AC2 rely on. It is NOT forwarded
+    // by the tRPC generate route (planning.router.ts), so no external caller can disable the pass.
+    if (options.enableRepair ?? true) {
+      const repairedHoles = await this.runLocalRepairPass({
+        employees,
+        slots,
+        constraints,
+        assignedShifts,
+        allShiftsForScoring,
+        assignmentIndex,
+        weeklyMinutesCounter,
+        employeeMinutes,
+        shiftTypeCounts,
+        employeeShiftCounts,
+        dayOfWeekCounts,
+        quarterlyDayOfWeekCounts,
+        preExistingSlotCoverage,
+        priorHoles: holes,
+      });
+      holes.length = 0;
+      holes.push(...repairedHoles);
     }
 
     // Story 11-1 — collect the employees whose GENERATED shifts are about to be
@@ -832,13 +922,16 @@ export class PlanningGenerationService {
     const hardRules = rules.filter((r) => r.ruleType === 'HARD').map(mapRule);
     const softRules = rules.filter((r) => r.ruleType === 'SOFT').map(mapRule);
 
-    // Load months before the target month for cumulative equity data (exclude current month to avoid circular scoring)
-    const allMonths =
-      month > 1 ? Array.from({ length: month - 1 }, (_, i) => i + 1) : [];
-    const counters = await this.equityCounterService.getCountersForPeriod(
+    // Story 11-7 — cumulative equity over a rolling 12-month window ending the
+    // month BEFORE the target (excludes the current month to avoid circular
+    // scoring). Unlike the old current-calendar-year query, this crosses the
+    // year boundary, so a January generation still sees December N-1 and equity
+    // never resets on 1 January.
+    const counters = await this.equityCounterService.getCountersForWindow(
       clinicId,
       year,
-      allMonths,
+      month,
+      PlanningGenerationService.EQUITY_WINDOW_MONTHS,
     );
     const equityMap = new Map<
       string,
@@ -933,6 +1026,165 @@ export class PlanningGenerationService {
     };
   }
 
+  /**
+   * Story 11-9 — the single per-employee eligibility predicate, shared by scoreAndAssign's
+   * greedy filter and the local-repair pass. Mirrors the non-disableable HARD checks exactly:
+   * unavailability, time overlap, requiredJobTypes, HARD CONTRACT_COMPLIANCE (weekly/monthly via
+   * the unified rule engine) + minRestHoursBetweenShifts, French statutory limits, and HARD
+   * ROTATION_EQUITY. `blockedOnlyByRotation` is true iff every other check passed and only the
+   * rotation cap failed — scoreAndAssign uses it to feed its relaxation fallback; the repair pass
+   * ignores it (rotation breach = ineligible, no relaxation). Evaluated on current live state.
+   */
+  private evaluateEligibility(
+    emp: EmployeeInfo,
+    slot: SlotRequirement,
+    ctx: {
+      constraints: ConstraintMap;
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+      quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): { eligible: boolean; blockedOnlyByRotation: boolean } {
+    const slotMinutes =
+      this.calculateShiftMinutes(slot.startTime, slot.endTime) -
+      (slot.breakMinutes || 0);
+    const weekBounds = this.getWeekBounds(slot.date);
+
+    // 1) Unavailability
+    const unavailDates = ctx.constraints.unavailableMap.get(emp.id);
+    if (unavailDates?.has(slot.date))
+      return { eligible: false, blockedOnlyByRotation: false };
+
+    // 2) Time overlap with an existing assignment on the same date
+    const existingOnDate =
+      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || [];
+    for (const existing of existingOnDate) {
+      if (
+        this.timesOverlap(
+          slot.startTime,
+          slot.endTime,
+          existing.startTime,
+          existing.endTime,
+        )
+      ) {
+        return { eligible: false, blockedOnlyByRotation: false };
+      }
+    }
+
+    // 3) Required job type
+    if (
+      slot.requiredJobTypes &&
+      slot.requiredJobTypes.length > 0 &&
+      !slot.requiredJobTypes.includes(emp.jobType)
+    ) {
+      return { eligible: false, blockedOnlyByRotation: false };
+    }
+
+    // 4) HARD CONTRACT_COMPLIANCE (weekly + monthly via the unified engine) + minRest
+    const weekMinutes =
+      ctx.weeklyMinutesCounter.get(`${emp.id}|${weekBounds.start}`) || 0;
+    const hardContractRules = ctx.constraints.hardRules.filter(
+      (r) => r.category === 'CONTRACT_COMPLIANCE',
+    );
+    for (const rule of hardContractRules) {
+      const config = rule.config;
+      if (
+        violatesHardContractIncremental(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: 'HARD' as RuleType,
+            category: rule.category,
+            config,
+          },
+          {
+            weekMinutes,
+            monthMinutes: ctx.employeeMinutes.get(emp.id) || 0,
+            candidateMinutes: slotMinutes,
+            contractHours: emp.contractHours,
+          },
+        )
+      ) {
+        return { eligible: false, blockedOnlyByRotation: false };
+      }
+
+      const minRest = config.minRestHoursBetweenShifts as number | undefined;
+      if (minRest) {
+        const minRestMin = minRest * 60;
+        const prevDate = this.getPreviousDate(slot.date);
+        const prevShifts =
+          ctx.assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
+        for (const prev of prevShifts) {
+          const rest =
+            24 * 60 -
+            this.toMinutes(prev.endTime) +
+            this.toMinutes(slot.startTime);
+          if (rest < minRestMin)
+            return { eligible: false, blockedOnlyByRotation: false };
+        }
+        const nextDate = this.getNextDate(slot.date);
+        const nextShifts =
+          ctx.assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
+        for (const next of nextShifts) {
+          const rest =
+            24 * 60 -
+            this.toMinutes(slot.endTime) +
+            this.toMinutes(next.startTime);
+          if (rest < minRestMin)
+            return { eligible: false, blockedOnlyByRotation: false };
+        }
+      }
+    }
+
+    // 5) French labor-law HARD limits (Story 11-3) — +/-8 day window around the slot
+    {
+      const statutoryWindow: StatutoryShift[] = [];
+      let cursor = this.getPreviousDate(slot.date);
+      for (let i = 0; i < 8; i++) {
+        statutoryWindow.push(
+          ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+        );
+        cursor = this.getPreviousDate(cursor);
+      }
+      cursor = slot.date;
+      for (let i = 0; i < 9; i++) {
+        statutoryWindow.push(
+          ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
+        );
+        cursor = this.getNextDate(cursor);
+      }
+      const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        breakMinutes: slot.breakMinutes,
+      });
+      if (statutoryBreach.length > 0)
+        return { eligible: false, blockedOnlyByRotation: false };
+    }
+
+    // 6) HARD ROTATION_EQUITY — the ONLY check that feeds the relaxation fallback
+    for (const rule of ctx.constraints.hardRules) {
+      if (rule.category === 'ROTATION_EQUITY') {
+        if (
+          this.violatesHardRotationEquity(
+            rule,
+            slot,
+            emp,
+            ctx.dayOfWeekCounts,
+            ctx.quarterlyDayOfWeekCounts,
+          )
+        ) {
+          return { eligible: false, blockedOnlyByRotation: true };
+        }
+      }
+    }
+
+    return { eligible: true, blockedOnlyByRotation: false };
+  }
+
   private scoreAndAssign(
     slot: SlotRequirement,
     employees: EmployeeInfo[],
@@ -944,6 +1196,8 @@ export class PlanningGenerationService {
     weeklyMinutesCounter: Map<string, number>,
     shiftTypeCounts: Map<string, Map<string, number>>,
     employeeShiftCountsMap: Map<string, number>,
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): {
     assigned: AssignedShift[];
     holeInfo?: GenerationResult['holes'][number];
@@ -970,146 +1224,25 @@ export class PlanningGenerationService {
     // FIX 4 — Use pre-maintained shift type counts (O(1) lookup)
     const employeeShiftTypeCounts = shiftTypeCounts;
 
-    // Extract HARD CONTRACT_COMPLIANCE rules for eligibility filter
-    const hardContractRules = constraints.hardRules.filter(
-      (r) => r.category === 'CONTRACT_COMPLIANCE',
-    );
-
-    // Filter eligible employees — track rotation-equity-blocked separately for fallback
+    // Filter eligible employees — track rotation-equity-blocked separately for fallback.
+    // Story 11-9 — eligibility is the shared evaluateEligibility predicate (also used by the
+    // local-repair pass). Behaviour is unchanged: an employee blocked only by HARD ROTATION_EQUITY
+    // is bucketed for the relaxation fallback below; any other HARD breach eliminates them.
     const rotationEquityBlocked: EmployeeInfo[] = [];
+    const eligibilityCtx = {
+      constraints,
+      assignmentIndex,
+      weeklyMinutesCounter,
+      employeeMinutes,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+    };
     const eligible = employees.filter((emp) => {
-      const unavailDates = constraints.unavailableMap.get(emp.id);
-      if (unavailDates?.has(slot.date)) return false;
-
-      const key = `${emp.id}|${slot.date}`;
-      const existingOnDate = assignmentIndex.get(key) || [];
-      for (const existing of existingOnDate) {
-        if (
-          this.timesOverlap(
-            slot.startTime,
-            slot.endTime,
-            existing.startTime,
-            existing.endTime,
-          )
-        ) {
-          return false;
-        }
-      }
-
-      if (
-        slot.requiredJobTypes &&
-        slot.requiredJobTypes.length > 0 &&
-        !slot.requiredJobTypes.includes(emp.jobType)
-      ) {
-        return false;
-      }
-
-      // HARD ROTATION_EQUITY with trackingPeriod support
-      let blockedByRotationEquity = false;
-      for (const rule of constraints.hardRules) {
-        if (rule.category === 'ROTATION_EQUITY') {
-          if (
-            this.violatesHardRotationEquity(
-              rule,
-              slot,
-              emp,
-              alreadyAssigned,
-              constraints.quarterlyShifts,
-            )
-          ) {
-            blockedByRotationEquity = true;
-            break;
-          }
-        }
-      }
-
-      // HARD CONTRACT_COMPLIANCE — always checked, even if rotation-blocked
-      // Per-employee contractHours is always the base; rule maxWeeklyHours is an additional cap
-      for (const rule of hardContractRules) {
-        const config = rule.config;
-        const overtimeTol =
-          1 + ((config.overtimeThresholdPercent as number) || 0) / 100;
-
-        const ruleWeekly = config.maxWeeklyHours as number | undefined;
-        const effectiveWeeklyLimit = ruleWeekly
-          ? Math.min(emp.contractHours, ruleWeekly)
-          : emp.contractHours;
-        const weekMin = weeklyMinutesMap.get(emp.id) || 0;
-        const projectedWeekMin = weekMin + slotMinutes;
-        if (projectedWeekMin > effectiveWeeklyLimit * 60 * overtimeTol)
-          return false;
-
-        if (config.maxMonthlyHours) {
-          const monthMin = employeeMinutes.get(emp.id) || 0;
-          const projectedMonthMin = monthMin + slotMinutes;
-          const hardLimitMin =
-            (config.maxMonthlyHours as number) * 60 * overtimeTol;
-          if (projectedMonthMin > hardLimitMin) return false;
-        }
-
-        // MIN_REST_HOURS: check minimum rest between consecutive shifts
-        const minRest = config.minRestHoursBetweenShifts as number | undefined;
-        if (minRest) {
-          const minRestMin = minRest * 60;
-          // Check previous day: rest = gap from prev shift end to this shift start
-          const prevDate = this.getPreviousDate(slot.date);
-          const prevShifts = assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
-          for (const prev of prevShifts) {
-            const rest =
-              24 * 60 -
-              this.toMinutes(prev.endTime) +
-              this.toMinutes(slot.startTime);
-            if (rest < minRestMin) return false;
-          }
-          // Check next day: rest = gap from this shift end to next shift start
-          const nextDate = this.getNextDate(slot.date);
-          const nextShifts = assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
-          for (const next of nextShifts) {
-            const rest =
-              24 * 60 -
-              this.toMinutes(slot.endTime) +
-              this.toMinutes(next.startTime);
-            if (rest < minRestMin) return false;
-          }
-        }
-      }
-
-      // Story 11-3 — French labor-law HARD limits (non-disableable, independent of DB
-      // rules). Reject any candidate whose assignment would newly breach 10h/day worked,
-      // 13h amplitude, a 7th consecutive worked day, or the 35h weekly rest. Window =
-      // this employee's already-assigned shifts within +/-8 days of the slot (covers the
-      // ISO week and any run/rest that straddles a week boundary).
-      {
-        const statutoryWindow: StatutoryShift[] = [];
-        let cursor = this.getPreviousDate(slot.date);
-        for (let i = 0; i < 8; i++) {
-          statutoryWindow.push(
-            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
-          );
-          cursor = this.getPreviousDate(cursor);
-        }
-        cursor = slot.date;
-        for (let i = 0; i < 9; i++) {
-          statutoryWindow.push(
-            ...(assignmentIndex.get(`${emp.id}|${cursor}`) || []),
-          );
-          cursor = this.getNextDate(cursor);
-        }
-        const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
-          date: slot.date,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          breakMinutes: slot.breakMinutes,
-        });
-        if (statutoryBreach.length > 0) return false;
-      }
-
-      if (blockedByRotationEquity) {
+      const verdict = this.evaluateEligibility(emp, slot, eligibilityCtx);
+      if (!verdict.eligible && verdict.blockedOnlyByRotation) {
         rotationEquityBlocked.push(emp);
-        return false;
       }
-
-      return true;
+      return verdict.eligible;
     });
 
     // Fallback: if not enough eligible employees but some were only blocked by
@@ -1230,52 +1363,49 @@ export class PlanningGenerationService {
     const scored = eligible.map((emp) => {
       let score = 100;
 
-      // Full equity scoring (weekend, holiday, overtime)
-      const equity = constraints.equityMap.get(emp.id);
-      if (equity) {
-        const date = new Date(`${slot.date}T00:00:00.000Z`);
-        const dayOfWeek = date.getUTCDay();
-        const isSaturday = dayOfWeek === 6;
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Full equity scoring (weekend, holiday, overtime).
+      // Story 11-7 — every active employee is seeded up front and both live
+      // increments create-if-absent, so getOrCreateEquityEntry always returns a
+      // real entry: the former `if (equity) … else { score += 20; }` guard is
+      // gone. An un-mapped new hire no longer gets a flat bonus that made them
+      // absorb the unpopular weekend / holiday slots.
+      const equity = this.getOrCreateEquityEntry(constraints.equityMap, emp.id);
+      const date = new Date(`${slot.date}T00:00:00.000Z`);
+      const dayOfWeek = date.getUTCDay();
+      const isSaturday = dayOfWeek === 6;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-        if (isWeekend) {
-          const avgWeekend = this.getAverageEquity(
+      if (isWeekend) {
+        const avgWeekend = this.getAverageEquity(
+          constraints.equityMap,
+          'weekendCount',
+        );
+        if (equity.weekendCount < avgWeekend) score += 10;
+
+        if (isSaturday) {
+          const avgSaturday = this.getAverageEquity(
             constraints.equityMap,
-            'weekendCount',
+            'saturdayCount',
           );
-          if (equity.weekendCount < avgWeekend) score += 10;
-
-          if (isSaturday) {
-            const avgSaturday = this.getAverageEquity(
-              constraints.equityMap,
-              'saturdayCount',
-            );
-            if (equity.saturdayCount < avgSaturday) score += 10;
-          }
+          if (equity.saturdayCount < avgSaturday) score += 10;
         }
+      }
 
-        // Holiday equity — prefer employees with fewer holiday shifts
-        const avgHoliday = this.getAverageEquity(
-          constraints.equityMap,
-          'holidayCount',
-        );
-        if (equity.holidayCount < avgHoliday) {
-          score += 5;
-        } else if (equity.holidayCount > avgHoliday + 1) {
-          score -= 5;
-        }
+      // Holiday equity — prefer employees with fewer holiday shifts
+      const avgHoliday = this.getAverageEquity(
+        constraints.equityMap,
+        'holidayCount',
+      );
+      if (equity.holidayCount < avgHoliday) {
+        score += 5;
+      } else if (equity.holidayCount > avgHoliday + 1) {
+        score -= 5;
+      }
 
-        // Overtime equity — penalize employees with more historical overtime
-        const avgOvertime = this.getAverageOvertimeMinutes(
-          constraints.equityMap,
-        );
-        if (equity.overtimeMinutes > avgOvertime) {
-          score -= Math.round(
-            ((equity.overtimeMinutes - avgOvertime) / 60) * 5,
-          );
-        }
-      } else {
-        score += 20;
+      // Overtime equity — penalize employees with more historical overtime
+      const avgOvertime = this.getAverageOvertimeMinutes(constraints.equityMap);
+      if (equity.overtimeMinutes > avgOvertime) {
+        score -= Math.round(((equity.overtimeMinutes - avgOvertime) / 60) * 5);
       }
 
       // Monthly contract fit bonus
@@ -1365,15 +1495,11 @@ export class PlanningGenerationService {
             applicableJT.length === 0 ||
             applicableJT.includes(emp.jobType)
           ) {
-            const trackingPeriod = rule.config.trackingPeriod as
-              | string
-              | undefined;
             const count = this.countTargetDayShifts(
               rule,
               emp,
-              alreadyAssigned,
-              constraints.quarterlyShifts,
-              trackingPeriod,
+              dayOfWeekCounts,
+              quarterlyDayOfWeekCounts,
             );
             const maxPerPeriod = rule.config.maxPerPeriod as number;
             if (count >= maxPerPeriod) {
@@ -1487,8 +1613,8 @@ export class PlanningGenerationService {
             rule,
             slot,
             employee,
-            alreadyAssigned,
-            constraints.quarterlyShifts,
+            dayOfWeekCounts,
+            quarterlyDayOfWeekCounts,
             softViols,
           );
         }
@@ -2613,15 +2739,30 @@ export class PlanningGenerationService {
     )) {
       const config = rule.config as Record<string, unknown>;
       const maxWeekly = config.maxWeeklyHours as number | undefined;
-      const overtimeTol =
-        rule.ruleType === 'HARD'
-          ? 1 + ((config.overtimeThresholdPercent as number) || 0) / 100
-          : 1;
       const effectiveLimit = maxWeekly
         ? Math.min(employee.contractHours, maxWeekly)
         : employee.contractHours;
 
-      if (projectedWeeklyMinutes > effectiveLimit * 60 * overtimeTol) {
+      // Story 11-8 — weekly cap decision delegated to the shared rule engine.
+      // maxMonthlyHours is stripped so only the weekly cap is evaluated,
+      // matching the move's historic weekly-only semantics.
+      if (
+        violatesHardContractIncremental(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: rule.ruleType as RuleType,
+            category: rule.category,
+            config: { ...config, maxMonthlyHours: undefined },
+          },
+          {
+            weekMinutes: weeklyMinutes,
+            monthMinutes: 0,
+            candidateMinutes: shiftMinutes,
+            contractHours: employee.contractHours,
+          },
+        )
+      ) {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'CONTRACT_COMPLIANCE',
@@ -2711,7 +2852,18 @@ export class PlanningGenerationService {
         return d === ruleDayIso;
       }).length;
 
-      if (targetDayCount + 1 > maxPerPeriod) {
+      if (
+        violatesHardRotation(
+          {
+            id: rule.id,
+            name: rule.name,
+            ruleType: rule.ruleType as RuleType,
+            category: rule.category,
+            config: rule.config as Record<string, unknown>,
+          },
+          { currentCount: targetDayCount, jobType: employee.jobType },
+        )
+      ) {
         const bucket = rule.ruleType === 'HARD' ? hard : soft;
         bucket.push({
           rule: 'ROTATION_EQUITY',
@@ -3174,15 +3326,15 @@ export class PlanningGenerationService {
   }
 
   // checkRotationEquity: supports trackingPeriod (monthly/quarterly) + job type filter
+  // Story 11-10 — O(1) lookup via the incremental rotation index.
   private checkRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
     softViols: GenerationResult['violations']['soft'],
   ) {
-    // Skip rule if it has applicableJobTypes and employee doesn't match
     const applicableJobTypes = rule.config.applicableJobTypes as
       | string[]
       | undefined;
@@ -3200,21 +3352,15 @@ export class PlanningGenerationService {
     const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return;
 
-    const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
-    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
-    if (slotIsoDay !== targetIsoDay) return;
+    if (this.isoDayOf(slot.date) !== targetIsoDay) return;
 
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    const count = shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
+    const count = this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
 
     if (count + 1 > maxPerPeriod) {
       softViols.push({
@@ -3386,6 +3532,58 @@ export class PlanningGenerationService {
     };
   }
 
+  // Story 11-10 — per-(employee, ISO-weekday) rotation index. Maintained
+  // incrementally (mirrors the FIX-4 O(1) counters) so the three rotation-equity
+  // evaluators do an O(1) lookup instead of re-filtering the flat alreadyAssigned
+  // array (O(A), allocating a Date per element) per employee per slot per rule —
+  // the last O(E×A) scan in the generation loop. Outer key: employeeId. Inner key:
+  // ISO weekday 1..7. Value: shift count on that weekday.
+  private isoDayOf(dateStr: string): number {
+    const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+    return dow === 0 ? 7 : dow;
+  }
+
+  private incrementDayOfWeekCount(
+    index: Map<string, Map<number, number>>,
+    employeeId: string,
+    dateStr: string,
+  ): void {
+    const iso = this.isoDayOf(dateStr);
+    let byDay = index.get(employeeId);
+    if (!byDay) {
+      byDay = new Map<number, number>();
+      index.set(employeeId, byDay);
+    }
+    byDay.set(iso, (byDay.get(iso) || 0) + 1);
+  }
+
+  private buildDayOfWeekIndex(
+    shifts: AssignedShift[],
+  ): Map<string, Map<number, number>> {
+    const index = new Map<string, Map<number, number>>();
+    for (const s of shifts) {
+      this.incrementDayOfWeekCount(index, s.employeeId, s.date);
+    }
+    return index;
+  }
+
+  // Equivalent to the old `[...alreadyAssigned, ...quarterlyShifts].filter(...)`:
+  // the live index reflects alreadyAssigned (border + survivors + assigned), the
+  // quarterly index reflects constraints.quarterlyShifts. Sum only when quarterly.
+  private countFromDayIndex(
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
+    employeeId: string,
+    targetIsoDay: number,
+    trackingPeriod: string | undefined,
+  ): number {
+    const live = dayOfWeekCounts.get(employeeId)?.get(targetIsoDay) || 0;
+    if (trackingPeriod !== 'quarterly') return live;
+    const historical =
+      quarterlyDayOfWeekCounts.get(employeeId)?.get(targetIsoDay) || 0;
+    return live + historical;
+  }
+
   /**
    * Reorder slots so that within each ISO week, non-workday slots are processed
    * BEFORE workday slots, with edge work days (last work day before an off day)
@@ -3449,15 +3647,15 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // violatesHardRotationEquity: supports quarterly tracking + job type filter
+  // Story 11-10 — O(1) lookup via the incremental rotation index. Behaviour
+  // preserved: applicableJobTypes gate, slot-day early-exit, quarterly inclusion.
   private violatesHardRotationEquity(
     rule: RuleEntry,
     slot: SlotRequirement,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): boolean {
-    // Skip rule if it has applicableJobTypes and employee doesn't match
     const applicableJobTypes = rule.config.applicableJobTypes as
       | string[]
       | undefined;
@@ -3470,38 +3668,34 @@ export class PlanningGenerationService {
     }
 
     const targetDay = rule.config.targetDay as string;
-    const maxPerPeriod = rule.config.maxPerPeriod as number;
     const trackingPeriod = rule.config.trackingPeriod as string | undefined;
-    const dayNameToIso: Record<string, number> = {
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-      sunday: 7,
-    };
-    const targetIsoDay = dayNameToIso[targetDay];
+    const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return false;
 
-    const slotDate = new Date(`${slot.date}T00:00:00.000Z`);
-    const slotIsoDay = slotDate.getUTCDay() === 0 ? 7 : slotDate.getUTCDay();
-    if (slotIsoDay !== targetIsoDay) return false;
+    if (this.isoDayOf(slot.date) !== targetIsoDay) return false;
 
-    // Include quarterly historical shifts when trackingPeriod is "quarterly"
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    const count = shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
-
-    return count >= maxPerPeriod;
+    // Story 11-10 — O(1) count via the incremental rotation index.
+    // maxPerPeriod is read from rule.config inside violatesHardRotation.
+    // Story 11-8 — route the final decision through the unified rule engine
+    // (violatesHardRotation === count >= maxPerPeriod, plus the applicableJobTypes
+    // gate we already short-circuit above): unified AND O(1).
+    const count = this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
+    return violatesHardRotation(
+      {
+        id: rule.id,
+        name: rule.name,
+        ruleType: 'HARD' as RuleType,
+        category: rule.category,
+        config: rule.config,
+      },
+      { currentCount: count, jobType: employee.jobType },
+    );
   }
 
   private getAverageEquity(
@@ -3534,6 +3728,543 @@ export class PlanningGenerationService {
       total += data.overtimeMinutes;
     }
     return total / equityMap.size;
+  }
+
+  /**
+   * Story 11-7 — return the employee's equity entry, creating a zero-initialised
+   * one when absent (new hire, January boundary, or an inactive-employee
+   * survivor). Guarantees every scoring / increment site sees a real entry
+   * instead of short-circuiting to a flat scoring bonus, and keeps
+   * getAverageEquity's denominator the whole seeded workforce.
+   */
+  private getOrCreateEquityEntry(
+    equityMap: ConstraintMap['equityMap'],
+    employeeId: string,
+  ): {
+    saturdayCount: number;
+    weekendCount: number;
+    holidayCount: number;
+    overtimeMinutes: number;
+  } {
+    let entry = equityMap.get(employeeId);
+    if (!entry) {
+      entry = {
+        saturdayCount: 0,
+        weekendCount: 0,
+        holidayCount: 0,
+        overtimeMinutes: 0,
+      };
+      equityMap.set(employeeId, entry);
+    }
+    return entry;
+  }
+
+  /**
+   * Story 11-9 — bounded local-repair pass. Phase 1: hole-repair via depth-<=2 ejection chains.
+   * Phase 2: equity hill-climbing swaps against the global equity objective. Every candidate move is
+   * validated with the shared evaluateEligibility predicate and applied through applyAssignment /
+   * removeAssignment so all counters stay in lockstep. Additions (backfill, swap) are checked on
+   * pre-apply state; the ejection mover is checked on post-removal state (its vacated shift lifted off
+   * the counters first). Returns the recomputed holes.
+   */
+  private async runLocalRepairPass(ctx: {
+    employees: EmployeeInfo[];
+    slots: SlotRequirement[];
+    constraints: ConstraintMap;
+    assignedShifts: AssignedShift[];
+    allShiftsForScoring: AssignedShift[];
+    assignmentIndex: Map<string, AssignedShift[]>;
+    weeklyMinutesCounter: Map<string, number>;
+    employeeMinutes: Map<string, number>;
+    shiftTypeCounts: Map<string, Map<string, number>>;
+    employeeShiftCounts: Map<string, number>;
+    dayOfWeekCounts: Map<string, Map<number, number>>;
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+    preExistingSlotCoverage: Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >;
+    priorHoles: GenerationResult['holes'];
+  }): Promise<GenerationResult['holes']> {
+    const eligibilityCtx = {
+      constraints: ctx.constraints,
+      assignmentIndex: ctx.assignmentIndex,
+      weeklyMinutesCounter: ctx.weeklyMinutesCounter,
+      employeeMinutes: ctx.employeeMinutes,
+      dayOfWeekCounts: ctx.dayOfWeekCounts,
+      quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
+    };
+    const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
+    const employeeIds = ctx.employees.map((e) => e.id).sort();
+
+    const slotIdOf = (
+      date: string,
+      shiftTypeCode: string,
+      startTime: string,
+    ): string => `${date}|${shiftTypeCode}|${startTime}`;
+
+    const asSlotRequirement = (rslot: RepairSlot): SlotRequirement => ({
+      date: rslot.date,
+      shiftTypeCode: rslot.shiftTypeCode,
+      startTime: rslot.startTime,
+      endTime: rslot.endTime,
+      breakMinutes: rslot.breakMinutes,
+      requiredStaff: 1,
+      requiredJobTypes: rslot.requiredJobTypes,
+    });
+
+    // Additions (backfill, swap) — the injected predicate the pure search calls. Strict rotation
+    // (no greedy relaxation): the repair must never introduce a HARD violation.
+    const isEligible = (employeeId: string, rslot: RepairSlot): boolean => {
+      const emp = employeeById.get(employeeId);
+      if (!emp) return false;
+      return this.evaluateEligibility(
+        emp,
+        asSlotRequirement(rslot),
+        eligibilityCtx,
+      ).eligible;
+    };
+
+    // The ejection MOVER — eligibility for the hole evaluated on POST-removal state: lift its vacated
+    // shift off the live counters, test, then restore exactly. Sound because removing only relaxes;
+    // this is what lets a capped mover reach a hole it could not fill while still on its slot.
+    const isMoverEligibleForHole = (
+      moverEmployeeId: string,
+      holeR: RepairSlot,
+      vacatedR: RepairSlot,
+    ): boolean => {
+      const emp = employeeById.get(moverEmployeeId);
+      if (!emp) return false;
+      const moverShift = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === moverEmployeeId &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === vacatedR.id,
+      );
+      if (!moverShift) return false;
+      this.removeAssignment(moverShift, ctx);
+      const ok = this.evaluateEligibility(
+        emp,
+        asSlotRequirement(holeR),
+        eligibilityCtx,
+      ).eligible;
+      this.applyAssignment(moverShift, ctx);
+      return ok;
+    };
+
+    // Belt-and-suspenders: an already-applied shift is valid iff removing it and re-checking the
+    // add passes. Sound design means this never fires, but a false verdict reverts the whole chain.
+    const isAppliedShiftValid = (shift: AssignedShift): boolean => {
+      const emp = employeeById.get(shift.employeeId);
+      if (!emp) return false;
+      const slotView = slotById.get(
+        slotIdOf(shift.date, shift.shiftTypeCode, shift.startTime),
+      );
+      this.removeAssignment(shift, ctx);
+      const ok = this.evaluateEligibility(
+        emp,
+        {
+          date: shift.date,
+          shiftTypeCode: shift.shiftTypeCode,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes ?? 0,
+          requiredStaff: 1,
+          requiredJobTypes: slotView?.requiredJobTypes,
+        },
+        eligibilityCtx,
+      ).eligible;
+      this.applyAssignment(shift, ctx);
+      return ok;
+    };
+
+    // Build the RepairSlot view (one per demand slot key) once; slot ids are deterministic.
+    const slotById = new Map<string, RepairSlot>();
+    for (const s of ctx.slots) {
+      const id = slotIdOf(s.date, s.shiftTypeCode, s.startTime);
+      if (!slotById.has(id)) {
+        slotById.set(id, {
+          id,
+          date: s.date,
+          shiftTypeCode: s.shiftTypeCode,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          breakMinutes: s.breakMinutes,
+          requiredJobTypes: s.requiredJobTypes,
+        });
+      }
+    }
+
+    // ── Phase 1: hole-repair via ejection chains ────────────────────────────────
+    let yields = 0;
+    const holes = this.recomputeHoles(
+      ctx.slots,
+      ctx.assignedShifts,
+      ctx.preExistingSlotCoverage,
+      ctx.priorHoles,
+    );
+    for (const hole of holes) {
+      if (hole.assignedStaff >= hole.requiredStaff) continue;
+      const holeSlot = slotById.get(
+        slotIdOf(
+          hole.date,
+          hole.shiftTypeCode,
+          this.slotStartFor(ctx.slots, hole),
+        ),
+      );
+      if (!holeSlot) continue;
+      if (++yields % PlanningGenerationService.REPAIR_YIELD_EVERY === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      const currentAssignments: RepairAssignment[] = ctx.assignedShifts.map(
+        (s) => ({
+          slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
+          employeeId: s.employeeId,
+        }),
+      );
+      const chain = findEjectionChain(
+        holeSlot,
+        currentAssignments,
+        slotById,
+        employeeIds,
+        isEligible,
+        isMoverEligibleForHole,
+      );
+      if (!chain) continue;
+
+      const moverShift = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === chain.moverEmployeeId &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) ===
+            chain.ejectFromSlotId,
+      );
+      const vacated = slotById.get(chain.ejectFromSlotId);
+      if (!moverShift || !vacated) continue;
+
+      // Apply: eject mover from its slot, place mover on the hole, backfill the vacated slot.
+      this.removeAssignment(moverShift, ctx);
+      const moverOnHole: AssignedShift = {
+        employeeId: chain.moverEmployeeId,
+        date: holeSlot.date,
+        startTime: holeSlot.startTime,
+        endTime: holeSlot.endTime,
+        shiftTypeCode: holeSlot.shiftTypeCode,
+        breakMinutes: holeSlot.breakMinutes,
+      };
+      const backfill: AssignedShift = {
+        employeeId: chain.backfillEmployeeId,
+        date: vacated.date,
+        startTime: vacated.startTime,
+        endTime: vacated.endTime,
+        shiftTypeCode: vacated.shiftTypeCode,
+        breakMinutes: vacated.breakMinutes,
+      };
+      this.applyAssignment(moverOnHole, ctx);
+      this.applyAssignment(backfill, ctx);
+
+      // Revert the whole chain if either applied shift is somehow invalid (unreachable by design).
+      if (!isAppliedShiftValid(moverOnHole) || !isAppliedShiftValid(backfill)) {
+        this.removeAssignment(backfill, ctx);
+        this.removeAssignment(moverOnHole, ctx);
+        this.applyAssignment(moverShift, ctx);
+      }
+    }
+
+    // ── Phase 2: equity hill-climbing swaps ─────────────────────────────────────
+    // Unlike Phase 1 (ejection), swaps need no post-apply revert: selectImprovingSwap checks each
+    // employee against the target slot on PRE-swap state, where each still carries its old slot's
+    // load, so the pre-swap check is strictly stricter than the true post-swap state (every
+    // eligibility counter is monotone in the employee's own shift set; a swap only ever removes one
+    // shift and adds one). A pair that passes therefore stays valid after the swap — no false accept.
+    for (
+      let iter = 0;
+      iter < PlanningGenerationService.MAX_HILLCLIMB_ITERATIONS;
+      iter++
+    ) {
+      if (++yields % PlanningGenerationService.REPAIR_YIELD_EVERY === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      const assignments: RepairAssignment[] = ctx.assignedShifts.map((s) => ({
+        slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
+        employeeId: s.employeeId,
+      }));
+      const swap = selectImprovingSwap(assignments, slotById, isEligible);
+      if (!swap) break; // local optimum reached — objective is monotone non-increasing
+
+      const shiftA = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === swap.employeeA &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === swap.slotIdA,
+      );
+      const shiftB = ctx.assignedShifts.find(
+        (s) =>
+          s.employeeId === swap.employeeB &&
+          slotIdOf(s.date, s.shiftTypeCode, s.startTime) === swap.slotIdB,
+      );
+      const slotA = slotById.get(swap.slotIdA);
+      const slotB = slotById.get(swap.slotIdB);
+      if (!shiftA || !shiftB || !slotA || !slotB) break;
+
+      this.removeAssignment(shiftA, ctx);
+      this.removeAssignment(shiftB, ctx);
+      this.applyAssignment(
+        {
+          employeeId: swap.employeeB,
+          date: slotA.date,
+          startTime: slotA.startTime,
+          endTime: slotA.endTime,
+          shiftTypeCode: slotA.shiftTypeCode,
+          breakMinutes: slotA.breakMinutes,
+        },
+        ctx,
+      );
+      this.applyAssignment(
+        {
+          employeeId: swap.employeeA,
+          date: slotB.date,
+          startTime: slotB.startTime,
+          endTime: slotB.endTime,
+          shiftTypeCode: slotB.shiftTypeCode,
+          breakMinutes: slotB.breakMinutes,
+        },
+        ctx,
+      );
+    }
+
+    // AC4 — recompute holes from the final assignments; each keeps a visible reason.
+    return this.recomputeHoles(
+      ctx.slots,
+      ctx.assignedShifts,
+      ctx.preExistingSlotCoverage,
+      ctx.priorHoles,
+    );
+  }
+
+  /** Story 11-9 — add a GENERATED assignment and increment EVERY live counter in lockstep. */
+  private applyAssignment(
+    shift: AssignedShift,
+    ctx: {
+      assignedShifts: AssignedShift[];
+      allShiftsForScoring: AssignedShift[];
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      shiftTypeCounts: Map<string, Map<string, number>>;
+      employeeShiftCounts: Map<string, number>;
+      constraints: ConstraintMap;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): void {
+    ctx.assignedShifts.push(shift);
+    ctx.allShiftsForScoring.push(shift);
+    const key = `${shift.employeeId}|${shift.date}`;
+    ctx.assignmentIndex.set(key, [
+      ...(ctx.assignmentIndex.get(key) || []),
+      shift,
+    ]);
+
+    const netMin =
+      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
+      (shift.breakMinutes || 0);
+    const weekKey = `${shift.employeeId}|${this.getWeekBounds(shift.date).start}`;
+    ctx.weeklyMinutesCounter.set(
+      weekKey,
+      (ctx.weeklyMinutesCounter.get(weekKey) || 0) + netMin,
+    );
+    ctx.employeeMinutes.set(
+      shift.employeeId,
+      (ctx.employeeMinutes.get(shift.employeeId) || 0) + netMin,
+    );
+
+    let typeCounts = ctx.shiftTypeCounts.get(shift.employeeId);
+    if (!typeCounts) {
+      typeCounts = new Map();
+      ctx.shiftTypeCounts.set(shift.employeeId, typeCounts);
+    }
+    typeCounts.set(
+      shift.shiftTypeCode,
+      (typeCounts.get(shift.shiftTypeCode) || 0) + 1,
+    );
+    ctx.employeeShiftCounts.set(
+      shift.employeeId,
+      (ctx.employeeShiftCounts.get(shift.employeeId) || 0) + 1,
+    );
+
+    const dow = new Date(`${shift.date}T00:00:00.000Z`).getUTCDay();
+    const equity = this.getOrCreateEquityEntry(
+      ctx.constraints.equityMap,
+      shift.employeeId,
+    );
+    if (dow === 6) equity.saturdayCount++;
+    if (dow === 0 || dow === 6) equity.weekendCount++;
+    this.incrementDayOfWeekCount(
+      ctx.dayOfWeekCounts,
+      shift.employeeId,
+      shift.date,
+    );
+  }
+
+  /** Story 11-9 — remove a GENERATED assignment and decrement EVERY live counter in lockstep. */
+  private removeAssignment(
+    shift: AssignedShift,
+    ctx: {
+      assignedShifts: AssignedShift[];
+      allShiftsForScoring: AssignedShift[];
+      assignmentIndex: Map<string, AssignedShift[]>;
+      weeklyMinutesCounter: Map<string, number>;
+      employeeMinutes: Map<string, number>;
+      shiftTypeCounts: Map<string, Map<string, number>>;
+      employeeShiftCounts: Map<string, number>;
+      constraints: ConstraintMap;
+      dayOfWeekCounts: Map<string, Map<number, number>>;
+    },
+  ): void {
+    const same = (a: AssignedShift, b: AssignedShift) =>
+      a.employeeId === b.employeeId &&
+      a.date === b.date &&
+      a.startTime === b.startTime &&
+      a.shiftTypeCode === b.shiftTypeCode;
+    const removeOne = (arr: AssignedShift[]) => {
+      const i = arr.findIndex((s) => same(s, shift));
+      if (i >= 0) arr.splice(i, 1);
+    };
+    removeOne(ctx.assignedShifts);
+    removeOne(ctx.allShiftsForScoring);
+    const key = `${shift.employeeId}|${shift.date}`;
+    const bucket = ctx.assignmentIndex.get(key);
+    if (bucket) {
+      const i = bucket.findIndex((s) => same(s, shift));
+      if (i >= 0) bucket.splice(i, 1);
+      if (bucket.length === 0) ctx.assignmentIndex.delete(key);
+    }
+
+    const netMin =
+      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
+      (shift.breakMinutes || 0);
+    const weekKey = `${shift.employeeId}|${this.getWeekBounds(shift.date).start}`;
+    ctx.weeklyMinutesCounter.set(
+      weekKey,
+      (ctx.weeklyMinutesCounter.get(weekKey) || 0) - netMin,
+    );
+    ctx.employeeMinutes.set(
+      shift.employeeId,
+      (ctx.employeeMinutes.get(shift.employeeId) || 0) - netMin,
+    );
+
+    const typeCounts = ctx.shiftTypeCounts.get(shift.employeeId);
+    if (typeCounts)
+      typeCounts.set(
+        shift.shiftTypeCode,
+        (typeCounts.get(shift.shiftTypeCode) || 0) - 1,
+      );
+    ctx.employeeShiftCounts.set(
+      shift.employeeId,
+      (ctx.employeeShiftCounts.get(shift.employeeId) || 0) - 1,
+    );
+
+    const dow = new Date(`${shift.date}T00:00:00.000Z`).getUTCDay();
+    const equity = this.getOrCreateEquityEntry(
+      ctx.constraints.equityMap,
+      shift.employeeId,
+    );
+    if (dow === 6) equity.saturdayCount--;
+    if (dow === 0 || dow === 6) equity.weekendCount--;
+    this.decrementDayOfWeekCount(
+      ctx.dayOfWeekCounts,
+      shift.employeeId,
+      shift.date,
+    );
+  }
+
+  /** Story 11-9 — inverse of incrementDayOfWeekCount (never goes below 0). */
+  private decrementDayOfWeekCount(
+    index: Map<string, Map<number, number>>,
+    employeeId: string,
+    dateStr: string,
+  ): void {
+    const iso = this.isoDayOf(dateStr);
+    const byDay = index.get(employeeId);
+    if (!byDay) return;
+    byDay.set(iso, Math.max(0, (byDay.get(iso) || 0) - 1));
+  }
+
+  /**
+   * Story 11-9 (AC4) — recompute holes from the final assignments + survivor coverage. Reuses the
+   * loop's per-slot reason when a hole persists on the same (date, shiftTypeCode); falls back to a
+   * coverage reason otherwise so every remaining hole is explained to the admin.
+   */
+  private recomputeHoles(
+    slots: SlotRequirement[],
+    assignedShifts: AssignedShift[],
+    preExistingSlotCoverage: Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >,
+    priorHoles: GenerationResult['holes'],
+  ): GenerationResult['holes'] {
+    const priorReason = new Map(
+      priorHoles.map((h) => [`${h.date}|${h.shiftTypeCode}`, h.reason]),
+    );
+    // Aggregate demand per (date, shiftTypeCode).
+    const demand = new Map<
+      string,
+      { slot: SlotRequirement; required: number }
+    >();
+    for (const s of slots) {
+      const k = `${s.date}|${s.shiftTypeCode}`;
+      const cur = demand.get(k);
+      if (cur) cur.required += s.requiredStaff;
+      else demand.set(k, { slot: s, required: s.requiredStaff });
+    }
+    // Coverage = generated assignments + survivor-covered positions, per key.
+    const covered = new Map<string, number>();
+    for (const a of assignedShifts) {
+      const k = `${a.date}|${a.shiftTypeCode}`;
+      covered.set(k, (covered.get(k) || 0) + 1);
+    }
+    for (const [k, bucket] of preExistingSlotCoverage) {
+      const consumed = bucket.filter((c) => c.consumed).length;
+      if (consumed > 0) covered.set(k, (covered.get(k) || 0) + consumed);
+    }
+
+    const holes: GenerationResult['holes'] = [];
+    for (const [k, { slot, required }] of demand) {
+      const assignedStaff = covered.get(k) || 0;
+      if (assignedStaff < required) {
+        holes.push({
+          date: slot.date,
+          shiftTypeCode: slot.shiftTypeCode,
+          requiredStaff: required,
+          assignedStaff,
+          reason:
+            priorReason.get(k) ??
+            (assignedStaff === 0
+              ? 'No eligible employee available after local repair'
+              : `Only ${assignedStaff} of ${required} staff assigned after local repair`),
+        });
+      }
+    }
+    return holes;
+  }
+
+  /** Story 11-9 — resolve the demand slot's startTime for a recomputed hole (first matching slot). */
+  private slotStartFor(
+    slots: SlotRequirement[],
+    hole: { date: string; shiftTypeCode: string },
+  ): string {
+    const match = slots.find(
+      (s) => s.date === hole.date && s.shiftTypeCode === hole.shiftTypeCode,
+    );
+    return match ? match.startTime : '00:00';
   }
 
   /**
@@ -3712,28 +4443,24 @@ export class PlanningGenerationService {
     return result;
   }
 
-  // Count target-day shifts for an employee (monthly or quarterly)
+  // Story 11-10 — O(1) lookup via the incremental rotation index (was an O(A)
+  // filter over alreadyAssigned per employee per slot per rule).
   private countTargetDayShifts(
     rule: RuleEntry,
     employee: EmployeeInfo,
-    alreadyAssigned: AssignedShift[],
-    quarterlyShifts: AssignedShift[],
-    trackingPeriod: string | undefined,
+    dayOfWeekCounts: Map<string, Map<number, number>>,
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
   ): number {
     const targetDay = rule.config.targetDay as string;
     const targetIsoDay = PlanningGenerationService.DAY_NAME_TO_ISO[targetDay];
     if (!targetIsoDay) return 0;
-
-    const shiftPool =
-      trackingPeriod === 'quarterly'
-        ? [...alreadyAssigned, ...quarterlyShifts]
-        : alreadyAssigned;
-
-    return shiftPool.filter((a) => {
-      if (a.employeeId !== employee.id) return false;
-      const d = new Date(`${a.date}T00:00:00.000Z`);
-      const aIsoDay = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-      return aIsoDay === targetIsoDay;
-    }).length;
+    const trackingPeriod = rule.config.trackingPeriod as string | undefined;
+    return this.countFromDayIndex(
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+      employee.id,
+      targetIsoDay,
+      trackingPeriod,
+    );
   }
 }

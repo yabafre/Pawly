@@ -32,6 +32,13 @@ import {
   type StatutoryViolation,
   type StatutoryViolationKind,
 } from './french-labor-law';
+import {
+  netMinutes,
+  evaluateContractCompliance as engineEvaluateContractCompliance,
+  evaluateRotationEquity as engineEvaluateRotationEquity,
+  type EvalShift,
+  type RuleType,
+} from './rule-engine';
 
 type HardViolation = {
   ruleId: string;
@@ -213,6 +220,7 @@ export class PlanningService {
             rule,
             config,
             validShifts,
+            hardViolations,
             softViolations,
             options?.equityCounters,
           );
@@ -222,6 +230,7 @@ export class PlanningService {
             rule,
             config,
             validShifts,
+            hardViolations,
             softViolations,
             options?.equityCounters,
           );
@@ -403,17 +412,96 @@ export class PlanningService {
   }
 
   private evaluateRotationEquity(
-    rule: { id: string; name: string; category: string },
+    rule: { id: string; name: string; category: string; ruleType: string },
     config: Record<string, unknown>,
-    shifts: Array<{ date: Date; employee: { id: string } }>,
+    shifts: Array<{ date: Date; employee: { id: string; jobType?: string } }>,
+    hardViolations: HardViolation[],
     softViolations: SoftViolation[],
     equityCounters?: CounterWithEmployee[],
   ) {
+    const evalShifts: EvalShift[] = shifts.map((s) => ({
+      employeeId: s.employee.id,
+      contractHours: 0,
+      date: s.date.toISOString().split('T')[0],
+      startTime: '00:00',
+      endTime: '00:00',
+      breakMinutes: 0,
+      jobType: s.employee.jobType,
+    }));
+
+    const results = engineEvaluateRotationEquity(
+      {
+        id: rule.id,
+        name: rule.name,
+        ruleType: rule.ruleType as RuleType,
+        category: rule.category,
+        config,
+      },
+      evalShifts,
+    );
+    if (results.length === 0) return;
+
     const targetDay = config.targetDay as string;
     const maxPerPeriod = config.maxPerPeriod as number;
-    const trackingPeriod = config.trackingPeriod as string | undefined;
+    const counterType =
+      targetDay === 'saturday'
+        ? 'SATURDAY_WORKED'
+        : `${targetDay.toUpperCase()}_SHIFTS`;
+    const clinicAverage = this.computeRotationClinicAverage(
+      evalShifts,
+      equityCounters,
+      targetDay,
+    );
 
-    // Map day name to ISO day number
+    for (const v of results) {
+      if (v.severity === 'blocking') {
+        hardViolations.push({
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'blocking' as const,
+        });
+      } else {
+        const count = Number(v.messageParams?.currentCount ?? 0);
+        const trend: EquityContext['trend'] =
+          count > clinicAverage + 0.5
+            ? 'above_average'
+            : count < clinicAverage - 0.5
+              ? 'below_average'
+              : 'average';
+        softViolations.push({
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'warning' as const,
+          equityContext: {
+            counterType,
+            currentCount: count,
+            maxPerPeriod,
+            clinicAverage: Math.round(clinicAverage * 10) / 10,
+            trend,
+          },
+        });
+      }
+    }
+  }
+
+  /** Clinic average targetDay count (equity trend context) — preserved from prior behaviour. */
+  private computeRotationClinicAverage(
+    evalShifts: EvalShift[],
+    equityCounters: CounterWithEmployee[] | undefined,
+    targetDay: string,
+  ): number {
+    const counterType =
+      targetDay === 'saturday' ? 'SATURDAY_WORKED' : undefined;
+    if (equityCounters && counterType) {
+      // Legacy fallback preserved exactly: counters supplied but none matching
+      // -> average 0, never the shift-data average (aped-review m5).
+      const relevant = equityCounters.filter(
+        (c) => c.counterType === counterType,
+      );
+      return relevant.length > 0
+        ? relevant.reduce((sum, c) => sum + c.count, 0) / relevant.length
+        : 0;
+    }
     const dayNameToIso: Record<string, number> = {
       monday: 1,
       tuesday: 2,
@@ -423,190 +511,97 @@ export class PlanningService {
       saturday: 6,
       sunday: 7,
     };
-    const targetIsoDay = dayNameToIso[targetDay];
-    if (!targetIsoDay) return;
-
-    // Map targetDay to equity counter type for clinic average
-    // Note: only SATURDAY_WORKED has a dedicated counter; sunday falls through
-    // to shift-data average (WEEKEND_TOTAL includes both sat+sun, not sunday-only)
-    const dayToCounterType: Record<string, string> = {
-      saturday: 'SATURDAY_WORKED',
-    };
-    const counterType = dayToCounterType[targetDay];
-
-    // Count per employee + collect shift dates for date spreading
+    const targetIso = dayNameToIso[targetDay];
     const countByEmployee = new Map<string, number>();
-    const datesByEmployee = new Map<string, string[]>();
-    for (const shift of shifts) {
-      const shiftDate = new Date(shift.date);
-      const day = shiftDate.getUTCDay();
-      const isoDay = day === 0 ? 7 : day;
-      if (isoDay !== targetIsoDay) continue;
-
-      const current = countByEmployee.get(shift.employee.id) || 0;
-      countByEmployee.set(shift.employee.id, current + 1);
-
-      const dateStr = shiftDate.toISOString().split('T')[0];
-      const dates = datesByEmployee.get(shift.employee.id) || [];
-      dates.push(dateStr);
-      datesByEmployee.set(shift.employee.id, dates);
-    }
-
-    // Compute clinic average from equity counters or shift data
-    let clinicAverage = 0;
-    if (equityCounters && counterType) {
-      const relevantCounters = equityCounters.filter(
-        (c) => c.counterType === counterType,
+    for (const s of evalShifts) {
+      const d = new Date(`${s.date}T00:00:00.000Z`);
+      const iso = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+      if (iso !== targetIso) continue;
+      countByEmployee.set(
+        s.employeeId,
+        (countByEmployee.get(s.employeeId) || 0) + 1,
       );
-      if (relevantCounters.length > 0) {
-        clinicAverage =
-          relevantCounters.reduce((sum, c) => sum + c.count, 0) /
-          relevantCounters.length;
-      }
-    } else {
-      const allCounts = Array.from(countByEmployee.values());
-      if (allCounts.length > 0) {
-        clinicAverage = allCounts.reduce((a, b) => a + b, 0) / allCounts.length;
-      }
     }
-
-    for (const [employeeId, count] of countByEmployee) {
-      if (count > maxPerPeriod) {
-        const dates = datesByEmployee.get(employeeId) || [];
-        const trend: EquityContext['trend'] =
-          count > clinicAverage + 0.5
-            ? 'above_average'
-            : count < clinicAverage - 0.5
-              ? 'below_average'
-              : 'average';
-
-        const equityContext: EquityContext = {
-          counterType: counterType || `${targetDay.toUpperCase()}_SHIFTS`,
-          currentCount: count,
-          maxPerPeriod,
-          clinicAverage: Math.round(clinicAverage * 10) / 10,
-          trend,
-        };
-
-        // Spread violation across each affected date (subtask 1.4)
-        for (const dateStr of dates) {
-          softViolations.push({
-            ruleId: rule.id,
-            ruleName: rule.name,
-            category: rule.category as PlanningRuleCategory,
-            message: `Employee has ${count} ${targetDay} shifts, exceeds maximum of ${maxPerPeriod} per ${trackingPeriod || 'period'}`,
-            messageKey: 'violations.rotationEquity.exceeded',
-            messageParams: {
-              currentCount: count,
-              maxPerPeriod,
-              targetDay,
-              trackingPeriod: trackingPeriod || 'monthly',
-            },
-            affectedEmployeeId: employeeId,
-            affectedDate: dateStr,
-            severity: 'warning',
-            equityContext,
-          });
-        }
-      }
-    }
+    const counts = Array.from(countByEmployee.values());
+    return counts.length > 0
+      ? counts.reduce((a, b) => a + b, 0) / counts.length
+      : 0;
   }
 
   private evaluateContractCompliance(
-    rule: { id: string; name: string; category: string },
+    rule: { id: string; name: string; category: string; ruleType: string },
     config: Record<string, unknown>,
     shifts: Array<{
+      date: Date;
       startTime: string;
       endTime: string;
+      breakMinutes: number;
       employee: { id: string; contractHours: number };
     }>,
+    hardViolations: HardViolation[],
     softViolations: SoftViolation[],
     equityCounters?: CounterWithEmployee[],
   ) {
-    const maxMonthlyHours = config.maxMonthlyHours as number | undefined;
+    const evalShifts: EvalShift[] = shifts.map((s) => ({
+      employeeId: s.employee.id,
+      contractHours: s.employee.contractHours,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      breakMinutes: s.breakMinutes,
+    }));
 
-    if (!maxMonthlyHours) return;
+    const results = engineEvaluateContractCompliance(
+      {
+        id: rule.id,
+        name: rule.name,
+        ruleType: rule.ruleType as RuleType,
+        category: rule.category,
+        config,
+      },
+      evalShifts,
+    );
+    if (results.length === 0) return;
 
-    // Sum hours per employee
-    const hoursByEmployee = new Map<
-      string,
-      { total: number; contractHours: number }
-    >();
-    for (const shift of shifts) {
-      const minutes = this.calculateShiftMinutes(
-        shift.startTime,
-        shift.endTime,
-      );
-      const current = hoursByEmployee.get(shift.employee.id) || {
-        total: 0,
-        contractHours: shift.employee.contractHours,
-      };
-      current.total += minutes;
-      hoursByEmployee.set(shift.employee.id, current);
-    }
+    const clinicAverageHours = this.computeClinicAverageHours(
+      evalShifts,
+      equityCounters,
+    );
 
-    // Compute clinic average hours
-    let clinicAverageHours = 0;
-    if (equityCounters) {
-      const overtimeCounters = equityCounters.filter(
-        (c) => c.counterType === 'OVERTIME_HOURS',
-      );
-      if (overtimeCounters.length > 0) {
-        const avgHistoricalOvertime =
-          overtimeCounters.reduce((sum, c) => sum + c.count, 0) /
-          overtimeCounters.length /
-          60;
-        const allEmployeeHours = Array.from(hoursByEmployee.values());
-        if (allEmployeeHours.length > 0) {
-          const currentAvg =
-            allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
-            allEmployeeHours.length;
-          clinicAverageHours = currentAvg + avgHistoricalOvertime;
-        }
+    for (const v of results) {
+      if (v.severity === 'blocking') {
+        hardViolations.push({
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'blocking' as const,
+        });
+      } else if (
+        v.messageKey === 'violations.contractCompliance.weeklyOvertime'
+      ) {
+        // A weekly figure against the monthly clinic average is meaningless as
+        // a trend — the weekly bucket carries no equityContext (aped-review m4).
+        softViolations.push({
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'warning' as const,
+        });
       } else {
-        const allEmployeeHours = Array.from(hoursByEmployee.values());
-        if (allEmployeeHours.length > 0) {
-          clinicAverageHours =
-            allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
-            allEmployeeHours.length;
-        }
-      }
-    } else {
-      const allEmployeeHours = Array.from(hoursByEmployee.values());
-      if (allEmployeeHours.length > 0) {
-        clinicAverageHours =
-          allEmployeeHours.reduce((sum, h) => sum + h.total / 60, 0) /
-          allEmployeeHours.length;
-      }
-    }
-
-    for (const [employeeId, data] of hoursByEmployee) {
-      const totalHours = Math.round(data.total / 60);
-      if (totalHours > maxMonthlyHours) {
-        const overtimeMinutes = Math.round(data.total - maxMonthlyHours * 60);
+        const currentHours = Number(v.messageParams?.currentMonthlyHours ?? 0);
+        const maxHours = Number(v.messageParams?.maxMonthlyHours ?? 0);
         const trend: EquityContext['trend'] =
-          totalHours > clinicAverageHours + 2
+          currentHours > clinicAverageHours + 2
             ? 'above_average'
-            : totalHours < clinicAverageHours - 2
+            : currentHours < clinicAverageHours - 2
               ? 'below_average'
               : 'average';
-
         softViolations.push({
-          ruleId: rule.id,
-          ruleName: rule.name,
-          category: rule.category as PlanningRuleCategory,
-          message: `Employee total ${totalHours}h exceeds maximum ${maxMonthlyHours}h`,
-          messageKey: 'violations.contractCompliance.overtime',
-          messageParams: {
-            currentMonthlyHours: totalHours,
-            maxMonthlyHours,
-          },
-          affectedEmployeeId: employeeId,
-          severity: 'warning',
+          ...v,
+          category: v.category as PlanningRuleCategory,
+          severity: 'warning' as const,
           equityContext: {
             counterType: 'OVERTIME_HOURS',
-            currentCount: totalHours,
-            maxPerPeriod: maxMonthlyHours,
+            currentCount: currentHours,
+            maxPerPeriod: maxHours,
             clinicAverage: Math.round(clinicAverageHours * 10) / 10,
             trend,
           },
@@ -615,14 +610,37 @@ export class PlanningService {
     }
   }
 
-  private calculateShiftMinutes(startTime: string, endTime: string): number {
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    return endMinutes >= startMinutes
-      ? endMinutes - startMinutes
-      : 1440 - startMinutes + endMinutes;
+  /** Clinic average monthly hours (equity trend context) — preserved from prior behaviour. */
+  private computeClinicAverageHours(
+    evalShifts: EvalShift[],
+    equityCounters?: CounterWithEmployee[],
+  ): number {
+    const minutesByEmployee = new Map<string, number>();
+    for (const s of evalShifts) {
+      minutesByEmployee.set(
+        s.employeeId,
+        (minutesByEmployee.get(s.employeeId) || 0) +
+          netMinutes(s.startTime, s.endTime, s.breakMinutes),
+      );
+    }
+    const perEmployeeHours = Array.from(minutesByEmployee.values()).map(
+      (m) => m / 60,
+    );
+    const currentAvg =
+      perEmployeeHours.length > 0
+        ? perEmployeeHours.reduce((a, b) => a + b, 0) / perEmployeeHours.length
+        : 0;
+    if (equityCounters) {
+      const overtime = equityCounters.filter(
+        (c) => c.counterType === 'OVERTIME_HOURS',
+      );
+      if (overtime.length > 0) {
+        const avgHist =
+          overtime.reduce((sum, c) => sum + c.count, 0) / overtime.length / 60;
+        return currentAvg + avgHist;
+      }
+    }
+    return currentAvg;
   }
 
   private async findRuleById(clinicId: string, ruleId: string) {

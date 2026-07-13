@@ -198,6 +198,7 @@ describe('PlanningGenerationService', () => {
 
   const mockEquityService = {
     getCountersForPeriod: jest.fn(),
+    getCountersForWindow: jest.fn(),
   };
 
   const mockApprenticeDeclarationService = {
@@ -254,6 +255,7 @@ describe('PlanningGenerationService', () => {
     mockClinicService.listShiftTypes.mockResolvedValue(mockShiftTypes);
     mockPlanningService.listRules.mockResolvedValue([]);
     mockEquityService.getCountersForPeriod.mockResolvedValue([]);
+    mockEquityService.getCountersForWindow.mockResolvedValue([]);
     mockPrismaService.unavailability.findMany.mockResolvedValue([]);
     mockPrismaService.employee.findMany.mockResolvedValue(mockEmployees);
     mockPrismaService.shift.findMany.mockResolvedValue([]);
@@ -628,12 +630,43 @@ describe('PlanningGenerationService', () => {
       esc.set(a.employeeId, (esc.get(a.employeeId) || 0) + 1);
     }
 
+    // Story 11-10 — build the per-(employee, ISO-day) live index from alreadyAssigned
+    // (mirrors the production seeding) and the quarterly index from constraints.
+    const isoDayOf = (dateStr: string) => {
+      const dow = new Date(`${dateStr}T00:00:00.000Z`).getUTCDay();
+      return dow === 0 ? 7 : dow;
+    };
+    const buildDayIdx = (
+      shifts: Array<{ employeeId: string; date: string }>,
+    ) => {
+      const idx = new Map<string, Map<number, number>>();
+      for (const s of shifts) {
+        const iso = isoDayOf(s.date);
+        let byDay = idx.get(s.employeeId);
+        if (!byDay) {
+          byDay = new Map<number, number>();
+          idx.set(s.employeeId, byDay);
+        }
+        byDay.set(iso, (byDay.get(iso) || 0) + 1);
+      }
+      return idx;
+    };
+    const dayOfWeekCounts = buildDayIdx(alreadyAssigned);
+    const constraints = (args[2] || {}) as {
+      quarterlyShifts?: Array<{ employeeId: string; date: string }>;
+    };
+    const quarterlyDayOfWeekCounts = buildDayIdx(
+      constraints.quarterlyShifts || [],
+    );
+
     return callPrivate(
       'scoreAndAssign',
       ...baseArgs,
       weeklyMinutesCounter,
       stc,
       esc,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
     ) as ScoreAndAssignResult;
   };
 
@@ -1377,6 +1410,43 @@ describe('PlanningGenerationService', () => {
   // ─── generateMonthlyPlan ──────────────────────────────────
 
   describe('generateMonthlyPlan', () => {
+    it('scores equity over a rolling 12-month window — a January generation still sees December N-1 (Story 11-7 AC1)', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          }),
+      );
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-1');
+
+      // Generation must load equity via the rolling window (not the old
+      // current-calendar-year path, which returned [] in January).
+      expect(mockEquityService.getCountersForWindow).toHaveBeenCalledWith(
+        clinicId,
+        2026,
+        1,
+        12,
+      );
+    });
+
     it('creates Shift records via $transaction', async () => {
       const templateData = {
         days: [
@@ -1628,6 +1698,148 @@ describe('PlanningGenerationService', () => {
 
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
+    });
+
+    // AC3 (verbatim from story 11-10-generation-performance-under-load:21):
+    //   "Given the stress configuration, When the month is generated, Then
+    //   generation completes within the < 2s target (NFR2) at 50 employees with
+    //   no degradation (NFR9)"
+    it('Story 11-10 — generates the 50-employee stress config well under the NFR2 budget', async () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-stress',
+        name: '24/7 stress',
+        data: { days },
+        clinicId,
+      });
+      // Deviation from the story snippet: expandTemplateToMonth resolves slot
+      // times from clinicService.listShiftTypes (the shiftTypeMap), not from the
+      // template — without this override the MORNING/DAY/NIGHT codes resolve to
+      // nothing and the run generates 0 slots.
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-stress-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // Deviation from the story snippet: put a ROTATION_EQUITY rule on the hot
+      // path — the pre-index O(E×A) re-scan only ran when such a rule existed, so
+      // a benchmark without one could never catch a regression back to it.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Max 2 Saturdays (stress)',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+          priority: 5,
+        },
+      ]);
+      // 50 active VETs
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      // No survivors, no border shifts (both queries return []).
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+
+      const start = Date.now();
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-stress',
+      );
+      const elapsedMs = Date.now() - start;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[11-10] stress 50-emp/24-7/31d generation core: ${elapsedMs}ms`,
+      );
+
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+      // NFR2 budget is 2s; wide threshold keeps CI non-flaky while still catching a
+      // regression back to the O(E×A) scan (which blew past 2s at this scale).
+      expect(elapsedMs).toBeLessThan(2000);
+    });
+
+    // AC2 (verbatim from story 11-10-generation-performance-under-load:19):
+    //   "Given a full-month generation for a 50-employee clinic, When it runs,
+    //   Then the API is never blocked for the whole generation: a concurrent
+    //   request ... continues to be served while a month is being generated."
+    // Mechanism (6B fallback): the slot loop yields to the event loop every 8
+    // slots. With mocked (already-resolved) prisma promises the pre-loop awaits
+    // are pure microtasks, so a pending setImmediate macrotask can ONLY run
+    // before the persistence tx if the loop genuinely yields — asserting the
+    // order pins the yield, not an implementation detail.
+    it('Story 11-10 (AC2, 6B) — yields to the event loop during the slot loop', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Simple',
+        data: mockTemplate, // 6 slot-requirements/week → ~26 slots in March (> 8)
+        clinicId,
+      });
+      const order: string[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          order.push('tx');
+          return fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest.fn().mockResolvedValue([]),
+            },
+          });
+        },
+      );
+
+      setImmediate(() => order.push('immediate'));
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-1');
+
+      // The concurrent macrotask must have been served BEFORE the generation
+      // reached its persistence transaction — i.e. mid-generation, not after.
+      expect(order[0]).toBe('immediate');
+      expect(order).toContain('tx');
     });
   });
 
@@ -2043,6 +2255,253 @@ describe('PlanningGenerationService', () => {
       expect(mar2.length).toBe(1);
       // emp-1 is overlap-excluded; the remaining position goes to emp-2.
       expect(mar2[0].employeeId).toBe('emp-2');
+    });
+  });
+
+  // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
+  describe('Story 11-7 — equity seeding & live increment', () => {
+    const mondaySurgery1 = {
+      id: 'tpl-11-7',
+      name: 'Monday Surgery x1',
+      data: {
+        days: [
+          {
+            dayOfWeek: 1,
+            slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+          },
+        ],
+      },
+      clinicId,
+    };
+
+    // Capture the rows the generator actually decided (data → createManyAndReturn).
+    const captureCreate = () => {
+      const captured: any[] = [];
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) => {
+                  captured.push(...data);
+                  return data.map((d, i) => ({ id: `gen-${i}`, ...d }));
+                }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      return captured;
+    };
+
+    it('seeds an equity entry for every active employee, including those with no counters (AC2 — no more flat +20)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Default mockEmployees = emp-1, emp-2, emp-3. Only emp-1 has history in
+      // the window; emp-2 and emp-3 are un-mapped (new hires / Jan boundary).
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'c1',
+          counterType: 'WEEKEND_TOTAL',
+          count: 5,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      const seededIds = seedSpy.mock.calls.map((c) => c[1]);
+      // Un-mapped employees are seeded (an entry is created for them) rather
+      // than short-circuited to the old flat +20 during scoring.
+      expect(seededIds).toContain('emp-1');
+      expect(seededIds).toContain('emp-2');
+      expect(seededIds).toContain('emp-3');
+    });
+
+    it('routes the live intra-month increment through create-if-absent so a new hire’s load is recorded (AC3)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // A single new hire with no counters — the sole candidate for the slot.
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-new',
+          firstName: 'Zoe',
+          lastName: 'Nouvelle',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-11-7');
+
+      // The new hire is assigned the slot(s) …
+      expect(created.length).toBeGreaterThan(0);
+      expect(created.every((r) => r.employeeId === 'emp-new')).toBe(true);
+      // … and every equity touch for them (seeding + the live increment as the
+      // shift is assigned) went through create-if-absent, never the old
+      // `if (equity)` skip. At least: 1 seed + 1 increment.
+      const newHireTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-new',
+      );
+      expect(newHireTouches.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('records the weekend load of an inactive-employee survivor absent from the seeded active set, via create-if-absent (AC3 — no silent drop)', async () => {
+      const seedSpy = jest.spyOn(service as any, 'getOrCreateEquityEntry');
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery1);
+      // Active workforce = default emp-1/2/3, all seeded up front. The survivor
+      // below belongs to `emp-inactive`, who is NOT in that set — the exact edge
+      // the survivor-increment comment claims to rescue. Before Story 11-7 this
+      // site did `equityMap.get(id); if (equity) …`, silently dropping the load.
+      mockEquityService.getCountersForWindow.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) {
+          return Promise.resolve([
+            {
+              employeeId: 'emp-inactive',
+              date: new Date('2026-03-07'), // a Saturday (loader → '2026-03-07')
+              startTime: '08:00',
+              endTime: '12:00',
+              shiftTypeCode: 'SURGERY',
+              breakMinutes: 0,
+              employee: { jobType: 'VET' },
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7');
+
+      // The survivor's live increment routed through create-if-absent for the
+      // un-seeded employee — the load is recorded rather than silently dropped.
+      const inactiveTouches = seedSpy.mock.calls.filter(
+        (c) => c[1] === 'emp-inactive',
+      );
+      expect(inactiveTouches.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not let an un-mapped new hire absorb every weekend slot — fair, deterministic rotation replaces the old flat +20 (AC2 behavioural)', async () => {
+      // Weekend must be a workday for the Sunday slots to materialise.
+      // Convention is ISO 1..7 (Monday=1 … Sunday=7), not getUTCDay's 0..6.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['1', '2', '3', '4', '5', '6', '7'],
+      });
+      const sundaySurgery = {
+        id: 'tpl-11-7-fair',
+        name: 'Sunday Surgery x1',
+        data: {
+          days: [
+            {
+              dayOfWeek: 7, // Sunday (ISO)
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      };
+      mockTemplateService.getTemplateById.mockResolvedValue(sundaySurgery);
+      // Three identical VETs (same contract, same jobType) so ONLY equity
+      // history differs: emp-a-fair mapped with a clean weekend record,
+      // emp-c-hog with a heavy one, emp-b-fresh an un-mapped new hire (seeded 0).
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-a-fair',
+          firstName: 'Fair',
+          lastName: 'Aaa',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-b-fresh',
+          firstName: 'Fresh',
+          lastName: 'Bbb',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-c-hog',
+          firstName: 'Hog',
+          lastName: 'Ccc',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockEquityService.getCountersForWindow.mockResolvedValue([
+        {
+          id: 'w-hog',
+          counterType: 'WEEKEND_TOTAL',
+          count: 6,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-c-hog',
+            firstName: 'Hog',
+            lastName: 'Ccc',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+        {
+          id: 'w-fair',
+          counterType: 'WEEKEND_TOTAL',
+          count: 0,
+          year: 2025,
+          month: 12,
+          lastCalculatedAt: new Date(),
+          employee: {
+            id: 'emp-a-fair',
+            firstName: 'Fair',
+            lastName: 'Aaa',
+            color: '#000',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        },
+      ]);
+      const created = captureCreate();
+
+      await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-7-fair');
+
+      const countFor = (id: string) =>
+        created.filter((r) => r.employeeId === id).length;
+      const total = created.length;
+      // March 2026 has five Sundays — enough slots to expose absorption.
+      expect(total).toBeGreaterThan(1);
+      // Old bug: the un-mapped hire got a flat +20 on every slot AND its live
+      // increment was skipped, so it absorbed 100% of the weekends. Now it takes
+      // only a fair share — strictly fewer than all of them.
+      expect(countFor('emp-b-fresh')).toBeLessThan(total);
+      // The clean-record mapped employee gets a real share of the weekends
+      // (was crowded out to 0 under the old flat +20).
+      expect(countFor('emp-a-fair')).toBeGreaterThan(0);
+      // Every weekend slot is filled by a real, seeded employee — no phantom /
+      // un-mapped absorption; the three shares sum to the full slot count.
+      expect(
+        countFor('emp-a-fair') +
+          countFor('emp-b-fresh') +
+          countFor('emp-c-hog'),
+      ).toBe(total);
     });
   });
 
@@ -2582,6 +3041,280 @@ describe('PlanningGenerationService', () => {
       // emp-1 at 34h + 4h = 38h < 38.5h tolerance → should be allowed
       expect(result.assigned.length).toBe(1);
       expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+  });
+
+  // ─── Story 11-10 — rotation index equivalence (HARD block / SOFT penalty / SOFT violation) ──
+  // AC1 (verbatim from story 11-10-generation-performance-under-load:17):
+  //   "the schedule produced — every assignment, every staffing hole, and every
+  //   hard and soft violation, including all rotation-equity outcomes (hard caps
+  //   that exclude an employee, soft penalties that reorder candidates, soft
+  //   warnings that get recorded) — is identical to the schedule produced before
+  //   this story. And the per-employee rotation-equity evaluation no longer
+  //   re-examines the whole set of already-placed shifts for each candidate of
+  //   each slot"
+  describe('Story 11-10 — rotation-equity via O(1) day index', () => {
+    const satSlot = {
+      date: '2026-03-07', // Saturday (ISO 6)
+      shiftTypeCode: 'SURGERY',
+      startTime: '08:00',
+      endTime: '12:00',
+      requiredStaff: 1,
+    };
+    const rule = (extra: Record<string, unknown> = {}) => ({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Max 2 Saturdays',
+      category: 'ROTATION_EQUITY',
+      config: { targetDay: 'saturday', maxPerPeriod: 2, ...extra },
+      priority: 5,
+    });
+    // Two prior Saturdays already worked by emp-1 (ISO 6): 2026-02-28 and 2026-03-07.
+    const priorSaturdays = (empId: string) => [
+      {
+        employeeId: empId,
+        date: '2026-02-28',
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      },
+    ];
+
+    it('HARD rotation: excludes the at-cap employee so the under-cap one wins (index == scan)', () => {
+      // maxPerPeriod 1, emp-1 already has 1 Saturday → HARD-blocked. emp-2 carries
+      // MORE prior shifts (2× SURGERY on weekdays), so both the shift-type-diversity
+      // penalty (-15/occurrence) and the fewer-shifts tiebreak would hand the slot
+      // to emp-1 if the cap did not exclude him — a broken/empty index assigns
+      // emp-1, making this assertion discriminating.
+      // NOTE (deviation from the story's single-employee version): with emp-1 alone
+      // in the pool, the PRE-EXISTING rotation-equity relaxation fallback
+      // (scoreAndAssign: "Better to slightly exceed rotation limits than create
+      // holes") re-admits the blocked employee instead of leaving a hole — the
+      // story's expected hole contradicted shipped behaviour, before and after the
+      // index. Equivalence is preserved; the expectation was corrected.
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, hardRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+      // emp-2 satisfied requiredStaff, so the relaxation fallback never fired:
+      // emp-1 was genuinely excluded by the cap, not merely outscored.
+      expect(
+        result.softViolations.some((v) =>
+          v.message.includes('despite reaching rotation limit'),
+        ),
+      ).toBe(false);
+    });
+
+    it('SOFT rotation: penalises the capped employee so the under-cap one wins', () => {
+      const twoVets = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'D',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 already has 1 Saturday (cap 1 → soft penalty −25×1.5). emp-2 carries
+      // 2 prior SURGERY weekdays, so absent the rotation penalty emp-1 would win
+      // (diversity −15 vs −30 and fewer-shifts tiebreak) — the assertion only holds
+      // when the index-backed penalty fires, making it discriminating.
+      const already = [
+        ...priorSaturdays('emp-1'),
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-25',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-02-26',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ];
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        twoVets,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        already,
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-2');
+    });
+
+    it('SOFT rotation: records a violation when the assignee exceeds the cap', () => {
+      const oneVet = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'M',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // emp-1 has 1 Saturday, cap is 1; assigning this slot makes 2 → soft violation recorded.
+      const result: ScoreAndAssignResult = callScore(
+        satSlot,
+        oneVet,
+        { ...baseConstraints, softRules: [rule({ maxPerPeriod: 1 })] },
+        priorSaturdays('emp-1'),
+        new Map(),
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(1);
+      expect(
+        result.softViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
+  });
+
+  // ─── Story 11-8 — generation delegates the HARD contract decision to the engine ───
+  // AC4 (verbatim from story 11-8-unified-rule-engine:20):
+  //   Given the three write paths now share the module, When existing generation / move /
+  //   validation behaviour is exercised, Then generation determinism is preserved (no RNG
+  //   change, tiebreakers intact), soft-violation equityContext still populates the Planning
+  //   Health Bar, and every existing test passes — updated where it assumed contract/rotation
+  //   were soft-only.
+  describe('Story 11-8 — determinism preserved under the shared HARD contract decision', () => {
+    const hardWeeklyConstraints = () => ({
+      unavailableMap: new Map<string, Set<string>>(),
+      schoolDayMap: new Map<string, Set<string>>(),
+      hardRules: [
+        {
+          id: 'r-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ],
+      softRules: [] as Array<{
+        id: string;
+        name: string;
+        category: string;
+        config: Record<string, unknown>;
+        priority: number;
+      }>,
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    });
+
+    // emp-1 already at 32h net this week (8 x 4h Mon-Thu); a 4h Friday slot = 36h > 35h.
+    const overloadedFixture = () => {
+      const alreadyAssigned = Array.from({ length: 8 }, (_, i) => ({
+        employeeId: 'emp-1',
+        date: `2026-03-${String(9 + Math.floor(i / 2)).padStart(2, '0')}`,
+        startTime: i % 2 === 0 ? '08:00' : '14:00',
+        endTime: i % 2 === 0 ? '12:00' : '18:00',
+        shiftTypeCode: 'SURGERY',
+      }));
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        const key = `${a.employeeId}|${a.date}`;
+        assignmentIndex.set(key, [...(assignmentIndex.get(key) || []), a]);
+      }
+      const slot = {
+        date: '2026-03-13',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      return { alreadyAssigned, assignmentIndex, slot };
+    };
+
+    it('repeatedly excludes the over-cap employee and yields the identical assignment set', () => {
+      const run = () => {
+        const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+        return callScore(
+          slot,
+          [mockEmployees[0], mockEmployees[1]],
+          hardWeeklyConstraints(),
+          alreadyAssigned,
+          assignmentIndex,
+          new Map(),
+        );
+      };
+      const results = [run(), run(), run()];
+      for (const r of results) {
+        expect(r.assigned.length).toBe(1);
+        expect(r.assigned[0].employeeId).toBe('emp-2');
+      }
+      expect(JSON.stringify(results[1].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+      expect(JSON.stringify(results[2].assigned)).toBe(
+        JSON.stringify(results[0].assigned),
+      );
+    });
+
+    it('leaves a hole when the only candidate would break the HARD weekly cap', () => {
+      const { alreadyAssigned, assignmentIndex, slot } = overloadedFixture();
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]], // only emp-1, at 32h + 4h = 36h > 35h
+        hardWeeklyConstraints(),
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+      expect(result.assigned.length).toBe(0);
     });
   });
 
@@ -5854,6 +6587,77 @@ describe('PlanningGenerationService', () => {
         ]),
       );
     });
+
+    // ─── Story 11-8 — move validation delegates to the shared rule engine ───
+    // AC1 (verbatim from story 11-8-unified-rule-engine:17): "… a rule's ruleType
+    // decides severity (HARD → blocking, SOFT → warning)" — on the manual-move
+    // path the HARD/SOFT verdict must match the generator and the validator.
+    it('Story 11-8 — HARD maxWeeklyHours breach on a move lands in hard, not soft', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.soft.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
+
+    it('Story 11-8 — SOFT maxWeeklyHours breach on a move lands in soft, not hard', async () => {
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Max 35h/week',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'SOFT',
+          isActive: true,
+          priority: 5,
+          config: { maxWeeklyHours: 35 },
+        },
+      ]);
+      mockPrismaService.shift.findMany
+        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
+          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+        ]) // weekShifts = 33h net
+        .mockResolvedValueOnce([]); // monthShifts
+
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.soft).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ rule: 'CONTRACT_COMPLIANCE' }),
+        ]),
+      );
+      expect(result.hard.some((v) => v.rule === 'CONTRACT_COMPLIANCE')).toBe(
+        false,
+      );
+    });
   });
 
   // ─── Story 11-5 — idempotent generation & concurrency safety ──────
@@ -6157,6 +6961,40 @@ describe('PlanningGenerationService', () => {
 
       // tx.planningPeriodStatus.upsert should NOT have been called
       expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+    });
+
+    // ─── Story 11-8 — publish blocked by a HARD contract violation ───
+    // AC2 (verbatim from story 11-8-unified-rule-engine:18):
+    //   Given a month whose persisted shifts breach a HARD CONTRACT_COMPLIANCE (weekly or
+    //   monthly) or HARD ROTATION_EQUITY rule, When validateShiftsAgainstRules runs (as
+    //   publishPlan invokes it), Then those breaches appear in hardViolations — no longer
+    //   silently demoted to softViolations — and publishPlan rejects with the 409
+    //   "hard violation(s) remain" conflict.
+    // Before this story a HARD contract/rotation rule could never produce a hard
+    // violation, so this publishPlan path was unreachable for that category (L-audit:
+    // "verified" means every guard entry-point).
+    describe('publishPlan — blocks on HARD contract violation (Story 11-8)', () => {
+      it('rejects with ConflictException when a HARD CONTRACT_COMPLIANCE violation remains', async () => {
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+          hardViolations: [
+            {
+              ruleId: 'rule-cc',
+              ruleName: 'Contract cap',
+              category: 'CONTRACT_COMPLIANCE',
+              message: 'weekly overage',
+              affectedEmployeeId: 'e1',
+              severity: 'blocking',
+            },
+          ],
+          softViolations: [],
+          rules: [],
+        });
+
+        await expect(
+          service.publishPlan('clinic-123', '2026-08', 'user-1'),
+        ).rejects.toThrow(/hard violation\(s\) remain/);
+        expect(mockTxPlanningPeriodStatus.upsert).not.toHaveBeenCalled();
+      });
     });
 
     it('should send batch email to active employees with shifts in the month', async () => {
@@ -6559,6 +7397,564 @@ describe('PlanningGenerationService', () => {
 
       expect(result.amendedAt).toBe(amendedAt.toISOString());
       expect(result.amendmentCount).toBe(3);
+    });
+  });
+
+  // ─── Story 11-9 — evaluateEligibility extraction is behaviour-preserving ───────
+  describe('scoreAndAssign eligibility after extraction (Story 11-9)', () => {
+    // scoreAndAssign's eligibility filter now delegates to the shared evaluateEligibility
+    // predicate (also consumed by the local-repair pass). These pin the two behaviours most
+    // at risk in that extraction: the rotation-relaxation fallback and determinism.
+    const rotationCappedScenario = (): ScoreAndAssignResult => {
+      const constraints = {
+        unavailableMap: new Map<string, Set<string>>(),
+        schoolDayMap: new Map<string, Set<string>>(),
+        hardRules: [
+          {
+            id: 'r-rot',
+            name: 'Max 1 Saturday',
+            category: 'ROTATION_EQUITY',
+            config: { targetDay: 'saturday', maxPerPeriod: 1 },
+            priority: 0,
+          },
+        ],
+        softRules: [] as Array<{
+          id: string;
+          name: string;
+          category: string;
+          config: Record<string, unknown>;
+          priority: number;
+        }>,
+        equityMap: new Map(),
+        quarterlyShifts: [],
+      };
+      const alreadyAssigned = [
+        {
+          employeeId: 'emp-1',
+          date: '2026-03-07',
+          startTime: '08:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+        },
+        {
+          employeeId: 'emp-2',
+          date: '2026-03-07',
+          startTime: '14:00',
+          endTime: '18:00',
+          shiftTypeCode: 'SURGERY',
+        },
+      ];
+      const assignmentIndex = new Map<string, any[]>();
+      for (const a of alreadyAssigned) {
+        assignmentIndex.set(`${a.employeeId}|${a.date}`, [a]);
+      }
+      const slot = {
+        date: '2026-03-14', // another Saturday — both employees are at the cap
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      return callScore(
+        slot,
+        [mockEmployees[0], mockEmployees[1]],
+        constraints,
+        alreadyAssigned,
+        assignmentIndex,
+        new Map(),
+      );
+    };
+
+    it('still relaxes HARD ROTATION_EQUITY when it is the only blocker (fallback intact)', () => {
+      const result = rotationCappedScenario();
+      expect(result.assigned.length).toBe(1);
+      expect(result.holeInfo).toBeUndefined();
+      expect(
+        result.softViolations.some((v) => v.category === 'ROTATION_EQUITY'),
+      ).toBe(true);
+    });
+
+    it('produces identical output across two runs (determinism preserved)', () => {
+      const a = rotationCappedScenario();
+      const b = rotationCappedScenario();
+      expect(a.assigned).toEqual(b.assigned);
+      expect(a.holeInfo).toEqual(b.holeInfo);
+    });
+  });
+
+  // ─── Story 11-9 — local-repair pass integration ───────────────────────────────
+  describe('local-repair pass (Story 11-9)', () => {
+    // Bin-packing counter-example through the full generateMonthlyPlan pipeline. It defeats the
+    // MRV slot ordering, which counts eligibility by availability + jobType only (never the
+    // contract cap) and processes ISO weeks in order. Template: one VET-only SURGERY slot every
+    // Monday, but every Monday except 2026-03-02 (week 1) and 2026-03-09 (week 2) is closed, so
+    // exactly two slots survive — one per week. Two VETs, each capped at ONE 4h shift per MONTH.
+    // Bob (emp-2) is on leave the second Monday. MRV processes week 1 first; greedy fills it with
+    // Alice (emp-1, tiebreak winner), which spends her whole monthly budget → the second Monday is
+    // stranded (Alice capped, Bob on leave) even though b→Mon1 + a→Mon2 fills both. A depth-2
+    // ejection repairs it: move Alice Mon1→Mon2 (free once she leaves Mon1), backfill Mon1 with Bob.
+    const buildCounterExample = () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-11-9',
+        name: 'Monday VET surgery',
+        clinicId,
+        data: {
+          days: [
+            {
+              dayOfWeek: 1,
+              slots: [
+                {
+                  shiftTypeCode: 'SURGERY',
+                  requiredStaff: 1,
+                  requiredJobTypes: ['VET'],
+                },
+              ],
+            },
+          ],
+        },
+      });
+      // Close every Monday except the first two so exactly two demand slots remain.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        closedDays: [
+          { id: 'c1', date: '2026-03-16', reason: null },
+          { id: 'c2', date: '2026-03-23', reason: null },
+          { id: 'c3', date: '2026-03-30', reason: null },
+        ],
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      // HARD monthly cap of 4h → each VET can hold only ONE 4h SURGERY per month. Monthly is
+      // invisible to the MRV eligibility count, so MRV cannot pre-empt the stranding.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          name: 'Max 4h/month',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ]);
+      // Bob on leave the second Monday — the reason greedy cannot fill it after Alice is capped.
+      // VACATION (unlike SCHOOL) adds no worked minutes, so it only removes availability.
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        {
+          id: 'ua-mon2',
+          employeeId: 'emp-2',
+          type: 'VACATION',
+          startDate: new Date('2026-03-09'),
+          endDate: new Date('2026-03-09'),
+          daysOfWeek: [],
+        },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]); // no border, no survivors
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                ),
+            },
+          }),
+      );
+    };
+
+    const runCounterExample = (enableRepair: boolean) => {
+      buildCounterExample();
+      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-9', {
+        enableRepair,
+      });
+    };
+
+    const runCounterExampleBothWays = async () => {
+      const withoutRepair = await runCounterExample(false);
+      const withRepair = await runCounterExample(true);
+      return {
+        holesWithoutRepair: withoutRepair.stats.holeCount,
+        holesWithRepair: withRepair.stats.holeCount,
+      };
+    };
+
+    const runCounterExampleWithRepair = () => runCounterExample(true);
+
+    it('AC1 — fills a bin-packing hole a greedy-only pass leaves (strictly fewer holes)', async () => {
+      const { holesWithoutRepair, holesWithRepair } =
+        await runCounterExampleBothWays();
+      expect(holesWithoutRepair).toBeGreaterThan(0);
+      expect(holesWithRepair).toBeLessThan(holesWithoutRepair);
+    });
+
+    it('AC3 — the repair introduces no hard-rule violation', async () => {
+      const result = await runCounterExampleWithRepair();
+      expect(result.violations.hard).toHaveLength(0);
+      // `violations.hard` only tracks STAFFING_MINIMUM/SKILL_REQUIREMENT, so the assertion above is
+      // vacuous for this fixture's real HARD constraint (4h/month CONTRACT_COMPLIANCE ⇒ at most one
+      // 4h SURGERY per VET). Re-check that cap independently from the final assignments — this is
+      // what goes red if the repair ever double-books a capped employee onto both Mondays.
+      const countByEmp = new Map<string, number>();
+      const datesByEmp = new Map<string, string[]>();
+      for (const a of result.assignments) {
+        countByEmp.set(a.employeeId, (countByEmp.get(a.employeeId) || 0) + 1);
+        datesByEmp.set(a.employeeId, [
+          ...(datesByEmp.get(a.employeeId) || []),
+          a.date,
+        ]);
+      }
+      for (const [emp, count] of countByEmp) {
+        expect(count).toBeLessThanOrEqual(1); // 4h/month cap ⇒ ≤ 1 four-hour SURGERY per VET
+        const dates = datesByEmp.get(emp)!;
+        expect(new Set(dates).size).toBe(dates.length); // no same-date double-book
+      }
+    });
+
+    it('AC4 — holes are recomputed after the pass and each carries a reason', async () => {
+      const result = await runCounterExampleWithRepair();
+      for (const hole of result.holes) {
+        expect(typeof hole.reason).toBe('string');
+        expect(hole.reason.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('AC4 — generation is deterministic with the pass enabled (two identical runs)', async () => {
+      const a = await runCounterExampleWithRepair();
+      const b = await runCounterExampleWithRepair();
+      expect(a.assignments).toEqual(b.assignments);
+      expect(a.holes).toEqual(b.holes);
+    });
+
+    // AC2 end-to-end: the equity hill-climb wired through generateMonthlyPlan (not just the pure
+    // selectImprovingSwap unit). Two VETs, two Saturdays + three Sundays (every other weekend day
+    // closed), no caps. The greedy pass has no Saturday-specific fairness term, so it strands both
+    // Saturdays on one VET while the other takes all the Sundays — a Saturday imbalance (spread 2)
+    // the hill-climb fixes with a single Sat<->Sun swap that creates no hole. Run both ways to prove
+    // it is the pass, not the fixture, that rebalances (mirrors AC1's both-ways proof).
+    const buildEquityImbalance = () => {
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-11-9-eq',
+        name: 'Weekend VET',
+        clinicId,
+        data: {
+          days: [
+            {
+              dayOfWeek: 6,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+            {
+              dayOfWeek: 7,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+      });
+      // Open weekend demand: Sat 03-07/03-14 (2) + Sun 03-01/03-08/03-15 (3); close the rest. The
+      // odd Sunday is deliberate — it gives the greedy pass a reason to split the two VETs unevenly:
+      // with no Saturday-specific fairness term it strands BOTH Saturdays on one VET (the other takes
+      // all three Sundays), a pure Saturday imbalance the hill-climb rebalances with one Sat<->Sun swap.
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        closedDays: [
+          { id: 'c1', date: '2026-03-21', reason: null },
+          { id: 'c2', date: '2026-03-28', reason: null },
+          { id: 'c3', date: '2026-03-22', reason: null },
+          { id: 'c4', date: '2026-03-29', reason: null },
+        ],
+      });
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'Bob',
+          lastName: 'Dupont',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ]);
+      mockPlanningService.listRules.mockResolvedValue([]); // no caps — both always eligible
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: any[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                ),
+            },
+          }),
+      );
+    };
+
+    const saturdaySpread = (result: {
+      assignments: Array<{ date: string; employeeId: string }>;
+    }): number => {
+      const satByEmp = new Map<string, number>();
+      for (const a of result.assignments) {
+        if (!satByEmp.has(a.employeeId)) satByEmp.set(a.employeeId, 0);
+        if (new Date(`${a.date}T00:00:00.000Z`).getUTCDay() === 6) {
+          satByEmp.set(a.employeeId, satByEmp.get(a.employeeId)! + 1);
+        }
+      }
+      const counts = [...satByEmp.values()];
+      return counts.length === 0
+        ? 0
+        : Math.max(...counts) - Math.min(...counts);
+    };
+
+    it('AC2 — an equity swap lowers the Saturday imbalance without creating a hole', async () => {
+      buildEquityImbalance();
+      const withoutRepair = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-9-eq',
+        { enableRepair: false },
+      );
+      buildEquityImbalance();
+      const withRepair = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-11-9-eq',
+        { enableRepair: true },
+      );
+      // Fixture precondition: hole-free, and the greedy pass left a real Saturday imbalance.
+      expect(withoutRepair.stats.holeCount).toBe(0);
+      expect(saturdaySpread(withoutRepair)).toBeGreaterThan(0);
+      // The hill-climb strictly reduces it — and never trades a swap for a hole.
+      expect(saturdaySpread(withRepair)).toBeLessThan(
+        saturdaySpread(withoutRepair),
+      );
+      expect(withRepair.stats.holeCount).toBe(withoutRepair.stats.holeCount);
+    });
+  });
+
+  // ─── Story 11-9 — NFR2/NFR9 stress ────────────────────────────────────────────
+  describe('local-repair pass performance (Story 11-9, NFR2/NFR9)', () => {
+    // 50 employees, a 3-slot 24/7 template over a full month, one live SOFT ROTATION_EQUITY
+    // rule so the eligibility hot path (the pass's per-swap re-check) is genuinely exercised —
+    // mirrors 11-10's stress harness. The pass runs with its default (enableRepair unset → true).
+    const generateStressMonth = () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-stress',
+        name: '24/7 stress',
+        data: { days },
+        clinicId,
+      });
+      // expandTemplateToMonth resolves slot times from listShiftTypes, not the template.
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-stress-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // One live SOFT ROTATION_EQUITY rule keeps the rule-engine on the per-swap re-check path.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '22222222-2222-2222-2222-222222222222',
+          name: 'Max 2 Saturdays (stress)',
+          category: 'ROTATION_EQUITY',
+          ruleType: 'SOFT',
+          config: { targetDay: 'saturday', maxPerPeriod: 2 },
+          priority: 5,
+        },
+      ]);
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-stress');
+    };
+
+    it('generates a 50-employee, 24/7, 31-day month within the 2s budget', async () => {
+      const start = Date.now();
+      const result = await generateStressMonth();
+      const elapsedMs = Date.now() - start;
+      expect(elapsedMs).toBeLessThan(2000);
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+    });
+
+    it('yields the event loop during the pass (setImmediate scheduled)', async () => {
+      const setImmediateSpy = jest.spyOn(global, 'setImmediate');
+      await generateStressMonth();
+      expect(setImmediateSpy).toHaveBeenCalled();
+      setImmediateSpy.mockRestore();
+    });
+
+    // Phase 1 (ejection chains) worst case: `isMoverEligibleForHole` does a remove/apply round trip
+    // for every candidate mover scanned, so a month with MANY real holes AND many assignments is the
+    // costly path — the generateStressMonth fixture above has near-zero holes and therefore only
+    // exercises Phase 2. Here demand vastly exceeds capacity (a hard 16h/month cap ⇒ ≤ 2 shifts per
+    // employee) so the greedy pass strands a large number of holes the repair must attempt, exercising
+    // the ejection scan at scale — it must still meet NFR2.
+    const buildScarceStress = () => {
+      const shiftTypes = [
+        {
+          code: 'MORNING',
+          startTime: '00:00',
+          endTime: '08:00',
+          breakMinutes: 0,
+        },
+        { code: 'DAY', startTime: '08:00', endTime: '16:00', breakMinutes: 0 },
+        {
+          code: 'NIGHT',
+          startTime: '16:00',
+          endTime: '24:00',
+          breakMinutes: 0,
+        },
+      ];
+      const days = Array.from({ length: 7 }, (_, i) => ({
+        dayOfWeek: i + 1,
+        slots: shiftTypes.map((st) => ({
+          shiftTypeCode: st.code,
+          requiredStaff: 2,
+        })),
+      }));
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-scarce',
+        name: '24/7 scarce',
+        data: { days },
+        clinicId,
+      });
+      mockClinicService.listShiftTypes.mockResolvedValue(
+        shiftTypes.map((st, i) => ({
+          id: `st-scarce-${i}`,
+          name: st.code,
+          color: '#000000',
+          clinicId,
+          ...st,
+        })),
+      );
+      // Hard 16h/month cap ⇒ each 8h-shift employee can hold at most 2 shifts, so 50 employees cover
+      // ~100 of the 186 monthly positions (31 days × 3 shift types × 2 staff) → the ~86 remaining are
+      // stranded holes the ejection scan attempts, exercising Phase 1's costly path at scale.
+      mockPlanningService.listRules.mockResolvedValue([
+        {
+          id: '44444444-4444-4444-4444-444444444444',
+          name: 'Max 16h/month (scarce)',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          config: { maxMonthlyHours: 16, overtimeThresholdPercent: 0 },
+          priority: 10,
+        },
+      ]);
+      const fiftyVets = Array.from({ length: 50 }, (_, i) => ({
+        id: `emp-${i}`,
+        firstName: `E${i}`,
+        lastName: 'X',
+        jobType: 'VET',
+        contractHours: 35,
+      }));
+      mockPrismaService.employee.findMany.mockResolvedValue(fiftyVets);
+      mockPrismaService.unavailability.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              createManyAndReturn: jest
+                .fn()
+                .mockImplementation(({ data }: { data: unknown[] }) =>
+                  data.map((d, i) => ({ id: `gen-${i}`, ...(d as object) })),
+                ),
+            },
+          }),
+      );
+    };
+
+    it('meets NFR2 when the ejection scan runs against many real holes', async () => {
+      buildScarceStress();
+      const start = Date.now();
+      const repaired = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-scarce',
+      );
+      const elapsedMs = Date.now() - start;
+      // The greedy-only baseline must genuinely strand holes, so Phase 1 has a worst-case scan to do.
+      buildScarceStress();
+      const greedyOnly = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-scarce',
+        { enableRepair: false },
+      );
+      expect(greedyOnly.stats.holeCount).toBeGreaterThan(0);
+      expect(repaired.stats.totalSlots).toBeGreaterThan(0);
+      expect(elapsedMs).toBeLessThan(2000);
     });
   });
 });

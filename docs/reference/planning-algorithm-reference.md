@@ -320,13 +320,13 @@ Optional field `applicableJobTypes: string[]` on `ROTATION_EQUITY` rule config.
 
 ## Known Algorithm Limitations
 
-1. **Greedy with no backtracking**: The algorithm never revisits a decision. If a bad choice is made early, it cannot be corrected later.
+1. **Greedy with a bounded local-repair pass (Story 11-9)**: The greedy assignment never revisits a decision mid-pass, but after the pass a bounded GRASP local-repair runs: depth-≤2 ejection chains fill holes a single pass strands (bin-packing counter-example), and equity hill-climbing swaps rebalance weekend/Saturday load — every move re-validated through the shared eligibility predicate so no repair introduces a hard-rule violation. It is not a global optimum (CP-SAT remains a Phase-3 item), but it closes the proven incompleteness gap.
 
 2. **No global optimization**: Does not seek the mathematically "optimal" solution. Heuristic scoring produces good results but not necessarily the best.
 
 3. **Processing order affects results**: Reordering (non-workdays first) mitigates this issue but does not eliminate it completely.
 
-4. **Random tiebreaker**: Two successive runs may produce slightly different results when scores are close.
+4. **Deterministic tiebreaker**: When scores are close the assignment is broken deterministically (`score → #shifts → #weekends → employeeId`) — there is no RNG, so two successive runs produce identical results (verified by the generation determinism tests). The local-repair pass (Story 11-9) preserves this: it iterates sorted keys only.
 
 5. **ROTATION_EQUITY fallback**: When all employees hit the hard rotation limit, the algorithm relaxes the constraint with a warning rather than leaving the slot empty. This is a deliberate trade-off: filled slots with a soft violation are better than holes.
 
