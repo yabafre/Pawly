@@ -1,4 +1,4 @@
-import { z } from "@pawly/zod";
+import { z } from '@pawly/zod';
 
 // ── Shared regex patterns ────────────────────────────────────────────────
 
@@ -11,23 +11,17 @@ const TIME_REGEX = /^\d{2}:\d{2}$/;
 
 export const moveShiftInputSchema = z
   .object({
-    shiftId: z.string().uuid("Shift ID must be a valid UUID"),
-    targetEmployeeId: z
-      .string()
-      .uuid("Target employee ID must be a valid UUID")
-      .optional(),
-    targetDate: z
-      .string()
-      .regex(DATE_REGEX, "Target date must be in YYYY-MM-DD format")
-      .optional(),
+    shiftId: z.string().uuid('Shift ID must be a valid UUID'),
+    targetEmployeeId: z.string().uuid('Target employee ID must be a valid UUID').optional(),
+    targetDate: z.string().regex(DATE_REGEX, 'Target date must be in YYYY-MM-DD format').optional(),
+    acknowledgePublishedChange: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     if (!data.targetEmployeeId && !data.targetDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message:
-          "At least one of targetEmployeeId or targetDate must be provided",
-        path: ["targetEmployeeId"],
+        message: 'At least one of targetEmployeeId or targetDate must be provided',
+        path: ['targetEmployeeId'],
       });
     }
   });
@@ -36,21 +30,21 @@ export type MoveShiftInput = z.infer<typeof moveShiftInputSchema>;
 // ── Create manual shift input schema ────────────────────────────────────
 
 export const createManualShiftInputSchema = z.object({
-  employeeId: z.string().uuid("Employee ID must be a valid UUID"),
-  date: z.string().regex(DATE_REGEX, "Date must be in YYYY-MM-DD format"),
-  shiftTypeCode: z.string().min(1, "Shift type code is required"),
-  startTime: z.string().regex(TIME_REGEX, "Start time must be in HH:MM format"),
-  endTime: z.string().regex(TIME_REGEX, "End time must be in HH:MM format"),
+  employeeId: z.string().uuid('Employee ID must be a valid UUID'),
+  date: z.string().regex(DATE_REGEX, 'Date must be in YYYY-MM-DD format'),
+  shiftTypeCode: z.string().min(1, 'Shift type code is required'),
+  startTime: z.string().regex(TIME_REGEX, 'Start time must be in HH:MM format'),
+  endTime: z.string().regex(TIME_REGEX, 'End time must be in HH:MM format'),
   breakMinutes: z.number().int().min(0).default(0),
+  acknowledgePublishedChange: z.boolean().default(false),
 });
-export type CreateManualShiftInput = z.infer<
-  typeof createManualShiftInputSchema
->;
+export type CreateManualShiftInput = z.infer<typeof createManualShiftInputSchema>;
 
 // ── Delete shift input schema ───────────────────────────────────────────
 
 export const deleteShiftInputSchema = z.object({
-  shiftId: z.string().uuid("Shift ID must be a valid UUID"),
+  shiftId: z.string().uuid('Shift ID must be a valid UUID'),
+  acknowledgePublishedChange: z.boolean().default(false),
 });
 export type DeleteShiftInput = z.infer<typeof deleteShiftInputSchema>;
 
@@ -58,13 +52,9 @@ export type DeleteShiftInput = z.infer<typeof deleteShiftInputSchema>;
 // Used for dry-run drop feedback — all fields required.
 
 export const preValidateMoveInputSchema = z.object({
-  shiftId: z.string().uuid("Shift ID must be a valid UUID"),
-  targetEmployeeId: z
-    .string()
-    .uuid("Target employee ID must be a valid UUID"),
-  targetDate: z
-    .string()
-    .regex(DATE_REGEX, "Target date must be in YYYY-MM-DD format"),
+  shiftId: z.string().uuid('Shift ID must be a valid UUID'),
+  targetEmployeeId: z.string().uuid('Target employee ID must be a valid UUID'),
+  targetDate: z.string().regex(DATE_REGEX, 'Target date must be in YYYY-MM-DD format'),
 });
 export type PreValidateMoveInput = z.infer<typeof preValidateMoveInputSchema>;
 

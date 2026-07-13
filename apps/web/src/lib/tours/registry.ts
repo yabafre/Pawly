@@ -200,7 +200,7 @@ export function tourSteps(key: TourKey, isPro: boolean): TourStep[] {
  * Decides whether (and where) a tour should auto-start on mount. Returns the
  * tour + resume step ONLY when the user is already on that step's route — so an
  * uncompleted tour never yanks the user away from a page they navigated to
- * themselves (e.g. landing on /admin/billing must not redirect to the tour).
+ * themselves (e.g. landing on /admin/settings must not redirect to the tour).
  * Step indices are relative to the tier-filtered step list.
  */
 export function resolveTourStart(

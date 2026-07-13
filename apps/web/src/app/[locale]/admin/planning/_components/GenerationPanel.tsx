@@ -35,6 +35,9 @@ import { useScheduleView } from '../_hooks/useScheduleView';
 import { useApprenticeDeclarations } from '../_hooks/useApprenticeDeclarations';
 import { ConfirmRegenerateDialog } from './ConfirmRegenerateDialog';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
+import { PublishedChangeDialog } from './PublishedChangeDialog';
+import { usePublish } from '../_hooks/usePublish';
+import { usePublishedChangeGuard } from '../_hooks/usePublishedChangeGuard';
 import type { GenerationResult } from '@pawly/validators';
 import type { ShiftData } from '@pawly/types';
 
@@ -76,6 +79,16 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   const { shifts, isLoadingShifts, generatePlan, isGenerating, deleteGenerated, isDeleting } =
     useGeneration(selectedMonth);
   const { scheduleData } = useScheduleView(selectedMonth);
+  // Story 11-1 — regenerating/purging a PUBLISHED month runs behind the same
+  // confirmation guard as manual moves; on a DRAFT month it runs straight through.
+  const { publicationStatus } = usePublish(selectedMonth);
+  const isPublished = publicationStatus?.status === 'PUBLISHED';
+  const {
+    guard,
+    dialogOpen: publishedChangeOpen,
+    confirm: confirmPublishedChange,
+    cancel: cancelPublishedChange,
+  } = usePublishedChangeGuard(isPublished);
   const {
     declarations,
     isLoading: isLoadingDeclarations,
@@ -97,27 +110,39 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
       return;
     }
 
-    generatePlan(
-      { month: selectedMonth, templateId: selectedTemplateId },
-      {
-        onSuccess: (result: GenerationResult) => {
-          setGenerationResult(result);
+    guard((acknowledge) =>
+      generatePlan(
+        {
+          month: selectedMonth,
+          templateId: selectedTemplateId,
+          acknowledgePublishedChange: acknowledge,
         },
-      }
+        {
+          onSuccess: (result: GenerationResult) => {
+            setGenerationResult(result);
+          },
+        }
+      )
     );
-  }, [selectedMonth, selectedTemplateId, existingGeneratedCount, generatePlan]);
+  }, [selectedMonth, selectedTemplateId, existingGeneratedCount, generatePlan, guard]);
 
   const handleConfirmRegenerate = useCallback(() => {
     setShowConfirm(false);
-    generatePlan(
-      { month: selectedMonth, templateId: selectedTemplateId },
-      {
-        onSuccess: (result: GenerationResult) => {
-          setGenerationResult(result);
+    guard((acknowledge) =>
+      generatePlan(
+        {
+          month: selectedMonth,
+          templateId: selectedTemplateId,
+          acknowledgePublishedChange: acknowledge,
         },
-      }
+        {
+          onSuccess: (result: GenerationResult) => {
+            setGenerationResult(result);
+          },
+        }
+      )
     );
-  }, [selectedMonth, selectedTemplateId, generatePlan]);
+  }, [selectedMonth, selectedTemplateId, generatePlan, guard]);
 
   // Stats
   const generated = shifts.filter((s: ShiftData) => s.source === 'GENERATED');
@@ -340,9 +365,20 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         onOpenChange={setShowDeleteConfirm}
         onConfirm={() => {
           setShowDeleteConfirm(false);
-          deleteGenerated({ month: selectedMonth });
+          guard((acknowledge) =>
+            deleteGenerated({
+              month: selectedMonth,
+              acknowledgePublishedChange: acknowledge,
+            })
+          );
         }}
         existingCount={existingGeneratedCount}
+      />
+
+      <PublishedChangeDialog
+        open={publishedChangeOpen}
+        onConfirm={confirmPublishedChange}
+        onCancel={cancelPublishedChange}
       />
     </div>
   );

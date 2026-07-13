@@ -1,4 +1,9 @@
 {
+  "captcha": {
+    "loading": "Chargement de la vérification de sécurité…",
+    "failed": "La vérification de sécurité n'a pas pu se charger.",
+    "retry": "Réessayer"
+  },
   "common": {
     "logout": "Déconnexion",
     "loading": "Chargement...",
@@ -308,6 +313,7 @@
         "emptyState": "Aucun créneau généré — lancez la génération d'abord",
         "published": "Publié",
         "publishedAt": "Publié le {date}",
+        "amended": "{count, plural, one {Modifié # fois} other {Modifié # fois}} — dernière le {date}",
         "detailTitle": "Détail de la santé",
         "categoryStaffing": "Effectif minimum",
         "categorySkill": "Compétences requises",
@@ -330,7 +336,14 @@
             "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
           },
           "contractCompliance": {
-            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+            "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h",
+            "weeklyOvertime": "{currentWeeklyHours}h la semaine du {date}, dépasse la limite hebdomadaire de {maxWeeklyHours}h"
+          },
+          "statutory": {
+            "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+            "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+            "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+            "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
           }
         }
       }
@@ -547,7 +560,8 @@
         "regenerated": "Planning regénéré avec succès",
         "deleted": "Créneaux générés supprimés",
         "generateFailed": "Impossible de générer le planning",
-        "deleteFailed": "Impossible de supprimer les créneaux générés"
+        "deleteFailed": "Impossible de supprimer les créneaux générés",
+        "publishedChangeRequired": "Ce planning est publié : confirmez la modification via la boîte de dialogue."
       },
       "errors": {
         "noTemplate": "Veuillez sélectionner un modèle",
@@ -621,6 +635,12 @@
         "nextDays": "Jours suivants"
       }
     },
+    "publishedChange": {
+      "dialogTitle": "Planning publié — confirmer la modification",
+      "dialogDescription": "Ce planning a déjà été publié. Les employés concernés par ce changement seront notifiés par email et notification push.",
+      "confirm": "Modifier et notifier",
+      "cancel": "Annuler"
+    },
     "dragDrop": {
       "moveSuccess": "Créneau déplacé avec succès",
       "moveError": "Échec du déplacement du créneau",
@@ -628,6 +648,7 @@
       "createError": "Échec de la création du créneau",
       "deleteSuccess": "Créneau supprimé avec succès",
       "deleteError": "Échec de la suppression du créneau",
+      "publishedChangeRequired": "Ce planning est publié : la modification doit être confirmée via la boîte de dialogue.",
       "dragging": "Déplacement en cours…",
       "dropHere": "Déposer ici pour affecter",
       "dropBlocked": "Dépôt impossible ici",
@@ -689,7 +710,14 @@
         "exceeded": "{currentCount} créneaux le {targetDay}, dépasse le maximum de {maxPerPeriod} par {trackingPeriod}"
       },
       "contractCompliance": {
-        "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h"
+        "overtime": "{currentMonthlyHours}h ce mois, dépasse la limite de {maxMonthlyHours}h",
+        "weeklyOvertime": "{currentWeeklyHours}h la semaine du {date}, dépasse la limite hebdomadaire de {maxWeeklyHours}h"
+      },
+      "statutory": {
+        "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
+        "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
+        "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
+        "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
       }
     },
     "settings": {
@@ -1281,23 +1309,24 @@
         "description": "Définissez les horaires par défaut de votre clinique",
         "startTime": "Heure d'ouverture",
         "endTime": "Heure de fermeture",
-        "help": "Ces horaires servent de base pour la planification"
+        "help": "Ces horaires servent de base pour la planification",
+        "invalidFormat": "Utilisez le format HH:MM",
+        "is24_7": "Ouvert 24h/24"
       },
       "shiftTypes": {
         "title": "Types de postes",
         "description": "Définissez les différents types de postes de votre clinique",
         "name": "Nom du poste",
         "namePlaceholder": "Chirurgie",
-        "code": "Code",
-        "codePlaceholder": "CHIR",
         "startTime": "Début",
         "endTime": "Fin",
         "breakMinutes": "Pause (min)",
         "color": "Couleur",
         "addShiftType": "Ajouter un type de poste",
         "removeShiftType": "Supprimer",
-        "help": "Chaque poste doit avoir un code unique",
-        "minRequired": "Au moins un type de poste est requis"
+        "help": "Définissez les postes de travail de votre clinique",
+        "minRequired": "Au moins un type de poste est requis",
+        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste"
       }
     },
     "navigation": {
@@ -1314,7 +1343,8 @@
     "errors": {
       "loadFailed": "Impossible de charger les données d'onboarding. Veuillez rafraîchir la page.",
       "saveFailed": "Impossible de sauvegarder la configuration",
-      "duplicateCode": "Ce code de poste existe déjà"
+      "duplicateCode": "Ce code de poste existe déjà",
+      "incompleteStep": "Veuillez compléter les champs requis avant de continuer"
     },
     "days": {
       "MONDAY": "Lundi",
@@ -1603,7 +1633,8 @@
       "operational": "Général",
       "shiftTypes": "Types de quarts",
       "clinic": "Clinique",
-      "account": "Mon compte"
+      "account": "Mon compte",
+      "billing": "Facturation"
     },
     "shiftTypes": {
       "title": "Types de quarts",
@@ -1668,6 +1699,7 @@
         "workDays": "Jours de travail",
         "defaultStartTime": "Heure de début par défaut",
         "defaultEndTime": "Heure de fin par défaut",
+        "is24_7": "Ouvert 24h/24",
         "date": "Date",
         "reason": "Motif",
         "reasonPlaceholder": "ex : jour férié, fermeture annuelle",

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useTranslations } from 'next-intl';
 import { useMySchedule, useMyShiftTypes } from '../_hooks/useMySchedule';
+import { useHydrated } from '@/lib/hooks';
 import { MonthSelector } from './MonthSelector';
 import { PublicationBadge } from './PublicationBadge';
 import { WeeklySummaryCard } from './WeeklySummaryCard';
@@ -16,6 +17,7 @@ import type { EmployeeScheduleData, EmployeeShiftTypeInfo } from '@pawly/types';
 
 export function SchedulePageClient() {
   const t = useTranslations('dashboard.schedule');
+  const hydrated = useHydrated();
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
 
   const { data: rawScheduleData, isPending, isError, refetch } = useMySchedule(selectedMonth);
@@ -29,7 +31,10 @@ export function SchedulePageClient() {
     [allShiftTypes]
   );
 
-  if (isPending) {
+  // !hydrated: the persisted query cache can be restored before this
+  // Suspense-deferred page hydrates, so isPending is already false on the
+  // client's first render while the server rendered this skeleton branch.
+  if (!hydrated || isPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-40" />

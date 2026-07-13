@@ -1,5 +1,5 @@
-import { z } from "@pawly/zod";
-import { WORK_DAYS } from "./onboarding.schema";
+import { z } from '@pawly/zod';
+import { WORK_DAYS } from './onboarding.schema';
 
 const timeRegex = /^\d{2}:\d{2}$/;
 const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,8 +12,8 @@ const isValidIsoDate = (value: string) => {
 export const clinicClosedDayInputSchema = z.object({
   date: z
     .string()
-    .regex(isoDateRegex, "Invalid date format (YYYY-MM-DD)")
-    .refine(isValidIsoDate, "Invalid date value"),
+    .regex(isoDateRegex, 'Invalid date format (YYYY-MM-DD)')
+    .refine(isValidIsoDate, 'Invalid date value'),
   reason: z.string().trim().max(200).optional(),
 });
 
@@ -23,35 +23,34 @@ export const clinicSpecialDayInputSchema = z
   .object({
     date: z
       .string()
-      .regex(isoDateRegex, "Invalid date format (YYYY-MM-DD)")
-      .refine(isValidIsoDate, "Invalid date value"),
-    startTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
-    endTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+      .regex(isoDateRegex, 'Invalid date format (YYYY-MM-DD)')
+      .refine(isValidIsoDate, 'Invalid date value'),
+    startTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+    endTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
     label: z.string().trim().max(100).optional(),
   })
   .refine((value) => value.endTime > value.startTime, {
-    message: "End time must be after start time",
-    path: ["endTime"],
+    message: 'End time must be after start time',
+    path: ['endTime'],
   });
 
 export type ClinicSpecialDayInput = z.infer<typeof clinicSpecialDayInputSchema>;
 
 export const updateClinicOperationalConfigSchema = z
   .object({
-    workDays: z
-      .array(z.enum(WORK_DAYS))
-      .min(1, "At least one work day is required"),
-    defaultStartTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
-    defaultEndTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+    workDays: z.array(z.enum(WORK_DAYS)).min(1, 'At least one work day is required'),
+    defaultStartTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+    defaultEndTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+    is24_7: z.boolean().default(false),
     closedDays: z.array(clinicClosedDayInputSchema),
     specialDays: z.array(clinicSpecialDayInputSchema),
   })
   .superRefine((data, ctx) => {
-    if (data.defaultEndTime <= data.defaultStartTime) {
+    if (!data.is24_7 && data.defaultEndTime <= data.defaultStartTime) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "End time must be after start time",
-        path: ["defaultEndTime"],
+        message: 'End time must be after start time',
+        path: ['defaultEndTime'],
       });
     }
 
@@ -60,8 +59,8 @@ export const updateClinicOperationalConfigSchema = z
       if (closedDateSet.has(item.date)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Duplicate closed day date",
-          path: ["closedDays", index, "date"],
+          message: 'Duplicate closed day date',
+          path: ['closedDays', index, 'date'],
         });
       }
       closedDateSet.add(item.date);
@@ -72,15 +71,15 @@ export const updateClinicOperationalConfigSchema = z
       if (specialDateSet.has(item.date)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Duplicate special day date",
-          path: ["specialDays", index, "date"],
+          message: 'Duplicate special day date',
+          path: ['specialDays', index, 'date'],
         });
       }
       if (closedDateSet.has(item.date)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "A date cannot be both closed and special",
-          path: ["specialDays", index, "date"],
+          message: 'A date cannot be both closed and special',
+          path: ['specialDays', index, 'date'],
         });
       }
       specialDateSet.add(item.date);
@@ -93,22 +92,23 @@ export type UpdateClinicOperationalConfigInput = z.infer<
 
 export const clinicClosedDaySchema = z.object({
   id: z.string(),
-  date: z.string().regex(isoDateRegex, "Invalid date format (YYYY-MM-DD)"),
+  date: z.string().regex(isoDateRegex, 'Invalid date format (YYYY-MM-DD)'),
   reason: z.string().nullable(),
 });
 
 export const clinicSpecialDaySchema = z.object({
   id: z.string(),
-  date: z.string().regex(isoDateRegex, "Invalid date format (YYYY-MM-DD)"),
-  startTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
-  endTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+  date: z.string().regex(isoDateRegex, 'Invalid date format (YYYY-MM-DD)'),
+  startTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+  endTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
   label: z.string().nullable(),
 });
 
 export const clinicOperationalConfigSchema = z.object({
   workDays: z.array(z.enum(WORK_DAYS)),
-  defaultStartTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
-  defaultEndTime: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+  defaultStartTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+  defaultEndTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),
+  is24_7: z.boolean(),
   closedDays: z.array(clinicClosedDaySchema),
   specialDays: z.array(clinicSpecialDaySchema),
 });

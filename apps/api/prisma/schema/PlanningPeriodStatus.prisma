@@ -6,6 +6,8 @@ model PlanningPeriodStatus {
   status      PlanningPeriodStatusType @default(DRAFT)
   publishedAt DateTime?                @map("published_at")
   publishedBy String?                  @map("published_by")
+  amendedAt   DateTime?                @map("amended_at")
+  amendmentCount Int                   @default(0) @map("amendment_count")
   createdAt   DateTime                 @default(now()) @map("created_at")
   updatedAt   DateTime                 @updatedAt @map("updated_at")
 

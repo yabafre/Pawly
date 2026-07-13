@@ -82,7 +82,7 @@ export default async function AdminLayout({ children, params }: Props) {
   }
 
   // Subscription guard: server-side check (after auth + onboarding)
-  const isBillingPage = pathname.includes('/admin/billing');
+  const isSettingsPage = pathname.includes('/admin/settings');
   let subscriptionStatus: { status: string; entitlementTier: string } | null = null;
 
   try {
@@ -99,8 +99,8 @@ export default async function AdminLayout({ children, params }: Props) {
   // Only redirect to billing if we successfully checked and subscription is inactive.
   // If subscriptionStatus is null (API down), render the page in degraded mode
   // instead of redirect-looping to billing which also needs the API.
-  if (subscriptionStatus && !isSubscriptionActive && !isBillingPage && !isOnboardingRoute) {
-    redirect(`/${locale}/admin/billing`);
+  if (subscriptionStatus && !isSubscriptionActive && !isSettingsPage && !isOnboardingRoute) {
+    redirect(`/${locale}/admin/settings?tab=billing`);
   }
 
   // Tour is non-critical — never let its fetch block the page.

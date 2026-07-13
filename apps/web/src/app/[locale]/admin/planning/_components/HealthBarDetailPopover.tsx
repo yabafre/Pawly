@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
-} from "@/components/ui/popover";
-import { AlertCircle, AlertTriangle, Circle } from "lucide-react";
-import type { ScheduleViewData, ScheduleHole } from "@pawly/validators";
+} from '@/components/ui/popover';
+import { AlertCircle, AlertTriangle, Circle } from 'lucide-react';
+import type { ScheduleViewData, ScheduleHole } from '@pawly/validators';
 
-type HardViolation = ScheduleViewData["violations"]["hard"][number];
-type SoftViolation = ScheduleViewData["violations"]["soft"][number];
+type HardViolation = ScheduleViewData['violations']['hard'][number];
+type SoftViolation = ScheduleViewData['violations']['soft'][number];
 
 type EmployeeLookup = { id: string; firstName: string; lastName: string };
 
@@ -28,44 +28,49 @@ type Props = {
 };
 
 const CATEGORY_KEYS: Record<string, string> = {
-  STAFFING_MINIMUM: "categoryStaffing",
-  SKILL_REQUIREMENT: "categorySkill",
-  ROTATION_EQUITY: "categoryEquity",
-  CONTRACT_COMPLIANCE: "categoryContract",
+  STAFFING_MINIMUM: 'categoryStaffing',
+  SKILL_REQUIREMENT: 'categorySkill',
+  ROTATION_EQUITY: 'categoryEquity',
+  CONTRACT_COMPLIANCE: 'categoryContract',
 };
 
 /** Translate English terms in API violation messages to the current locale */
 function localizeMessage(msg: string, t: ReturnType<typeof useTranslations>): string {
   const dayMap: Record<string, string> = {
-    monday: t("days.monday"), tuesday: t("days.tuesday"), wednesday: t("days.wednesday"),
-    thursday: t("days.thursday"), friday: t("days.friday"), saturday: t("days.saturday"), sunday: t("days.sunday"),
+    monday: t('days.monday'),
+    tuesday: t('days.tuesday'),
+    wednesday: t('days.wednesday'),
+    thursday: t('days.thursday'),
+    friday: t('days.friday'),
+    saturday: t('days.saturday'),
+    sunday: t('days.sunday'),
   };
   const periodMap: Record<string, string> = {
-    monthly: t("periods.monthly"), quarterly: t("periods.quarterly"),
-    weekly: t("periods.weekly"), period: t("periods.period"),
+    monthly: t('periods.monthly'),
+    quarterly: t('periods.quarterly'),
+    weekly: t('periods.weekly'),
+    period: t('periods.period'),
   };
 
   let result = msg;
   for (const [en, loc] of Object.entries(dayMap)) {
-    result = result.replace(new RegExp(`\\b${en}\\b`, "gi"), loc);
+    result = result.replace(new RegExp(`\\b${en}\\b`, 'gi'), loc);
   }
   for (const [en, loc] of Object.entries(periodMap)) {
-    result = result.replace(new RegExp(`\\b${en}\\b`, "gi"), loc);
+    result = result.replace(new RegExp(`\\b${en}\\b`, 'gi'), loc);
   }
   // Translate common English fragments
   result = result
-    .replace(/\bshifts\b/gi, t("terms.shifts"))
-    .replace(/\bexceeds maximum of\b/gi, t("terms.exceedsMax"))
-    .replace(/\bexceeds maximum\b/gi, t("terms.exceedsMax"))
-    .replace(/\bEmployee total\b/gi, t("terms.employeeTotal"))
-    .replace(/\bEmployee has\b/gi, t("terms.employeeHas"))
-    .replace(/\bper\b/gi, t("terms.per"));
+    .replace(/\bshifts\b/gi, t('terms.shifts'))
+    .replace(/\bexceeds maximum of\b/gi, t('terms.exceedsMax'))
+    .replace(/\bexceeds maximum\b/gi, t('terms.exceedsMax'))
+    .replace(/\bEmployee total\b/gi, t('terms.employeeTotal'))
+    .replace(/\bEmployee has\b/gi, t('terms.employeeHas'))
+    .replace(/\bper\b/gi, t('terms.per'));
   return result;
 }
 
-function groupByCategory<T extends { category: string }>(
-  items: T[],
-): Record<string, T[]> {
+function groupByCategory<T extends { category: string }>(items: T[]): Record<string, T[]> {
   const groups: Record<string, T[]> = {};
   for (const item of items) {
     const arr = groups[item.category] || [];
@@ -85,13 +90,8 @@ function groupHolesByDate(holes: ScheduleHole[]): Record<string, ScheduleHole[]>
   return groups;
 }
 
-export function HealthBarDetailPopover({
-  violations,
-  holes,
-  employees,
-  children,
-}: Props) {
-  const t = useTranslations("admin.planningRules.healthBar");
+export function HealthBarDetailPopover({ violations, holes, employees, children }: Props) {
+  const t = useTranslations('admin.planningRules.healthBar');
   const [open, setOpen] = useState(false);
   const closeTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -112,10 +112,12 @@ export function HealthBarDetailPopover({
   }
 
   // Deduplicate violations by ruleId + affectedEmployeeId
-  function dedup<T extends { ruleId: string; affectedEmployeeId?: string; message: string }>(items: T[]): T[] {
+  function dedup<T extends { ruleId: string; affectedEmployeeId?: string; message: string }>(
+    items: T[]
+  ): T[] {
     const seen = new Set<string>();
     return items.filter((v) => {
-      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ""}|${v.message}`;
+      const key = `${v.ruleId}|${v.affectedEmployeeId ?? ''}|${v.message}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -138,9 +140,14 @@ export function HealthBarDetailPopover({
       <PopoverTrigger asChild onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
         {children}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 max-h-80 overflow-y-auto" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <PopoverContent
+        align="start"
+        className="w-80 max-h-80 overflow-y-auto"
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+      >
         <PopoverHeader>
-          <PopoverTitle>{t("detailTitle")}</PopoverTitle>
+          <PopoverTitle>{t('detailTitle')}</PopoverTitle>
         </PopoverHeader>
 
         <div className="mt-3 space-y-3">
@@ -158,8 +165,17 @@ export function HealthBarDetailPopover({
                   const name = v.affectedEmployeeId ? empMap.get(v.affectedEmployeeId) : undefined;
                   return (
                     <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
-                      {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
-                      {localizeMessage(v.message, t)}
+                      {name && <strong className="text-foreground">{name}</strong>}
+                      {name && ' — '}
+                      {localizeMessage(
+                        'messageKey' in v && v.messageKey
+                          ? t(
+                              v.messageKey as Parameters<typeof t>[0],
+                              v.messageParams as Record<string, string>
+                            )
+                          : v.message,
+                        t
+                      )}
                     </li>
                   );
                 })}
@@ -181,12 +197,16 @@ export function HealthBarDetailPopover({
                   const name = v.affectedEmployeeId ? empMap.get(v.affectedEmployeeId) : undefined;
                   return (
                     <li key={`${v.ruleId}-${i}`} className="text-xs text-muted-foreground pl-4">
-                      {name && <strong className="text-foreground">{name}</strong>}{name && " — "}
+                      {name && <strong className="text-foreground">{name}</strong>}
+                      {name && ' — '}
                       {localizeMessage(
-                        "messageKey" in v && v.messageKey
-                          ? t(v.messageKey as Parameters<typeof t>[0], v.messageParams as Record<string, string>)
+                        'messageKey' in v && v.messageKey
+                          ? t(
+                              v.messageKey as Parameters<typeof t>[0],
+                              v.messageParams as Record<string, string>
+                            )
                           : v.message,
-                        t,
+                        t
                       )}
                     </li>
                   );
@@ -200,13 +220,14 @@ export function HealthBarDetailPopover({
             <div key={`holes-${date}`}>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Circle className="h-3 w-3" />
-                <span>
-                  {t("holesOnDate", { count: dateHoles.length, date })}
-                </span>
+                <span>{t('holesOnDate', { count: dateHoles.length, date })}</span>
               </div>
               <ul className="mt-1 space-y-0.5">
                 {dateHoles.map((h, i) => (
-                  <li key={`${h.shiftTypeCode}-${i}`} className="text-xs text-muted-foreground pl-4">
+                  <li
+                    key={`${h.shiftTypeCode}-${i}`}
+                    className="text-xs text-muted-foreground pl-4"
+                  >
                     {h.shiftTypeCode} — {h.reason}
                   </li>
                 ))}

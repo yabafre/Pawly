@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { generateSlug } from '@/common/utils/slug';
+import {
+  STATUTORY_RULE_NAME,
+  STATUTORY_RULE_CONFIG,
+} from '@/modules/planning/french-labor-law';
 import type {
   UpdateClinicNameInput,
   UpdateWorkDaysInput,
@@ -78,11 +82,13 @@ export class ClinicService {
         workDays: data.workDays,
         defaultStartTime: data.defaultStartTime,
         defaultEndTime: data.defaultEndTime,
+        is24_7: data.is24_7 ?? false,
       },
       update: {
         workDays: data.workDays,
         defaultStartTime: data.defaultStartTime,
         defaultEndTime: data.defaultEndTime,
+        is24_7: data.is24_7 ?? false,
       },
     });
   }
@@ -119,7 +125,10 @@ export class ClinicService {
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
-      this.logger.error(`Failed to create shift types for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to create shift types for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
   }
@@ -153,11 +162,13 @@ export class ClinicService {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
           update: {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
         });
 
@@ -174,6 +185,34 @@ export class ClinicService {
             color: st.color,
           })),
         });
+
+        // Story 11-3 — seed the visible French labor-law statutory rule so the admin SEES it
+        // in the rules list. Enforcement NEVER depends on this row (it is hard-coded in
+        // french-labor-law.ts and applies with zero rules); this is visibility only.
+        // Idempotent: skip if a statutory rule already exists for the clinic.
+        const existingStatutory = await tx.planningRule.findFirst({
+          where: {
+            clinicId,
+            category: 'CONTRACT_COMPLIANCE',
+            name: STATUTORY_RULE_NAME,
+          },
+          select: { id: true },
+        });
+        if (!existingStatutory) {
+          await tx.planningRule.create({
+            data: {
+              clinicId,
+              name: STATUTORY_RULE_NAME,
+              description:
+                'Statutory French labor-law limits (10h/day, 13h amplitude, 35h weekly rest, max 6 consecutive days). Enforced by default and cannot be disabled.',
+              ruleType: 'HARD',
+              category: 'CONTRACT_COMPLIANCE',
+              isActive: true,
+              priority: 100,
+              config: STATUTORY_RULE_CONFIG,
+            },
+          });
+        }
 
         return { onboardingCompleted: true };
       });
@@ -195,7 +234,10 @@ export class ClinicService {
           'Duplicate shift type code found. Each shift type must have a unique code.',
         );
       }
-      this.logger.error(`Failed to complete onboarding for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to complete onboarding for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
   }
@@ -241,13 +283,16 @@ export class ClinicService {
     }
 
     if (!clinic.config) {
-      throw new NotFoundException(`Clinic configuration for ${clinicId} not found`);
+      throw new NotFoundException(
+        `Clinic configuration for ${clinicId} not found`,
+      );
     }
 
     return {
       workDays: clinic.config.workDays,
       defaultStartTime: clinic.config.defaultStartTime,
       defaultEndTime: clinic.config.defaultEndTime,
+      is24_7: clinic.config.is24_7,
       closedDays: clinic.closedDays.map((entry) => ({
         id: entry.id,
         date: entry.date.toISOString().slice(0, 10),
@@ -322,13 +367,17 @@ export class ClinicService {
           ...(data.code !== undefined && { code: data.code }),
           ...(data.startTime !== undefined && { startTime: data.startTime }),
           ...(data.endTime !== undefined && { endTime: data.endTime }),
-          ...(data.breakMinutes !== undefined && { breakMinutes: data.breakMinutes }),
+          ...(data.breakMinutes !== undefined && {
+            breakMinutes: data.breakMinutes,
+          }),
           ...(data.color !== undefined && { color: data.color }),
         },
       });
 
       if (result.count === 0) {
-        throw new NotFoundException(`Shift type ${id} not found for this clinic`);
+        throw new NotFoundException(
+          `Shift type ${id} not found for this clinic`,
+        );
       }
 
       return this.prisma.clinicShiftType.findUnique({ where: { id } });
@@ -364,7 +413,10 @@ export class ClinicService {
 
     const blockedBy = referencingRules.filter((rule) => {
       const config = rule.config as Record<string, unknown> | null;
-      return config && (config as Record<string, unknown>).shiftTypeCode === shiftType.code;
+      return (
+        config &&
+        (config as Record<string, unknown>).shiftTypeCode === shiftType.code
+      );
     });
 
     if (blockedBy.length > 0) {
@@ -403,11 +455,13 @@ export class ClinicService {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
           update: {
             workDays: data.workDays,
             defaultStartTime: data.defaultStartTime,
             defaultEndTime: data.defaultEndTime,
+            is24_7: data.is24_7 ?? false,
           },
         });
 
@@ -446,7 +500,10 @@ export class ClinicService {
           'Duplicate date found in operational configuration. Each date can only appear once per clinic.',
         );
       }
-      this.logger.error(`Failed to update operational config for clinic ${clinicId}`, err);
+      this.logger.error(
+        `Failed to update operational config for clinic ${clinicId}`,
+        err,
+      );
       throw err;
     }
 

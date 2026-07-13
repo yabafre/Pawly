@@ -16,6 +16,7 @@ export interface OnboardingInitialData {
     workDays: string[];
     defaultStartTime: string;
     defaultEndTime: string;
+    is24_7?: boolean;
   } | null;
   shiftTypes: Array<{
     name: string;

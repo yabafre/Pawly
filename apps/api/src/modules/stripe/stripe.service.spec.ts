@@ -131,9 +131,9 @@ describe('StripeService', () => {
         throw new Error('Signature verification failed');
       });
 
-      expect(() =>
-        service.constructWebhookEvent(rawBody, signature),
-      ).toThrow('Signature verification failed');
+      expect(() => service.constructWebhookEvent(rawBody, signature)).toThrow(
+        'Signature verification failed',
+      );
     });
   });
 
@@ -170,10 +170,7 @@ describe('StripeService', () => {
         type: 'checkout.session.completed',
       });
 
-      await service.markEventProcessed(
-        'evt_123',
-        'checkout.session.completed',
-      );
+      await service.markEventProcessed('evt_123', 'checkout.session.completed');
 
       expect(mockPrismaService.stripeEvent.create).toHaveBeenCalledWith({
         data: {
@@ -184,7 +181,6 @@ describe('StripeService', () => {
     });
   });
 
-
   describe('createBillingPortalSession', () => {
     it('should create portal session with correct params', async () => {
       mockBillingPortalSessionsCreate.mockResolvedValue({
@@ -193,14 +189,14 @@ describe('StripeService', () => {
 
       const result = await service.createBillingPortalSession(
         'cus_test_123',
-        'https://example.com/admin/billing',
+        'https://example.com/admin/settings?tab=billing',
         'fr',
       );
 
       expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: 'cus_test_123',
-          return_url: 'https://example.com/admin/billing',
+          return_url: 'https://example.com/admin/settings?tab=billing',
           locale: 'fr',
         }),
       );
@@ -216,13 +212,13 @@ describe('StripeService', () => {
 
       await service.createBillingPortalSession(
         'cus_test_123',
-        'https://example.com/admin/billing',
+        'https://example.com/admin/settings?tab=billing',
       );
 
       expect(mockBillingPortalSessionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           customer: 'cus_test_123',
-          return_url: 'https://example.com/admin/billing',
+          return_url: 'https://example.com/admin/settings?tab=billing',
           locale: 'fr',
         }),
       );
@@ -302,9 +298,7 @@ describe('StripeService', () => {
       const result = await service.getSubscriptionWithDetails('sub_test_trial');
 
       expect(result.status).toBe('trialing');
-      expect(result.trialEnd).toBe(
-        new Date(1740787200 * 1000).toISOString(),
-      );
+      expect(result.trialEnd).toBe(new Date(1740787200 * 1000).toISOString());
     });
 
     it('should default planKey to "default" when lookup_key is null', async () => {

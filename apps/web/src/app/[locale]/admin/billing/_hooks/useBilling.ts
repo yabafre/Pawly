@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { useServerActionQuery, useServerActionMutation } from "@/lib/hooks/server-action-hooks";
+import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { useServerActionQuery, useServerActionMutation } from '@/lib/hooks/server-action-hooks';
 import {
   getBillingOverviewAction,
   createBillingPortalSessionAction,
-} from "../_actions/billing-actions";
+} from '../_actions/billing-actions';
 
 export const useBilling = (locale: string) => {
-  const t = useTranslations("billing");
+  const t = useTranslations('billing');
 
   const {
     data: billingData,
@@ -18,26 +18,23 @@ export const useBilling = (locale: string) => {
     error,
   } = useServerActionQuery(getBillingOverviewAction, {
     input: undefined,
-    queryKey: ["billing"],
+    queryKey: ['billing'],
   });
 
-  const portalMutation = useServerActionMutation(
-    createBillingPortalSessionAction,
-    {
-      returnError: true,
-    },
-  );
+  const portalMutation = useServerActionMutation(createBillingPortalSessionAction, {
+    returnError: true,
+  });
 
   const openBillingPortal = async () => {
-    const prefix = locale === "fr" ? "" : `/${locale}`;
-    const returnUrl = `${window.location.origin}${prefix}/admin/billing`;
+    const prefix = locale === 'fr' ? '' : `/${locale}`;
+    const returnUrl = `${window.location.origin}${prefix}/admin/settings?tab=billing`;
     const [result, err] = await portalMutation.mutateAsync({
       returnUrl,
-      locale: locale as "fr" | "en",
+      locale: locale as 'fr' | 'en',
     });
 
     if (err) {
-      toast.error(t("errors.portalFailed"));
+      toast.error(t('errors.portalFailed'));
       return;
     }
 
@@ -52,7 +49,7 @@ export const useBilling = (locale: string) => {
     isLoading,
     isError,
     error,
-    errorMessage: isError ? t("errors.loadFailed") : null,
+    errorMessage: isError ? t('errors.loadFailed') : null,
     openBillingPortal,
     isPortalPending: portalMutation.isPending,
   };

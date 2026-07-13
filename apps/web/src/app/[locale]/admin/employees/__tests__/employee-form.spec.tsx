@@ -65,7 +65,7 @@ describe("EmployeeForm", () => {
 
     expect(screen.getByText("form.firstName")).toBeDefined();
     expect(screen.getByText("form.lastName")).toBeDefined();
-    expect(screen.getByText("form.email")).toBeDefined();
+    expect(screen.getByText(/form\.email/)).toBeDefined();
     expect(screen.getByText("form.phone")).toBeDefined();
     expect(screen.getByText("form.jobType")).toBeDefined();
     expect(screen.getByText("form.contractType")).toBeDefined();
