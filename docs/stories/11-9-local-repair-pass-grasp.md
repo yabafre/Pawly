@@ -1,7 +1,7 @@
 # Story: 11-9-local-repair-pass-grasp — Local Repair Pass (GRASP) for Generation Completeness
 
 **Epic:** Epic 11 — Planning Engine Hardening & Compliance
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-126-11-9-local-repair-pass-grasp
 **Ticket:** KON-126 (Linear · project Pawly · milestone Epic 11 · blocked by KON-119 / 11-2 + KON-125 / 11-8 · last of the epic)
 **Origin:** Multi-agent planning audit 2026-07-08 — documented finding: *"Greedy is incomplete. Single pass, no backtracking (`:293`); hole on `No eligible employees`; bin-packing counter-example verified. Fix with a local repair pass (GRASP), **not** CP-SAT at this scale."* See `docs/epics-context/epic-11-context.md` § 0 and § 4, and `docs/reference/planning-algorithm-reference.md:321-331` ("Known Algorithm Limitations").
@@ -1265,3 +1265,56 @@ Tests:       989 passed, 989 total
 # NFR2: 50-employee / 24-7 / 31-day month generates in ~0.2s (< 2s budget).
 # tsc -p apps/api: 0 errors in planning files (24 pre-existing baseline errors in unrelated specs unchanged).
 ```
+
+## Review Record
+
+**Date:** 2026-07-13
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface — no Aria)
+**Verdict:** done
+
+The implementation was found **correct** by all three auditors and an independent Lead pass —
+counter lockstep (apply/remove exact inverses), `quarterlyDayOfWeekCounts` correctly treated as
+fixed history, hill-climb termination/validity, ejection revert exactness, and 0 hallucinations were
+all confirmed. The findings were **test-coverage and documentation gaps**, all closed in-review
+(commit `e61a432`) and re-verified adversarially (a green test that guards nothing is still a finding).
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC2 (equity hill-climb) had no integration coverage — the Phase-2 swap wiring was never asserted end-to-end. [planning-generation.service.spec.ts]
+  - Source: Spec (MAJOR) + Code (BLOCKER)
+  - Resolution: `e61a432` — added `AC2 — an equity swap lowers the Saturday imbalance without creating a hole`: two VETs / 2 Saturdays + 3 Sundays / no caps, run both ways via `enableRepair`; asserts the greedy baseline leaves a real Saturday imbalance (spread > 0, hole-free) and the pass strictly reduces it with no new hole. Verified it goes RED if the swap application is broken/no-op.
+- [MAJOR] AC3 integration assertion was vacuous — `violations.hard` only tracks STAFFING_MINIMUM/SKILL_REQUIREMENT, but the fixture's only HARD rule is CONTRACT_COMPLIANCE. [planning-generation.service.ts:1271-1315]
+  - Source: Spec (MAJOR)
+  - Resolution: `e61a432` — strengthened the AC3 test with an independent recompute from `result.assignments` asserting each VET holds ≤ 1 four-hour SURGERY (the real 4h/month cap) and no same-date double-book. Goes RED if the repair over-caps an employee.
+- [MAJOR] Phase-1 ejection-scan performance was unmeasured at NFR2 scale — the existing stress fixture had ~0 holes, so only Phase 2 ran. [planning-generation.service.ts:3835-3856]
+  - Source: Code (BLOCKER)
+  - Resolution: `e61a432` — added a scarcity stress (hard 16h/month cap ⇒ ≤2 shifts/emp, demand ≫ capacity ⇒ ~86 real holes) asserting `holeCount > 0` before repair and the repaired run completes < 2s (measured ~0.78s). NFR2 holds even on the worst-case ejection scan.
+- [MAJOR] `enableRepair` test seam on the public `generateMonthlyPlan` options (anti-pattern #2). [planning-generation.service.ts:174-177,601-603]
+  - Source: Code (MAJOR)
+  - Resolution: `e61a432` — kept (load-bearing for the both-ways AC1/AC2 proofs) and documented as an internal seam; verified the tRPC `generatePlan` route does not forward it, so no external caller can disable the pass.
+- [MINOR] Equity objective is generated-only (blind to survivor/border load) — a swap can worsen true equity while improving the objective. [local-repair.ts]
+  - Source: Edge
+  - Resolution: `e61a432` — documented as intended (survivors are immovable / out of scope per story §36; eligibility still accounts for them, so the blindness affects fairness quality only, never validity).
+- [MINOR] Phase 2 (swaps) lacks the belt-and-suspenders revert that Phase 1 has. [planning-generation.service.ts:3976-4030]
+  - Source: Spec
+  - Resolution: `e61a432` — documented the sound-by-construction reason swaps need no revert (pre-swap eligibility is strictly stricter than the post-swap state; Edge proved no false-accept).
+- [NIT] `selectImprovingSwap` docstring tiebreak description was imprecise. [local-repair.ts]
+  - Source: Edge
+  - Resolution: `e61a432` — corrected to the real `keyOf`-order + strict-`<` first-wins rule.
+
+#### Dismissed (with rationale)
+- [NIT] `slotStartFor` `'00:00'` fallback + `!holeSlot` guard are unreachable under the data model. Left as defensive — removing correct defensive code adds no value. (Edge confirmed unreachable.)
+- [NIT] `decrementDayOfWeekCount` `Math.max(0,…)` clamp is not an exact inverse in the pathological below-zero case. Left as defensive — the clamp never fires for a properly-applied shift; it only masks a hypothetical future unbalanced call.
+- [NIT] `isMoverEligibleForHole` re-appends the mover shift (scrambles persisted row order, not correctness). Left as-is — every downstream consumer is order-independent or re-sorts. (Edge confirmed.)
+
+### Verification
+- Test command: `pnpm --filter @pawly/api test`
+- Test output (final pass): **Test Suites: 36 passed, 36 total · Tests: 991 passed, 991 total · exit 0** (was 989; +2 = AC2 + Phase-1 scarcity).
+- Planning slice: 14 suites / 497 tests, exit 0. AC2 ✓, AC3 (strengthened) ✓, NFR2 scarcity ejection scan ~0.78s < 2s ✓.
+- `tsc --noEmit -p apps/api`: 0 errors in the story's files (24 pre-existing baseline errors in 4 untouched specs unchanged).
+- Visual verification: n/a (backend-only story, no preview surface).
+
+### Ticket sync
+- Ticket comment posted: pending Alex's go-ahead (outward-facing).
+- PR opened/updated: pending — branch not yet pushed (worktree/parallel-sprint mode; Lead merges into `sprint/epic-11`).
