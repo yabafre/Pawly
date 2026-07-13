@@ -18,6 +18,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
+import { SolverEngineService } from './solver-engine.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
@@ -62,6 +63,7 @@ type ScoreAndAssignResult = {
 
 describe('PlanningGenerationService', () => {
   let service: PlanningGenerationService;
+  let solverEngine: SolverEngineService;
 
   const clinicId = 'clinic-123';
 
@@ -222,6 +224,9 @@ describe('PlanningGenerationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PlanningGenerationService,
+        // KON-129 — REAL solver adapter: the integration tests exercise actual
+        // CP-SAT solves (tiny instances); individual tests spy/mock as needed.
+        SolverEngineService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ClinicService, useValue: mockClinicService },
         { provide: MailService, useValue: mockMailService },
@@ -246,6 +251,7 @@ describe('PlanningGenerationService', () => {
     }).compile();
 
     service = module.get<PlanningGenerationService>(PlanningGenerationService);
+    solverEngine = module.get<SolverEngineService>(SolverEngineService);
     jest.clearAllMocks();
 
     // Default mocks
@@ -7922,6 +7928,134 @@ describe('PlanningGenerationService', () => {
       const b = await runDepth3(true);
       expect(a.assignments).toEqual(b.assignments);
       expect(a.holes).toEqual(b.holes);
+    });
+
+    // ─── Story 12-1 (KON-129) — CP-SAT improve pass ────────────────────────────
+    // Reuses the depth-3 fixture: 3 Mondays, 3 VETs at a 4h/month cap with crossed
+    // availabilities. Greedy ALONE (enableRepair: false) strands the third Monday;
+    // a full feasible assignment exists — exactly what the solver must find.
+    describe('cp-sat improve pass (KON-129)', () => {
+      // AC1 (verbatim from story 12-1): "Given engine: 'cpsat' on a month where
+      // greedy+repair strands >= 1 hole while a fuller feasible assignment exists,
+      // When generation runs, Then the served plan has strictly fewer holes,
+      // stats.engine === 'cpsat', and every served assignment passes the existing
+      // rule-engine + statutory re-validation."
+      it('AC1 — serves the solver plan when it strictly beats the greedy baseline', async () => {
+        buildDepth3CounterExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.holeCount).toBe(0);
+        expect(result.stats.engine).toBe('cpsat');
+        const byDate = new Map(
+          result.assignments.map((a) => [a.date, a.employeeId]),
+        );
+        expect(byDate.size).toBe(3); // all three Mondays filled, no double-book
+      });
+
+      // AC2 (verbatim): "Given a generation request without engine (or engine:
+      // 'greedy'), Then results are identical to today's greedy+repair output,
+      // stats.engine === 'greedy', and no solver code executes."
+      it('AC2 — default engine runs zero solver code and reports greedy', async () => {
+        const solveSpy = jest.spyOn(solverEngine, 'solve');
+        buildDepth3CounterExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          {},
+        );
+        expect(solveSpy).not.toHaveBeenCalled();
+        expect(result.stats.engine).toBe('greedy');
+      });
+
+      // AC3 (verbatim): "Given the solver returns TIMEOUT / INFEASIBLE / throws /
+      // produces a not-strictly-better or re-validation-failing solution, Then the
+      // greedy+repair result is served unchanged, stats.engine === 'greedy', and a
+      // structured warn log records the solver status."
+      it('AC3 — solver failure serves the greedy+repair result unchanged', async () => {
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'UNKNOWN',
+          chosenVarNames: new Set(),
+        });
+        buildDepth3CounterExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.holeCount).toBe(0); // depth-3 repair already fills this fixture
+      });
+
+      it('AC3 — a not-strictly-better solver plan is discarded (strictness gate)', async () => {
+        buildDepth3CounterExample();
+        // With repair ON, greedy+repair reaches 0 holes; every full assignment of
+        // this fixture has identical equity (one Monday each) -> the real solver
+        // cannot strictly improve and the greedy plan must be served.
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { engine: 'cpsat' },
+        );
+        expect(result.stats.holeCount).toBe(0);
+        expect(result.stats.engine).toBe('greedy');
+      });
+
+      // AC4 (verbatim): "Given the same inputs and engine: 'cpsat' twice, Then the
+      // two results are deep-equal (workers = 1, fixed seed, deterministic-time
+      // budget — invariant #3)."
+      it('AC4 — two cpsat runs are deep-equal', async () => {
+        buildDepth3CounterExample();
+        const a = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        buildDepth3CounterExample();
+        const b = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(a.assignments).toEqual(b.assignments);
+        expect(a.holes).toEqual(b.holes);
+        expect(a.stats).toEqual(b.stats);
+      });
+
+      // AC6 (verbatim): "the 35h-weekly-rest constraint is deliberately relaxed in
+      // the model and enforced by re-validation — a fixture proves a rest-violating
+      // solver solution is rejected and the greedy result served." Same rejection
+      // path, exercised here with a monthly-cap violation: the mocked solve returns
+      // MODEL-EXISTING vars (3 fills > greedy-alone's 2, so it passes the strictness
+      // gate) that double-book Alice past her 4h/month cap — re-validation must
+      // reject and serve the greedy plan.
+      it('AC6 — a re-validation-failing solver plan is rejected and greedy served', async () => {
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'OPTIMAL',
+          chosenVarNames: new Set([
+            'emp-1@2026-03-02|SURGERY|08:00#0',
+            'emp-1@2026-03-16|SURGERY|08:00#0',
+            'emp-3@2026-03-09|SURGERY|08:00#0',
+          ]),
+        });
+        buildDepth3CounterExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.holeCount).toBe(1); // greedy-alone baseline kept
+      });
     });
   });
 
