@@ -43,6 +43,8 @@ export interface SolverSlot {
 export interface SolverRotationRule {
   targetIsoDay: number; // 1..7 (ISO, Mon..Sun)
   maxPerPeriod: number;
+  /** Rule applies only to these job types (absent = all employees) — mirrors ROTATION_EQUITY config. */
+  applicableJobTypes?: string[];
 }
 
 export interface SolverInput {
@@ -314,6 +316,11 @@ export function buildSolverModel(input: SolverInput): SolverModel {
 
     // HARD rotation caps with history offset.
     for (const rule of input.rotationRules) {
+      if (
+        rule.applicableJobTypes?.length &&
+        !rule.applicableJobTypes.includes(e.jobType)
+      )
+        continue;
       const targetVars = evSlots.filter(
         ({ s }) => isoWeekday(s.date) === rule.targetIsoDay,
       );
