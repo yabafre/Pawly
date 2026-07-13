@@ -8199,6 +8199,153 @@ describe('PlanningGenerationService', () => {
         // contractHours 8h * 60 = 480; the pre-fix bug would leave this at 10080.
         expect(weekly.bound).toBe(480);
       });
+
+      // AC1/AC7 through the DEFAULT repair-enabled path (what tRPC actually calls):
+      // a depth-4 ejection chain. Greedy strands the 4th Monday and the depth-3 GRASP
+      // repair (max TWO relocations, KON-128) cannot reach the fix — but a full
+      // feasible assignment exists, so CP-SAT serves it. The existing AC1 test forces
+      // enableRepair:false to strand the hole; this one leaves repair ON, closing the
+      // gap that no served-cpsat test exercised the real tRPC path. Also the exact
+      // fixture used for the KON-129 live tRPC journey (Review Record).
+      //
+      // 4 VETs at a 4h/month cap, 4 Mondays, crossed availabilities. Perfect matching:
+      // Alice->Mon4, Bob->Mon1, Carol->Mon2, Dan->Mon3. Greedy (lowest-id first) takes
+      // Alice->Mon1, Bob->Mon2, Carol->Mon3, then Mon4 has only Alice (capped) -> hole.
+      // Repairing it needs 3 relocations (Alice->Mon4, Bob->Mon1, Carol->Mon2) + Dan
+      // idle->Mon3 — one deeper than the depth-3 budget.
+      const buildDepth4CounterExample = () => {
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-depth4',
+          name: 'Monday VET surgery (depth-4)',
+          clinicId,
+          data: {
+            days: [
+              {
+                dayOfWeek: 1,
+                slots: [
+                  {
+                    shiftTypeCode: 'SURGERY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        mockClinicService.getOperationalConfig.mockResolvedValue({
+          ...mockOperationalConfig,
+          closedDays: [{ id: 'c1', date: '2026-03-30', reason: null }], // keep 4 Mondays
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'M',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-2',
+            firstName: 'Bob',
+            lastName: 'D',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-3',
+            firstName: 'Carol',
+            lastName: 'B',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-4',
+            firstName: 'Dan',
+            lastName: 'R',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        ]);
+        mockPlanningService.listRules.mockResolvedValue([
+          {
+            id: '55555555-5555-5555-5555-555555555555',
+            name: 'Max 4h/month',
+            category: 'CONTRACT_COMPLIANCE',
+            ruleType: 'HARD',
+            config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+            priority: 10,
+          },
+        ]);
+        const leave = (id: string, employeeId: string, date: string) => ({
+          id,
+          employeeId,
+          type: 'VACATION',
+          startDate: new Date(date),
+          endDate: new Date(date),
+          daysOfWeek: [],
+        });
+        mockPrismaService.unavailability.findMany.mockResolvedValue([
+          // Alice avail Mon1(03-02) + Mon4(03-23)
+          leave('l1', 'emp-1', '2026-03-09'),
+          leave('l2', 'emp-1', '2026-03-16'),
+          // Bob avail Mon1(03-02) + Mon2(03-09)
+          leave('l3', 'emp-2', '2026-03-16'),
+          leave('l4', 'emp-2', '2026-03-23'),
+          // Carol avail Mon2(03-09) + Mon3(03-16)
+          leave('l5', 'emp-3', '2026-03-02'),
+          leave('l6', 'emp-3', '2026-03-23'),
+          // Dan avail Mon3(03-16) only
+          leave('l7', 'emp-4', '2026-03-02'),
+          leave('l8', 'emp-4', '2026-03-09'),
+          leave('l9', 'emp-4', '2026-03-23'),
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) =>
+            fn({
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest
+                  .fn()
+                  .mockImplementation(({ data }: { data: any[] }) =>
+                    data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                  ),
+              },
+            }),
+        );
+      };
+
+      it('AC1 — serves cpsat past the depth-3 repair ceiling (repair ON, real tRPC path)', async () => {
+        // Greedy + depth-3 repair cannot fill the depth-4 chain -> a hole survives.
+        buildDepth4CounterExample();
+        const greedy = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-depth4',
+          {}, // default engine, repair ON — exactly what planning.router forwards
+        );
+        expect(greedy.stats.engine).toBe('greedy');
+        expect(greedy.stats.holeCount).toBeGreaterThanOrEqual(1);
+
+        // Same inputs with the solver: the exact assignment is found and served.
+        buildDepth4CounterExample();
+        const cpsat = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-depth4',
+          { engine: 'cpsat' },
+        );
+        expect(cpsat.stats.engine).toBe('cpsat');
+        expect(cpsat.stats.holeCount).toBe(0);
+        // Every Monday filled by a distinct VET (the perfect matching).
+        const byDate = new Map(
+          cpsat.assignments.map((a) => [a.date, a.employeeId]),
+        );
+        expect(byDate.size).toBe(4);
+        expect(new Set(byDate.values()).size).toBe(4);
+      });
     });
   });
 
