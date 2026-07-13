@@ -649,14 +649,53 @@ New files: none — this story only modifies existing files.
 
 ## Dev Agent Record
 
-- **Model:** (filled by aped-dev)
-- **Started:** (filled by aped-dev)
-- **Completed:** (filled by aped-dev)
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-13
+- **Completed:** 2026-07-13 (code + tests; AC7 live journey pending — see Deviations)
 
 ### Summary
 
+Gated the `cpsat` engine VALUE behind Professional at the API (`requireProfessional`
+when `input.engine === 'cpsat'`; greedy stays Starter-accessible), added the
+Professional-locked exact-engine switch + served-engine badge to the generation panel,
+and made the success toasts engine-aware (solver-optimized / standard / no-improvement).
+i18n strings added to both locales. Full TDD, RED witnessed for every production change.
+
 ### Files changed
+
+- `apps/api/src/trpc/routers/planning.router.ts` — cpsat Professional gate (+spec: starter caller + 3 tier tests)
+- `apps/web/.../_components/GenerationPanel.tsx` — Switch (Pro-locked), engine threading, served-engine badge
+- `apps/web/.../_hooks/useGeneration.ts` — engine-aware success toasts
+- `apps/web/.../__tests__/generation.spec.tsx` — panel tests + subscription mock + harness fixes + fixture engine
+- `apps/web/.../__tests__/useGeneration.spec.tsx` — served-engine toast tests
+- `apps/web/src/i18n/langs/{fr,en}.json` — `admin.planningGeneration.engine.*` + 2 toast keys
+- `apps/api/.../planning-generation.service.spec.ts` — cpsat NFR2 perf budget (CI fix, out-of-story, user-requested)
 
 ### Deviations
 
+- **Solo (not fullstack team):** File List spans api+web (step-04 would spawn a 3-agent team). Ran
+  solo in task order — the engine contract was frozen by 12-1 (`engine`/`stats.engine` shipped) and
+  the story provided verbatim code, so there was no contract to negotiate.
+- **Skipped step-04 parallel context agents:** code fully explored manually; no new SDK (L4 n/a).
+- **Spec harness fixes (generation.spec.tsx):** the story's verbatim tests assumed a namespaced
+  next-intl mock (real mock echoes the bare key → assert `proBadge`, not `engine.proBadge`) and clean
+  `usePublish` state (story-11-1's PUBLISHED override leaks with no global mock reset → added a
+  per-test DRAFT reset in the engine describe's `beforeEach`). Behavioral intent of AC1/2/5 preserved.
+- **Pre-existing fixture fix:** `GenerationResultView`'s `fullResult`/`cleanResult` lacked the
+  now-required `stats.engine` (12-1 omission; no web tsc in CI caught it). Added `engine: 'greedy'`.
+- **Task 5 visual React Grab check consolidated into the Task 8 live journey** (shared dev server + login).
+- **CI fix (user-requested mid-session):** the cpsat NFR2 perf test pinned 8000ms on CI but the solver
+  path reaches ~9.4s on contended runners — red Build on every develop push/PR since 12-1. Raised CI
+  budget to 15000ms / non-CI to 6000ms. Verified `CI=1` → 200 passed on the perf file. The
+  Deploy-Trigger.dev version-mismatch was already fixed on main (`a404797`, `pnpm exec trigger`).
+- **AC7 live journey: PENDING** — Professional switch-enabled + served badge, Starter locked-switch
+  visual, API FORBIDDEN spot check. PR #110 opened as draft; mark ready once the journey is captured.
+
 ### Test output
+
+- `pnpm --filter @pawly/api test planning.router` → `Tests: 89 passed` (86 + 3 tier tests).
+- `pnpm --filter @pawly/web test generation` / `useGeneration` → `30 passed` (24 + 6 new).
+- `bash .aped/aped-dev/scripts/run-tests.sh` → `Tasks: 8 successful`, API `1040 passed`, Web `762 passed`, `.last-test-exit = 0`.
+- `pnpm --filter @pawly/api build` → SWC 152 files + `tsc -p tsconfig.types.json` clean.
+- `tsc --noEmit -p apps/web/tsconfig.json` → clean.
+- `CI=1 jest planning-generation.service` → `200 passed` (cpsat perf elapsed ~3.7s < 15000ms).
