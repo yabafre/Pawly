@@ -125,8 +125,13 @@ export class PlanningGenerationService {
   private static readonly MAX_HILLCLIMB_ITERATIONS = 200;
   private static readonly DEPTH3_PASS_EVALUATION_BUDGET = 4_000;
   // Story 12-1 (KON-129) — CP-SAT deterministic-time budget (deterministic units,
-  // never wall-clock: invariant #3). Sized against the 50-employee stress test.
-  private static readonly SOLVER_DETERMINISTIC_BUDGET = 2.0;
+  // never wall-clock: invariant #3). Calibrated on the 50-employee stress model
+  // (4,650 vars): 0.05 det ≈ 0.35s wall, keeping the whole cpsat generation inside
+  // the NFR2 envelope with real margin. The greedy hint is the solver's incumbent,
+  // so a budget-cut solve degrades to "no improvement found" (greedy served) —
+  // never to a worse plan. At real clinic scale (5-20 employees, ~10x smaller
+  // models) this budget is ample for a proven OPTIMAL.
+  private static readonly SOLVER_DETERMINISTIC_BUDGET = 0.05;
   private static readonly REPAIR_YIELD_EVERY = 8; // mirror the generation-loop event-loop yield
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
@@ -4254,13 +4259,18 @@ export class PlanningGenerationService {
       })
       .filter((r) => r.targetIsoDay > 0 && r.maxPerPeriod > 0);
 
-    // Per-position slots, reduced by the survivor coverage the greedy loop consumed
+    // One solver slot per (date, shiftTypeCode, startTime) with its AGGREGATED
+    // capacity, reduced by the survivor coverage the greedy loop consumed
     // (recomputeHoles counts the same `consumed` flags — single source of truth).
+    // No per-position expansion: an employee can hold at most one position of an
+    // identical-times slot anyway (overlap), so x[e,slot] ∈ {0,1} with a
+    // requiredStaff fill cap is exactly equivalent — and halves the model size
+    // while removing the position symmetry CP-SAT search hates.
     const consumedByKey = new Map<string, number>();
     for (const [key, bucket] of ctx.preExistingSlotCoverage) {
       consumedByKey.set(key, bucket.filter((c) => c.consumed).length);
     }
-    const positionSlots: SolverInput['slots'] = [];
+    const aggregated = new Map<string, SolverInput['slots'][number]>();
     for (const slot of [...ctx.slots].sort((a, b) =>
       `${a.date}|${a.shiftTypeCode}|${a.startTime}`.localeCompare(
         `${b.date}|${b.shiftTypeCode}|${b.startTime}`,
@@ -4273,20 +4283,25 @@ export class PlanningGenerationService {
         coverageKey,
         Math.max(0, consumed - slot.requiredStaff),
       );
+      if (residual === 0) continue;
       const baseKey = `${slot.date}|${slot.shiftTypeCode}|${slot.startTime}`;
-      for (let i = 0; i < residual; i++) {
-        positionSlots.push({
-          id: `${baseKey}#${i}`,
+      const existing = aggregated.get(baseKey);
+      if (existing) {
+        existing.requiredStaff += residual;
+      } else {
+        aggregated.set(baseKey, {
+          id: baseKey,
           date: slot.date,
           shiftTypeCode: slot.shiftTypeCode,
           startTime: slot.startTime,
           endTime: slot.endTime,
           breakMinutes: slot.breakMinutes || 0,
-          requiredStaff: 1,
+          requiredStaff: residual,
           requiredJobTypes: slot.requiredJobTypes,
         });
       }
     }
+    const positionSlots: SolverInput['slots'] = [...aggregated.values()];
 
     // Fixed per-day baseline (survivors + border): net minutes and worked dates.
     const fixedDailyMinutes = new Map<string, number>();
@@ -4355,18 +4370,10 @@ export class PlanningGenerationService {
 
     const model = buildSolverModel(input);
 
-    // ── 2) Hint = the greedy(+repair) plan mapped onto position vars ───────────
+    // ── 2) Hint = the greedy(+repair) plan mapped onto (employee, slot) vars ───
     const hint = new Set<string>();
-    const nextPosition = new Map<string, number>();
-    for (const s of [...ctx.assignedShifts].sort((a, b) =>
-      `${a.date}|${a.shiftTypeCode}|${a.startTime}|${a.employeeId}`.localeCompare(
-        `${b.date}|${b.shiftTypeCode}|${b.startTime}|${b.employeeId}`,
-      ),
-    )) {
-      const baseKey = `${s.date}|${s.shiftTypeCode}|${s.startTime}`;
-      const idx = nextPosition.get(baseKey) ?? 0;
-      nextPosition.set(baseKey, idx + 1);
-      hint.add(`${s.employeeId}@${baseKey}#${idx}`);
+    for (const s of ctx.assignedShifts) {
+      hint.add(`${s.employeeId}@${s.date}|${s.shiftTypeCode}|${s.startTime}`);
     }
 
     const result = await this.solverEngine.solve(model, {

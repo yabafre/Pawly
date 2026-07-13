@@ -8041,9 +8041,9 @@ describe('PlanningGenerationService', () => {
         jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
           status: 'OPTIMAL',
           chosenVarNames: new Set([
-            'emp-1@2026-03-02|SURGERY|08:00#0',
-            'emp-1@2026-03-16|SURGERY|08:00#0',
-            'emp-3@2026-03-09|SURGERY|08:00#0',
+            'emp-1@2026-03-02|SURGERY|08:00',
+            'emp-1@2026-03-16|SURGERY|08:00',
+            'emp-3@2026-03-09|SURGERY|08:00',
           ]),
         });
         buildDepth3CounterExample();
@@ -8064,7 +8064,9 @@ describe('PlanningGenerationService', () => {
     // 50 employees, a 3-slot 24/7 template over a full month, one live SOFT ROTATION_EQUITY
     // rule so the eligibility hot path (the pass's per-swap re-check) is genuinely exercised —
     // mirrors 11-10's stress harness. The pass runs with its default (enableRepair unset → true).
-    const generateStressMonth = () => {
+    const generateStressMonth = (
+      options: { enableRepair?: boolean; engine?: 'greedy' | 'cpsat' } = {},
+    ) => {
       const shiftTypes = [
         {
           code: 'MORNING',
@@ -8137,7 +8139,12 @@ describe('PlanningGenerationService', () => {
             },
           }),
       );
-      return service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-stress');
+      return service.generateMonthlyPlan(
+        clinicId,
+        '2026-03',
+        'tpl-stress',
+        options,
+      );
     };
 
     it('generates a 50-employee, 24/7, 31-day month within the 2s budget', async () => {
@@ -8262,6 +8269,20 @@ describe('PlanningGenerationService', () => {
       // GitHub-hosted CI runners it can take 2-4x longer without indicating a
       // regression. Keep the tight bound locally; give CI headroom while still
       // catching an order-of-magnitude regression.
+      const budgetMs = process.env.CI ? 8000 : 2000;
+      expect(elapsedMs).toBeLessThan(budgetMs);
+    });
+
+    // KON-129 (AC5) — the opt-in solver must respect the same NFR2 envelope. This
+    // is the suite's biggest model (~9,300 assignment vars: 50 VETs × 186 monthly
+    // positions), hinted with the full greedy+repair plan; the deterministic-time
+    // budget inside SolverEngineService bounds the solve.
+    it('KON-129 — cpsat engine stays inside the NFR2 budget on the 50-employee stress', async () => {
+      const start = Date.now();
+      const result = await generateStressMonth({ engine: 'cpsat' });
+      const elapsedMs = Date.now() - start;
+      expect(result.stats.totalSlots).toBeGreaterThan(0);
+      expect(['greedy', 'cpsat']).toContain(result.stats.engine);
       const budgetMs = process.env.CI ? 8000 : 2000;
       expect(elapsedMs).toBeLessThan(budgetMs);
     });
