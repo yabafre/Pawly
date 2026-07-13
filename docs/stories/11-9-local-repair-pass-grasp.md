@@ -1316,5 +1316,5 @@ all confirmed. The findings were **test-coverage and documentation gaps**, all c
 - Visual verification: n/a (backend-only story, no preview surface).
 
 ### Ticket sync
-- Ticket comment posted: pending Alex's go-ahead (outward-facing).
-- PR opened/updated: pending — branch not yet pushed (worktree/parallel-sprint mode; Lead merges into `sprint/epic-11`).
+- Ticket comment posted: YES — Linear KON-126.
+- PR opened/updated: https://github.com/yabafre/Pawly/pull/104 (draft → `sprint/epic-11`; Lead marks ready & merges).
