@@ -54,6 +54,12 @@ vi.mock('../templates/_hooks/useTemplates', () => ({
   })),
 }));
 
+// Story 12-2 (KON-130) — the panel consumes useSubscription for the Pro gate.
+const mockCanAccessFeature = vi.fn(() => true);
+vi.mock('@/lib/contexts/subscription-context', () => ({
+  useSubscription: () => ({ canAccessFeature: mockCanAccessFeature }),
+}));
+
 // Story 11-1 — mock the shadcn Select so the template picker is drivable in
 // jsdom (the real Radix Select relies on pointer-capture APIs jsdom lacks).
 // Options render as role="option" buttons that call the owning Select's
@@ -234,6 +240,73 @@ describe('GenerationPanel', () => {
       }),
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
+  });
+
+  describe('engine selector (KON-130)', () => {
+    beforeEach(() => {
+      mockCanAccessFeature.mockReturnValue(true);
+    });
+
+    // AC1 (verbatim from story 12-2): "When they enable the exact-engine switch and
+    // generate, Then the generation request carries the cpsat engine".
+    it('passes engine cpsat when the switch is enabled (professional)', async () => {
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A')); // select a template
+      fireEvent.click(screen.getByRole('switch')); // enable the exact engine
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'cpsat' }),
+        expect.anything()
+      );
+    });
+
+    // AC5 (verbatim): "Given the switch off (its default), Then requests and
+    // results are byte-identical to today (engine: 'greedy')".
+    it('passes engine greedy by default (switch off)', async () => {
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'greedy' }),
+        expect.anything()
+      );
+    });
+
+    // AC2 (verbatim): "Then the exact-engine switch is disabled with a 'Pro' badge
+    // and an upgrade hint, and generation still works with the standard engine."
+    it('locks the switch with a Pro badge for a starter tier', () => {
+      mockCanAccessFeature.mockReturnValue(false);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      expect(screen.getByRole('switch')).toBeDisabled();
+      expect(screen.getByText('engine.proBadge')).toBeInTheDocument();
+      expect(screen.getByText('engine.proHint')).toBeInTheDocument();
+    });
   });
 });
 
