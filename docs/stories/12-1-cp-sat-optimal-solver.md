@@ -1,7 +1,7 @@
 # Story: 12-1-cp-sat-optimal-solver — CP-SAT Optimal Solver behind the Greedy Path
 
 **Epic:** Epic 12 — Planning Optimality (Phase 3)
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-129-12-1-cp-sat-optimal-solver
 **Ticket:** KON-129 (Linear · project Pawly · blocked by KON-128 / PR #108)
 **Origin:** PRD Product Scope, Phase 3 Vision — *"AI Engine: Global optimization algorithms for complex fairness balancing."* The 2026-07-08 audit deliberately chose GRASP over CP-SAT *at Epic 11's scale and priorities* (`docs/epics-context/epic-11-context.md` § 0); this story revisits that decision as a measured, **opt-in improve pass** — never a replacement of the greedy engine.
@@ -1619,3 +1619,99 @@ Validators: 779 passed (engine schema defaults/enum)
 # pnpm --filter @pawly/api build → nest build (SWC 152 files) + tsc -p tsconfig.types.json: clean (L5)
 # Smoke: pnpm --filter @pawly/api exec tsx scripts/solver-smoke.ts → SMOKE OK — OPTIMAL, objective 5, hint accepted
 ```
+
+## Review Record
+
+**Date:** 2026-07-13
+**Auditors:** Spec, Code, Edge & Hallucination (Aria N/A — backend-only story)
+**Verdict:** done
+
+Three parallel method-driven auditors reviewed the REAL implementation (not the story's
+inlined pseudocode, from which the dev deliberately diverged — see Dev Agent Record §
+Deviations). Edge & Hallucination: APPROVED (identifier table fully resolved — no
+hallucinations, no determinism leak). Spec + Code: CHANGES_REQUESTED. The Spec-NACK gate
+was resolved [O]verride → fix-in-place; all findings are now Resolved or Dismissed.
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] `capsFor` dropped the `contractHours` weekly fallback that
+  `violatesHardContractIncremental` always applies — for a HARD CONTRACT_COMPLIANCE rule
+  with only `maxMonthlyHours`, the solver searched a ~168h/week space, over-packed, and its
+  candidate was discarded on replay → AC1 silently degraded to greedy for that clinic class.
+  [planning-generation.service.ts:4235] — Source: Code (MAJOR) + Spec (Task 9, MINOR).
+  - Resolution: `fix(KON-129) 4d8a2c4` — mirror the rule-engine formula exactly + a
+    model-bound regression lock (`weekly:emp-1` bound 480, fails pre-fix at 10080).
+    CodeAuditor re-verified RESOLVED by reverting the hunk and re-running (10080 → FAIL,
+    480 → PASS). Nothing invalid ever persisted (replay is the exact gate).
+- [MAJOR] AC7 — no live tRPC call had observed a served `cpsat`. Source: Spec.
+  - Resolution: live journey re-run (below) — a real `planning.generatePlan({engine:'cpsat'})`
+    over HTTP → tRPC → NestJS → Neon returned `stats.engine === 'cpsat'`, `holeCount 0` vs
+    greedy's `1`, with the structured `KON-129 solver plan SERVED` log. Plus a permanent
+    integration test `test(KON-129) e502362` proving served-cpsat through the DEFAULT
+    repair-enabled path (the gap the pre-existing AC1 test left by forcing `enableRepair:false`).
+- [MAJOR→documented] AC6 — the "rest-violating solver plan rejected" proof was substituted
+  with a monthly-cap fixture. Source: Spec.
+  - Resolution: a fixture satisfying every MODELED constraint (incl. modeled ≤6-consecutive)
+    yet violating ONLY the un-modeled 35h weekly rest requires pathological shift geometry
+    (<35h gap around a single off day ⇒ >13h amplitude, itself illegal) — impractical.
+    The rejection PATH is proven (monthly-cap fixture) and the WEEKLY_REST rule is enforced
+    by the SAME shared `evaluateEligibility → wouldExceedStatutory` the replay calls,
+    independently proven in `french-labor-law.spec.ts`. AC6 test strengthened with a
+    re-validation warn assertion. `fix(KON-129) 4d8a2c4`.
+- [MINOR] AC3 not-strictly-better path logged at `.log()`, not `.warn()` (NFR3). → `.warn()`.
+- [MINOR] Solver warn/log lines had no test assertion (NFR3). → warn asserted on the
+  UNKNOWN, re-validation-reject, and no-improvement paths. `4d8a2c4`.
+- [MINOR] `netMinutes` diverged from `calculateShiftMinutes` at `endTime === startTime`
+  (1440 vs 0). → `raw < 0` so a zero-length slot is 0, matching the service. `4d8a2c4`.
+- [MINOR] consecutive-days bound could go negative and double-counted `fixedWorked` dates.
+  → `Math.max(0, …)` + exclude fixed dates from the day-var terms. `4d8a2c4`.
+- [MINOR] no test exercised the adapter's `addImplication` day-var channeling. → real-solve
+  test capping one employee at 6 of 7 consecutive days. `4d8a2c4`.
+
+#### Dismissed
+
+- [MINOR] `overlaps`/`amplitudeExceeded` blind to cross-date overnight spillover — Rationale:
+  pre-existing limitation that exactly mirrors `evaluateEligibility` (same-date only); the
+  solver introduces no invalidity vs greedy, and the replay accepts the same plans. Backlog
+  item if overnight shifts become real; out of scope for KON-129.
+- [NIT] `SOLVER_DETERMINISTIC_BUDGET` det→wall ratio is single-machine with no runtime backoff
+  — Rationale: documented low-risk assumption; 0.35s vs the 2s NFR2 envelope, and any overrun
+  falls back to greedy (never a wrong plan). Runtime backoff would be scope creep.
+- [NIT] `Math.ceil(weight*100)` float quantization — Rationale: verified harmless; the same
+  expression feeds both the per-spread weight and `totalSpreadWeight`, so lexicographic
+  dominance holds, and no int64 overflow at stress scale.
+- [NIT] slot-aggregation vs `requiredJobTypesByKey` first-vs-last tiebreak — Rationale: only
+  diverges on a data anomaly (two demand slots sharing date|shiftType|startTime with different
+  endTime/jobTypes); the replay gate is conservative regardless.
+- [NIT] the 9 story-prescribed helper names are absent (inlined into `runSolverImprovePass`) —
+  Rationale: disclosed deviation ("replay, not bespoke helpers"); the logic is present and
+  correct — documentation-only, no action.
+
+### Verification (fresh, captured during review)
+
+- API suite: `pnpm --filter @pawly/api test` → **38 suites, 1037 passed** (1034 baseline + 3
+  review tests: addImplication, capsFor regression, depth-4 served-cpsat).
+- Validators: `pnpm --filter @pawly/validators test planning-generation` → **35 passed**.
+- Build (L5): `pnpm --filter @pawly/api build` → `nest build` (SWC 152 files) + `tsc -p
+  tsconfig.types.json` clean, exit 0.
+- git-audit: exit 0 (no story-listed file missing from the diff).
+- **Live tRPC journey (AC7, served-cpsat) — next-browser headed + real HTTP path.** Ephemeral
+  Neon clinic seeded as the depth-4 counter-example (4 VETs @ 4h/month, 4 Mondays, crossed
+  availability; greedy+depth-3-repair strands the 4th Monday, a full matching exists). Admin
+  JWT minted (HS256/`JWT_SECRET`), `auth-token` cookie injected into a HEADED next-browser
+  (authenticated admin planning UI of the seeded clinic — screenshot captured), and
+  `planning.generatePlan` called once per engine over `POST /trpc/planning.generatePlan`
+  (`x-trpc-source: nextjs`):
+  - `engine: 'greedy'` → `stats.engine = greedy`, `holeCount = 1` (repair cannot reach the
+    depth-4 chain).
+  - `engine: 'cpsat'` → `stats.engine = cpsat`, `holeCount = 0`; API log:
+    `KON-129 solver plan SERVED: OPTIMAL, filled 4 (greedy 3), equity 0.0000 (greedy 0.0000)`.
+  - Ephemeral clinic and throwaway seed scripts removed after the run (one `clinic.delete`
+    cascade); no residue in the DB or the repo.
+
+### Ticket sync
+
+- Ticket comment posted: Linear KON-129.
+- PR opened/updated: https://github.com/yabafre/Pawly/pull/109 (base `develop`).
