@@ -263,7 +263,10 @@ export const planningRouter = router({
           ctx.user.clinicId,
           input.month,
           input.templateId,
-          { acknowledgePublishedChange: input.acknowledgePublishedChange },
+          {
+            acknowledgePublishedChange: input.acknowledgePublishedChange,
+            engine: input.engine,
+          },
         );
       } finally {
         await invalidateScheduleCaches(ctx.redis, ctx.user.clinicId);

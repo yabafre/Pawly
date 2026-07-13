@@ -978,7 +978,7 @@ describe('planningRouter', () => {
         'clinic-123',
         '2026-03',
         '550e8400-e29b-41d4-a716-446655440000',
-        { acknowledgePublishedChange: false },
+        { acknowledgePublishedChange: false, engine: 'greedy' },
       );
     });
 
@@ -1058,7 +1058,40 @@ describe('planningRouter', () => {
         'clinic-123',
         '2026-03',
         '550e8400-e29b-41d4-a716-446655440000',
-        { acknowledgePublishedChange: true },
+        { acknowledgePublishedChange: true, engine: 'greedy' },
+      );
+    });
+
+    // Story 12-1 (KON-129) — the engine flag flows through the transport.
+    it('should forward engine cpsat to the service', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+          engine: 'greedy',
+        },
+      });
+
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+        engine: 'cpsat',
+      });
+
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: false, engine: 'cpsat' },
       );
     });
 
