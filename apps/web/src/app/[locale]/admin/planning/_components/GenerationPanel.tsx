@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   Sparkles,
@@ -85,6 +85,13 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   const canUseCpsat = canAccessFeature('professional');
   const [exactEngine, setExactEngine] = useState(false);
   const engine: 'greedy' | 'cpsat' = canUseCpsat && exactEngine ? 'cpsat' : 'greedy';
+
+  // Story 12-2 (KON-130) — the served-engine badge describes the LAST generation.
+  // Reset it when the target month or template changes so it never mislabels a
+  // context the admin has not regenerated yet (Transparency over Magic).
+  useEffect(() => {
+    setGenerationResult(null);
+  }, [selectedMonth, selectedTemplateId]);
 
   const { templates, isPending: isLoadingTemplates } = useTemplates();
   const { shifts, isLoadingShifts, generatePlan, isGenerating, deleteGenerated, isDeleting } =
@@ -331,7 +338,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
               >
                 {tEngine('label')}
                 {!canUseCpsat && (
-                  <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">
                     {tEngine('proBadge')}
                   </Badge>
                 )}
