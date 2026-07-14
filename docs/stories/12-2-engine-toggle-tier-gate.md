@@ -1,7 +1,7 @@
 # Story: 12-2-engine-toggle-tier-gate — Engine Selector in the Generation Panel (Professional-gated)
 
 **Epic:** Epic 12 — Planning Optimality (Phase 3)
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-130-12-2-engine-toggle-tier-gate
 **Ticket:** KON-130 (Linear · project Pawly · related to KON-129)
 **Origin:** Follow-up to story 12-1: the `engine: 'greedy' | 'cpsat'` flag on `planning.generatePlan` is live but tRPC-only and NOT tier-gated — any subscribed admin can force the solver today. FR16 makes cpsat a Professional feature; "Transparency over Magic" (ux/flows.md) requires the served engine to be visible.
@@ -24,7 +24,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — RED: router tier-gate spec** [AC: 3]
+- [x] **Task 1 — RED: router tier-gate spec** [AC: 3]
 
   In `apps/api/src/trpc/routers/planning.router.spec.ts`, add a Starter caller helper next to `createAdminCaller` (same shape, tier flipped):
 
@@ -139,7 +139,7 @@
   Expected RED: `rejects engine cpsat for a starter tier with FORBIDDEN` fails (the call resolves — no gate yet). Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/trpc/routers/planning.router.spec.ts && git commit -m "test(KON-130): RED — cpsat tier gate on generatePlan [AC-3]"`
 
-- [ ] **Task 2 — GREEN: router gate** [AC: 3, 5]
+- [x] **Task 2 — GREEN: router gate** [AC: 3, 5]
 
   In `apps/api/src/trpc/routers/planning.router.ts`, inside the `generatePlan` mutation, insert the gate between `adminOnly(ctx.user.role);` and the `try {`:
 
@@ -159,7 +159,7 @@
   Expected: `Tests: 89 passed` (86 existing + 3 new), exit 0.
   Commit: `git add apps/api/src/trpc/routers/planning.router.ts && git commit -m "feat(KON-130): cpsat engine is Professional-gated at the API [AC-3]"`
 
-- [ ] **Task 3 — i18n: engine strings (FR + EN)** [AC: 6]
+- [x] **Task 3 — i18n: engine strings (FR + EN)** [AC: 6]
 
   In `apps/web/src/i18n/langs/fr.json`, inside `admin.planningGeneration`, add the `engine` group (sibling of `toast`) and extend `toast`:
 
@@ -203,7 +203,7 @@
   Expected: existing suite still green (translation mocks return key names; JSON edits cannot break it — this run is the regression guard).
   Commit: `git add apps/web/src/i18n/langs/fr.json apps/web/src/i18n/langs/en.json && git commit -m "feat(KON-130): engine selector strings fr/en [AC-6]"`
 
-- [ ] **Task 4 — RED: panel + hook spec** [AC: 1, 2, 4, 5]
+- [x] **Task 4 — RED: panel + hook spec** [AC: 1, 2, 4, 5]
 
   In `apps/web/src/app/[locale]/admin/planning/__tests__/generation.spec.tsx`:
 
@@ -355,7 +355,7 @@
   Expected RED: `getByRole('switch')` fails (no switch rendered yet) + toast assertions fail. Emit the `Confirmed RED:` witness.
   Commit: `git add "apps/web/src/app/[locale]/admin/planning/__tests__/generation.spec.tsx" "apps/web/src/app/[locale]/admin/planning/__tests__/useGeneration.spec.tsx" && git commit -m "test(KON-130): RED — engine switch, tier lock, served-engine toasts [AC-1,2,4,5]"`
 
-- [ ] **Task 5 — GREEN: GenerationPanel switch + served badge** [AC: 1, 2, 5]
+- [x] **Task 5 — GREEN: GenerationPanel switch + served badge** [AC: 1, 2, 5]
 
   In `apps/web/src/app/[locale]/admin/planning/_components/GenerationPanel.tsx`:
 
@@ -449,7 +449,7 @@
   **Visual Dev Loop (mandatory — frontend GREEN):** with `pnpm dev` running, use `mcp__react-grab-mcp__get_element_context` on the planning page's GenerationPanel — verify the switch row renders under the controls, spacing/typography match the panel (labels `text-xs font-bold uppercase` pattern above, hint in `text-muted-foreground`), and the Pro badge matches the indigo badge pattern. Fix visuals before REFACTOR; if React Grab is unavailable, log a WARNING and note deferral in the Dev Agent Record.
   Commit: `git add "apps/web/src/app/[locale]/admin/planning/_components/GenerationPanel.tsx" && git commit -m "feat(KON-130): exact-engine switch + served-engine badge in the panel [AC-1,2,5]"`
 
-- [ ] **Task 6 — GREEN: engine-aware toasts in useGeneration** [AC: 1, 4]
+- [x] **Task 6 — GREEN: engine-aware toasts in useGeneration** [AC: 1, 4]
 
   In `apps/web/src/app/[locale]/admin/planning/_hooks/useGeneration.ts`, replace the `generatePlan` mutation's `onSuccess` (lesson L1: `useServerActionMutation` wraps standard React Query `useMutation` — `data` is the action result directly, `variables` is the mutate input):
 
@@ -475,7 +475,7 @@
   Expected: `Tests: N passed` (both files fully green — the Task 4 RED toasts now pass).
   Commit: `git add "apps/web/src/app/[locale]/admin/planning/_hooks/useGeneration.ts" && git commit -m "feat(KON-130): engine-aware generation toasts [AC-1,4]"`
 
-- [ ] **Task 7 — Full suite + build** [AC: 5, 6]
+- [x] **Task 7 — Full suite + build** [AC: 5, 6]
 
   ```bash
   bash .aped/aped-dev/scripts/run-tests.sh
@@ -485,7 +485,7 @@
   Expected: runner exit 0 (`cat .aped/.last-test-exit` → `0`); API build clean (router change only — lesson L5 tsc pass must stay green). If a translation-completeness test exists in the web suite it also proves AC6.
   Commit: only if formatters touched files — `git add -u && git commit -m "chore(KON-130): post-suite formatting"`.
 
-- [ ] **Task 8 — Live journey (AC7 / L2) + PR** [AC: 7]
+- [x] **Task 8 — Live journey (AC7 / L2) + PR** [AC: 7]
 
   1. `pnpm dev` (background). On the dev clinic (Professional tier — `admin@test.app` / "Clinique test" was used for 12-1's journey): open `/admin/planning`, verify via React Grab that the switch is enabled; enable it, generate a covered month (2026-07 had school declarations for 12-1), and verify the served-engine badge + toast (`servedGreedy` + `cpsatNoImprovement` is the EXPECTED outcome on that already-optimal month — record it as AC4 evidence, not a failure).
   2. Starter visual check: temporarily flip the dev clinic's `Subscription.entitlementTier` to `starter` (SQL UPDATE) + wait out/flush the Redis `sub:{clinicId}` cache (120s TTL), reload, verify the locked switch + Pro badge via React Grab, then RESTORE the tier and flush again. Record both screenshots/React Grab outputs in the Dev Agent Record.
@@ -651,7 +651,7 @@ New files: none — this story only modifies existing files.
 
 - **Model:** claude-opus-4-8[1m]
 - **Started:** 2026-07-13
-- **Completed:** 2026-07-13 (code + tests; AC7 live journey pending — see Deviations)
+- **Completed:** 2026-07-14 (code + tests + AC7 live journey — all ACs verified)
 
 ### Summary
 
@@ -688,8 +688,9 @@ i18n strings added to both locales. Full TDD, RED witnessed for every production
   path reaches ~9.4s on contended runners — red Build on every develop push/PR since 12-1. Raised CI
   budget to 15000ms / non-CI to 6000ms. Verified `CI=1` → 200 passed on the perf file. The
   Deploy-Trigger.dev version-mismatch was already fixed on main (`a404797`, `pnpm exec trigger`).
-- **AC7 live journey: PENDING** — Professional switch-enabled + served badge, Starter locked-switch
-  visual, API FORBIDDEN spot check. PR #110 opened as draft; mark ready once the journey is captured.
+- **React Grab MCP not connected** — the live visual verification was driven with `next-browser`
+  (headless Playwright, its own Chromium) instead: DOM-level `eval` on the switch attributes is the
+  equivalent structured evidence (disabled state, badge presence, exact i18n text).
 
 ### Test output
 
@@ -699,3 +700,19 @@ i18n strings added to both locales. Full TDD, RED witnessed for every production
 - `pnpm --filter @pawly/api build` → SWC 152 files + `tsc -p tsconfig.types.json` clean.
 - `tsc --noEmit -p apps/web/tsconfig.json` → clean.
 - `CI=1 jest planning-generation.service` → `200 passed` (cpsat perf elapsed ~3.7s < 15000ms).
+- **CI Build on PR #110** → `success` (real `turbo run build` + `turbo run test` green end-to-end).
+
+### AC7 live journey (2026-07-14, next-browser headless on "Clinique test" — Professional)
+
+- **AC2 inverse (Professional):** switch present, `role=switch`, NOT disabled, label "Moteur exact (CP-SAT)", real hint shown, no "Pro" badge.
+- **AC1 + AC4 (live cpsat generation, month 2026-07):** enabled the switch, regenerated → served-engine
+  badge rendered **"Moteur standard"** (`data-testid=served-engine` = servedGreedy) and toast
+  **"Le solveur n'a pas trouvé mieux — plan standard servi (déjà optimal)."** (cpsatNoImprovement,
+  informational — never an error). Exactly the already-optimal-month outcome the story predicted.
+- **AC2 (Starter):** flipped `entitlementTier=starter` + flushed Redis `sub:{clinicId}`, reloaded →
+  switch **disabled** (`data-disabled`), label ends with the **"Pro"** badge, hint = "Disponible avec
+  l'abonnement Professional." (proHint). Tier restored to professional + Redis re-flushed afterward.
+- **AC3 (API, starter):** `POST /trpc/planning.generatePlan {engine:'cpsat'}` → **HTTP 403 · FORBIDDEN ·
+  "Subscription tier 'professional' required"** (no generation ran); `{engine:'greedy'}` was NOT
+  FORBIDDEN (reached the service, failing only on an unrelated missing-declaration business rule) —
+  greedy stays Starter-accessible.
