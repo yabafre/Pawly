@@ -258,6 +258,11 @@ export const planningRouter = router({
     .input(generatePlanSchema)
     .mutation(async ({ input, ctx }) => {
       adminOnly(ctx.user.role);
+      // Story 12-2 (KON-130) — the exact solver is a Professional feature (FR16).
+      // Gate the VALUE, not the procedure: greedy generation stays Starter-accessible.
+      if (input.engine === 'cpsat') {
+        requireProfessional(ctx.subscription.entitlementTier);
+      }
       try {
         return await ctx.planningGenerationService.generateMonthlyPlan(
           ctx.user.clinicId,

@@ -1032,8 +1032,27 @@ So that I get a provably better plan (fill first, then weighted equity) without 
 **Complexity:** L.
 **Depends on:** KON-128 (PR #108 — weighted equity objective; merge gate is Task 1 of the story).
 
+### Story 12.2: Engine Selector in the Generation Panel (Professional-gated)
+**Story key:** `12-2-engine-toggle-tier-gate`
+As a Professional clinic admin,
+I want to choose the exact solver from the generation panel and see which engine actually produced the served plan,
+So that I get CP-SAT optimization without hidden magic — and as a Starter admin, I clearly see it is a Pro feature.
+
+**Acceptance Criteria:**
+**Given** a Professional admin enabling the exact-engine switch
+**When** they generate a month
+**Then** the request carries the cpsat engine and the served engine (`stats.engine`) is visible afterwards (badge + toast), including the informational "solver found no improvement — standard plan served" case.
+**And** a Starter admin sees the switch disabled with a "Pro" badge and an upgrade hint, while standard generation keeps working.
+**And** the API rejects `engine: 'cpsat'` for a Starter subscription with FORBIDDEN (gate on the value, not the procedure — greedy stays Starter-accessible), from any client.
+**And** with the switch off (default) requests are byte-identical to today, and every new UI string exists in both FR and EN.
+
+**FRs covered:** FR16, FR5 (re-covered). **NFRs:** NFR20.
+**Complexity:** L.
+**Depends on:** 12-1-cp-sat-optimal-solver (done).
+
 ### Epic 12 — Linear Tickets
 
 | Story key | Ticket | Size | Priority |
 |-----------|--------|------|----------|
 | 12-1-cp-sat-optimal-solver | KON-129 | L | Low |
+| 12-2-engine-toggle-tier-gate | KON-130 | L | Low |

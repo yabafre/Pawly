@@ -8599,17 +8599,19 @@ describe('PlanningGenerationService', () => {
       const elapsedMs = Date.now() - start;
       expect(result.stats.totalSlots).toBeGreaterThan(0);
       expect(['greedy', 'cpsat']).toContain(result.stats.engine);
-      // Same contention headroom as the scarce-stress test above: tight standalone
-      // pin, headroom on CI and under a turbo-parallel local run.
-      const budgetMs = process.env.CI
-        ? 8000
-        : process.env.TURBO_HASH
-          ? 6000
-          : 2000;
+      // The cpsat solve is the suite's heaviest path (greedy+repair baseline +
+      // OR-Tools model build + WASM solve + replay); on a contended GitHub CI
+      // runner it legitimately reaches ~9.4s (observed), so the greedy-tuned 8000ms
+      // pin flaked the build. NFR2 is 2s on prod hardware and this bound only needs
+      // to catch an order-of-magnitude regression — give CI real headroom while the
+      // deterministic solver budget keeps the solve itself bounded. The non-CI pin
+      // is a flat 6000ms (not the greedy tests' 2000ms): the isolated solver path
+      // alone measures ~2.3-3.7s with wide JIT/GC variance, so a tighter pin
+      // false-flags on `jest <file>` and under a turbo-parallel local run alike.
+      const budgetMs = process.env.CI ? 15000 : 6000;
       expect(elapsedMs).toBeLessThan(budgetMs);
-      // Jest's 5000ms default timeout is below this test's 8000ms CI budget — the
-      // cpsat stress solve on the 50-emp fixture can legitimately run longer than
-      // 5s on a contended CI runner. Raise the wrapper so the budget assertion gates.
-    }, 20000);
+      // Keep the wrapper timeout above the CI budget so the assertion — not Jest's
+      // default 5000ms timeout — is what gates on a contended runner.
+    }, 30000);
   });
 });

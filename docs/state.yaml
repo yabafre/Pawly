@@ -172,6 +172,7 @@ sprint:
     11-9-local-repair-pass-grasp: {status: done, depends_on: [11-2-manual-shift-visibility-anti-duplicate, 11-8-unified-rule-engine], ticket: "KON-126", merged_into_umbrella: true, completed_at: "2026-07-13T09:48:50Z"}
     11-10-generation-performance-under-load: {status: done, depends_on: [11-2-manual-shift-visibility-anti-duplicate], ticket: "KON-127", merged_into_umbrella: true, completed_at: "2026-07-12T20:42:22Z"}
     12-1-cp-sat-optimal-solver: {status: done, depends_on: [], ticket: "KON-129", started_at: '2026-07-13', completed_at: '2026-07-13T19:15:00Z'}
+    12-2-engine-toggle-tier-gate: {status: review, depends_on: [12-1-cp-sat-optimal-solver], ticket: "KON-130", started_at: '2026-07-13'}
   umbrella_branch: sprint/epic-11
 # Optional top-level blocks (Tier 6, 3.12.0). Skills populate these as
 # needed — they are NOT scaffolded with an empty value to keep greenfield

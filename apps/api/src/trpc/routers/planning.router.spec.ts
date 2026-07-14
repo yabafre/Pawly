@@ -107,6 +107,30 @@ describe('planningRouter', () => {
     } as any);
   };
 
+  const createStarterAdminCaller = () => {
+    mockPrisma.subscription.findUnique.mockResolvedValue({
+      ...activeSubscription,
+      entitlementTier: 'starter',
+    });
+    return createCaller({
+      user: authenticatedAdmin,
+      prisma: mockPrisma as any,
+      redis: {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+        del: jest.fn(),
+        invalidatePattern: jest.fn(),
+        incr: jest.fn().mockResolvedValue(1),
+        isAvailable: false,
+      } as any,
+      planningService: mockPlanningService as any,
+      planningTemplateService: mockPlanningTemplateService as any,
+      equityCounterService: mockEquityCounterService as any,
+      planningGenerationService: mockPlanningGenerationService as any,
+      apprenticeDeclarationService: mockApprenticeDeclarationService as any,
+    } as any);
+  };
+
   const createEmployeeCaller = () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
@@ -1085,6 +1109,83 @@ describe('planningRouter', () => {
         engine: 'cpsat',
       });
 
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: false, engine: 'cpsat' },
+      );
+    });
+
+    // Story 12-2 (KON-130) — AC3 (verbatim): "Given a Starter subscription, When
+    // planning.generatePlan is called with engine: 'cpsat' from ANY client, Then
+    // the API rejects with FORBIDDEN and no generation runs; with engine: 'greedy'
+    // or omitted it succeeds unchanged."
+    it('rejects engine cpsat for a starter tier with FORBIDDEN', async () => {
+      const caller = createStarterAdminCaller();
+      await expect(
+        caller.generatePlan({
+          month: '2026-03',
+          templateId: '550e8400-e29b-41d4-a716-446655440000',
+          engine: 'cpsat',
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('allows engine greedy (and default) for a starter tier', async () => {
+      const caller = createStarterAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+          engine: 'greedy',
+        },
+      });
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+      });
+      expect(
+        mockPlanningGenerationService.generateMonthlyPlan,
+      ).toHaveBeenCalledWith(
+        'clinic-123',
+        '2026-03',
+        '550e8400-e29b-41d4-a716-446655440000',
+        { acknowledgePublishedChange: false, engine: 'greedy' },
+      );
+    });
+
+    it('allows engine cpsat for a professional tier', async () => {
+      const caller = createAdminCaller();
+      mockPlanningGenerationService.generateMonthlyPlan.mockResolvedValue({
+        assignments: [],
+        holes: [],
+        violations: { hard: [], soft: [] },
+        stats: {
+          totalSlots: 0,
+          filledSlots: 0,
+          holeCount: 0,
+          hardViolationCount: 0,
+          softWarningCount: 0,
+          engine: 'cpsat',
+        },
+      });
+      await caller.generatePlan({
+        month: '2026-03',
+        templateId: '550e8400-e29b-41d4-a716-446655440000',
+        engine: 'cpsat',
+      });
       expect(
         mockPlanningGenerationService.generateMonthlyPlan,
       ).toHaveBeenCalledWith(

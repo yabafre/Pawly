@@ -555,13 +555,23 @@
         "warnings": "avertissements",
         "warningsTitle": "Avertissements & violations"
       },
+      "engine": {
+        "label": "Moteur exact (CP-SAT)",
+        "hint": "Le solveur tente d'améliorer le planning généré — servi uniquement s'il fait strictement mieux.",
+        "proHint": "Disponible avec l'abonnement Professional.",
+        "proBadge": "Pro",
+        "servedCpsat": "Optimisé par le solveur",
+        "servedGreedy": "Moteur standard"
+      },
       "toast": {
         "generated": "Planning généré avec succès",
         "regenerated": "Planning regénéré avec succès",
         "deleted": "Créneaux générés supprimés",
         "generateFailed": "Impossible de générer le planning",
         "deleteFailed": "Impossible de supprimer les créneaux générés",
-        "publishedChangeRequired": "Ce planning est publié : confirmez la modification via la boîte de dialogue."
+        "publishedChangeRequired": "Ce planning est publié : confirmez la modification via la boîte de dialogue.",
+        "generatedCpsat": "Planning optimisé par le solveur",
+        "cpsatNoImprovement": "Le solveur n'a pas trouvé mieux — plan standard servi (déjà optimal)."
       },
       "errors": {
         "noTemplate": "Veuillez sélectionner un modèle",
