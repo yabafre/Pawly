@@ -24,11 +24,20 @@ import {
   type RuleType,
 } from './rule-engine';
 import {
+  computeLoads,
+  deriveEquityWeights,
+  equityObjective,
   findEjectionChain,
   selectImprovingSwap,
   type RepairSlot,
   type RepairAssignment,
 } from './local-repair';
+import {
+  buildSolverModel,
+  decodeSolution,
+  type SolverInput,
+} from './solver-model';
+import { SolverEngineService } from './solver-engine.service';
 import { templateDataSchema } from '@pawly/validators';
 import type { TemplateData } from '@pawly/validators';
 import type {
@@ -111,8 +120,18 @@ export class PlanningGenerationService {
   private static readonly MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
   private static readonly SCHOOL_DAY_MINUTES = 420; // 7h — must match SCHOOL_DAY_MINUTES in @pawly/validators
   private static readonly EQUITY_WINDOW_MONTHS = 12; // Story 11-7 — rolling equity window (months before the target)
-  // Story 11-9 — local-repair bounds (AC4). Depth is fixed at <=2 by findEjectionChain.
+  // Story 11-9 — local-repair bounds (AC4). Ejection depth is <=3 (KON-128): depth 2 first,
+  // depth-3 fallback behind ONE shared evaluation budget for the whole repair pass.
   private static readonly MAX_HILLCLIMB_ITERATIONS = 200;
+  private static readonly DEPTH3_PASS_EVALUATION_BUDGET = 4_000;
+  // Story 12-1 (KON-129) — CP-SAT deterministic-time budget (deterministic units,
+  // never wall-clock: invariant #3). Calibrated on the 50-employee stress model
+  // (4,650 vars): 0.05 det ≈ 0.35s wall, keeping the whole cpsat generation inside
+  // the NFR2 envelope with real margin. The greedy hint is the solver's incumbent,
+  // so a budget-cut solve degrades to "no improvement found" (greedy served) —
+  // never to a worse plan. At real clinic scale (5-20 employees, ~10x smaller
+  // models) this budget is ample for a proven OPTIMAL.
+  private static readonly SOLVER_DETERMINISTIC_BUDGET = 0.05;
   private static readonly REPAIR_YIELD_EVERY = 8; // mirror the generation-loop event-loop yield
   private static readonly DAY_NAME_TO_ISO: Record<string, number> = {
     monday: 1,
@@ -133,6 +152,7 @@ export class PlanningGenerationService {
     private readonly planningTemplateService: PlanningTemplateService,
     private readonly equityCounterService: EquityCounterService,
     private readonly apprenticeDeclarationService: ApprenticeDeclarationService,
+    private readonly solverEngine: SolverEngineService,
   ) {}
 
   // Story 11-5 — the (clinicId, month) advisory lock already serializes same-key
@@ -174,9 +194,11 @@ export class PlanningGenerationService {
     options: {
       acknowledgePublishedChange?: boolean;
       enableRepair?: boolean;
+      engine?: 'greedy' | 'cpsat';
     } = {},
   ): Promise<GenerationResult> {
     const generationStart = Date.now();
+    let servedEngine: 'greedy' | 'cpsat' = 'greedy';
     if (!PlanningGenerationService.MONTH_REGEX.test(month)) {
       throw new BadRequestException(
         `Invalid month format: ${month}. Expected YYYY-MM`,
@@ -476,6 +498,29 @@ export class PlanningGenerationService {
       constraints.quarterlyShifts,
     );
 
+    // Story 12-1 (KON-129) — freeze the pre-greedy fixed baseline (border +
+    // survivors + school) so the solver's model re-decides GENERATED assignments
+    // only. Captured ONLY on the cpsat path: the default engine pays nothing.
+    const solverBaseline =
+      options.engine === 'cpsat'
+        ? {
+            weeklyMinutes: new Map(weeklyMinutesCounter),
+            fixedShiftsByEmployee: (() => {
+              const byEmp = new Map<string, AssignedShift[]>();
+              for (const bucket of assignmentIndex.values()) {
+                for (const s of bucket) {
+                  if (!byEmp.has(s.employeeId)) byEmp.set(s.employeeId, []);
+                  byEmp.get(s.employeeId)!.push(s);
+                }
+              }
+              return byEmp;
+            })(),
+            rotationCounts: new Map(
+              [...dayOfWeekCounts.entries()].map(([k, v]) => [k, new Map(v)]),
+            ),
+          }
+        : null;
+
     // Story 11-10 (AC2 fallback) — yield to the event loop every 8 slots so a
     // month-long generation never blocks concurrent API requests for its whole
     // duration. Deterministic: the yield does not reorder slot processing.
@@ -622,6 +667,43 @@ export class PlanningGenerationService {
       holes.push(...repairedHoles);
     }
 
+    // Story 12-1 (KON-129) — opt-in CP-SAT improve pass. Greedy(+repair) already
+    // ran and is the guaranteed baseline: its plan seeds the solver as a hint, and
+    // the solver plan is served ONLY when strictly better (fill, then the exact
+    // weighted equity objective) AND fully re-validated by replaying it through
+    // evaluateEligibility on the live counters. Never degrades, never silent (NFR3).
+    if (options.engine === 'cpsat' && solverBaseline) {
+      const solverStart = Date.now();
+      try {
+        const improvedHoles = await this.runSolverImprovePass({
+          employees,
+          slots,
+          constraints,
+          assignedShifts,
+          allShiftsForScoring,
+          assignmentIndex,
+          weeklyMinutesCounter,
+          employeeMinutes,
+          shiftTypeCounts,
+          employeeShiftCounts,
+          dayOfWeekCounts,
+          quarterlyDayOfWeekCounts,
+          preExistingSlotCoverage,
+          priorHoles: holes,
+          baseline: solverBaseline,
+        });
+        if (improvedHoles) {
+          holes.length = 0;
+          holes.push(...improvedHoles);
+          servedEngine = 'cpsat';
+        }
+      } catch (error) {
+        this.logger.warn(
+          `KON-129 solver pass failed after ${Date.now() - solverStart}ms — serving the greedy plan: ${String(error)}`,
+        );
+      }
+    }
+
     // Story 11-1 — collect the employees whose GENERATED shifts are about to be
     // cleared, so they can be notified (union with the new assignees below).
     // Confirmed shifts and shifts carrying clock-in / no-show history
@@ -744,6 +826,7 @@ export class PlanningGenerationService {
       softViolations,
       totalPositions,
       survivorCoveredPositions,
+      servedEngine,
     );
   }
 
@@ -3441,6 +3524,7 @@ export class PlanningGenerationService {
     softViolations: GenerationResult['violations']['soft'],
     totalPositions: number,
     survivorCoveredPositions = 0,
+    engine: 'greedy' | 'cpsat' = 'greedy',
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -3472,6 +3556,8 @@ export class PlanningGenerationService {
         holeCount: holes.length,
         hardViolationCount: hardViolations.length,
         softWarningCount: softViolations.length,
+        // Story 12-1 — which engine produced the served assignments.
+        engine,
       },
     };
   }
@@ -3830,10 +3916,11 @@ export class PlanningGenerationService {
       ).eligible;
     };
 
-    // The ejection MOVER — eligibility for the hole evaluated on POST-removal state: lift its vacated
-    // shift off the live counters, test, then restore exactly. Sound because removing only relaxes;
-    // this is what lets a capped mover reach a hole it could not fill while still on its slot.
-    const isMoverEligibleForHole = (
+    // An ejection MOVER — eligibility for its target slot (the hole, or a previously vacated slot
+    // in a depth-3 chain) evaluated on POST-removal state: lift its vacated shift off the live
+    // counters, test, then restore exactly. Sound because removing only relaxes; this is what lets
+    // a capped mover reach a slot it could not fill while still on its own.
+    const isMoverEligible = (
       moverEmployeeId: string,
       holeR: RepairSlot,
       vacatedR: RepairSlot,
@@ -3900,6 +3987,11 @@ export class PlanningGenerationService {
     }
 
     // ── Phase 1: hole-repair via ejection chains ────────────────────────────────
+    // KON-128 — ONE depth-3 budget for the whole pass: a scarce month with many
+    // depth-2-unrepairable holes must not pay the full budget per hole (NFR2).
+    const depth3Budget = {
+      remaining: PlanningGenerationService.DEPTH3_PASS_EVALUATION_BUDGET,
+    };
     let yields = 0;
     const holes = this.recomputeHoles(
       ctx.slots,
@@ -3932,49 +4024,68 @@ export class PlanningGenerationService {
         slotById,
         employeeIds,
         isEligible,
-        isMoverEligibleForHole,
+        isMoverEligible,
+        { depth3Budget },
       );
       if (!chain) continue;
 
-      const moverShift = ctx.assignedShifts.find(
-        (s) =>
-          s.employeeId === chain.moverEmployeeId &&
-          slotIdOf(s.date, s.shiftTypeCode, s.startTime) ===
-            chain.ejectFromSlotId,
-      );
-      const vacated = slotById.get(chain.ejectFromSlotId);
-      if (!moverShift || !vacated) continue;
+      // Resolve every mover's current shift and target slot before touching any counter.
+      const moverShifts: AssignedShift[] = [];
+      const targetSlots: RepairSlot[] = [];
+      let chainResolved = true;
+      for (const move of chain.moves) {
+        const shift = ctx.assignedShifts.find(
+          (s) =>
+            s.employeeId === move.employeeId &&
+            slotIdOf(s.date, s.shiftTypeCode, s.startTime) === move.fromSlotId,
+        );
+        const target = slotById.get(move.toSlotId);
+        if (!shift || !target) {
+          chainResolved = false;
+          break;
+        }
+        moverShifts.push(shift);
+        targetSlots.push(target);
+      }
+      const backfillSlot = slotById.get(chain.backfillSlotId);
+      if (!chainResolved || !backfillSlot) continue;
 
-      // Apply: eject mover from its slot, place mover on the hole, backfill the vacated slot.
-      this.removeAssignment(moverShift, ctx);
-      const moverOnHole: AssignedShift = {
-        employeeId: chain.moverEmployeeId,
-        date: holeSlot.date,
-        startTime: holeSlot.startTime,
-        endTime: holeSlot.endTime,
-        shiftTypeCode: holeSlot.shiftTypeCode,
-        breakMinutes: holeSlot.breakMinutes,
-      };
-      const backfill: AssignedShift = {
+      // Apply: eject every mover, place each on its target, backfill the last vacated slot.
+      for (const shift of moverShifts) this.removeAssignment(shift, ctx);
+      const applied: AssignedShift[] = chain.moves.map((move, i) => ({
+        employeeId: move.employeeId,
+        date: targetSlots[i].date,
+        startTime: targetSlots[i].startTime,
+        endTime: targetSlots[i].endTime,
+        shiftTypeCode: targetSlots[i].shiftTypeCode,
+        breakMinutes: targetSlots[i].breakMinutes,
+      }));
+      applied.push({
         employeeId: chain.backfillEmployeeId,
-        date: vacated.date,
-        startTime: vacated.startTime,
-        endTime: vacated.endTime,
-        shiftTypeCode: vacated.shiftTypeCode,
-        breakMinutes: vacated.breakMinutes,
-      };
-      this.applyAssignment(moverOnHole, ctx);
-      this.applyAssignment(backfill, ctx);
+        date: backfillSlot.date,
+        startTime: backfillSlot.startTime,
+        endTime: backfillSlot.endTime,
+        shiftTypeCode: backfillSlot.shiftTypeCode,
+        breakMinutes: backfillSlot.breakMinutes,
+      });
+      for (const shift of applied) this.applyAssignment(shift, ctx);
 
-      // Revert the whole chain if either applied shift is somehow invalid (unreachable by design).
-      if (!isAppliedShiftValid(moverOnHole) || !isAppliedShiftValid(backfill)) {
-        this.removeAssignment(backfill, ctx);
-        this.removeAssignment(moverOnHole, ctx);
-        this.applyAssignment(moverShift, ctx);
+      // Revert the whole chain if any applied shift is somehow invalid (unreachable by design).
+      if (applied.some((shift) => !isAppliedShiftValid(shift))) {
+        for (const shift of [...applied].reverse())
+          this.removeAssignment(shift, ctx);
+        for (const shift of moverShifts) this.applyAssignment(shift, ctx);
       }
     }
 
     // ── Phase 2: equity hill-climbing swaps ─────────────────────────────────────
+    // KON-128 — the objective is scale-normalized per metric and weighted from the clinic's
+    // ROTATION_EQUITY rule priorities (saturday rules boost the saturday term, sunday rules the
+    // weekend term, via the codebase-wide 1 + priority/10 convention).
+    const equityWeights = deriveEquityWeights([
+      ...ctx.constraints.hardRules,
+      ...ctx.constraints.softRules,
+    ]);
     // Unlike Phase 1 (ejection), swaps need no post-apply revert: selectImprovingSwap checks each
     // employee against the target slot on PRE-swap state, where each still carries its old slot's
     // load, so the pre-swap check is strictly stricter than the true post-swap state (every
@@ -3992,7 +4103,12 @@ export class PlanningGenerationService {
         slotId: slotIdOf(s.date, s.shiftTypeCode, s.startTime),
         employeeId: s.employeeId,
       }));
-      const swap = selectImprovingSwap(assignments, slotById, isEligible);
+      const swap = selectImprovingSwap(
+        assignments,
+        slotById,
+        isEligible,
+        equityWeights,
+      );
       if (!swap) break; // local optimum reached — objective is monotone non-increasing
 
       const shiftA = ctx.assignedShifts.find(
@@ -4036,6 +4152,372 @@ export class PlanningGenerationService {
     }
 
     // AC4 — recompute holes from the final assignments; each keeps a visible reason.
+    return this.recomputeHoles(
+      ctx.slots,
+      ctx.assignedShifts,
+      ctx.preExistingSlotCoverage,
+      ctx.priorHoles,
+    );
+  }
+
+  /**
+   * Story 12-1 (KON-129) — CP-SAT improve pass. Builds the solver's model from the
+   * PRE-greedy fixed baseline (survivors/border/school), hints it with the current
+   * greedy(+repair) plan, and serves the solver's plan only when it is strictly
+   * better on the EXACT objectives (fill count, then the KON-128 weighted equity
+   * objective) AND survives a full re-validation REPLAY: every GENERATED assignment
+   * is removed from the live counters, then each candidate assignment is re-checked
+   * through evaluateEligibility (the single predicate the greedy loop and the repair
+   * pass use — rules, statutory law, overlaps, rotation without relaxation) and
+   * re-applied via applyAssignment. Eligibility is monotone (adding only tightens),
+   * so a fully-valid candidate passes in any replay order. Any rejection reverts to
+   * the greedy plan with a visible warn log (NFR3). On success the live counters and
+   * ctx.assignedShifts ARE the candidate; returns the recomputed holes, or null when
+   * the greedy plan is kept.
+   */
+  private async runSolverImprovePass(ctx: {
+    employees: EmployeeInfo[];
+    slots: SlotRequirement[];
+    constraints: ConstraintMap;
+    assignedShifts: AssignedShift[];
+    allShiftsForScoring: AssignedShift[];
+    assignmentIndex: Map<string, AssignedShift[]>;
+    weeklyMinutesCounter: Map<string, number>;
+    employeeMinutes: Map<string, number>;
+    shiftTypeCounts: Map<string, Map<string, number>>;
+    employeeShiftCounts: Map<string, number>;
+    dayOfWeekCounts: Map<string, Map<number, number>>;
+    quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+    preExistingSlotCoverage: Map<
+      string,
+      Array<{
+        startTime: string;
+        endTime: string;
+        jobType: string | null;
+        consumed: boolean;
+      }>
+    >;
+    priorHoles: GenerationResult['holes'];
+    baseline: {
+      weeklyMinutes: Map<string, number>;
+      fixedShiftsByEmployee: Map<string, AssignedShift[]>;
+      rotationCounts: Map<string, Map<number, number>>;
+    };
+  }): Promise<GenerationResult['holes'] | null> {
+    // ── 1) Solver input from the generation context ────────────────────────────
+    // Contract caps lift the SAME semantics as the CONTRACT_COMPLIANCE eligibility
+    // branch (rule-engine): weekly = min(contractHours, maxWeeklyHours) with the
+    // rule's overtime tolerance; monthly = maxMonthlyHours with tolerance. A rule
+    // declaring no cap constrains nothing (KON-125 m3). The model only needs sound
+    // bounds — the replay below is the exact gate.
+    const hardContractRules = ctx.constraints.hardRules.filter(
+      (r) => r.category === 'CONTRACT_COMPLIANCE',
+    );
+    const PHYSICAL_WEEK_MINUTES = 7 * 24 * 60;
+    const capsFor = (emp: EmployeeInfo) => {
+      let weekly = PHYSICAL_WEEK_MINUTES;
+      let monthly: number | null = null;
+      for (const rule of hardContractRules) {
+        const cfg = rule.config as {
+          maxWeeklyHours?: number;
+          maxMonthlyHours?: number;
+          overtimeThresholdPercent?: number;
+        };
+        const tol = 1 + (cfg.overtimeThresholdPercent ?? 0) / 100;
+        // Mirror violatesHardContractIncremental (rule-engine.ts) EXACTLY: a HARD
+        // CONTRACT_COMPLIANCE rule with no maxWeeklyHours still caps the week at the
+        // employee's contractHours. Omitting that fallback (KON-129 regression) let
+        // the solver search a ~168h/week space for maxMonthlyHours-only rules, so
+        // its optimum tripped the real weekly cap on replay and the whole candidate
+        // was discarded — AC1 silently degraded to "always serve greedy" for that
+        // clinic class. The replay stays the exact gate; this only makes the model's
+        // bound match reality so a genuinely-better plan can actually be served.
+        const ruleWeekly =
+          cfg.maxWeeklyHours !== undefined
+            ? Math.min(emp.contractHours, cfg.maxWeeklyHours)
+            : emp.contractHours;
+        weekly = Math.min(weekly, Math.floor(ruleWeekly * 60 * tol));
+        if (cfg.maxMonthlyHours !== undefined) {
+          const cap = Math.floor(cfg.maxMonthlyHours * 60 * tol);
+          monthly = monthly === null ? cap : Math.min(monthly, cap);
+        }
+      }
+      return { weekly, monthly };
+    };
+
+    const rotationRules = ctx.constraints.hardRules
+      .filter((r) => r.category === 'ROTATION_EQUITY')
+      .map((r) => {
+        const cfg = r.config as {
+          targetDay?: string;
+          maxPerPeriod?: number;
+          trackingPeriod?: string;
+          applicableJobTypes?: string[];
+        };
+        return {
+          targetIsoDay:
+            PlanningGenerationService.DAY_NAME_TO_ISO[cfg.targetDay ?? ''] ?? 0,
+          maxPerPeriod: cfg.maxPerPeriod ?? 0,
+          trackingPeriod: cfg.trackingPeriod,
+          applicableJobTypes: cfg.applicableJobTypes,
+        };
+      })
+      .filter((r) => r.targetIsoDay > 0 && r.maxPerPeriod > 0);
+
+    // One solver slot per (date, shiftTypeCode, startTime) with its AGGREGATED
+    // capacity, reduced by the survivor coverage the greedy loop consumed
+    // (recomputeHoles counts the same `consumed` flags — single source of truth).
+    // No per-position expansion: an employee can hold at most one position of an
+    // identical-times slot anyway (overlap), so x[e,slot] ∈ {0,1} with a
+    // requiredStaff fill cap is exactly equivalent — and halves the model size
+    // while removing the position symmetry CP-SAT search hates.
+    const consumedByKey = new Map<string, number>();
+    for (const [key, bucket] of ctx.preExistingSlotCoverage) {
+      consumedByKey.set(key, bucket.filter((c) => c.consumed).length);
+    }
+    const aggregated = new Map<string, SolverInput['slots'][number]>();
+    for (const slot of [...ctx.slots].sort((a, b) =>
+      `${a.date}|${a.shiftTypeCode}|${a.startTime}`.localeCompare(
+        `${b.date}|${b.shiftTypeCode}|${b.startTime}`,
+      ),
+    )) {
+      const coverageKey = `${slot.date}|${slot.shiftTypeCode}`;
+      const consumed = consumedByKey.get(coverageKey) ?? 0;
+      const residual = Math.max(0, slot.requiredStaff - consumed);
+      consumedByKey.set(
+        coverageKey,
+        Math.max(0, consumed - slot.requiredStaff),
+      );
+      if (residual === 0) continue;
+      const baseKey = `${slot.date}|${slot.shiftTypeCode}|${slot.startTime}`;
+      const existing = aggregated.get(baseKey);
+      if (existing) {
+        existing.requiredStaff += residual;
+      } else {
+        aggregated.set(baseKey, {
+          id: baseKey,
+          date: slot.date,
+          shiftTypeCode: slot.shiftTypeCode,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          breakMinutes: slot.breakMinutes || 0,
+          requiredStaff: residual,
+          requiredJobTypes: slot.requiredJobTypes,
+        });
+      }
+    }
+    const positionSlots: SolverInput['slots'] = [...aggregated.values()];
+
+    // Fixed per-day baseline (survivors + border): net minutes and worked dates.
+    const fixedDailyMinutes = new Map<string, number>();
+    const fixedWorkedDates = new Map<string, Set<string>>();
+    for (const [empId, shifts] of ctx.baseline.fixedShiftsByEmployee) {
+      for (const s of shifts) {
+        const netMin =
+          this.calculateShiftMinutes(s.startTime, s.endTime) -
+          (s.breakMinutes || 0);
+        const dayKey = `${empId}|${s.date}`;
+        fixedDailyMinutes.set(
+          dayKey,
+          (fixedDailyMinutes.get(dayKey) || 0) + netMin,
+        );
+        if (!fixedWorkedDates.has(empId))
+          fixedWorkedDates.set(empId, new Set());
+        fixedWorkedDates.get(empId)!.add(s.date);
+      }
+    }
+
+    // Fixed rotation history: pre-greedy in-run counts, plus the quarterly index
+    // for rules tracking quarterly (both immutable during the run).
+    const fixedRotationCounts = new Map<string, number>();
+    for (const rule of rotationRules) {
+      for (const emp of ctx.employees) {
+        let fixed =
+          ctx.baseline.rotationCounts.get(emp.id)?.get(rule.targetIsoDay) ?? 0;
+        if (rule.trackingPeriod === 'quarterly') {
+          fixed +=
+            ctx.quarterlyDayOfWeekCounts.get(emp.id)?.get(rule.targetIsoDay) ??
+            0;
+        }
+        if (fixed > 0)
+          fixedRotationCounts.set(`${emp.id}|${rule.targetIsoDay}`, fixed);
+      }
+    }
+
+    const equityWeights = deriveEquityWeights([
+      ...ctx.constraints.hardRules,
+      ...ctx.constraints.softRules,
+    ]);
+
+    const input: SolverInput = {
+      employees: ctx.employees.map((e) => {
+        const caps = capsFor(e);
+        return {
+          id: e.id,
+          jobType: e.jobType,
+          weeklyCapMinutes: caps.weekly,
+          monthlyCapMinutes: caps.monthly,
+        };
+      }),
+      slots: positionSlots,
+      unavailable: ctx.constraints.unavailableMap,
+      fixedWeeklyMinutes: ctx.baseline.weeklyMinutes,
+      fixedDailyMinutes,
+      fixedWorkedDates,
+      fixedRotationCounts,
+      rotationRules: rotationRules.map((r) => ({
+        targetIsoDay: r.targetIsoDay,
+        maxPerPeriod: r.maxPerPeriod,
+        applicableJobTypes: r.applicableJobTypes,
+      })),
+      equityWeights,
+    };
+
+    const model = buildSolverModel(input);
+
+    // ── 2) Hint = the greedy(+repair) plan mapped onto (employee, slot) vars ───
+    const hint = new Set<string>();
+    for (const s of ctx.assignedShifts) {
+      hint.add(`${s.employeeId}@${s.date}|${s.shiftTypeCode}|${s.startTime}`);
+    }
+
+    const result = await this.solverEngine.solve(model, {
+      deterministicTimeBudget:
+        PlanningGenerationService.SOLVER_DETERMINISTIC_BUDGET,
+      hint,
+    });
+    if (result.status !== 'OPTIMAL' && result.status !== 'FEASIBLE') {
+      this.logger.warn(
+        `KON-129 solver status ${result.status} — serving the greedy plan`,
+      );
+      return null;
+    }
+
+    const candidate = decodeSolution(model, result.chosenVarNames, input);
+
+    // ── 3) Strictly-better gate on the EXACT objectives ────────────────────────
+    const repairSlotById = new Map<string, RepairSlot>();
+    for (const s of ctx.slots) {
+      const id = `${s.date}|${s.shiftTypeCode}|${s.startTime}`;
+      if (!repairSlotById.has(id)) {
+        repairSlotById.set(id, {
+          id,
+          date: s.date,
+          shiftTypeCode: s.shiftTypeCode,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          breakMinutes: s.breakMinutes,
+          requiredJobTypes: s.requiredJobTypes,
+        });
+      }
+    }
+    const toRepairAssignments = (
+      shifts: Array<{
+        employeeId: string;
+        date: string;
+        shiftTypeCode: string;
+        startTime: string;
+      }>,
+    ): RepairAssignment[] =>
+      shifts.map((s) => ({
+        slotId: `${s.date}|${s.shiftTypeCode}|${s.startTime}`,
+        employeeId: s.employeeId,
+      }));
+    const greedyEquity = equityObjective(
+      computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
+      equityWeights,
+    );
+    const candidateEquity = equityObjective(
+      computeLoads(toRepairAssignments(candidate), repairSlotById),
+      equityWeights,
+    );
+    const greedyFilled = ctx.assignedShifts.length;
+    const strictlyBetter =
+      candidate.length > greedyFilled ||
+      (candidate.length === greedyFilled &&
+        candidateEquity < greedyEquity - 1e-9);
+    if (!strictlyBetter) {
+      // AC3 groups "not strictly better" with the other non-served outcomes under a
+      // structured warn log (NFR3 — never silent). warn, not log, so it surfaces at
+      // the same level as the timeout / infeasible / re-validation-reject branches.
+      this.logger.warn(
+        `KON-129 solver ${result.status}: filled ${candidate.length}/${greedyFilled}, equity ${candidateEquity.toFixed(4)} vs ${greedyEquity.toFixed(4)} — greedy plan kept`,
+      );
+      return null;
+    }
+
+    // ── 4) Re-validation REPLAY through the live counters ──────────────────────
+    const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
+    const eligibilityCtx = {
+      constraints: ctx.constraints,
+      assignmentIndex: ctx.assignmentIndex,
+      weeklyMinutesCounter: ctx.weeklyMinutesCounter,
+      employeeMinutes: ctx.employeeMinutes,
+      dayOfWeekCounts: ctx.dayOfWeekCounts,
+      quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
+    };
+    const requiredJobTypesByKey = new Map<string, string[] | undefined>();
+    for (const s of ctx.slots) {
+      requiredJobTypesByKey.set(
+        `${s.date}|${s.shiftTypeCode}|${s.startTime}`,
+        s.requiredJobTypes,
+      );
+    }
+
+    const original = [...ctx.assignedShifts];
+    for (const s of original) this.removeAssignment(s, ctx);
+
+    const applied: AssignedShift[] = [];
+    let rejection: string | null = null;
+    for (const c of candidate) {
+      const emp = employeeById.get(c.employeeId);
+      if (!emp) {
+        rejection = `unknown employee ${c.employeeId}`;
+        break;
+      }
+      const verdict = this.evaluateEligibility(
+        emp,
+        {
+          date: c.date,
+          shiftTypeCode: c.shiftTypeCode,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          breakMinutes: c.breakMinutes,
+          requiredStaff: 1,
+          requiredJobTypes: requiredJobTypesByKey.get(
+            `${c.date}|${c.shiftTypeCode}|${c.startTime}`,
+          ),
+        },
+        eligibilityCtx,
+      );
+      if (!verdict.eligible) {
+        rejection = `${c.employeeId} ineligible on ${c.date} ${c.startTime}`;
+        break;
+      }
+      const shift: AssignedShift = {
+        employeeId: c.employeeId,
+        date: c.date,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        shiftTypeCode: c.shiftTypeCode,
+        breakMinutes: c.breakMinutes,
+      };
+      this.applyAssignment(shift, ctx);
+      applied.push(shift);
+    }
+
+    if (rejection) {
+      for (const s of [...applied].reverse()) this.removeAssignment(s, ctx);
+      for (const s of original) this.applyAssignment(s, ctx);
+      this.logger.warn(
+        `KON-129 solver plan rejected by re-validation (${rejection}) — serving the greedy plan`,
+      );
+      return null;
+    }
+
+    this.logger.log(
+      `KON-129 solver plan SERVED: ${result.status}, filled ${candidate.length} (greedy ${greedyFilled}), equity ${candidateEquity.toFixed(4)} (greedy ${greedyEquity.toFixed(4)})`,
+    );
     return this.recomputeHoles(
       ctx.slots,
       ctx.assignedShifts,

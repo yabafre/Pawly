@@ -1005,3 +1005,54 @@ Synced to Linear project **Pawly**, milestone *Epic 11 — Planning Engine Harde
 | 11-8-unified-rule-engine | KON-125 | L | Medium |
 | 11-9-local-repair-pass-grasp | KON-126 | L | Low |
 | 11-10-generation-performance-under-load | KON-127 | M | Medium |
+
+---
+
+## Epic 12: Planning Optimality (Phase 3)
+
+Phase-3 initiative from the PRD Product Scope (*"AI Engine: Global optimization algorithms for complex fairness balancing"*). With safety, compliance (Epic 11) and bounded local repair (KON-126, extended by KON-128) shipped, the remaining engine gap is the absence of any optimality guarantee. The 2026-07-08 audit deliberately chose GRASP over CP-SAT *at Epic 11's scale and priorities*; this epic revisits that decision as a measured, **opt-in improve pass** — never a replacement of the greedy engine. It introduces **no new FRs** — FR5/FR8 are re-covered at a higher optimality bar.
+
+**FRs covered:** FR5, FR8. **NFRs covered:** NFR2, NFR3, NFR9.
+
+### Story 12.1: CP-SAT Optimal Solver behind the Greedy Path
+**Story key:** `12-1-cp-sat-optimal-solver`
+As an admin user,
+I want an exact solver to try to improve the schedule that greedy + local repair produced when I generate a month,
+So that I get a provably better plan (fill first, then weighted equity) without ever risking a worse or illegal one.
+
+**Acceptance Criteria:**
+**Given** `engine: 'cpsat'` on a month where greedy+repair strands a hole a full feasible assignment avoids
+**When** generation runs
+**Then** the served plan has strictly fewer holes, `stats.engine === 'cpsat'`, and every served assignment passes rule-engine + statutory re-validation.
+**And** without the flag, results are byte-identical to today (`stats.engine === 'greedy'`, zero solver work).
+**And** solver TIMEOUT / INFEASIBLE / error / not-strictly-better / re-validation failure serves the greedy+repair result unchanged with a structured warn log (NFR3 — never silent).
+**And** two identical `cpsat` runs are deep-equal (workers = 1, fixed seed, deterministic-time budget — determinism invariant), and the 50-employee stress fixture stays inside the CI-aware NFR2 budget.
+
+**FRs covered:** FR5, FR8. **NFRs:** NFR2, NFR3, NFR9.
+**Complexity:** L.
+**Depends on:** KON-128 (PR #108 — weighted equity objective; merge gate is Task 1 of the story).
+
+### Story 12.2: Engine Selector in the Generation Panel (Professional-gated)
+**Story key:** `12-2-engine-toggle-tier-gate`
+As a Professional clinic admin,
+I want to choose the exact solver from the generation panel and see which engine actually produced the served plan,
+So that I get CP-SAT optimization without hidden magic — and as a Starter admin, I clearly see it is a Pro feature.
+
+**Acceptance Criteria:**
+**Given** a Professional admin enabling the exact-engine switch
+**When** they generate a month
+**Then** the request carries the cpsat engine and the served engine (`stats.engine`) is visible afterwards (badge + toast), including the informational "solver found no improvement — standard plan served" case.
+**And** a Starter admin sees the switch disabled with a "Pro" badge and an upgrade hint, while standard generation keeps working.
+**And** the API rejects `engine: 'cpsat'` for a Starter subscription with FORBIDDEN (gate on the value, not the procedure — greedy stays Starter-accessible), from any client.
+**And** with the switch off (default) requests are byte-identical to today, and every new UI string exists in both FR and EN.
+
+**FRs covered:** FR16, FR5 (re-covered). **NFRs:** NFR20.
+**Complexity:** L.
+**Depends on:** 12-1-cp-sat-optimal-solver (done).
+
+### Epic 12 — Linear Tickets
+
+| Story key | Ticket | Size | Priority |
+|-----------|--------|------|----------|
+| 12-1-cp-sat-optimal-solver | KON-129 | L | Low |
+| 12-2-engine-toggle-tier-gate | KON-130 | L | Low |

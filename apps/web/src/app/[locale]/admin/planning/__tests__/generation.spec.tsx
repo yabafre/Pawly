@@ -54,6 +54,12 @@ vi.mock('../templates/_hooks/useTemplates', () => ({
   })),
 }));
 
+// Story 12-2 (KON-130) — the panel consumes useSubscription for the Pro gate.
+const mockCanAccessFeature = vi.fn(() => true);
+vi.mock('@/lib/contexts/subscription-context', () => ({
+  useSubscription: () => ({ canAccessFeature: mockCanAccessFeature }),
+}));
+
 // Story 11-1 — mock the shadcn Select so the template picker is drivable in
 // jsdom (the real Radix Select relies on pointer-capture APIs jsdom lacks).
 // Options render as role="option" buttons that call the owning Select's
@@ -235,6 +241,230 @@ describe('GenerationPanel', () => {
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
   });
+
+  describe('engine selector (KON-130)', () => {
+    beforeEach(async () => {
+      mockCanAccessFeature.mockReturnValue(true);
+      // The story-11-1 tests above flip usePublish to PUBLISHED via
+      // mockReturnValue; with no global mock reset that leaks here and would
+      // route generate through the published-change dialog. Restore DRAFT so the
+      // guard runs straight through — these ACs describe a normal generation.
+      const { usePublish } = await import('../_hooks/usePublish');
+      vi.mocked(usePublish).mockReturnValue({
+        publicationStatus: { status: 'DRAFT', publishedAt: null, publishedBy: null },
+        isLoadingStatus: false,
+        publishPreview: undefined,
+        isLoadingPreview: false,
+        publishPlan: vi.fn(),
+        isPublishing: false,
+      } as any);
+    });
+
+    // AC1 (verbatim from story 12-2): "When they enable the exact-engine switch and
+    // generate, Then the generation request carries the cpsat engine".
+    it('passes engine cpsat when the switch is enabled (professional)', async () => {
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A')); // select a template
+      fireEvent.click(screen.getByRole('switch')); // enable the exact engine
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'cpsat' }),
+        expect.anything()
+      );
+    });
+
+    // AC5 (verbatim): "Given the switch off (its default), Then requests and
+    // results are byte-identical to today (engine: 'greedy')".
+    it('passes engine greedy by default (switch off)', async () => {
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'greedy' }),
+        expect.anything()
+      );
+    });
+
+    // AC2 (verbatim): "Then the exact-engine switch is disabled with a 'Pro' badge
+    // and an upgrade hint, and generation still works with the standard engine."
+    it('locks the switch with a Pro badge for a starter tier', () => {
+      mockCanAccessFeature.mockReturnValue(false);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      expect(screen.getByRole('switch')).toBeDisabled();
+      // next-intl is globally mocked to echo the bare key (namespace ignored):
+      // tEngine('proBadge') renders 'proBadge', not 'engine.proBadge'.
+      expect(screen.getByText('proBadge')).toBeInTheDocument();
+      expect(screen.getByText('proHint')).toBeInTheDocument();
+    });
+
+    // AC2 (verbatim, second half): "...and generation still works with the
+    // standard engine." A locked Starter can still generate — with greedy — via
+    // the panel, not just at the API layer.
+    it('still generates with greedy for a starter tier (switch locked)', async () => {
+      mockCanAccessFeature.mockReturnValue(false);
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'greedy' }),
+        expect.anything()
+      );
+    });
+
+    // AC1 (verbatim) + L-audit: the engine must ride BOTH generate call-sites.
+    // handleGenerate is covered above; this drives handleConfirmRegenerate —
+    // regenerating over existing GENERATED shifts routes through the confirm
+    // dialog before generatePlan fires.
+    it('passes engine cpsat through the regenerate-confirm path (professional)', async () => {
+      const generatePlan = vi.fn();
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [
+          { id: 's1', source: 'GENERATED', shiftTypeCode: 'SURGERY', employee: { id: 'e1' } },
+        ],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A')); // select a template
+      fireEvent.click(screen.getByRole('switch')); // enable the exact engine
+      fireEvent.click(screen.getByText('generateButton')); // existing GENERATED → opens the confirm dialog
+      // generate must NOT fire yet — the regenerate dialog gates it.
+      expect(generatePlan).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByText('confirm')); // confirm regeneration → handleConfirmRegenerate
+      expect(generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ engine: 'cpsat' }),
+        expect.anything()
+      );
+    });
+
+    // AC1 (verbatim, badge half): "...after generation, the served engine is
+    // visible (persistent badge + toast)". Drive the panel's per-call onSuccess
+    // to set generationResult, then assert the served-engine badge renders.
+    it('renders the served-engine badge as solver-optimized when cpsat is served', async () => {
+      const generatePlan = vi.fn((_input: unknown, opts: { onSuccess?: (r: unknown) => void }) =>
+        opts?.onSuccess?.({ stats: { engine: 'cpsat' }, violations: { hard: [], soft: [] } })
+      );
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByRole('switch'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(screen.getByTestId('served-engine')).toHaveTextContent('servedCpsat');
+    });
+
+    // AC4 (verbatim, badge half): when the solver serves greedy (no strict
+    // improvement), the badge reads the standard-engine label — informational,
+    // never an error.
+    it('renders the served-engine badge as standard when greedy is served', async () => {
+      const generatePlan = vi.fn((_input: unknown, opts: { onSuccess?: (r: unknown) => void }) =>
+        opts?.onSuccess?.({ stats: { engine: 'greedy' }, violations: { hard: [], soft: [] } })
+      );
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(screen.getByTestId('served-engine')).toHaveTextContent('servedGreedy');
+    });
+
+    // Transparency over Magic: the served-engine badge describes the LAST
+    // generation only. Changing the target month must clear it so it never
+    // mislabels a month the admin has not regenerated.
+    it('clears the served-engine badge when the month changes', async () => {
+      const generatePlan = vi.fn((_input: unknown, opts: { onSuccess?: (r: unknown) => void }) =>
+        opts?.onSuccess?.({ stats: { engine: 'cpsat' }, violations: { hard: [], soft: [] } })
+      );
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      const { rerender } = render(<GenerationPanel month="2026-03" onMonthChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByRole('switch'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(screen.getByTestId('served-engine')).toBeInTheDocument();
+      // Switch to another month → the badge must reset.
+      rerender(<GenerationPanel month="2026-05" onMonthChange={vi.fn()} />);
+      expect(screen.queryByTestId('served-engine')).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('GenerationResultView', () => {
@@ -285,6 +515,7 @@ describe('GenerationResultView', () => {
       holeCount: 1,
       hardViolationCount: 1,
       softWarningCount: 1,
+      engine: 'greedy',
     },
   };
 
@@ -320,6 +551,7 @@ describe('GenerationResultView', () => {
         holeCount: 0,
         hardViolationCount: 0,
         softWarningCount: 0,
+        engine: 'greedy',
       },
     };
 

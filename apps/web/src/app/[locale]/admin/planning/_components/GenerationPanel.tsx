@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   Sparkles,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Link } from '@/i18n/navigation';
 import {
   Select,
@@ -38,6 +39,7 @@ import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 import { PublishedChangeDialog } from './PublishedChangeDialog';
 import { usePublish } from '../_hooks/usePublish';
 import { usePublishedChangeGuard } from '../_hooks/usePublishedChangeGuard';
+import { useSubscription } from '@/lib/contexts/subscription-context';
 import type { GenerationResult } from '@pawly/validators';
 import type { ShiftData } from '@pawly/types';
 
@@ -74,6 +76,22 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Story 12-2 (KON-130) — exact-engine opt-in, Professional-gated (FR16). The
+  // engine resolves to greedy whenever the tier lock is on, so a stale checked
+  // state can never leak cpsat into the request.
+  const tEngine = useTranslations('admin.planningGeneration.engine');
+  const { canAccessFeature } = useSubscription();
+  const canUseCpsat = canAccessFeature('professional');
+  const [exactEngine, setExactEngine] = useState(false);
+  const engine: 'greedy' | 'cpsat' = canUseCpsat && exactEngine ? 'cpsat' : 'greedy';
+
+  // Story 12-2 (KON-130) — the served-engine badge describes the LAST generation.
+  // Reset it when the target month or template changes so it never mislabels a
+  // context the admin has not regenerated yet (Transparency over Magic).
+  useEffect(() => {
+    setGenerationResult(null);
+  }, [selectedMonth, selectedTemplateId]);
 
   const { templates, isPending: isLoadingTemplates } = useTemplates();
   const { shifts, isLoadingShifts, generatePlan, isGenerating, deleteGenerated, isDeleting } =
@@ -116,6 +134,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
           month: selectedMonth,
           templateId: selectedTemplateId,
           acknowledgePublishedChange: acknowledge,
+          engine,
         },
         {
           onSuccess: (result: GenerationResult) => {
@@ -124,7 +143,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         }
       )
     );
-  }, [selectedMonth, selectedTemplateId, existingGeneratedCount, generatePlan, guard]);
+  }, [selectedMonth, selectedTemplateId, existingGeneratedCount, generatePlan, guard, engine]);
 
   const handleConfirmRegenerate = useCallback(() => {
     setShowConfirm(false);
@@ -134,6 +153,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
           month: selectedMonth,
           templateId: selectedTemplateId,
           acknowledgePublishedChange: acknowledge,
+          engine,
         },
         {
           onSuccess: (result: GenerationResult) => {
@@ -142,7 +162,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
         }
       )
     );
-  }, [selectedMonth, selectedTemplateId, generatePlan, guard]);
+  }, [selectedMonth, selectedTemplateId, generatePlan, guard, engine]);
 
   // Stats
   const generated = shifts.filter((s: ShiftData) => s.source === 'GENERATED');
@@ -298,6 +318,49 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
             )}
             {isGenerating ? t('generating') : t('generateButton')}
           </Button>
+        </div>
+
+        {/* Story 12-2 — exact-engine opt-in (Professional) + served-engine transparency */}
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="engine-switch"
+              checked={canUseCpsat && exactEngine}
+              onCheckedChange={setExactEngine}
+              disabled={!canUseCpsat || isGenerating}
+              aria-labelledby="engine-label"
+            />
+            <div>
+              <label
+                id="engine-label"
+                htmlFor="engine-switch"
+                className="text-sm font-medium text-foreground flex items-center gap-2"
+              >
+                {tEngine('label')}
+                {!canUseCpsat && (
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">
+                    {tEngine('proBadge')}
+                  </Badge>
+                )}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {canUseCpsat ? tEngine('hint') : tEngine('proHint')}
+              </p>
+            </div>
+          </div>
+          {generationResult && (
+            <Badge
+              variant="outline"
+              data-testid="served-engine"
+              className={
+                generationResult.stats.engine === 'cpsat'
+                  ? 'text-xs font-medium px-2 py-0.5 border-primary/30 text-primary'
+                  : 'text-xs font-medium px-2 py-0.5'
+              }
+            >
+              {tEngine(generationResult.stats.engine === 'cpsat' ? 'servedCpsat' : 'servedGreedy')}
+            </Badge>
+          )}
         </div>
 
         {/* Inline stats — only when shifts exist */}

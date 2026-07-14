@@ -90,6 +90,33 @@ describe('generatePlanSchema', () => {
   });
 });
 
+describe('generatePlanSchema.engine (KON-129)', () => {
+  it('defaults to greedy', () => {
+    const parsed = generatePlanSchema.parse({
+      month: '2026-08',
+      templateId: '123e4567-e89b-12d3-a456-426614174000',
+    });
+    expect(parsed.engine).toBe('greedy');
+  });
+
+  it('accepts cpsat and rejects unknown engines', () => {
+    expect(
+      generatePlanSchema.parse({
+        month: '2026-08',
+        templateId: '123e4567-e89b-12d3-a456-426614174000',
+        engine: 'cpsat',
+      }).engine
+    ).toBe('cpsat');
+    expect(() =>
+      generatePlanSchema.parse({
+        month: '2026-08',
+        templateId: '123e4567-e89b-12d3-a456-426614174000',
+        engine: 'simplex',
+      })
+    ).toThrow();
+  });
+});
+
 describe('listShiftsForMonthSchema', () => {
   it('should accept valid YYYY-MM month', () => {
     const result = listShiftsForMonthSchema.safeParse({ month: '2026-03' });

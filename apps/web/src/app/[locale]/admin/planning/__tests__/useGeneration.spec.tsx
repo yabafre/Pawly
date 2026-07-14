@@ -20,7 +20,7 @@ vi.mock('../_actions/generation-actions', () => ({
 }));
 
 type MutationOptions = {
-  onSuccess?: () => void;
+  onSuccess?: (data?: unknown, variables?: unknown) => void;
   onError?: (err: { message?: string }) => void;
 };
 
@@ -49,7 +49,9 @@ vi.mock('@/lib/hooks/server-action-hooks', async (importOriginal) => {
   };
 });
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
 
 import { useGeneration } from '../_hooks/useGeneration';
 import { toast } from 'sonner';
@@ -84,5 +86,40 @@ describe('useGeneration — published-change guard toast (story 11-1, AC6)', () 
     expect(toast.error).toHaveBeenCalledWith('generateFailed', {
       description: 'boom',
     });
+  });
+});
+
+describe('useGeneration — served-engine toasts (story 12-2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    captured.generate = undefined;
+    captured.delete = undefined;
+  });
+
+  // AC1 (verbatim from story 12-2): "Then the generation request carries the cpsat
+  // engine and, after generation, the served engine is visible (persistent badge +
+  // toast)" — the toast half.
+  it('toasts the solver success when cpsat is served', () => {
+    renderHook(() => useGeneration('2026-07'), { wrapper });
+    captured.generate?.onSuccess?.({ stats: { engine: 'cpsat' } }, { engine: 'cpsat' });
+    expect(toast.success).toHaveBeenCalledWith('generatedCpsat');
+  });
+
+  // AC4 (verbatim from story 12-2): "Given a cpsat generation whose solver found no
+  // strict improvement (stats.engine === 'greedy' served), Then the admin is informed
+  // the standard plan was served — informational, never styled as an error."
+  it('toasts the informational message when cpsat was requested but greedy served', () => {
+    renderHook(() => useGeneration('2026-07'), { wrapper });
+    captured.generate?.onSuccess?.({ stats: { engine: 'greedy' } }, { engine: 'cpsat' });
+    expect(toast.info).toHaveBeenCalledWith('cpsatNoImprovement');
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // AC5 (verbatim): "Given the switch off (its default), Then requests and results
+  // are byte-identical to today" — the default toast stays.
+  it('keeps the standard toast for a default greedy generation', () => {
+    renderHook(() => useGeneration('2026-07'), { wrapper });
+    captured.generate?.onSuccess?.({ stats: { engine: 'greedy' } }, { engine: 'greedy' });
+    expect(toast.success).toHaveBeenCalledWith('generated');
   });
 });

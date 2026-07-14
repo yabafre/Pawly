@@ -13,6 +13,7 @@ import { VarianceService } from './variance.service';
 import { EmployeeScheduleService } from './employee-schedule.service';
 import { PresenceConfirmationService } from './presence-confirmation.service';
 import { PresenceConfirmationScheduler } from './presence-confirmation.scheduler';
+import { SolverEngineService } from './solver-engine.service';
 
 @Module({
   imports: [PrismaModule, ClinicModule, MailModule, NotificationModule],
@@ -27,6 +28,7 @@ import { PresenceConfirmationScheduler } from './presence-confirmation.scheduler
     EmployeeScheduleService,
     PresenceConfirmationService,
     PresenceConfirmationScheduler,
+    SolverEngineService,
   ],
   exports: [
     PlanningService,
