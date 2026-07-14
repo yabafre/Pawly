@@ -1,7 +1,7 @@
 # Story: 12-2-engine-toggle-tier-gate — Engine Selector in the Generation Panel (Professional-gated)
 
 **Epic:** Epic 12 — Planning Optimality (Phase 3)
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-130-12-2-engine-toggle-tier-gate
 **Ticket:** KON-130 (Linear · project Pawly · related to KON-129)
 **Origin:** Follow-up to story 12-1: the `engine: 'greedy' | 'cpsat'` flag on `planning.generatePlan` is live but tRPC-only and NOT tier-gated — any subscribed admin can force the solver today. FR16 makes cpsat a Professional feature; "Transparency over Magic" (ux/flows.md) requires the served engine to be visible.
@@ -646,6 +646,7 @@ New files: none — this story only modifies existing files.
 - `apps/web/src/app/[locale]/admin/planning/__tests__/useGeneration.spec.tsx` — MODIFY (toast tests)
 - `apps/web/src/i18n/langs/fr.json` — MODIFY (engine keys)
 - `apps/web/src/i18n/langs/en.json` — MODIFY (engine keys)
+- `apps/web/src/i18n/__tests__/planning-generation-i18n.spec.ts` — ADD (fr/en parity guard, aped-review)
 
 ## Dev Agent Record
 
@@ -716,3 +717,83 @@ i18n strings added to both locales. Full TDD, RED witnessed for every production
   "Subscription tier 'professional' required"** (no generation ran); `{engine:'greedy'}` was NOT
   FORBIDDEN (reached the service, failing only on an unrelated missing-declaration business rule) —
   greedy stays Starter-accessible.
+
+## Review Record
+
+**Date:** 2026-07-14
+**Auditors:** Spec, Code, Edge & Hallucination (visual: deferred — React Grab MCP unavailable, AC7 covered via next-browser)
+**Verdict:** done — all findings resolved, re-verified with fresh evidence
+
+Three method-driven auditors ran in parallel. **Code** (APPROVED, HIGH): the cpsat gate
+is sound — `requireProfessional` on `subscribedProcedure` where `ctx.subscription` is
+guaranteed non-null, `generatePlanSchema.engine` is the only reachable input shape, single
+guarded entry point (L-audit). The `useServerActionMutation` `(result, variables)` onSuccess
+shape is correct (L1). The out-of-story NFR2 CI perf-budget bump is a legitimate contention
+accommodation (production solve is time-boxed at 50ms), not a masked regression.
+**Edge** (APPROVED, HIGH): gate, engine resolution and toast branches all safe; no
+hallucinated identifiers; i18n keys resolve in both locales. **Spec** (CHANGES_REQUESTED,
+HIGH): the code was correct but several ACs lacked automated assertions.
+
+The user chose **[F] Fix — fix everything**. Fixes applied and re-verified by a focused
+adversarial re-dispatch (Spec: ALL_RESOLVED; Edge: RESOLVED).
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC1 / L-audit — `engine` threaded through both generate call-sites but only
+  `handleGenerate` was tested; `handleConfirmRegenerate` (regenerate-over-existing path) had
+  no automated coverage. [generation.spec.tsx]
+  - Source: Spec
+  - Resolution: `94503ab` — new test seeds GENERATED shifts, enables the switch, asserts
+    generate does not fire until the confirm dialog is accepted, then asserts
+    `generatePlan(engine:'cpsat')` via the regenerate path.
+- [MINOR] AC1 — the persistent served-engine badge (`data-testid="served-engine"`) had no
+  automated assertion (only the toast half was tested). [GenerationPanel.tsx:351]
+  - Source: Spec
+  - Resolution: `94503ab` — two tests drive the panel's `onSuccess` and assert the badge
+    renders `servedCpsat` / `servedGreedy`.
+- [MINOR] AC2 — "generation still works with the standard engine" for a locked Starter was
+  only proven at the API layer, never through the panel. [generation.spec.tsx]
+  - Source: Spec
+  - Resolution: `94503ab` — test clicks generate with `canAccessFeature('professional')=false`
+    and asserts `generatePlan(engine:'greedy')`.
+- [LOW] Edge — the served-engine badge persisted across a month/template change without
+  regeneration, potentially mislabeling a context the admin had not regenerated. [GenerationPanel.tsx]
+  - Source: Edge & Hallucination
+  - Resolution: `a0fd54e` — `useEffect` resets `generationResult` on `[selectedMonth,
+    selectedTemplateId]`; `94503ab` adds a rerender regression test. Verified the effect does
+    not clear the just-generated badge (deps stable across the generate click) and introduces
+    no new boundary regressions.
+- [NIT] AC6 / NFR20 — no automated fr/en parity guard existed (parity held, verified manually).
+  - Source: Spec
+  - Resolution: `94503ab` — new `planning-generation-i18n.spec.ts` compares the full
+    `admin.planningGeneration` key structure across locales; fails on any drift.
+- [NIT] Code — the Pro badge used a bespoke indigo palette instead of the design-system token.
+  [GenerationPanel.tsx:341]
+  - Source: Code
+  - Resolution: `a0fd54e` — aligned to `text-primary bg-primary/10` (the nav Pro indicator's token).
+
+#### Dismissed (accepted, no code change)
+- [NIT] AC7 process — React Grab MCP was not connected; the live journey used `next-browser`
+  (headless Playwright) with DOM-level evidence instead.
+  - Source: Spec
+  - Rationale: Task 5 explicitly permits the fallback; equivalent structured evidence
+    (disabled state, badge presence, exact i18n text) was captured in the AC7 journey.
+- [NIT] Tasks 1 & 4 — the `Confirmed RED:` witnesses were not recorded in the Dev Agent Record.
+  - Source: Spec
+  - Rationale: traceability nit only; RED was witnessed during dev but not transcribed. Not
+    fabricated retroactively — noted honestly here.
+
+#### Unresolved
+- None.
+
+### Verification
+- Test command: `bash .aped/aped-dev/scripts/run-tests.sh` (`.aped/.last-test-exit` → `0`)
+- Test output (final pass): API `1040 passed` (38 suites) · Web `769 passed` (52 files, +7:
+  5 panel + 2 parity) · Validators `779 passed` · Turbo `8/8 successful`.
+- Targeted: `pnpm --filter @pawly/api test planning.router` → `89 passed`;
+  `pnpm --filter @pawly/web test generation` → `37 passed` (generation 29 + useGeneration 6 + parity 2).
+- Build: `pnpm --filter @pawly/api build` clean (SWC 152 + `tsc -p tsconfig.types.json`, L5);
+  `tsc --noEmit -p apps/web/tsconfig.json` clean (after the API declaration pass — L5/epic-11 gotcha).
+- Visual verification: deferred — React Grab MCP unavailable this session; AC7 live journey
+  (next-browser) stands as the DOM-level equivalent.
