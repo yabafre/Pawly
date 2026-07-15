@@ -1422,6 +1422,137 @@ type AssignedShift = {
 };
 ```
 
+`apps/api/src/modules/planning/planning-generation.service.spec.ts:292-293` (current) — how the suite reaches private methods. There is NO inline `new PlanningGenerationService(...)` anywhere in this file, and `evaluateEligibility` is never called directly:
+
+```ts
+  const callPrivate = (method: string, ...args: unknown[]) =>
+    (service as any)[method](...args);
+```
+
+`apps/api/src/modules/planning/planning-generation.service.spec.ts:593` + `:668-677` (current) — the `callScore` wrapper Tasks 4 and 6 must use. It derives the weekly/shift-type/day-of-week counters from `alreadyAssigned` itself, then delegates to `scoreAndAssign`:
+
+```ts
+  const callScore = (...args: unknown[]) => {
+    const alreadyAssigned = (args[3] || []) as Array<{
+      employeeId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      shiftTypeCode: string;
+      breakMinutes?: number;
+    }>;
+```
+
+```ts
+    return callPrivate(
+      'scoreAndAssign',
+      ...baseArgs,
+      weeklyMinutesCounter,
+      stc,
+      esc,
+      dayOfWeekCounts,
+      quarterlyDayOfWeekCounts,
+    ) as ScoreAndAssignResult;
+  };
+```
+
+Positional arguments, read off the existing call sites: `callScore(slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes, weeksInMonth?)`.
+
+`apps/api/src/modules/planning/planning-generation.service.spec.ts:4346-4361` (current) — the minRest fixture factory Task 6 reuses (note the rule lives in `hardRules`, with `maxWeeklyHours` alongside):
+
+```ts
+    const makeConstraintsWithMinRest = (minRest: number) => ({
+      unavailableMap: new Map(),
+      schoolDayMap: new Map(),
+      hardRules: [
+        {
+          id: 'rule-rest',
+          name: 'Min Rest',
+          category: 'CONTRACT_COMPLIANCE',
+          config: { maxWeeklyHours: 35, minRestHoursBetweenShifts: minRest },
+          priority: 0,
+        },
+      ],
+      softRules: [],
+      equityMap: new Map(),
+      quarterlyShifts: [],
+    });
+```
+
+`apps/api/src/modules/planning/planning-generation.service.spec.ts:5086-5108` (current) — the `moveShift` describe's fixture + stubs Task 8a builds on (`preValidateMove` at `:6404-6437` mirrors it, with `defaultInput` targeting `emp-2` on `2025-03-04`):
+
+```ts
+  describe('moveShift', () => {
+    const mockShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2025-03-03T00:00:00.000Z'),
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: false,
+    };
+
+    beforeEach(() => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...mockShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+    });
+```
+
+`apps/api/src/modules/planning/solver-model.spec.ts:9-45` (current) — the factories Task 10 reuses. `baseInput` ships TWO employees, which is why the same-day mutex test expects 2 constraints and why the new fixtures pin a single employee:
+
+```ts
+const emp = (id: string, weeklyCapMinutes = 2100): SolverEmployee => ({
+  id,
+  jobType: 'VET',
+  weeklyCapMinutes,
+  monthlyCapMinutes: null,
+});
+
+const slot = (
+  id: string,
+  date: string,
+  startTime = '09:00',
+  endTime = '17:00',
+  breakMinutes = 0,
+  requiredStaff = 1,
+  requiredJobTypes?: string[],
+): SolverSlot => ({
+  id,
+  date,
+  shiftTypeCode: 'CHIR',
+  startTime,
+  endTime,
+  breakMinutes,
+  requiredStaff,
+  requiredJobTypes,
+});
+
+const baseInput = (over: Partial<SolverInput> = {}): SolverInput => ({
+  employees: [emp('a'), emp('b')],
+  slots: [slot('s1', '2026-08-03')],
+  unavailable: new Map(),
+  fixedWeeklyMinutes: new Map(),
+  fixedDailyMinutes: new Map(),
+  fixedWorkedDates: new Map(),
+  fixedRotationCounts: new Map(),
+  rotationRules: [],
+  equityWeights: { saturday: 1, weekend: 1, shift: 1 },
+  ...over,
+});
+```
+
+`packages/validators/src/clinic/shift-type.schema.test.ts` and `packages/validators/src/clinic/onboarding.schema.test.ts` (current) — plain Vitest suites calling `safeParse` on the exported schemas; the onboarding one asserts the exact message string `'End time must be after start time'` at `:156`, `:224`, `:433`, `:446`, `:552`. Those assertions must be triaged one by one in Task 12: shift-type ones flip, work-hours ones stay.
+
 ### File decisions (3-bullet per file)
 
 **`apps/api/src/modules/planning/shift-interval.ts`** (new)
@@ -1456,6 +1587,21 @@ type AssignedShift = {
 **`apps/web/.../onboarding/_components/{StepShiftTypes,OnboardingWizard}.tsx`** (modify)
 - *Responsibility:* unchanged. Two hard-coded mirrors of the Zod rule, realigned.
 - *Inputs / Outputs:* unchanged. No new i18n key: `StepShiftTypes` reuses `incompleteShiftType`.
+
+**`apps/api/src/modules/planning/planning-generation.service.spec.ts`** (modify)
+- *Responsibility:* unchanged — behavioural suite for the generation service. Gains the cross-midnight cases for eligibility (Task 4), minRest (Task 6) and the three manual-write entry points (Task 8).
+- *Inputs:* its own `callScore` / `callPrivate` / `mockEmployees` / `baseConstraints` / `makeConstraintsWithMinRest` helpers and per-describe `mockShift` fixtures — all quoted above. No new helper is introduced.
+- *Outputs:* Jest suite. New tests are added inside the existing describes, never in a new harness.
+
+**`apps/api/src/modules/planning/solver-model.spec.ts`** (modify)
+- *Responsibility:* unchanged — IR-shape assertions. Gains the adjacent-date mutex, the junction non-regression and the same-date amplitude case.
+- *Inputs:* its `emp` / `slot` / `baseInput` factories.
+- *Outputs:* Jest suite, asserting on `model.constraints` tags.
+
+**`packages/validators/src/clinic/{onboarding,shift-type}.schema.test.ts`** (modify)
+- *Responsibility:* unchanged — schema contract. Shift-type time assertions invert (overnight accepted, zero-length rejected); work-hours assertions stay untouched.
+- *Inputs:* the exported schemas.
+- *Outputs:* Vitest suite. This is the real regression net for AC-5, since the two front guards have no spec.
 
 ### Testing
 
