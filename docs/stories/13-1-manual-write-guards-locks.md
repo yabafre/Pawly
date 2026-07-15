@@ -14,11 +14,13 @@
 
 ## Acceptance Criteria
 
-1. **AC1 — Server-side move guard.** **Given** a move that would introduce a statutory or HARD-rule violation, **When** `planning.moveShift` is called — from the grid **or from any client hitting the API directly** — **Then** the mutation is rejected server-side by replaying `wouldExceedStatutory` + the unified rule engine **inside the mutation transaction**, and no `shift.update` is persisted. `preValidateMove` keeps its exact `{ hard, soft }` contract and becomes advisory UX only — no longer the only line of defense.
-2. **AC2 — Published month, no premature notification.** **Given** a month whose `PlanningPeriodStatus` is `PUBLISHED`, **When** an acknowledged amendment would violate a statutory limit, **Then** it is rejected before any employee notification is sent and before any amendment is recorded (`sendScheduleChangedEmail` and `planningPeriodStatus.updateMany` are never called).
-3. **AC3 — Shared lock.** **Given** concurrent writes on the same clinic-month, **When** `moveShift`, `createManualShift`, or `generateMonthlyPlan` run, **Then** all three serialize on the same `pg_advisory_xact_lock(hashtext(clinicId), hashtext(month))`, taken as the first statement inside the write transaction. A cross-month move locks **both** months in **sorted** order.
-4. **AC4 — TOCTOU closed.** **Given** a plan computed on a snapshot that a concurrent manual write has since invalidated, **When** `generateMonthlyPlan` reaches its write transaction, **Then** it re-validates the computed plan against current DB state under the lock (overlap + survivor re-check) and rejects with `STALE_PLAN_REGENERATE` rather than persisting a double-booking.
-5. **AC5 — Regressions.** **Given** the audit's two scenarios, **When** the suite runs, **Then** a direct-API illegal move is rejected, and a move racing a regeneration never yields overlapping shifts.
+_These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; the mechanism behind each one is in the Mechanism map below, and the symbols in the Tasks._
+
+1. **AC1 — The move guard lives on the server.** **Given** a move that would introduce a statutory or HARD-rule violation, **When** an admin drags the shift on the grid — **or when any client calls the move API directly, having never asked for a dry-run validation** — **Then** the move is refused, no change is persisted, and the caller is told which blocking rule refused it. The dry-run validation the grid uses for drop feedback keeps its exact response contract and becomes advisory only, no longer the sole line of defense.
+2. **AC2 — A published month is never notified about a change that did not happen.** **Given** a published month, **When** an acknowledged change would breach a statutory limit, **Then** it is refused, no employee receives a schedule-changed notification, and the month records no amendment.
+3. **AC3 — Writes on the same clinic-month serialize.** **Given** two writes targeting the same clinic and month — a manual move, a manual creation, or a generation, in any combination — **When** they run concurrently, **Then** they take turns on the same lock instead of racing, and each one's decision is made against the state the previous one committed. **And given** a move spanning two months, **When** another admin moves a shift the opposite way at the same time, **Then** the two cannot deadlock each other.
+4. **AC4 — A stale plan is refused, not persisted.** **Given** a generated plan computed against a snapshot that a concurrent manual write has since invalidated, **When** the generation reaches the point of writing, **Then** it re-checks the plan against the state committed under the lock and refuses the write rather than persisting overlapping shifts, surfacing a distinct conflict the admin can resolve by regenerating.
+5. **AC5 — The audit's two scenarios stay closed.** **Given** the scenarios that motivated this story, **When** the test suite runs, **Then** an illegal move issued straight at the API is refused, and a move racing a regeneration never yields overlapping shifts.
 
 **FRs covered:** FR6 (drag-and-drop adjustment), FR7 (Hard Rules block conflicting shifts). **NFRs:** NFR3 (zero silent failures — an illegal write is refused loudly, never silently accepted), NFR10 (concurrent generations handled safely).
 
@@ -1410,6 +1412,9 @@ Both transactions run at the default READ COMMITTED, so the waiter's post-lock r
 
 ### Existing code at write time (Step-0 verbatim quotes — re-locate the symbol, numbers may drift)
 
+**`apps/api/src/modules/planning/move-validation.ts` — existing code: none, this is a new file.**
+**`apps/api/src/modules/planning/move-validation.spec.ts` — existing code: none, this is a new file.**
+
 `planning-generation.service.ts:2364-2392` (current) — the overlap check `moveShift` runs **outside** any transaction and with no lock. It is the *only* rule check on the write path:
 
 ```ts
@@ -1536,6 +1541,60 @@ Both transactions run at the default READ COMMITTED, so the waiter's post-lock r
                 date: { gte: monthStart, lte: monthEnd },
               },
             });
+```
+
+`planning-generation.service.spec.ts:98-106` (current) — **the stale mock, quoted so you believe it.** `workDays` holds ISO-day *numbers*; production holds day *names* (see the Testing note below). Harmless today because nothing enforces the evaluator's verdict on the write path — Task 4 changes that:
+
+```ts
+  const mockOperationalConfig = {
+    workDays: ['1', '2', '3', '4', '5'],
+    defaultStartTime: '08:00',
+    defaultEndTime: '18:00',
+    closedDays: [] as Array<{
+      id: string;
+      date: string;
+      reason: string | null;
+    }>,
+```
+
+`planning-generation.service.spec.ts:6421-6426` (current) — how `preValidateMove`'s describe already works around that mock. Task 4 applies the same override to the `moveShift` describe; Tasks 7 and 9 apply it to the new describes:
+
+```ts
+    // preValidateMove uses dayNameToIso = { MONDAY:1, TUESDAY:2, ... }
+    // so workDays must use MONDAY/TUESDAY/etc. format (not '1','2','3')
+    const preValidateOperationalConfig = {
+      ...mockOperationalConfig,
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+    };
+```
+
+`planning-generation.service.spec.ts:5099-5108` (current) — the `moveShift` describe's `beforeEach`, which Task 4 extends. Note it mocks `shift.findMany` once for every call the path makes:
+
+```ts
+    beforeEach(() => {
+      mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...mockShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+    });
+```
+
+`planning-generation.service.spec.ts:278-286` (current) — the default interactive-transaction mock. It runs the callback with the base mock as `tx`, which is why Tasks 4 and 5 need no new transaction plumbing:
+
+```ts
+    // Story 11-6 — default interactive-tx mock: run the callback with the base
+    // mock as the tx client, so amendment paths (move/create/delete) exercise
+    // tx.shift.* + tx.planningPeriodStatus.updateMany against the same mocks.
+    // generateMonthlyPlan / deleteGeneratedShifts tests override this with a
+    // bespoke tx where they assert on tx.shift.deleteMany / createManyAndReturn.
+    mockPrismaService.$transaction.mockImplementation(
+      async (fn: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        fn(mockPrismaService),
+    );
 ```
 
 `rule-engine.ts:75-99` (current) — the helpers the evaluator reuses instead of re-deriving:
