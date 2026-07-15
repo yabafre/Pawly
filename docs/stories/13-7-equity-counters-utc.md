@@ -806,6 +806,12 @@ Two consequences that shape this story:
 
 ### Existing code at write time (Step-0 verbatim quotes — re-verify the symbol, line numbers may drift)
 
+`apps/api/src/modules/planning/equity-counting.ts` — **existing code: none, this is a new file.** Nothing in `apps/api/src` exports `computeEquityCounters`, `utcMonthBounds`, `utcDateKey` or `utcDaysInMonth` today; Task 2 creates all four.
+
+`apps/api/src/modules/planning/equity-counting.spec.ts` — **existing code: none, this is a new file.** Task 1 creates it.
+
+The three files below already exist. Quotes are verbatim as of 2026-07-16 (commit `9a182fc`).
+
 `apps/api/src/modules/planning/equity-counter.service.ts:152-158` (current) — local month bounds:
 
 ```ts
