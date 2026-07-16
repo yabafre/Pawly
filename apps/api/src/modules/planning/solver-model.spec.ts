@@ -92,6 +92,59 @@ describe('buildSolverModel — hard constraint parity (AC6)', () => {
     expect(mutex[0].kind === 'linearLe' && mutex[0].bound).toBe(1);
   });
 
+  // Story 13-3 (KON-132) — AC2: a pair the greedy engine would refuse must be
+  // forbidden in the model too, or the solver can propose it and the plan is SERVED.
+  it('mutexes a cross-midnight pair on adjacent dates', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '22:00', '06:00'),
+        slot('s2', '2026-08-04', '05:00', '09:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    const mutex = model.constraints.filter(
+      (c) => c.kind === 'linearLe' && c.tag.startsWith('overlap:'),
+    );
+    expect(mutex).toHaveLength(1);
+    expect(mutex[0].kind === 'linearLe' && mutex[0].bound).toBe(1);
+  });
+
+  it('does not mutex a cross-midnight pair that only touches at the junction', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '22:00', '06:00'),
+        slot('s2', '2026-08-04', '06:00', '12:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    expect(
+      model.constraints.filter(
+        (c) => c.kind === 'linearLe' && c.tag.startsWith('overlap:'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  // AC6: 06:00->14:00 plus 22:00->06:00 on ONE date spans 06:00 to 06:00 next day
+  // = 24h amplitude, far past the statutory 13h. The raw HH:MM span scored it 8h.
+  it('emits the statutory amplitude mutex when a same-date pair spans midnight', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '06:00', '14:00'),
+        slot('s2', '2026-08-03', '22:00', '06:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    expect(
+      model.constraints.filter(
+        (c) =>
+          c.kind === 'linearLe' && c.tag.startsWith('statutory-amplitude:'),
+      ),
+    ).toHaveLength(1);
+  });
+
   it('caps weekly net minutes including the fixed baseline', () => {
     const input = baseInput({
       employees: [emp('a', 480)], // 8h/week cap
