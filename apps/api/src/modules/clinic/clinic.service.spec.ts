@@ -27,6 +27,7 @@ describe('ClinicService', () => {
     clinicShiftType: {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
+      create: jest.fn(),
     },
     clinicClosedDay: {
       deleteMany: jest.fn(),
@@ -443,6 +444,40 @@ describe('ClinicService', () => {
   // ---------------------------------------------------------------------------
   // completeOnboarding
   // ---------------------------------------------------------------------------
+  // Story 13-3 (KON-132), aped-review M4 — AC-5 also covers "in settings", whose
+  // path is createSingleShiftType. Prove that path persists an overnight shift type
+  // unaltered too (the schema change this story made is what unlocks it).
+  describe('createSingleShiftType', () => {
+    const clinicId = 'clinic-uuid-single';
+
+    it('persists an overnight shift type (22:00 -> 06:00) with its times intact', async () => {
+      mockPrismaService.clinicShiftType.create.mockResolvedValue({
+        id: 'st-night',
+      });
+
+      await service.createSingleShiftType(clinicId, {
+        name: 'Night',
+        code: 'NIGHT',
+        startTime: '22:00',
+        endTime: '06:00',
+        breakMinutes: 0,
+        color: '#123456',
+      });
+
+      expect(mockPrismaService.clinicShiftType.create).toHaveBeenCalledWith({
+        data: {
+          clinicId,
+          name: 'Night',
+          code: 'NIGHT',
+          startTime: '22:00',
+          endTime: '06:00',
+          breakMinutes: 0,
+          color: '#123456',
+        },
+      });
+    });
+  });
+
   describe('completeOnboarding', () => {
     const clinicId = 'clinic-uuid-5';
     const onboardingData = {
