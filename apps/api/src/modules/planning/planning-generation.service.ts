@@ -18,7 +18,12 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
-import { restMinutesBetween, shiftsOverlap } from './shift-interval';
+import {
+  intervalsOverlap,
+  restMinutesBetween,
+  shiftsOverlap,
+  toAbsoluteInterval,
+} from './shift-interval';
 import {
   violatesHardContractIncremental,
   violatesHardRotation,
@@ -902,24 +907,32 @@ export class PlanningGenerationService {
         const specialDay = specialDayMap.get(dateStr);
         let startTime = shiftTimes.startTime;
         let endTime = shiftTimes.endTime;
-        if (
-          specialDay &&
-          this.windowsOverlap(
-            shiftTimes.startTime,
-            shiftTimes.endTime,
-            specialDay.startTime,
-            specialDay.endTime,
-          )
-        ) {
-          // Clamp shift times to the special-day window
-          startTime =
-            shiftTimes.startTime < specialDay.startTime
-              ? specialDay.startTime
-              : shiftTimes.startTime;
-          endTime =
-            shiftTimes.endTime > specialDay.endTime
-              ? specialDay.endTime
-              : shiftTimes.endTime;
+        if (specialDay) {
+          // Story 13-3 (KON-132) — clamp the shift to its real-time intersection
+          // with the special-day window. AC-5 legalised overnight shift types, so a
+          // same-day clock compare (the old windowsOverlap) could miss the midnight
+          // wrap and leave a night shift running its full duration on a reduced-hours
+          // day. Both operands are anchored on dateStr; the special window is
+          // same-day. For a same-day shift this reduces to the previous
+          // max-start / min-end clamp.
+          const shiftItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: shiftTimes.startTime,
+            endTime: shiftTimes.endTime,
+          });
+          const specialItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: specialDay.startTime,
+            endTime: specialDay.endTime,
+          });
+          if (intervalsOverlap(shiftItv, specialItv)) {
+            startTime = this.absMinutesToTime(
+              Math.max(shiftItv[0], specialItv[0]),
+            );
+            endTime = this.absMinutesToTime(
+              Math.min(shiftItv[1], specialItv[1]),
+            );
+          }
         }
 
         slots.push({
@@ -3606,24 +3619,17 @@ export class PlanningGenerationService {
   }
 
   /**
-   * Same-day clock-window overlap — NOT a double-booking check. Only the
-   * special-day clamp uses this: it asks "do these two intra-day windows
-   * intersect", where both operands are plain opening windows with no date and
-   * no midnight crossing. Double-booking checks use shiftsOverlap (Story 13-3).
+   * Story 13-3 (KON-132) — format an absolute minute count (as produced by
+   * toAbsoluteInterval) back to a wall-clock `HH:MM` string. The day offset is
+   * dropped modulo 1440, so an interval end that lands on the next calendar day
+   * (an overnight shift) round-trips to its wall-clock time and the
+   * endTime < startTime wrap convention is preserved downstream.
    */
-  private windowsOverlap(
-    start1: string,
-    end1: string,
-    start2: string,
-    end2: string,
-  ): boolean {
-    const toMinutes = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      return h * 60 + m;
-    };
-    return (
-      toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
-    );
+  private absMinutesToTime(abs: number): string {
+    const m = ((abs % 1440) + 1440) % 1440;
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
   }
 
   private calculateShiftMinutes(startTime: string, endTime: string): number {

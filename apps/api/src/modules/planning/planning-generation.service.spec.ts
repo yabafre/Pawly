@@ -377,6 +377,80 @@ describe('PlanningGenerationService', () => {
       expect(march2Slots[1].endTime).toBe('14:00');
     });
 
+    // Story 13-3 (KON-132), aped-review M2 — AC-5 legalised overnight shift types,
+    // but the special-day clamp used a same-day-only overlap test that never saw the
+    // wrap, so an overnight shift on a reduced-hours day ran its full duration. The
+    // clamp is now wrap-aware (interval intersection).
+    const nightTemplate: TemplateData = {
+      days: [
+        { dayOfWeek: 1, slots: [{ shiftTypeCode: 'NIGHT', requiredStaff: 1 }] },
+      ],
+    };
+    const nightShiftTypeMap = new Map([
+      ['NIGHT', { startTime: '22:00', endTime: '06:00', breakMinutes: 0 }],
+    ]);
+
+    it('clamps an overnight shift type to a special-day window that cuts its evening', () => {
+      const configWithSpecial = {
+        ...mockOperationalConfig,
+        specialDays: [
+          {
+            id: 'sd-night',
+            date: '2026-03-02', // Monday
+            startTime: '09:00',
+            endTime: '23:00', // clinic closes at 23:00 -> the 22:00 shift must end at 23:00
+            label: 'Reduced night',
+          },
+        ],
+      };
+
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
+        nightTemplate,
+        '2026-03',
+        configWithSpecial,
+        nightShiftTypeMap,
+      );
+
+      const march2 = slots.filter(
+        (s: SlotRequirement) => s.date === '2026-03-02',
+      );
+      expect(march2).toHaveLength(1);
+      // NIGHT (22:00->06:00) real-overlaps the special window only on 22:00-23:00.
+      expect(march2[0].startTime).toBe('22:00');
+      expect(march2[0].endTime).toBe('23:00');
+    });
+
+    it('leaves an overnight shift type untouched when it does not overlap the special-day window', () => {
+      const configWithSpecial = {
+        ...mockOperationalConfig,
+        specialDays: [
+          {
+            id: 'sd-day',
+            date: '2026-03-02',
+            startTime: '09:00',
+            endTime: '17:00', // daytime window — no real overlap with 22:00->06:00
+            label: 'Daytime only',
+          },
+        ],
+      };
+
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
+        nightTemplate,
+        '2026-03',
+        configWithSpecial,
+        nightShiftTypeMap,
+      );
+
+      const march2 = slots.filter(
+        (s: SlotRequirement) => s.date === '2026-03-02',
+      );
+      expect(march2).toHaveLength(1);
+      expect(march2[0].startTime).toBe('22:00');
+      expect(march2[0].endTime).toBe('06:00');
+    });
+
     it('handles months with 4 and 5 weeks correctly', () => {
       // February 2026: 28 days, starts on Sunday
       // Mon: 2,9,16,23 → 4 Mondays
