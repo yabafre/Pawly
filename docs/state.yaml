@@ -175,7 +175,7 @@ sprint:
     12-1-cp-sat-optimal-solver: {status: done, depends_on: [], ticket: "KON-129", started_at: '2026-07-13', completed_at: '2026-07-13T19:15:00Z'}
     12-2-engine-toggle-tier-gate: {status: done, depends_on: [12-1-cp-sat-optimal-solver], ticket: "KON-130", completed_at: "2026-07-14T02:37:43Z"}
     # Epic 13 — Planning Integrity & Solver Fidelity (from 2026-07-14 audit, triage 2026-07-16)
-    13-1-manual-write-guards-locks: {status: ready-for-dev, depends_on: [], ticket: "KON-131", worktree: null}
+    13-1-manual-write-guards-locks: {status: dev-done, depends_on: [], ticket: "KON-131", worktree: null, started_at: '2026-07-16'}
     13-2-unified-validation-windows: {status: pending, depends_on: [13-1-manual-write-guards-locks], ticket: "KON-134", worktree: null}
     13-3-cross-midnight-overlap: {status: pending, depends_on: [], ticket: "KON-132", worktree: null}
     13-4-statutory-extensions: {status: pending, depends_on: [13-2-unified-validation-windows], ticket: "KON-136", worktree: null}

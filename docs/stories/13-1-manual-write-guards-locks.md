@@ -35,7 +35,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
 
 ## Tasks
 
-- [ ] **Task 1: Create the pure move evaluator `move-validation.ts`** [AC: 1]
+- [x] **Task 1: Create the pure move evaluator `move-validation.ts`** [AC: 1]
   Create `apps/api/src/modules/planning/move-validation.ts` with the full contents below. Pure module — no NestJS, no Prisma, no I/O. It reuses `netMinutes` / `isoWeekday` from `rule-engine.ts` and `wouldExceedStatutory` from `french-labor-law.ts` rather than re-deriving them.
   ```ts
   /**
@@ -400,7 +400,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: no error lines referencing `move-validation.ts`, exit 0.
   Commit: `git add apps/api/src/modules/planning/move-validation.ts && git commit -m "feat(KON-131): pure move evaluator shared by the advisory and write paths"`
 
-- [ ] **Task 2: Unit-test the pure evaluator** [AC: 1]
+- [x] **Task 2: Unit-test the pure evaluator** [AC: 1]
   Create `apps/api/src/modules/planning/move-validation.spec.ts` with the full contents below. Zero Prisma mocks — this is the point of Task 1.
   ```ts
   import {
@@ -621,7 +621,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests:` all passed (12 passing), exit 0.
   Commit: `git add apps/api/src/modules/planning/move-validation.spec.ts && git commit -m "test(KON-131): unit-test the pure move evaluator"`
 
-- [ ] **Task 3: Add `loadMoveValidationInputs` and rewire `preValidateMove` onto it** [AC: 1]
+- [x] **Task 3: Add `loadMoveValidationInputs` and rewire `preValidateMove` onto it** [AC: 1]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, add the import below to the existing `./rule-engine` import block area (keep `violatesHardContractIncremental` / `violatesHardRotation` imported — they are still used by the generation path):
   ```ts
   import {
@@ -828,7 +828,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests:` all `preValidateMove` tests passed with **no edit to the spec file** — this is the refactor's safety net, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "refactor(KON-131): rewire preValidateMove onto the shared evaluator (statutory window to +/-8d)"`
 
-- [ ] **Task 4: Rewrite `moveShift` — lock, reload, evaluate, write, all in one transaction** [AC: 1, 2, 3, 5]
+- [x] **Task 4: Rewrite `moveShift` — lock, reload, evaluate, write, all in one transaction** [AC: 1, 2, 3, 5]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, add this private helper immediately after `withSerializationRetry` (`:170-188`):
   ```ts
   /**
@@ -938,7 +938,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests:` all passed. The existing `throws ConflictException when shift overlaps with existing` test still passes — it asserts on the substring `'overlaps'`, which the composed message preserves.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "fix(KON-131): enforce statutory + HARD rules in moveShift under the shared lock (audit T1/T2)"`
 
-- [ ] **Task 5: Lock `createManualShift` and move its checks inside the transaction** [AC: 3]
+- [x] **Task 5: Lock `createManualShift` and move its checks inside the transaction** [AC: 3]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, **replace the region of `createManualShift` from the `// Check for time overlap on the target employee + date` comment (`:2492`) through the end of the `const created = await this.prisma.$transaction(...)` statement (`:2568`)** with:
   ```ts
     // Story 13-1 (KON-131) — same shape as moveShift: lock first, then replay every check
@@ -1031,7 +1031,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests:` all passed, exit 0. The default spec `$transaction` mock (`:283-286`) runs the callback with the base mock as `tx`, so `tx.shift.findMany` resolves from the same mocks the tests already set.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "fix(KON-131): serialize createManualShift on the shared advisory lock"`
 
-- [ ] **Task 6: Re-validate the computed plan inside the generation transaction** [AC: 4]
+- [x] **Task 6: Re-validate the computed plan inside the generation transaction** [AC: 4]
   In `apps/api/src/modules/planning/planning-generation.service.ts`, inside `generateMonthlyPlan`'s transaction, insert the block below **between the advisory lock (`:747`) and the `tx.shift.deleteMany` call (`:753`)**:
   ```ts
             // Story 13-1 (KON-131) — audit T2 (TOCTOU). `assignedShifts` was computed far
@@ -1082,7 +1082,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests:` all passed, exit 0. Tests that override `$transaction` with a bespoke `tx` (`:1433`, `:1486`, `:1527`, `:1682`, `:1779`, `:1837`, `:1902`) need `tx.shift.findMany` to resolve — where a bespoke `tx` lacks it, add `findMany: jest.fn().mockResolvedValue([])` to that tx's `shift` mock.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "fix(KON-131): re-validate the generated plan against DB state inside the write transaction (audit T2)"`
 
-- [ ] **Task 7: Regression — a direct-API illegal move is rejected** [AC: 1, 5]
+- [x] **Task 7: Regression — a direct-API illegal move is rejected** [AC: 1, 5]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, append the block below at the end of the top-level `describe('PlanningGenerationService')` (immediately before its closing `});`).
   ```ts
     // ─── Story 13-1 (KON-131) — server-side manual-write guards ──────
@@ -1180,7 +1180,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests: 4 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-131): direct-API illegal moves are rejected server-side (AC1, AC5)"`
 
-- [ ] **Task 8: Regression — a published month is never notified before the guard runs** [AC: 2]
+- [x] **Task 8: Regression — a published month is never notified before the guard runs** [AC: 2]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, append the block below **inside** the `describe('Story 13-1 — moveShift server-side guards')` added in Task 7, after its last `it(...)`.
   ```ts
       // AC2 (verbatim from story 13-1): Given a PUBLISHED month, When an acknowledged
@@ -1221,7 +1221,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests: 1 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-131): published-month amendment rejected before notification (AC2)"`
 
-- [ ] **Task 9: Regression — the lock is taken, and a stale plan is rejected** [AC: 3, 4, 5]
+- [x] **Task 9: Regression — the lock is taken, and a stale plan is rejected** [AC: 3, 4, 5]
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, append the block below at the end of the top-level `describe('PlanningGenerationService')`, after the Task 7 describe.
   ```ts
     // ─── Story 13-1 (KON-131) — shared lock + TOCTOU ─────────────────
@@ -1357,7 +1357,7 @@ _These map 1:1 onto ticket KON-131's AC-1…AC-5, which remain the authority; th
   Expected: `Tests: 3 passed`, exit 0. If the stale-plan `it` reports zero conflicts, the fixture's generated assignment is not landing on `emp-1` / `2026-03-02` — align `racingShift` with an employee/date the fixture's plan actually assigns (read the `createManyAndReturn` rows the sibling test captures at `:1902`) rather than weakening the assertion.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-131): shared lock + stale-plan rejection (AC3, AC4, AC5)"`
 
-- [ ] **Task 10: Full API suite, typecheck, and story close-out** [AC: 1, 2, 3, 4, 5]
+- [x] **Task 10: Full API suite, typecheck, and story close-out** [AC: 1, 2, 3, 4, 5]
   Run the full API suite and the typecheck. Both must be clean before the story is handed to review.
   ```bash
   pnpm --filter @pawly/api test -- planning
@@ -1706,8 +1706,57 @@ _Files this story creates or modifies (final list confirmed by aped-dev at compl
 
 ### Summary
 
+Manual writes (`moveShift`, `createManualShift`) and generation now share one advisory
+lock and one pure evaluator (`move-validation.ts`). `moveShift` re-reads under the lock and
+replays the shared HARD/statutory checks from `tx` before writing, so a client hitting the
+tRPC API without pre-validating can no longer persist an illegal move (T1). Every manual
+write takes the `(clinicId, month)` lock — sorted across a cross-month move to avoid
+deadlock — and generation re-validates its computed plan against the state committed under
+the lock, rejecting a stale plan with `STALE_PLAN_REGENERATE` rather than double-booking
+(T2). The statutory window shipped at ±8 real days on both the write and advisory paths, as
+locked with Alex at authoring. No web change (the existing optimistic rollback + error toast
+already hold); no Prisma/Trigger change.
+
 ### Files changed
+
+- `apps/api/src/modules/planning/move-validation.ts` (new — pure evaluator)
+- `apps/api/src/modules/planning/move-validation.spec.ts` (new — 12 unit tests, zero Prisma mocks)
+- `apps/api/src/modules/planning/planning-generation.service.ts` (`lockMonths` + `loadMoveValidationInputs`; `moveShift`/`createManualShift`/`generateMonthlyPlan` locked & re-validated; `preValidateMove` rewired; generation catch surfaces `ConflictException`)
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts` (guard/lock/stale regressions; bespoke-tx `findMany` mocks; global `workDays`/`$executeRaw` mock fixes)
 
 ### Deviations
 
+- **Global test mock corrected instead of per-describe overrides (approved by Alex).** The
+  story forbade touching the global `mockOperationalConfig.workDays`, expecting generation
+  tests to depend on its (wrong) numeric form. Verified empirically: correcting it to day
+  NAMES (what production stores) gives 200/200 with zero generation regressions, so the
+  guard's newly load-bearing `workDays` read is satisfied across all describes in one line.
+- **`mockPrismaService.$executeRaw` added to the global mock.** The default interactive-tx
+  mock runs the callback with the base mock as `tx`; `lockMonths` calls `tx.$executeRaw`.
+  The story assumed it already existed.
+- **Generation `catch` taught to re-throw `ConflictException`.** Not called out in Task 6,
+  but required for AC4: the catch mapped every non-P2002 error to a 500, which would have
+  masked `STALE_PLAN_REGENERATE`.
+- **The AC4 stale-plan regression shipped in the Task 6 commit** (with its fix, TDD-paired)
+  rather than the Task 9 commit; Task 9 carries the two lock-acquisition tests.
+- **Worktree setup:** `apps/api/node_modules` was absent (sprint dispatch only symlinked the
+  repo-root `node_modules`); added a local symlink to the main checkout's copy rather than
+  `pnpm install` (which would have purged the shared store through the root symlink). No
+  dependency change.
+
 ### Test output
+
+```
+$ pnpm --filter @pawly/api test -- "move-validation|planning-generation.service"
+PASS src/modules/planning/move-validation.spec.ts
+PASS src/modules/planning/planning-generation.service.spec.ts
+Test Suites: 2 passed, 2 total
+Tests:       220 passed, 220 total
+
+$ pnpm --filter @pawly/api test -- planning
+Test Suites: 17 passed, 17 total
+Tests:       566 passed, 566 total
+
+$ pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json   # 24 pre-existing baseline errors, 0 in story files
+$ pnpm --filter @pawly/api exec tsc -p tsconfig.types.json      # EXIT=0 (L5 load-bearing pass)
+```
