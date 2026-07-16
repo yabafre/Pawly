@@ -5360,6 +5360,44 @@ describe('PlanningGenerationService', () => {
         service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
       ).rejects.toThrow('overlaps');
     });
+
+    // Story 13-3 (KON-132) — AC1: emp-2 already works 23:00 on 03-02 -> 08:30 on
+    // 03-03; moving shift-1 (08:00-12:00 on 03-03) onto emp-2 really overlaps
+    // 08:00-08:30. The old clock-digit compare never saw it.
+    it('throws ConflictException when the target employee has an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          ...mockShift,
+          id: 'shift-night',
+          employeeId: 'emp-2',
+          date: new Date('2025-03-02T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+        },
+      ]);
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
+      ).rejects.toThrow('overlaps');
+    });
+
+    it('loads the adjacent days when checking overlap on a move', async () => {
+      await service.moveShift(clinicId, 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            date: {
+              in: [
+                new Date('2025-03-02T00:00:00.000Z'),
+                new Date('2025-03-03T00:00:00.000Z'),
+                new Date('2025-03-04T00:00:00.000Z'),
+              ],
+            },
+          }),
+        }),
+      );
+    });
   });
 
   // ─── createManualShift ────────────────────────────────────────────
@@ -5473,6 +5511,32 @@ describe('PlanningGenerationService', () => {
           breakMinutes: 0,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    // Story 13-3 (KON-132) — AC1: existing 23:00 on 03-09 -> 08:30 on 03-10 really
+    // overlaps the candidate SURGERY 08:00-12:00 on 03-10 (08:00-08:30). 9h30 net
+    // keeps the statutory check quiet, so the ConflictException can only come from
+    // the overlap guard.
+    it('throws ConflictException when the new shift overlaps an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'ex-night',
+          date: new Date('2026-03-09T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+          breakMinutes: 0,
+          employeeId: 'emp-1',
+          clinicId,
+        },
+      ]);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-03-10',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        }),
+      ).rejects.toThrow('overlaps');
     });
   });
 
@@ -6698,6 +6762,25 @@ describe('PlanningGenerationService', () => {
       expect(result.hard).toEqual(
         expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
       );
+    });
+
+    // Story 13-3 (KON-132) — AC1: the advisory UX check must agree with the server
+    // guard, or the grid shows green on a move the API then rejects.
+    it('returns HARD OVERLAP violation when the target employee has an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-night',
+          clinicId,
+          employeeId: 'emp-2',
+          date: new Date('2025-03-03T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard.map((h) => h.rule)).toContain('OVERLAP');
     });
 
     // AC2 (verbatim from story 11-3): "the move surfaces a blocking (hard) conflict in the
