@@ -8750,4 +8750,95 @@ describe('PlanningGenerationService', () => {
       // default 5000ms timeout — is what gates on a contended runner.
     }, 30000);
   });
+
+  // ─── Story 13-1 (KON-131) — server-side manual-write guards ──────
+  // Audit 2026-07-14 T1: moveShift persisted with zero statutory / rule-engine guard;
+  // preValidateMove (client-invoked) was the only check. These tests call the service
+  // directly — exactly what a client hitting the tRPC API without pre-validating does.
+  describe('Story 13-1 — moveShift server-side guards', () => {
+    const movedShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2026-03-02T00:00:00.000Z'), // Monday
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: false,
+    };
+
+    beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
+      mockPrismaService.shift.findUnique.mockResolvedValue(movedShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...movedShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+    });
+
+    // AC1 (verbatim from story 13-1): Given a move that would introduce a statutory or
+    //   HARD-rule violation, When planning.moveShift is called from any client, Then the
+    //   mutation is rejected server-side and no shift.update is persisted.
+    it('rejects a move that breaches a statutory limit, with no client pre-check involved', async () => {
+      // emp-2 already holds 13:00-20:00 (7h) on 2026-03-02; the moved 08:00-12:00 (4h)
+      // takes the day to 11h > the 10h L.3121-18 limit. Amplitude 08:00->20:00 = 12h stays
+      // under 13h, so DAILY_WORK is the only statutory breach, and 13:00 does not overlap
+      // 08:00-12:00 so OVERLAP stays silent.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-2',
+          employeeId: 'emp-2',
+          clinicId: 'clinic-123',
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '13:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'RECEPTION',
+        },
+      ]);
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetEmployeeId: 'emp-2',
+        }),
+      ).rejects.toThrow('Statutory limit exceeded: DAILY_WORK');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a move onto a non-work day', async () => {
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetDate: '2026-03-07', // Saturday
+        }),
+      ).rejects.toThrow('Target date is not a work day');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a move onto a HARD-unavailable employee', async () => {
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        { type: 'VACATION', reason: null, daysOfWeek: [] },
+      ]);
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetEmployeeId: 'emp-2',
+        }),
+      ).rejects.toThrow('Employee is unavailable (VACATION)');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('persists a legal move', async () => {
+      const result = await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(result.employeeId).toBe('emp-2');
+      expect(mockPrismaService.shift.update).toHaveBeenCalled();
+    });
+  });
 });
