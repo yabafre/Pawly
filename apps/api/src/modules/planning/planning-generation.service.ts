@@ -769,6 +769,56 @@ export class PlanningGenerationService {
             // single-argument form; the tagged template binds them as parameters.
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
+            // Story 13-1 (KON-131) — audit T2 (TOCTOU). `assignedShifts` was computed far
+            // above, OUTSIDE this transaction and BEFORE the lock: survivors and manual
+            // shifts were read from a snapshot a concurrent moveShift / createManualShift may
+            // have invalidated since. Now that the lock is held, re-read the shifts that will
+            // SURVIVE the deleteMany below (exact complement of its filter) and re-check the
+            // plan against them. The 11-2 @@unique constraint only catches an exact
+            // (employee, date, slot) duplicate — a partial time overlap between two different
+            // slots slips past it, which is precisely the double-booking this closes.
+            const survivors = await tx.shift.findMany({
+              where: {
+                clinicId,
+                date: { gte: monthStart, lte: monthEnd },
+                NOT: {
+                  source: 'GENERATED',
+                  isConfirmed: false,
+                  varianceEvents: { none: {} },
+                },
+              },
+              select: {
+                employeeId: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+              },
+            });
+            const survivorsByKey = new Map<string, typeof survivors>();
+            for (const s of survivors) {
+              const key = `${s.employeeId}|${s.date.toISOString().split('T')[0]}`;
+              const arr = survivorsByKey.get(key) ?? [];
+              arr.push(s);
+              survivorsByKey.set(key, arr);
+            }
+            const staleConflicts = assignedShifts.filter((a) =>
+              (survivorsByKey.get(`${a.employeeId}|${a.date}`) ?? []).some(
+                (s) =>
+                  this.timesOverlap(
+                    a.startTime,
+                    a.endTime,
+                    s.startTime,
+                    s.endTime,
+                  ),
+              ),
+            );
+            if (staleConflicts.length > 0) {
+              this.logger.warn(
+                `KON-131 stale plan for ${clinicId}/${month}: ${staleConflicts.length} assignment(s) conflict with shifts committed since the plan was computed — rejecting, the client can regenerate`,
+              );
+              throw new ConflictException('STALE_PLAN_REGENERATE');
+            }
+
             // Story 11-1 — preserve confirmed shifts and shifts carrying variance
             // history (VarianceEvent cascades on delete → would erase no-show /
             // clock-in records). Only unconfirmed, history-free GENERATED shifts
@@ -809,6 +859,12 @@ export class PlanningGenerationService {
         throw new ConflictException(
           'Duplicate shift detected during generation',
         );
+      }
+      // Story 13-1 (KON-131) — the in-transaction stale-plan re-validation throws a
+      // ConflictException on purpose (AC4). It is a real, retriable business conflict, not
+      // an infra failure, so surface it to the caller rather than masking it as a 500.
+      if (error instanceof ConflictException) {
+        throw error;
       }
       this.logger.error('Transaction failed during shift generation', error);
       throw new InternalServerErrorException(

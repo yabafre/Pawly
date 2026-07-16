@@ -1438,6 +1438,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -1491,6 +1492,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
             },
@@ -1532,6 +1534,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -1687,6 +1690,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
             },
@@ -1784,6 +1788,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -1843,6 +1848,7 @@ describe('PlanningGenerationService', () => {
           return fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -1910,6 +1916,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -2273,6 +2280,44 @@ describe('PlanningGenerationService', () => {
       // emp-1 is overlap-excluded; the remaining position goes to emp-2.
       expect(mar2[0].employeeId).toBe('emp-2');
     });
+
+    // AC4 (verbatim from story 13-1): Given a plan computed on a snapshot a concurrent
+    //   manual write has since invalidated, When generateMonthlyPlan reaches its write
+    //   transaction, Then it rejects with STALE_PLAN_REGENERATE rather than persisting a
+    //   double-booking. This is the audit T2 race: the survivor read that fed the plan
+    //   happened before the lock; the re-read under the lock sees the racing shift.
+    it('Story 13-1 — rejects a plan whose assignment now overlaps a shift committed since it was computed', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // Plan computed against an empty month (pre-lock survivors read via prisma => []), so
+      // the greedy pass assigns emp-1 + emp-2 to the two Mon 2026-03-02 SURGERY slots.
+      mockShiftQueries([]);
+      // By the time the lock is held a concurrent write has committed an overlapping MANUAL
+      // shift on emp-1 / Mon 2026-03-02 (08:00-18:00 covers the generated 08:00-12:00), which
+      // the re-read under the lock (tx.shift.findMany) sees.
+      const racingShift = {
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '18:00',
+      };
+      const tx = {
+        $executeRaw: jest.fn().mockResolvedValue(0),
+        shift: {
+          findMany: jest.fn().mockResolvedValue([racingShift]),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      };
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+      );
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2'),
+      ).rejects.toThrow('STALE_PLAN_REGENERATE');
+      expect(tx.shift.createManyAndReturn).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
@@ -2299,6 +2344,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -4153,6 +4199,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -4180,6 +4227,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -4220,6 +4268,7 @@ describe('PlanningGenerationService', () => {
           return cb({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
                 const created = data.map((d: any, idx: number) => ({
@@ -5021,6 +5070,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -5049,6 +5099,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -6150,6 +6201,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: txDeleteMany,
               createManyAndReturn: jest.fn().mockResolvedValue([
                 {
@@ -6206,6 +6258,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -6313,6 +6366,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
               createManyAndReturn: jest.fn().mockResolvedValue([
                 {
@@ -6783,6 +6837,9 @@ describe('PlanningGenerationService', () => {
             return Promise.resolve(0);
           }),
         shift: {
+          // Story 13-1 — the stale-plan re-validation reads survivors under the lock;
+          // return none so this recording tx exercises the happy path unchanged.
+          findMany: jest.fn().mockResolvedValue([]),
           deleteMany: jest.fn().mockImplementation(() => {
             calls.push('deleteMany');
             return Promise.resolve({ count: 0 });
@@ -7654,6 +7711,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -7789,6 +7847,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -7951,6 +8010,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -8249,6 +8309,7 @@ describe('PlanningGenerationService', () => {
             fn({
               $executeRaw: jest.fn().mockResolvedValue(0),
               shift: {
+                findMany: jest.fn().mockResolvedValue([]),
                 deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
                 createManyAndReturn: jest
                   .fn()
@@ -8386,6 +8447,7 @@ describe('PlanningGenerationService', () => {
             fn({
               $executeRaw: jest.fn().mockResolvedValue(0),
               shift: {
+                findMany: jest.fn().mockResolvedValue([]),
                 deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
                 createManyAndReturn: jest
                   .fn()
@@ -8500,6 +8562,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -8611,6 +8674,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
