@@ -2428,7 +2428,6 @@ export class PlanningGenerationService {
     }
 
     // Story 7.6 — post-publication guard (checks BOTH months on a cross-month move)
-    const originalEmployeeId = shift.employeeId;
     const originalDateISO = shift.date.toISOString().split('T')[0];
     const originalMonth = originalDateISO.slice(0, 7);
     const targetMonth = target.targetDate
@@ -2440,11 +2439,6 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    const employeeChanged =
-      !!target.targetEmployeeId && target.targetEmployeeId !== shift.employeeId;
-    const dateChanged =
-      !!target.targetDate && target.targetDate !== originalDateISO;
-
     // Story 11-6 — the shift mutation and the amendment bookkeeping commit atomically.
     // Story 13-1 (KON-131) — and so does the DECISION: the lock is the transaction's first
     // statement, every validation read is replayed from `tx` under it, and the write only
@@ -2453,14 +2447,22 @@ export class PlanningGenerationService {
     // check ran on this path at all (audit T1) — `preValidateMove` was the only guard, and
     // it is client-invoked. Notification still fires AFTER commit (below), so a rejected or
     // rolled-back change can never notify (AC2).
-    const amend =
-      publishedMonths.length > 0 && (employeeChanged || dateChanged);
+    //
+    // Audit F1 (aped-review) — the lock set, the change flags and the amendment /
+    // notification recipients all key off `fresh` (the row actually being overwritten),
+    // NOT the pre-lock `shift`. Deriving them from the pre-lock snapshot left a window in
+    // which a concurrent same-shift relocation could make the write land in a month the
+    // lock never covered (reopening the T2 double-book) and make the amend / isConfirmed
+    // bookkeeping compare against a row that no longer reflected the write.
+    let amend = false;
+    let notifyRecipients: Array<{ employeeId: string; month: string }> = [];
     const updated = await this.withSerializationRetry(() =>
       this.prisma.$transaction(
         async (tx) => {
-          await this.lockMonths(tx, clinicId, [originalMonth, targetMonth]);
-
-          // Re-read under the lock — the shift may have been moved or deleted meanwhile.
+          // Re-read the shift's LIVE position first, so the lock set below covers the month
+          // it actually occupies now — a concurrent move may have relocated it since the
+          // pre-lock read. The shift is addressed by immutable id; its context (the other
+          // shifts) is read under the lock inside loadMoveValidationInputs.
           const fresh = await tx.shift.findUnique({ where: { id: shiftId } });
           if (!fresh) throw new NotFoundException('Shift not found');
           if (fresh.clinicId !== clinicId)
@@ -2468,21 +2470,34 @@ export class PlanningGenerationService {
               'Shift does not belong to this clinic',
             );
 
+          const freshDateISO = fresh.date.toISOString().split('T')[0];
+          const freshMonth = freshDateISO.slice(0, 7);
+          const resolvedTargetDate = target.targetDate ?? freshDateISO;
+          const resolvedTargetMonth = resolvedTargetDate.slice(0, 7);
+          // ONE sorted acquisition over every month this write reads or writes — the
+          // stale-derived pair AND fresh's live month + resolved destination. lockMonths
+          // sorts + dedupes, so the whole set is still taken in a single deadlock-free order.
+          await this.lockMonths(tx, clinicId, [
+            originalMonth,
+            targetMonth,
+            freshMonth,
+            resolvedTargetMonth,
+          ]);
+
           const inputs = await this.loadMoveValidationInputs(
             clinicId,
             {
               shift: {
                 id: fresh.id,
                 employeeId: fresh.employeeId,
-                date: fresh.date.toISOString().split('T')[0],
+                date: freshDateISO,
                 startTime: fresh.startTime,
                 endTime: fresh.endTime,
                 breakMinutes: fresh.breakMinutes ?? 0,
                 shiftTypeCode: fresh.shiftTypeCode,
               },
               targetEmployeeId: target.targetEmployeeId ?? fresh.employeeId,
-              targetDate:
-                target.targetDate ?? fresh.date.toISOString().split('T')[0],
+              targetDate: resolvedTargetDate,
             },
             tx,
           );
@@ -2494,6 +2509,13 @@ export class PlanningGenerationService {
                 .join('; ')}`,
             );
           }
+
+          // Change flags key off `fresh`, the row actually being overwritten (audit F1).
+          const employeeChanged =
+            !!target.targetEmployeeId &&
+            target.targetEmployeeId !== fresh.employeeId;
+          const dateChanged =
+            !!target.targetDate && target.targetDate !== freshDateISO;
 
           const u = await tx.shift.update({
             where: { id: shiftId },
@@ -2509,8 +2531,20 @@ export class PlanningGenerationService {
               ...((employeeChanged || dateChanged) && { isConfirmed: false }),
             },
           });
+
+          amend =
+            publishedMonths.length > 0 && (employeeChanged || dateChanged);
           if (amend) {
             await this.recordAmendment(tx, clinicId, publishedMonths);
+            const updatedMonth = u.date.toISOString().split('T')[0].slice(0, 7);
+            // Recipients keyed off `fresh` (source) and the committed row (destination),
+            // filtered to the published months. The published-month DETERMINATION still
+            // runs pre-lock (assertPublishedChangeAcknowledged) — widening that read under
+            // the lock is story 13-2's scope (audit F5), out of scope here.
+            notifyRecipients = [
+              { employeeId: fresh.employeeId, month: freshMonth },
+              { employeeId: u.employeeId, month: updatedMonth },
+            ].filter((r) => publishedMonths.includes(r.month));
           }
           return u;
         },
@@ -2519,16 +2553,12 @@ export class PlanningGenerationService {
     );
 
     // Story 7.6 — post-commit notification (published months only), fire-and-forget
-    if (amend) {
-      const updatedMonth = updated.date.toISOString().split('T')[0].slice(0, 7);
-      const recipients = [
-        { employeeId: originalEmployeeId, month: originalMonth },
-        { employeeId: updated.employeeId, month: updatedMonth },
-      ].filter((r) => publishedMonths.includes(r.month));
-      this.notifyScheduleChange(clinicId, recipients).catch((err: Error) =>
-        this.logger.error(
-          `schedule-change notification failed: ${err.message}`,
-        ),
+    if (amend && notifyRecipients.length > 0) {
+      this.notifyScheduleChange(clinicId, notifyRecipients).catch(
+        (err: Error) =>
+          this.logger.error(
+            `schedule-change notification failed: ${err.message}`,
+          ),
       );
     }
 

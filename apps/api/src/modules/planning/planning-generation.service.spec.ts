@@ -8969,5 +8969,130 @@ describe('PlanningGenerationService', () => {
       expect(monthArgs).toEqual([...monthArgs].sort());
       expect(new Set(monthArgs)).toEqual(new Set(['2026-03', '2026-04']));
     });
+
+    // Audit F1 (aped-review) — the comment above claims createManualShift serializes on the
+    // same lock, but no test exercised it: createManualShift was the one Epic-13 write path
+    // whose lock acquisition was unverified (exactly the "untested entry point" class this
+    // story exists to close, epic-13 context §5).
+    it('createManualShift takes the (clinicId, month) advisory lock', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 30,
+        clinicId: 'clinic-123',
+      });
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-03-03T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 30,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId: 'clinic-123',
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.createManualShift('clinic-123', {
+        employeeId: 'emp-1',
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+      });
+
+      const months = lockSql(mockPrismaService.$executeRaw.mock.calls).flatMap(
+        (c) => (c as unknown[]).slice(1).map(String),
+      );
+      expect(
+        lockSql(mockPrismaService.$executeRaw.mock.calls).length,
+      ).toBeGreaterThanOrEqual(1);
+      expect(months).toContain('2026-03');
+    });
+
+    // Audit F1 (aped-review) — the lock set must key off `fresh` (the shift's LIVE month),
+    // not the pre-lock read. A concurrent move relocated the shift 2026-03 -> 2026-04 before
+    // the lock; the write lands in 2026-04, so 2026-04 MUST be locked or the double-book
+    // window this story closes reopens. The bespoke tx returns the relocated row while the
+    // pre-lock read (this.prisma) still shows 2026-03.
+    it("locks fresh's live month when a concurrent move relocated the shift since the pre-lock read", async () => {
+      // Pre-lock read (this.prisma) — stale: the shift still appears in 2026-03.
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+
+      const lockArgs: string[] = [];
+      const tx = {
+        $executeRaw: jest.fn((strings: unknown, ...args: unknown[]) => {
+          if (String(strings).includes('pg_advisory_xact_lock')) {
+            lockArgs.push(...args.map(String));
+          }
+          return Promise.resolve(0);
+        }),
+        shift: {
+          // Under the lock, the LIVE row is 2026-04-06 (Monday) — relocated by a racing move.
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'shift-1',
+            clinicId: 'clinic-123',
+            employeeId: 'emp-1',
+            date: new Date('2026-04-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '12:00',
+            shiftTypeCode: 'SURGERY',
+            breakMinutes: 0,
+            source: 'GENERATED',
+            isConfirmed: false,
+          }),
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn().mockResolvedValue({
+            id: 'shift-1',
+            clinicId: 'clinic-123',
+            employeeId: 'emp-2',
+            date: new Date('2026-04-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '12:00',
+            shiftTypeCode: 'SURGERY',
+            breakMinutes: 0,
+            source: 'MANUAL',
+            isConfirmed: false,
+          }),
+        },
+        employee: {
+          findFirst: jest.fn().mockResolvedValue(mockEmployees[1]),
+        },
+        unavailability: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+      );
+
+      // Employee-only move (no targetDate) => destination month = fresh's live month, 2026-04.
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+
+      const monthArgs = lockArgs.filter((m) => /^\d{4}-\d{2}$/.test(m));
+      expect(monthArgs).toContain('2026-04');
+      // Still taken in sorted order — the single-shot union stays deadlock-free.
+      expect(monthArgs).toEqual([...monthArgs].sort());
+    });
   });
 });
