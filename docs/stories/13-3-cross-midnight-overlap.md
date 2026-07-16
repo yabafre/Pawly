@@ -1236,7 +1236,7 @@
 - **The wrap convention already exists and is unanimous.** `rule-engine.ts:82`, `french-labor-law.ts:101`, `solver-model.ts:123` and `planning-generation.service.ts:3585` all compute `end >= start ? end - start : 1440 - start + end`. `end === start` is a **zero-length slot** everywhere — never 24h. `timesOverlap` and the solver's `overlaps` / `amplitudeExceeded` are the only three places that ignore the wrap. This story aligns them and extracts the rule into one primitive; it does not invent a convention.
 - **Two header comments were wrong**, not the code: `french-labor-law.ts:17` and `rule-engine.ts:16` say "endTime <= startTime wrap past midnight". Task 3 fixes the first. `rule-engine.ts:16` is left alone (out of this story's File List) — flag it in the review if you want it fixed too.
 - **The replay is not a separate path.** `runSolverImprovePass` (`:4164-4176`, its docstring is explicit) re-checks every candidate assignment through `evaluateEligibility`. Fixing block 2 of that predicate (Task 5e) satisfies AC-2's replay half with no extra code. Do not add a second overlap check inside the improve pass.
-- **Border shifts are pre-seeded** into `assignmentIndex` at `:347-357` ("Pre-seed assignmentIndex with border shifts (for overlap/consecutive checks)"), so the D-1/D+1 scan also covers the month frontier (a Dec-31 22:00→06:00 shift versus a Jan-1 slot). No extra loading is needed for AC-1.
+- **Border shifts are pre-seeded** into `assignmentIndex` at `:347-357` ("Pre-seed assignmentIndex with border shifts (for overlap/consecutive checks)"), so the D-1/D+1 scan can see an out-of-month overnight neighbour on the month frontier. **Corrected during review (aped-review M1):** the original claim that "no extra loading is needed" was wrong. `loadBorderWeekShifts` only loaded out-of-month days that shared the border ISO-week, so a month **starting on a Monday** (immediate D-1 = the previous Sunday, a different ISO week) or **ending on a Sunday** left its immediate calendar neighbour unloaded — a real cross-month double-booking (June 2026, Feb 2027). The fix makes `loadBorderWeekShifts` **always** add `getPreviousDate(firstDay)` and `getNextDate(lastDay)` (Set-deduped). Do NOT remove those two `add(...)` calls: they are the frontier coverage AC-1 requires, not dead code. The neighbours land in a different ISO week from any in-month day, so weekly-hour totals are unaffected; they do become visible to the consecutive-day and rotation-equity scans on Monday-start/Sunday-end months — a correctness improvement, and determinism (AC4 deep-equal) still holds.
 - **The adjacent-day scan pattern is local.** `evaluateEligibility` already reads `getPreviousDate` / `getNextDate` buckets for minRest (`:1199-1220`) and walks a ±8-day window for statutory limits (`:1224-1240`). Task 5e follows that shape.
 - **Perf (NFR2, generation < 2s).** The solver's pairwise mutex loop is O(slots²) per employee; `toAbsoluteInterval` does two `Date.parse` calls, so it MUST be hoisted out of that loop (Task 11c). In `evaluateEligibility` the scan is 3 Map lookups per (employee, slot) — the statutory block right below already does 17, so this is noise.
 - **Data flow untouched.** No tRPC procedure, no Prisma migration, no new dependency. The three manual-write queries change their `where.date` from a scalar to an `in` list of three UTC-midnight `Date` objects.
@@ -1736,6 +1736,89 @@ enum) in files this story never touched.
 
 ## Review Record
 
+**Date:** 2026-07-16
+**Auditors:** Spec, Code, Edge & Hallucination
+**Verdict:** done
+
+Three method-driven auditors ran in parallel; all three returned CHANGES_REQUESTED.
+Six findings (4 MAJOR / 2 NIT) — every one Fixed and re-verified by the auditor that
+raised it. The core T3 fix (primitive + solver + manual-write guards) was clean; all
+findings sat in the periphery the story's own scope opened up.
+
 ### Findings
 
+#### Resolved
+
+- [MAJOR] Month-frontier double-booking in greedy generation — `loadBorderWeekShifts`
+  only loaded out-of-month days sharing the border ISO-week, so a month starting Monday
+  (immediate D-1 = previous Sunday, a different ISO week) or ending Sunday left its
+  neighbour unloaded → an overnight shift there could double-book a frontier slot (June
+  2026, Feb 2027) — the exact T3 class, on the generation path.
+  [apps/api/src/modules/planning/planning-generation.service.ts]
+  - Source: Edge & Hallucination
+  - Resolution: `1268752` — `loadBorderWeekShifts` now always adds the immediate
+    calendar D-1/D+1 (Set-deduped). RED→GREEN test (Feb 2027). Verified RESOLVED by Edge.
+
+- [MAJOR] Special-day clamp blind to overnight shift types — AC-5 legalised overnight
+  shift types, but the reduced-hours clamp used a same-day `windowsOverlap`, so a night
+  shift on a special day silently ran its full duration.
+  [apps/api/src/modules/planning/planning-generation.service.ts]
+  - Source: Code
+  - Resolution: `7c014df` — clamp routed through `toAbsoluteInterval`/`intervalsOverlap`
+    + real-time interval intersection (`absMinutesToTime` round-trip); reduces to the old
+    max-start/min-end for same-day shifts. `windowsOverlap` removed (0 callers). Two new
+    tests. Verified RESOLVED by Code (same-day reduction proven, overnight case traced).
+
+- [MAJOR] AC-2 replay half untested — no test exercised the CP-SAT re-validation replay
+  rejecting a cross-midnight double-booking end to end (only the shared predicate).
+  [apps/api/src/modules/planning/planning-generation.service.spec.ts]
+  - Source: Spec
+  - Resolution: `186cc28` — injects a model-existing cross-midnight double-booking via a
+    mocked solve and asserts greedy is served with the specific `rejected by
+    re-validation (emp-1 ineligible on 2026-03-03 05:00)` warn. Verified RESOLVED by Spec,
+    who reverted block 2 and watched the invalid plan get SERVED — a true regression guard.
+
+- [MAJOR] AC-5 "and persisted" untested — the only service/router test mocked the service,
+  proving Zod acceptance, not persistence.
+  [apps/api/src/modules/clinic/clinic.service.spec.ts]
+  - Source: Spec
+  - Resolution: `f5f692e` (onboarding `createShiftTypes`) + `4370663` (settings
+    `createSingleShiftType`) — both drive the real service and assert `22:00→06:00`
+    reaches `prisma.clinicShiftType.create*` intact. Verified RESOLVED by Spec.
+
+- [NIT] Loose `HH:MM` regex accepted out-of-range times (24:00, 08:99).
+  [packages/validators/src/clinic/{onboarding,shift-type}.schema.ts]
+  - Source: Edge & Hallucination
+  - Resolution: `8af8598` — `timeRegex` tightened to `^([01]\d|2[0-3]):[0-5]\d$`,
+    exported and reused across shift-type + work-hours schemas. Verified RESOLVED by Edge.
+
+- [NIT] Dead-code removals undocumented — the story removed `private toMinutes` (0 callers)
+  and this review removed `windowsOverlap` (0 callers after the M2 fix). Both clean.
+  - Source: Spec
+  - Resolution: recorded here; both confirmed unreferenced by grep.
+
+#### Dismissed
+
+- none.
+
+#### Documentation corrected during review
+
+- Dev Notes bullet at `:1239` ("the D-1/D+1 scan also covers the month frontier … No extra
+  loading is needed for AC-1") was false and, after the M1 fix, actively misleading — a
+  future dev could read it and delete the new `add(getPreviousDate/getNextDate)` calls as
+  dead code, reintroducing the bug. Corrected in this commit to mark the load as required
+  and intentional, with a determinism note.
+
 ### Verification
+
+- **API:** `pnpm --filter @pawly/api test` → `39 suites, 1076/1076 passed` (fresh, uncontended).
+- **Validators:** `pnpm --filter @pawly/validators test` → `27 files, 787/787 passed`.
+- **Web:** `pnpm --filter @pawly/web test` → `52 files, 769/769 passed`.
+- **NFR2 perf flake:** the `meets NFR2 when the ejection scan runs against many real holes`
+  test intermittently overshot its 2000 ms local budget when the suite ran concurrently
+  with the web Vitest suite + review subagents (machine load 10–30). It passes in isolation
+  (1561–1752 ms) and in the final uncontended full-suite run; confirmed environmental
+  (unchanged by this story) by all three auditors independently.
+- **Visual:** not applicable — backend-heavy story; the two front guards are single boolean
+  conditions and their validation was deferred to the L2 journey per the story's own scope,
+  with the Zod schemas (fully tested) as the real net.
