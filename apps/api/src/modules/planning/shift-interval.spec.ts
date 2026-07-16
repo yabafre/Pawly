@@ -47,13 +47,17 @@ describe('shift-interval (Story 13-3, KON-132)', () => {
       ).toBe(true);
     });
 
-    it('detects an overnight shift overlapping a same-date morning shift (the audited same-date wrap case)', () => {
+    // A 22:00->06:00 shift dated D runs D 22:00 -> D+1 06:00. It does NOT occupy the
+    // 05:00-09:00 window of its own date D — that window belongs to the night shift
+    // dated D-1, which the D-1 bucket scan catches. The pair is still rejected today,
+    // by the 25h amplitude rule (Story 11-3), not by overlap.
+    it('does not overlap a same-date morning shift — the wrap belongs to D+1', () => {
       expect(
         shiftsOverlap(
           { date: '2026-03-14', startTime: '22:00', endTime: '06:00' },
           { date: '2026-03-14', startTime: '05:00', endTime: '09:00' },
         ),
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it('detects an overnight shift overlapping the PREVIOUS day night shift', () => {
