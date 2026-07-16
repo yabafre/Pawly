@@ -14,8 +14,11 @@
  *
  * Times are `HH:MM` 24h strings; dates are `YYYY-MM-DD` calendar days interpreted in UTC
  * (matches the generation service's getWeekBounds / getPreviousDate conventions). Overnight
- * shifts (endTime <= startTime) wrap past midnight.
+ * shifts (endTime < startTime) wrap past midnight; endTime === startTime is a zero-length
+ * slot. See shift-interval.ts for the shared primitive.
  */
+
+import { toAbsoluteInterval } from './shift-interval';
 
 export const FRENCH_LABOR_LAW = {
   /** L.3121-18 — max 10h net worked per employee per calendar day. */
@@ -140,14 +143,12 @@ export function maxConsecutiveWorkedDays(workedDates: string[]): number {
 function mergedBusyIntervals(
   shifts: StatutoryShift[],
 ): Array<[number, number]> {
-  const intervals = shifts.map((s) => {
-    const base = shiftEpoch(s.date);
-    const startM = toMinutes(s.startTime);
-    const endM = toMinutes(s.endTime);
-    const start = base + startM;
-    const end = base + (endM >= startM ? endM : endM + MIN_PER_DAY);
-    return [start, end] as [number, number];
-  });
+  // Story 13-3 — the (date, HH:MM) -> absolute minutes mapping now lives in
+  // shift-interval.ts so the engine, the solver IR and this module cannot drift
+  // on what "overnight" means.
+  const intervals = shifts.map(
+    (s) => toAbsoluteInterval(s) as [number, number],
+  );
   intervals.sort((a, b) => a[0] - b[0]);
   const merged: Array<[number, number]> = [];
   for (const [s, e] of intervals) {
