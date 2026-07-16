@@ -96,7 +96,7 @@ describe('PlanningGenerationService', () => {
   };
 
   const mockOperationalConfig = {
-    workDays: ['1', '2', '3', '4', '5'],
+    workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
     defaultStartTime: '08:00',
     defaultEndTime: '18:00',
     closedDays: [] as Array<{
@@ -181,6 +181,9 @@ describe('PlanningGenerationService', () => {
     clinic: {
       findUniqueOrThrow: jest.fn(),
     },
+    // Story 13-1 — the default interactive-tx mock runs the callback with this base mock as
+    // `tx`, so `lockMonths` calls `tx.$executeRaw` (the manual-write advisory lock) against it.
+    $executeRaw: jest.fn().mockResolvedValue(0),
     $transaction: jest.fn(),
   };
 
@@ -5097,6 +5100,10 @@ describe('PlanningGenerationService', () => {
     };
 
     beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
       mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
       mockPrismaService.shift.findMany.mockResolvedValue([]);

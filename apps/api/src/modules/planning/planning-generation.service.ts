@@ -192,6 +192,24 @@ export class PlanningGenerationService {
     throw lastError;
   }
 
+  /**
+   * Story 13-1 (KON-131) — takes the (clinicId, month) advisory lock for every month a write
+   * touches, in SORTED order. Sorting is load-bearing: a cross-month move locks two months,
+   * and two admins moving in opposite directions (2026-03 -> 2026-04 and 2026-04 -> 2026-03)
+   * would deadlock if each locked "source then target". Same key shape as generation (:747)
+   * and publish (:3048), so manual writes now serialize against both. Auto-released at
+   * COMMIT / ROLLBACK on the transaction's pinned connection.
+   */
+  private async lockMonths(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    months: string[],
+  ): Promise<void> {
+    for (const m of [...new Set(months)].sort()) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${m}))`;
+    }
+  }
+
   async generateMonthlyPlan(
     clinicId: string,
     month: string,
@@ -2366,67 +2384,83 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const overlapEmployeeId = target.targetEmployeeId || shift.employeeId;
-    const overlapDate = target.targetDate
-      ? new Date(`${target.targetDate}T00:00:00.000Z`)
-      : shift.date;
-
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: overlapEmployeeId,
-        clinicId,
-        date: overlapDate,
-        id: { not: shiftId },
-      },
-    });
-
-    for (const existing of existingShifts) {
-      if (
-        this.timesOverlap(
-          shift.startTime,
-          shift.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
-
     const employeeChanged =
       !!target.targetEmployeeId && target.targetEmployeeId !== shift.employeeId;
     const dateChanged =
       !!target.targetDate && target.targetDate !== originalDateISO;
 
-    // Story 11-6 — the shift mutation and the amendment bookkeeping commit
-    // atomically. If recordAmendment throws, shift.update rolls back, so a
-    // moved shift can never be left without its amendment record. Notification
-    // fires AFTER commit (below), so a rolled-back change never notifies.
+    // Story 11-6 — the shift mutation and the amendment bookkeeping commit atomically.
+    // Story 13-1 (KON-131) — and so does the DECISION: the lock is the transaction's first
+    // statement, every validation read is replayed from `tx` under it, and the write only
+    // happens if that replay is clean. Before this story the overlap check ran outside the
+    // transaction against an unlocked snapshot (audit T2) and no statutory / rule-engine
+    // check ran on this path at all (audit T1) — `preValidateMove` was the only guard, and
+    // it is client-invoked. Notification still fires AFTER commit (below), so a rejected or
+    // rolled-back change can never notify (AC2).
     const amend =
       publishedMonths.length > 0 && (employeeChanged || dateChanged);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.shift.update({
-        where: { id: shiftId },
-        data: {
-          ...(target.targetEmployeeId && {
-            employeeId: target.targetEmployeeId,
-          }),
-          ...(target.targetDate && {
-            date: new Date(`${target.targetDate}T00:00:00.000Z`),
-          }),
-          source: 'MANUAL',
-          // Story 7.6 — a moved shift is no longer the one the employee confirmed
-          ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+    const updated = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await this.lockMonths(tx, clinicId, [originalMonth, targetMonth]);
+
+          // Re-read under the lock — the shift may have been moved or deleted meanwhile.
+          const fresh = await tx.shift.findUnique({ where: { id: shiftId } });
+          if (!fresh) throw new NotFoundException('Shift not found');
+          if (fresh.clinicId !== clinicId)
+            throw new ForbiddenException(
+              'Shift does not belong to this clinic',
+            );
+
+          const inputs = await this.loadMoveValidationInputs(
+            clinicId,
+            {
+              shift: {
+                id: fresh.id,
+                employeeId: fresh.employeeId,
+                date: fresh.date.toISOString().split('T')[0],
+                startTime: fresh.startTime,
+                endTime: fresh.endTime,
+                breakMinutes: fresh.breakMinutes ?? 0,
+                shiftTypeCode: fresh.shiftTypeCode,
+              },
+              targetEmployeeId: target.targetEmployeeId ?? fresh.employeeId,
+              targetDate:
+                target.targetDate ?? fresh.date.toISOString().split('T')[0],
+            },
+            tx,
+          );
+          const { hard } = evaluateMoveViolations(inputs);
+          if (hard.length > 0) {
+            throw new ConflictException(
+              `Move rejected — ${hard.length} blocking violation(s): ${hard
+                .map((h) => h.message)
+                .join('; ')}`,
+            );
+          }
+
+          const u = await tx.shift.update({
+            where: { id: shiftId },
+            data: {
+              ...(target.targetEmployeeId && {
+                employeeId: target.targetEmployeeId,
+              }),
+              ...(target.targetDate && {
+                date: new Date(`${target.targetDate}T00:00:00.000Z`),
+              }),
+              source: 'MANUAL',
+              // Story 7.6 — a moved shift is no longer the one the employee confirmed
+              ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+            },
+          });
+          if (amend) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+          }
+          return u;
         },
-      });
-      if (amend) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return u;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published months only), fire-and-forget
     if (amend) {
