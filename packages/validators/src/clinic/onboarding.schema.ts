@@ -58,9 +58,13 @@ export const shiftTypeFieldsSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color'),
 });
 
+// Story 13-3 (KON-132) — a shift type may cross midnight (22:00 -> 06:00); the
+// engine reads endTime < startTime as an overnight wrap (see shift-interval.ts).
+// Only a zero-length slot is meaningless, so equality is what we reject. Clinic
+// opening hours and special days keep their end > start rule below.
 export const shiftTypeSchema = shiftTypeFieldsSchema.refine(
-  (data) => data.endTime > data.startTime,
-  { message: 'End time must be after start time', path: ['endTime'] }
+  (data) => data.endTime !== data.startTime,
+  { message: 'Start and end times must differ', path: ['endTime'] }
 );
 
 export const createShiftTypesSchema = z.object({

@@ -45,7 +45,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                 !st.code?.trim() ||
                 !/^\d{2}:\d{2}$/.test(st.startTime) ||
                 !/^\d{2}:\d{2}$/.test(st.endTime) ||
-                st.endTime <= st.startTime
+                st.endTime === st.startTime
             );
             if (hasIncomplete) return t('incompleteShiftType');
             return undefined;
