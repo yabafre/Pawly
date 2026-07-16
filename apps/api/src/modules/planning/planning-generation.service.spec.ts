@@ -769,6 +769,110 @@ describe('PlanningGenerationService', () => {
       expect(result.assigned[0].employeeId).not.toBe('emp-1');
     });
 
+    // Story 13-3 (KON-132) — AC1: an employee already holding a shift that runs
+    // past midnight must not be given an overlapping slot on the adjacent day.
+    it('prevents double-booking when an existing overnight shift on D-1 runs into the D slot', () => {
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '05:00',
+        endTime: '09:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 works 22:00 on 03-02 -> 06:00 on 03-03. The slot starts at 05:00 on
+      // 03-03, so the real overlap is 05:00-06:00.
+      const nightShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [nightShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [nightShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('prevents double-booking when the D slot itself crosses midnight into an existing D+1 shift', () => {
+      const slot = {
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '22:00',
+        endTime: '06:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const morningShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-03',
+        startTime: '05:00',
+        endTime: '09:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-03', [morningShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [morningShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('still assigns when the adjacent-day shift only touches the slot at the junction', () => {
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '06:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Ends exactly when the slot starts -> no overlap, emp-1 stays eligible.
+      const nightShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [nightShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [nightShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+
     it('respects job type requirements (requiredJobTypes filter)', () => {
       const slot = {
         date: '2026-03-02',
