@@ -1166,5 +1166,6 @@ real discriminating power — the single most load-bearing claim in the story.
 
 ### Ticket sync
 
-- Ticket comment posted: {pending}
-- PR opened/updated: {pending}
+- Ticket comment posted: KON-133 (comment `93b88224`, 2026-07-16) — status stays "In Review" (Lead flips on merge).
+- PR opened/updated: #113 (draft) → base `sprint/epic-13` — https://github.com/yabafre/Pawly/pull/113
+- Check-in: `review-done` posted for the sprint Lead to verify and merge into the umbrella.
