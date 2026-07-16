@@ -1760,3 +1760,91 @@ Tests:       566 passed, 566 total
 $ pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json   # 24 pre-existing baseline errors, 0 in story files
 $ pnpm --filter @pawly/api exec tsc -p tsconfig.types.json      # EXIT=0 (L5 load-bearing pass)
 ```
+
+## Review Record
+
+**Date:** 2026-07-16
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface — no Aria)
+**Verdict:** done
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] `moveShift` derived its lock set, change flags and notification recipients from the
+  pre-lock `shift` read, not from the lock-protected `fresh` re-read — a concurrent same-shift
+  relocation could make the write land in a month the lock never covered (reopening the T2
+  double-book, AC3/AC5) and skew the amend / `isConfirmed` bookkeeping (NFR3).
+  [`planning-generation.service.ts:2430-2549`]
+  - Source: Code auditor (MEDIUM) + Edge & Hallucination auditor (HIGH) — convergent, found
+    independently.
+  - Resolution: commit `70475a5` — the transaction re-reads `fresh` as its FIRST statement,
+    takes ONE sorted+deduped advisory lock over the union
+    `[originalMonth, targetMonth, freshMonth, resolvedTargetMonth]` (still deadlock-free), and
+    recomputes `employeeChanged`/`dateChanged`/`amend`/`notifyRecipients` from `fresh` + the
+    committed row. Re-verified RESOLVED by both auditors from disk. New regression test
+    `locks fresh's live month when a concurrent move relocated the shift since the pre-lock read`.
+
+- [MAJOR] AC3 coverage gap — `createManualShift`'s advisory-lock acquisition was claimed by a
+  test comment but asserted by no test: the one Epic-13 write path whose lock was unverified
+  (the exact "untested entry point" class this story exists to close, epic-13 context §5). The
+  code was correct (`lockMonths` at `:2594`). [`planning-generation.service.spec.ts:8894`]
+  - Source: Spec auditor (HIGH).
+  - Resolution: commit `70475a5` — added `createManualShift takes the (clinicId, month) advisory
+    lock`, invoking the real service method and asserting `pg_advisory_xact_lock` with the target
+    month. Re-verified RESOLVED by the Spec auditor; AC3 now IMPLEMENTED for all three write paths
+    (moveShift, createManualShift, generateMonthlyPlan), each with a dedicated test.
+
+#### Dismissed
+
+- [MINOR] AC5 "a move racing a regeneration" is modelled as a snapshot-state difference
+  (pre-lock vs post-lock `tx.shift.findMany`), not an actual concurrent `moveShift` call.
+  [`planning-generation.service.spec.ts:2289-2320`]
+  - Source: Spec auditor.
+  - Rationale: acceptable, standard proxy for a TOCTOU unit test — the same lock + re-validate
+    mechanism protects regardless of which write path committed the racing row. No behavioural
+    gap; only the docstring could be more precise.
+
+- [NIT] Statutory breaches are emitted with `rule: 'CONTRACT_COMPLIANCE'` rather than a distinct
+  `STATUTORY` tag. [`move-validation.ts:389-394`]
+  - Source: Edge & Hallucination auditor.
+  - Rationale: cosmetic — the `message` ("Statutory limit exceeded: …") is unambiguous and the
+    web surfaces `message`, not `rule`. Preserves bit-for-bit parity with the pre-refactor
+    advisory path (a locked Scope decision of this story).
+
+- [NIT] `assertPublishedChangeAcknowledged` (published-month determination) and
+  `getOperationalConfig` are read outside the lock/transaction.
+  [`planning-generation.service.ts:2437`, `loadMoveValidationInputs`]
+  - Source: Edge & Hallucination auditor (+ Code auditor note).
+  - Rationale: the published-status widened-window is explicitly story 13-2 scope (a stated
+    non-goal here); operational config is admin-managed and not the racing entity.
+
+- [NIT] Task-10's full-suite/typecheck green was self-reported in the Dev Agent Record only.
+  - Source: Spec auditor.
+  - Rationale: independently re-run in this review — see Verification (568 planning tests pass,
+    tsc types green, tsc noEmit 24 baseline errors, 0 in story files).
+
+- [NIT] A sub-millisecond, I/O-free residual window survives between the in-transaction `fresh`
+  read and the `lockMonths` call in `moveShift`. [`planning-generation.service.ts:2466-2485`]
+  - Source: Code + Edge & Hallucination auditors (raised during F1 verification).
+  - Rationale: structurally the same class as F1 but shrunk from multiple pre-transaction DB
+    round-trips to a single intra-transaction statement gap with no awaited I/O between the read
+    and the lock. Both auditors judged it negligible/theoretical and not actionable; a
+    provably-airtight closure would need a re-read-after-lock assertion or row-level `FOR UPDATE`.
+    Recorded as a known residual — candidate for 13-8's invariant harness.
+
+### Verification
+
+- Test command: `pnpm --filter @pawly/api test -- planning`
+- Test output (final pass): `Test Suites: 17 passed, 17 total` · `Tests: 568 passed, 568 total`
+  (566 pre-review + 2 new lock-coverage tests). Targeted: `move-validation` 12/12; `Story 13-1`
+  guards 8/8; both new lock tests green.
+- Typecheck: `tsc -p tsconfig.types.json` EXIT 0 (L5 load-bearing pass); `tsc --noEmit -p
+  tsconfig.json` = 24 pre-existing baseline errors, 0 in story files (clinic / employee /
+  planning.service / variance specs, untouched by this branch).
+- Git audit: clean on code — only `docs/state.yaml` and the story file surface as meta changes.
+- Visual verification: n/a (backend-only story, no preview surface).
+
+### Ticket sync
+- Ticket comment posted: KON-131 (Linear)
+- PR opened/updated: draft → `sprint/epic-13`
