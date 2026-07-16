@@ -5534,6 +5534,10 @@ describe('PlanningGenerationService', () => {
           employeeId: 'emp-1',
           date: '2026-03-10',
           shiftTypeCode: 'SURGERY',
+          // Ignored by the service (it reads the times from clinicShiftType), but
+          // the input type requires them.
+          startTime: '08:00',
+          endTime: '12:00',
           breakMinutes: 0,
         }),
       ).rejects.toThrow('overlaps');
