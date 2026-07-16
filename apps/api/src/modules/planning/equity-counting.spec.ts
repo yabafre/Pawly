@@ -26,16 +26,33 @@ import {
  */
 const TIMEZONES = ['UTC', 'Europe/Paris', 'America/New_York'] as const;
 
+/**
+ * Jest's sandbox hands each test file a COPY of process.env, so assigning TZ on it
+ * never reaches Node's real env setter — and it is that setter which fires the
+ * DateTimeConfigurationChangeNotification that flushes V8's timezone cache. Writing to
+ * the sandbox copy is therefore a silent no-op: all three arms below would run under the
+ * machine's own TZ and pass against the very local-time code this story removes.
+ * process.getBuiltinModule is the one accessor Jest does not shim, so it yields the real
+ * process whose env setter does fire the notification. Verified on Node 22 under this
+ * repo's Jest runner: with the pre-13-7 logic restored, the America/New_York arm goes red.
+ */
+const realProcess: NodeJS.Process = (
+  process as unknown as {
+    getBuiltinModule: (id: string) => NodeJS.Process;
+  }
+).getBuiltinModule('node:process');
+
 function withTimezone<T>(tz: string, fn: () => T): T {
-  const original = process.env.TZ;
-  process.env.TZ = tz;
+  const original = realProcess.env.TZ;
+  realProcess.env.TZ = tz;
   try {
     return fn();
   } finally {
+    // A leaked TZ would poison every later spec sharing this worker.
     if (original === undefined) {
-      delete process.env.TZ;
+      delete realProcess.env.TZ;
     } else {
-      process.env.TZ = original;
+      realProcess.env.TZ = original;
     }
   }
 }
