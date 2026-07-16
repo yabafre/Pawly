@@ -26,7 +26,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — RED: timezone-invariance spec for the pure core** [AC: 1, 2]
+- [x] **Task 1 — RED: timezone-invariance spec for the pure core** [AC: 1, 2]
 
   Create `apps/api/src/modules/planning/equity-counting.spec.ts` with the full content below. It fails now — `./equity-counting` does not exist yet (`Cannot find module './equity-counting'`). That failure IS the RED signal.
 
@@ -284,7 +284,7 @@
   Expected: RED — `Cannot find module './equity-counting' from 'modules/planning/equity-counting.spec.ts'`, exit 1.
   Commit: `git add apps/api/src/modules/planning/equity-counting.spec.ts && git commit -m "test(KON-133): RED — timezone-invariance spec for the equity counting core"`
 
-- [ ] **Task 2 — GREEN: create the pure counting core** [AC: 1, 2, 3]
+- [x] **Task 2 — GREEN: create the pure counting core** [AC: 1, 2, 3]
 
   Create `apps/api/src/modules/planning/equity-counting.ts` with the full content below. No NestJS, no Prisma, no I/O — it mirrors the pure-module pattern of `french-labor-law.ts` and `rule-engine.ts` in the same directory.
 
@@ -487,7 +487,7 @@
   Expected: GREEN — `Tests: 25 passed, 25 total`, exit 0.
   Commit: `git add apps/api/src/modules/planning/equity-counting.ts && git commit -m "feat(KON-133): extract the equity counting core as a pure UTC module"`
 
-- [ ] **Task 3 — Consume the core from EquityCounterService** [AC: 1, 3, 5]
+- [x] **Task 3 — Consume the core from EquityCounterService** [AC: 1, 3, 5]
 
   In `apps/api/src/modules/planning/equity-counter.service.ts`, add this import below the existing `import type { EquityCounterType } from '@prisma/client';`:
 
@@ -613,7 +613,7 @@
   Expected: no output, exit 0. (`EquityCounterName` is assignable to Prisma's `EquityCounterType` — both are the same string union — so the upsert needs no cast.)
   Commit: `git add apps/api/src/modules/planning/equity-counter.service.ts && git commit -m "fix(KON-133): compute persisted equity counters in UTC via the shared core"`
 
-- [ ] **Task 4 — Rebuild the service spec on production-shaped dates** [AC: 4, 5]
+- [x] **Task 4 — Rebuild the service spec on production-shaped dates** [AC: 4, 5]
 
   Two mechanical edits to `apps/api/src/modules/planning/equity-counter.service.spec.ts`.
 
@@ -651,7 +651,7 @@
   Expected: GREEN — `Tests: 45 passed, 45 total`, exit 0. If a Saturday/Sunday/holiday assertion goes red here, the counting core is wrong, not the spec — fix `equity-counting.ts`, never the expectation.
   Commit: `git add apps/api/src/modules/planning/equity-counter.service.spec.ts && git commit -m "test(KON-133): build equity mocks at UTC midnight like production stores them"`
 
-- [ ] **Task 5 — Consume the core from the Trigger task and delete the duplication** [AC: 3]
+- [x] **Task 5 — Consume the core from the Trigger task and delete the duplication** [AC: 3]
 
   In `apps/api/src/trigger/tasks/equity-recalc.ts`, replace everything from line 1 down to the end of the `recalculateForClinic` function (i.e. the `WARNING` header, the local `calculateShiftMinutes`, and the whole counting body — the file's first 124 lines) with the block below. Leave `equityNightlyRecalcTask` and `equityMonthlyFinalTask` untouched.
 
@@ -752,7 +752,7 @@
   Expected: no output, exit 0.
   Commit: `git add apps/api/src/trigger/tasks/equity-recalc.ts && git commit -m "refactor(KON-133): drop the duplicated equity logic from the Trigger task"`
 
-- [ ] **Task 6 — Full planning suite + no local-time regression** [AC: 1, 3, 5]
+- [x] **Task 6 — Full planning suite + no local-time regression** [AC: 1, 3, 5]
 
   Prove nothing else in the planning module regressed, and that the two local-time sites the audit flagged are gone for good.
 
@@ -1017,14 +1017,73 @@ The 13 local-time mock dates to rewrite in that spec are on lines **400, 440, 44
 
 ## Dev Agent Record
 
-- **Model:**
-- **Started:**
-- **Completed:**
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-16
+- **Completed:** 2026-07-16
 
 ### Summary
 
+Extracted a pure, UTC-only counting core (`equity-counting.ts`) and made both recompute
+paths — `EquityCounterService.recalculateForPeriod` and the `equity-recalc` Trigger task —
+consume it, deleting the hand-duplicated logic the WARNING header flagged (audit T8). Day
+classification and month bounds are now `getUTCDay()` / `Date.UTC`, so persisted counters
+agree with the engine on any deployment timezone. Behaviour is preserved: 40 service tests
+and the full 485-test planning suite stay green.
+
 ### Files changed
+
+- `apps/api/src/modules/planning/equity-counting.ts` (new — pure UTC core)
+- `apps/api/src/modules/planning/equity-counting.spec.ts` (new — timezone-invariance spec)
+- `apps/api/src/modules/planning/equity-counter.service.ts` (delegates to the core; local `calculateShiftMinutes` deleted)
+- `apps/api/src/modules/planning/equity-counter.service.spec.ts` (mocks rebuilt at UTC midnight; bounds asserted in ISO UTC)
+- `apps/api/src/trigger/tasks/equity-recalc.ts` (duplication removed; imports the shared core)
 
 ### Deviations
 
+- **Extra commit `794e8d3` — the invariance arms were silently vacant under Jest.** The
+  story's `withTimezone()` mutates `process.env.TZ`, but Jest hands each spec file a *copy*
+  of `process.env`, so the write never reached Node's env setter and V8's timezone cache was
+  never flushed — all three arms ran under the machine TZ (Europe/Paris) and would have
+  passed against the very local-time code this story removes. Fixed by mutating the real
+  process via `process.getBuiltinModule('node:process')` (the one accessor Jest does not
+  shim). Proven by mutation: with the pre-13-7 logic restored, the `America/New_York` arm
+  goes red (5 failed); with the UTC core, 28/28 green. This is exactly the "all-green before
+  Task 2 exists ⇒ the spec is not testing what it claims" failure the story's Testing note
+  warned about — the story's own helper had it latent.
+- **Test counts differ from the story's predictions** (author miscount, no tests dropped):
+  core spec is 28 not 25 (7 cases × 3 TZ + 5 + 2); service spec is 40 not 45. Verified no
+  `it(`/`describe(` was removed by the rewrite.
+- **Task 3 tsc gate is not `exit 0` at the repo baseline.** 24 pre-existing `error TS` live
+  in unrelated `*.spec.ts` (variance/clinic/employee/planning) whose type signatures drifted
+  from their services. Confirmed identical with and without my service change (git-stash
+  A/B) — my modified production files add zero new errors. Not this story's scope.
+- **No Task 6 commit.** The story's `git add -u apps/api/src && commit` was to capture any
+  suite-driven fixes; the suite was green with no additional changes, so an empty commit was
+  correctly skipped.
+- **Per-test verbatim AC quotes not added.** The story mandated the exact spec file content
+  verbatim; its author used a file-level Story-13-7/T8 docblock rather than per-test AC
+  quotes. Transcribing the frozen spec exactly (rather than retrofitting comments the story
+  did not include) honours "implement the story spec exactly"; AC→test traceability is intact
+  via the docblock and Dev Notes.
+- **Environment:** the worktree shipped with only the root `node_modules` symlinked (no
+  per-package installs) — `jest` was unresolved. Per Alex's decision, removed the symlink and
+  ran an isolated `pnpm install` (9s, content-addressed store, no real disk duplication).
+
 ### Test output
+
+```
+$ pnpm --filter @pawly/api test -- "equity-counting.spec.ts|equity-counter.service.spec.ts"
+PASS src/modules/planning/equity-counter.service.spec.ts
+PASS src/modules/planning/equity-counting.spec.ts
+Test Suites: 2 passed, 2 total
+Tests:       68 passed, 68 total     # 28 pure core + 40 service
+Exit: 0
+
+$ pnpm --filter @pawly/api test -- src/modules/planning
+Test Suites: 16 passed, 16 total
+Tests:       485 passed, 485 total
+Exit: 0
+
+$ grep -rn "\.getDay()" apps/api/src/modules/planning apps/api/src/trigger/tasks --include="*.ts"
+# (no matches — exit 1)
+```
