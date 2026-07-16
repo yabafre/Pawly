@@ -6506,16 +6506,20 @@ describe('PlanningGenerationService', () => {
     });
 
     it('returns HARD OVERLAP violation when shift times overlap', async () => {
-      // shift.findMany is called multiple times in preValidateMove:
-      // 1st call: existingShifts (in Promise.all) — return overlapping shift
-      // 2nd call: weekShifts — return empty
-      // 3rd call: monthShifts — return empty
+      // Story 13-1 — loadMoveValidationInputs issues 4 shift.findMany calls in order:
+      // sameDayShifts, weekShifts, monthShifts, statutoryWindowShifts (the last one
+      // falls back to the beforeEach default []).
       mockPrismaService.shift.findMany
         .mockResolvedValueOnce([
-          { startTime: '10:00', endTime: '14:00', breakMinutes: 0 },
-        ])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+          {
+            date: new Date('2025-03-04T00:00:00.000Z'),
+            startTime: '10:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
+        ]) // sameDayShifts — overlapping
+        .mockResolvedValueOnce([]) // weekShifts
+        .mockResolvedValueOnce([]); // monthShifts
 
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
@@ -6538,9 +6542,10 @@ describe('PlanningGenerationService', () => {
         clinicId,
       }));
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts — no overlap
+        .mockResolvedValueOnce([]) // sameDayShifts — no overlap
         .mockResolvedValueOnce([]) // weekShifts
-        .mockResolvedValueOnce(consec); // monthShifts — statutory window
+        .mockResolvedValueOnce([]) // monthShifts
+        .mockResolvedValueOnce(consec); // statutoryWindowShifts (+/-8 real days, Story 13-1)
 
       const result = await service.preValidateMove(clinicId, {
         ...defaultInput,
@@ -6585,12 +6590,32 @@ describe('PlanningGenerationService', () => {
       // 2nd: weekShifts — heavy week
       // 3rd: monthShifts — empty
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // sameDayShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 }, // 6h net = total 33h
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          }, // 6h net = total 33h
         ]) // weekShifts
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -6620,12 +6645,32 @@ describe('PlanningGenerationService', () => {
       ]);
       // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // sameDayShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
         ]) // weekShifts = 33h net
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -6653,12 +6698,32 @@ describe('PlanningGenerationService', () => {
         },
       ]);
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // sameDayShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
         ]) // weekShifts = 33h net
         .mockResolvedValueOnce([]); // monthShifts
 
