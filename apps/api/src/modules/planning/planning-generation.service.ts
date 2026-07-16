@@ -18,6 +18,7 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import { restMinutesBetween, shiftsOverlap } from './shift-interval';
 import {
   violatesHardContractIncremental,
   violatesHardRotation,
@@ -544,11 +545,17 @@ export class PlanningGenerationService {
       for (const cov of coverageBucket) {
         if (cov.consumed) continue;
         if (
-          !this.timesOverlap(
-            slot.startTime,
-            slot.endTime,
-            cov.startTime,
-            cov.endTime,
+          !shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: slot.date,
+              startTime: cov.startTime,
+              endTime: cov.endTime,
+            },
           )
         ) {
           continue;
@@ -897,7 +904,7 @@ export class PlanningGenerationService {
         let endTime = shiftTimes.endTime;
         if (
           specialDay &&
-          this.timesOverlap(
+          this.windowsOverlap(
             shiftTimes.startTime,
             shiftTimes.endTime,
             specialDay.startTime,
@@ -1140,19 +1147,35 @@ export class PlanningGenerationService {
     if (unavailDates?.has(slot.date))
       return { eligible: false, blockedOnlyByRotation: false };
 
-    // 2) Time overlap with an existing assignment on the same date
-    const existingOnDate =
-      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || [];
-    for (const existing of existingOnDate) {
-      if (
-        this.timesOverlap(
-          slot.startTime,
-          slot.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        return { eligible: false, blockedOnlyByRotation: false };
+    // 2) Time overlap with an existing assignment — Story 13-3 (KON-132): scan
+    // D-1/D/D+1, because a shift crossing midnight occupies real time on the
+    // next calendar day. Mirrors the adjacent-day lookups the minRest and
+    // statutory blocks below already do. Border shifts are pre-seeded into
+    // assignmentIndex (see :347), so this also covers the month frontier.
+    for (const bucketDate of [
+      this.getPreviousDate(slot.date),
+      slot.date,
+      this.getNextDate(slot.date),
+    ]) {
+      const existingOnDate =
+        ctx.assignmentIndex.get(`${emp.id}|${bucketDate}`) || [];
+      for (const existing of existingOnDate) {
+        if (
+          shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: existing.date,
+              startTime: existing.startTime,
+              endTime: existing.endTime,
+            },
+          )
+        ) {
+          return { eligible: false, blockedOnlyByRotation: false };
+        }
       }
     }
 
@@ -3562,7 +3585,13 @@ export class PlanningGenerationService {
     };
   }
 
-  private timesOverlap(
+  /**
+   * Same-day clock-window overlap — NOT a double-booking check. Only the
+   * special-day clamp uses this: it asks "do these two intra-day windows
+   * intersect", where both operands are plain opening windows with no date and
+   * no midnight crossing. Double-booking checks use shiftsOverlap (Story 13-3).
+   */
+  private windowsOverlap(
     start1: string,
     end1: string,
     start2: string,
@@ -3575,6 +3604,20 @@ export class PlanningGenerationService {
     return (
       toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
     );
+  }
+
+  /**
+   * Same-day clock overlap for the three manual-write guards. Superseded by
+   * shiftsOverlap in Task 9 (KON-132) — kept until the manual-write queries load
+   * the adjacent days, so their same-day tests stay meaningful until then.
+   */
+  private timesOverlap(
+    start1: string,
+    end1: string,
+    start2: string,
+    end2: string,
+  ): boolean {
+    return this.windowsOverlap(start1, end1, start2, end2);
   }
 
   private calculateShiftMinutes(startTime: string, endTime: string): number {
