@@ -8840,5 +8840,39 @@ describe('PlanningGenerationService', () => {
       expect(result.employeeId).toBe('emp-2');
       expect(mockPrismaService.shift.update).toHaveBeenCalled();
     });
+
+    // AC2 (verbatim from story 13-1): Given a PUBLISHED month, When an acknowledged
+    //   amendment would violate a statutory limit, Then it is rejected before any employee
+    //   notification is sent and before any amendment is recorded.
+    it('rejects a statutory-breaching amendment on a PUBLISHED month before notifying', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-03' },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-2',
+          employeeId: 'emp-2',
+          clinicId: 'clinic-123',
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '13:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'RECEPTION',
+        },
+      ]);
+      await expect(
+        service.moveShift(
+          'clinic-123',
+          'shift-1',
+          { targetEmployeeId: 'emp-2' },
+          { acknowledgePublishedChange: true },
+        ),
+      ).rejects.toThrow('Statutory limit exceeded: DAILY_WORK');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).not.toHaveBeenCalled();
+    });
   });
 });
