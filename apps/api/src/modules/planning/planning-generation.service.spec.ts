@@ -8875,4 +8875,99 @@ describe('PlanningGenerationService', () => {
       ).not.toHaveBeenCalled();
     });
   });
+
+  // ─── Story 13-1 (KON-131) — shared lock + TOCTOU ─────────────────
+  // Audit 2026-07-14 T2: manual writes took no advisory lock, and the generated plan was
+  // persisted without being re-checked against the state committed since it was computed.
+  describe('Story 13-1 — shared advisory lock and stale-plan rejection', () => {
+    const lockSql = (calls: unknown[][]) =>
+      calls.filter((c) => String(c[0]).includes('pg_advisory_xact_lock'));
+
+    beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+    });
+
+    // AC3 (verbatim from story 13-1): moveShift, createManualShift and generateMonthlyPlan
+    //   all serialize on the same pg_advisory_xact_lock(clinicId, month).
+    it('moveShift takes the (clinicId, month) advisory lock', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-2',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(
+        lockSql(mockPrismaService.$executeRaw.mock.calls).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+
+    // A cross-month move locks BOTH months, in sorted order — two admins moving in
+    // opposite directions must not deadlock.
+    it('a cross-month move locks both months in sorted order', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-04-01T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetDate: '2026-03-02',
+      });
+      const months = lockSql(mockPrismaService.$executeRaw.mock.calls).flatMap(
+        (c) => (c as unknown[]).slice(1).map(String),
+      );
+      const monthArgs = months.filter((m) => /^\d{4}-\d{2}$/.test(m));
+      expect(monthArgs).toEqual([...monthArgs].sort());
+      expect(new Set(monthArgs)).toEqual(new Set(['2026-03', '2026-04']));
+    });
+  });
 });
