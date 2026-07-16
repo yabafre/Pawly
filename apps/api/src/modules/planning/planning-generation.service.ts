@@ -2528,83 +2528,91 @@ export class PlanningGenerationService {
       input.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: new Date(`${input.date}T00:00:00.000Z`),
-      },
-    });
+    // Story 13-1 (KON-131) — same shape as moveShift: lock first, then replay every check
+    // from `tx` under it. The overlap check and the 11-3 statutory check used to run against
+    // an unlocked pre-transaction snapshot, so a concurrent generation could commit a
+    // conflicting shift between the check and the create (audit T2).
+    const created = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await this.lockMonths(tx, clinicId, [month]);
 
-    for (const existing of existingShifts) {
-      if (
-        this.timesOverlap(
-          shiftType.startTime,
-          shiftType.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
+          const existingShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: new Date(`${input.date}T00:00:00.000Z`),
+            },
+          });
+          for (const existing of existingShifts) {
+            if (
+              this.timesOverlap(
+                shiftType.startTime,
+                shiftType.endTime,
+                existing.startTime,
+                existing.endTime,
+              )
+            ) {
+              throw new ConflictException(
+                `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+              );
+            }
+          }
 
-    // Story 11-3 — statutory French labor-law HARD check. Load the employee's shifts in a
-    // window around the target day (ISO week + neighbours) and reject the create if it would
-    // breach a statutory limit. Enforced regardless of configured rules.
-    const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
-    const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
-    const statWindowShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: { gte: statWindowStart, lte: statWindowEnd },
-      },
-    });
-    const createBreaches = wouldExceedStatutory(
-      statWindowShifts.map((s) => ({
-        date: s.date.toISOString().split('T')[0],
-        startTime: s.startTime,
-        endTime: s.endTime,
-        breakMinutes: s.breakMinutes,
-      })),
-      {
-        date: input.date,
-        startTime: shiftType.startTime,
-        endTime: shiftType.endTime,
-        breakMinutes: shiftType.breakMinutes,
-      },
-    );
-    if (createBreaches.length > 0) {
-      throw new ConflictException(
-        `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
-      );
-    }
+          // Story 11-3 — statutory French labor-law HARD check on the +/-8 real-day window.
+          // Enforced regardless of configured rules.
+          const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+          const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+          const statWindowShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: { gte: statWindowStart, lte: statWindowEnd },
+            },
+          });
+          const createBreaches = wouldExceedStatutory(
+            statWindowShifts.map((s) => ({
+              date: s.date.toISOString().split('T')[0],
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            })),
+            {
+              date: input.date,
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              breakMinutes: shiftType.breakMinutes,
+            },
+          );
+          if (createBreaches.length > 0) {
+            throw new ConflictException(
+              `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
+            );
+          }
 
-    // Story 11-6 — create + amendment commit atomically; notify post-commit.
-    const created = await this.prisma.$transaction(async (tx) => {
-      const c = await tx.shift.create({
-        data: {
-          date: new Date(`${input.date}T00:00:00.000Z`),
-          startTime: shiftType.startTime,
-          endTime: shiftType.endTime,
-          shiftTypeCode: input.shiftTypeCode,
-          breakMinutes: shiftType.breakMinutes,
-          source: 'MANUAL',
-          employeeId: input.employeeId,
-          clinicId,
+          // Story 11-6 — create + amendment commit atomically; notify post-commit.
+          const c = await tx.shift.create({
+            data: {
+              date: new Date(`${input.date}T00:00:00.000Z`),
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              shiftTypeCode: input.shiftTypeCode,
+              breakMinutes: shiftType.breakMinutes,
+              source: 'MANUAL',
+              employeeId: input.employeeId,
+              clinicId,
+            },
+          });
+          if (publishedMonths.length > 0) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+          }
+          return c;
         },
-      });
-      if (publishedMonths.length > 0) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return c;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published month only), fire-and-forget
     if (publishedMonths.length > 0) {
