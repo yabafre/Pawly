@@ -8460,6 +8460,132 @@ describe('PlanningGenerationService', () => {
         );
       });
 
+      // Story 13-3 (KON-132), aped-review M3 — AC-2's replay half. The solver model
+      // mutexes a cross-midnight pair (Task 11), but the served-plan safety net is
+      // the re-validation REPLAY. Inject a MODEL-EXISTING solver plan that
+      // double-books emp-1 across midnight (NIGHT 03-02 22:00->06:00 overlaps EARLY
+      // 03-03 05:00->09:00 on 05:00-06:00) and prove the replay rejects it and
+      // greedy is served — closing "the only path where an invalid plan is SERVED".
+      it('AC2 — replay rejects a cross-midnight double-booking and serves greedy', async () => {
+        mockClinicService.listShiftTypes.mockResolvedValue([
+          {
+            id: 'st-n',
+            code: 'NIGHT',
+            name: 'Night',
+            startTime: '22:00',
+            endTime: '06:00',
+            breakMinutes: 0,
+            color: '#111111',
+            clinicId,
+          },
+          {
+            id: 'st-e',
+            code: 'EARLY',
+            name: 'Early',
+            startTime: '05:00',
+            endTime: '09:00',
+            breakMinutes: 0,
+            color: '#222222',
+            clinicId,
+          },
+        ]);
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-night',
+          name: 'Mon NIGHT + Tue EARLY',
+          clinicId,
+          data: {
+            days: [
+              {
+                dayOfWeek: 1,
+                slots: [
+                  {
+                    shiftTypeCode: 'NIGHT',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+              {
+                dayOfWeek: 2,
+                slots: [
+                  {
+                    shiftTypeCode: 'EARLY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        // Keep only Mon 2026-03-02 + Tue 2026-03-03 open, so greedy produces exactly
+        // one fill and one overlap hole (candidate=2 > greedy=1 reaches the replay).
+        mockClinicService.getOperationalConfig.mockResolvedValue({
+          ...mockOperationalConfig,
+          closedDays: [
+            '2026-03-09',
+            '2026-03-10',
+            '2026-03-16',
+            '2026-03-17',
+            '2026-03-23',
+            '2026-03-24',
+            '2026-03-30',
+            '2026-03-31',
+          ].map((date, i) => ({ id: `c${i}`, date, reason: null })),
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) =>
+            fn({
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest
+                  .fn()
+                  .mockImplementation(({ data }: { data: any[] }) =>
+                    data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                  ),
+              },
+            }),
+        );
+
+        // Model-existing vars that form a real cross-midnight double-booking.
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'OPTIMAL',
+          chosenVarNames: new Set([
+            'emp-1@2026-03-02|NIGHT|22:00',
+            'emp-1@2026-03-03|EARLY|05:00',
+          ]),
+        });
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
+
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-night',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+
+        expect(result.stats.engine).toBe('greedy');
+        // The replay applied NIGHT@03-02 first (eligible), then rejected EARLY@03-03
+        // — the ONLY reason emp-1 is ineligible there is the cross-midnight overlap
+        // (no rest rule, no unavailability, EARLY alone is well inside every cap).
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'rejected by re-validation (emp-1 ineligible on 2026-03-03 05:00)',
+          ),
+        );
+      });
+
       // Regression lock for the aped-review M1 fix: a HARD CONTRACT_COMPLIANCE rule
       // with ONLY maxMonthlyHours must still bound the solver's weekly cap at the
       // employee's contractHours (mirroring violatesHardContractIncremental). The
