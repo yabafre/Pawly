@@ -1668,6 +1668,27 @@ describe('PlanningGenerationService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    // Story 13-3 (KON-132), aped-review M1 — the cross-midnight overlap / minRest /
+    // consecutive-day scans read the D-1 and D+1 assignmentIndex buckets, which for
+    // out-of-month days are populated ONLY by this loader. The original straddle
+    // logic loads an out-of-month day only when it shares the ISO week of the
+    // first/last day of the month — so a month that STARTS on a Monday (or ENDS on a
+    // Sunday) leaves its immediate calendar neighbour unloaded, and an overnight
+    // shift on that neighbour can double-book a frontier slot (the exact T3 class).
+    it('loads the immediate calendar D-1/D+1 even when the month starts Monday and ends Sunday', async () => {
+      // February 2027 starts Monday (2027-02-01) and ends Sunday (2027-02-28): both
+      // border ISO-weeks coincide with the month edges, so the straddle logic alone
+      // loads nothing.
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      await callPrivate('loadBorderWeekShifts', clinicId, '2027-02');
+      const call = mockPrismaService.shift.findMany.mock.calls[0]?.[0];
+      const loaded = (call?.where?.date?.in ?? []).map(
+        (d: Date) => d.toISOString().split('T')[0],
+      );
+      expect(loaded).toContain('2027-01-31'); // immediate D-1 of the first day
+      expect(loaded).toContain('2027-03-01'); // immediate D+1 of the last day
+    });
+
     it('loads border week shifts from adjacent months for weekly hour calculation', async () => {
       // March 2026 starts on Sunday (Mar 1). ISO week 9 = Feb 23 – Mar 1.
       // If emp-1 already has a 10h shift on Feb 27 (Friday), the algorithm should

@@ -4826,14 +4826,25 @@ export class PlanningGenerationService {
     const firstWeek = this.getWeekBounds(firstDayStr);
     const lastWeek = this.getWeekBounds(lastDayStr);
 
-    const borderDates: Date[] = [];
+    // Collect border-day date strings, de-duplicated. Two sources:
+    //   1) ISO-week straddle days — weekly-hour calc for a week spanning the month
+    //      boundary (the original Story 11-2 purpose).
+    //   2) Story 13-3 (KON-132) — the immediate calendar D-1 of the first day and
+    //      D+1 of the last day, ALWAYS. When the month starts on a Monday (or ends
+    //      on a Sunday) those neighbours live in a different ISO week, so the
+    //      straddle logic alone never loads them — leaving the cross-midnight
+    //      overlap / minRest / consecutive-day scans blind to an overnight shift on
+    //      the adjacent day and letting the generator double-book across the month
+    //      frontier. These land in a different ISO week from any in-month day, so
+    //      they never perturb the weekly-hour totals.
+    const borderDateStrs = new Set<string>();
 
     // First week overlap: days before month start in the same ISO week
     if (firstWeek.start < firstDayStr) {
       const cursor = new Date(`${firstWeek.start}T00:00:00Z`);
       const limit = new Date(`${firstDayStr}T00:00:00Z`);
       while (cursor < limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
@@ -4844,12 +4855,20 @@ export class PlanningGenerationService {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
       const limit = new Date(`${lastWeek.end}T00:00:00Z`);
       while (cursor <= limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
 
-    if (borderDates.length === 0) return [];
+    // Story 13-3 — always include the immediate calendar neighbours.
+    borderDateStrs.add(this.getPreviousDate(firstDayStr));
+    borderDateStrs.add(this.getNextDate(lastDayStr));
+
+    if (borderDateStrs.size === 0) return [];
+
+    const borderDates = [...borderDateStrs].map(
+      (d) => new Date(`${d}T00:00:00.000Z`),
+    );
 
     this.logger.debug(
       `Loading border week shifts for ${borderDates.length} days outside ${month}`,
