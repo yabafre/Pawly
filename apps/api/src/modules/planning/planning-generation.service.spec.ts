@@ -6753,7 +6753,12 @@ describe('PlanningGenerationService', () => {
       // 3rd call: monthShifts — return empty
       mockPrismaService.shift.findMany
         .mockResolvedValueOnce([
-          { startTime: '10:00', endTime: '14:00', breakMinutes: 0 },
+          {
+            date: new Date('2025-03-04T00:00:00.000Z'),
+            startTime: '10:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
         ])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);

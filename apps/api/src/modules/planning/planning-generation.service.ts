@@ -2388,26 +2388,32 @@ export class PlanningGenerationService {
 
     // Check for time overlap on the target employee + date
     const overlapEmployeeId = target.targetEmployeeId || shift.employeeId;
-    const overlapDate = target.targetDate
-      ? new Date(`${target.targetDate}T00:00:00.000Z`)
-      : shift.date;
+    const overlapDateISO = target.targetDate
+      ? target.targetDate
+      : shift.date.toISOString().split('T')[0];
 
     const existingShifts = await this.prisma.shift.findMany({
       where: {
         employeeId: overlapEmployeeId,
         clinicId,
-        date: overlapDate,
+        date: { in: this.adjacentDayRange(overlapDateISO) },
         id: { not: shiftId },
       },
     });
 
     for (const existing of existingShifts) {
       if (
-        this.timesOverlap(
-          shift.startTime,
-          shift.endTime,
-          existing.startTime,
-          existing.endTime,
+        shiftsOverlap(
+          {
+            date: overlapDateISO,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+          },
+          {
+            date: existing.date.toISOString().split('T')[0],
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+          },
         )
       ) {
         throw new ConflictException(
@@ -2519,17 +2525,23 @@ export class PlanningGenerationService {
       where: {
         employeeId: input.employeeId,
         clinicId,
-        date: new Date(`${input.date}T00:00:00.000Z`),
+        date: { in: this.adjacentDayRange(input.date) },
       },
     });
 
     for (const existing of existingShifts) {
       if (
-        this.timesOverlap(
-          shiftType.startTime,
-          shiftType.endTime,
-          existing.startTime,
-          existing.endTime,
+        shiftsOverlap(
+          {
+            date: input.date,
+            startTime: shiftType.startTime,
+            endTime: shiftType.endTime,
+          },
+          {
+            date: existing.date.toISOString().split('T')[0],
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+          },
         )
       ) {
         throw new ConflictException(
@@ -2715,7 +2727,7 @@ export class PlanningGenerationService {
         where: {
           employeeId: input.targetEmployeeId,
           clinicId,
-          date: targetDateObj,
+          date: { in: this.adjacentDayRange(input.targetDate) },
           id: { not: input.shiftId },
         },
       }),
@@ -2781,11 +2793,17 @@ export class PlanningGenerationService {
     // Check time overlap with existing shifts
     for (const existing of existingShifts) {
       if (
-        this.timesOverlap(
-          shift.startTime,
-          shift.endTime,
-          existing.startTime,
-          existing.endTime,
+        shiftsOverlap(
+          {
+            date: input.targetDate,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+          },
+          {
+            date: existing.date.toISOString().split('T')[0],
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+          },
         )
       ) {
         hard.push({
@@ -3608,20 +3626,6 @@ export class PlanningGenerationService {
     );
   }
 
-  /**
-   * Same-day clock overlap for the three manual-write guards. Superseded by
-   * shiftsOverlap in Task 9 (KON-132) — kept until the manual-write queries load
-   * the adjacent days, so their same-day tests stay meaningful until then.
-   */
-  private timesOverlap(
-    start1: string,
-    end1: string,
-    start2: string,
-    end2: string,
-  ): boolean {
-    return this.windowsOverlap(start1, end1, start2, end2);
-  }
-
   private calculateShiftMinutes(startTime: string, endTime: string): number {
     const [startH, startM] = startTime.split(':').map(Number);
     const [endH, endM] = endTime.split(':').map(Number);
@@ -3642,6 +3646,19 @@ export class PlanningGenerationService {
     const date = new Date(`${dateStr}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() + 1);
     return date.toISOString().split('T')[0];
+  }
+
+  /**
+   * Story 13-3 (KON-132) — the three UTC-midnight Date objects an overlap query
+   * must load for a target day: a shift crossing midnight on D-1 occupies real
+   * time on D, and a shift on D can run into D+1.
+   */
+  private adjacentDayRange(dateISO: string): Date[] {
+    return [
+      this.getPreviousDate(dateISO),
+      dateISO,
+      this.getNextDate(dateISO),
+    ].map((d) => new Date(`${d}T00:00:00.000Z`));
   }
 
   private getWeekBounds(dateStr: string): { start: string; end: string } {
