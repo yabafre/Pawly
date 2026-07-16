@@ -1087,3 +1087,84 @@ Exit: 0
 $ grep -rn "\.getDay()" apps/api/src/modules/planning apps/api/src/trigger/tasks --include="*.ts"
 # (no matches — exit 1)
 ```
+
+## Review Record
+
+**Date:** 2026-07-16
+**Auditors:** Spec, Code, Edge & Hallucination
+**Verdict:** done
+
+Three method-driven auditors ran in parallel (no visual/Aria — backend-only story).
+Code auditor APPROVED/HIGH, Edge & Hallucination APPROVED/HIGH, Spec CHANGES_REQUESTED/MEDIUM
+on one AC-1 coverage gap. Both actionable findings fixed and re-verified; three NITs dismissed
+with rationale. The Lead's Iron-Law pass mutation-proved the timezone-invariance suites have
+real discriminating power — the single most load-bearing claim in the story.
+
+### Findings
+
+#### Resolved
+
+- [MAJOR→MINOR] AC-1 — the Trigger runner (`equity-recalc.ts`) had no executing test; its UTC
+  conformance was proven only by inspection, while the Nest service and shared core were tested.
+  [apps/api/src/trigger/tasks/equity-recalc.ts]
+  - Source: Spec auditor
+  - Resolution: added `apps/api/src/trigger/tasks/equity-recalc.spec.ts` (commit `2b2db59`) that
+    drives the real public entry point `equityNightlyRecalcTask.run` under `TZ=America/New_York`
+    and asserts (a) UTC month bounds on the shift query, (b) a UTC-midnight Saturday classified as
+    `SATURDAY_WORKED`, and (c) row-equality with `computeEquityCounters`. No test-only export was
+    added (`recalculateForClinic` stays module-private). Mutation-verified: reverting the core to
+    pre-13-7 local-time logic turns both new tests red (`gte` slid to `…05:00Z`, Saturday reclassified).
+    Spec re-verification: RESOLVED.
+
+- [MINOR] `engines.node` required only `>=22`, but the specs use `process.getBuiltinModule`
+  (Node ≥ 22.3.0) — a Node 22.0–22.2 install would fail at import. [package.json]
+  - Source: Spec + Edge & Hallucination auditors (converged)
+  - Resolution: bumped `engines.node` to `>=22.3.0` (commit `b753b40`).
+
+#### Dismissed
+
+- [NIT] December month-bounds rollover and leap-February `utcDaysInMonth(2024,2)===29` are correct
+  in code but not asserted. [apps/api/src/modules/planning/equity-counting.ts:72-90]
+  - Source: Edge & Hallucination auditor
+  - Rationale: the auditor traced both cases against `Date.UTC` and found the code correct; this is
+    a coverage-only gap outside the T8 fix scope. Deferred, not blocking.
+
+- [NIT] The `withTimezone` comment rationale ("Jest hands each test file a COPY of process.env") may
+  be imprecise vs jest-environment-node@30's real singleton. [apps/api/src/modules/planning/equity-counting.spec.ts:29-38]
+  - Source: Code auditor
+  - Rationale: the helper empirically works — the Lead's mutation test turned the `America/New_York`
+    arm red, so the suite is a durable regression guard. At most a doc-accuracy nit, no code defect.
+
+- [NIT] A malformed `'HH:mm'` propagates `NaN` into the persisted count. [apps/api/src/modules/planning/equity-counting.ts:93-104]
+  - Source: Edge & Hallucination auditor
+  - Rationale: byte-identical to the pre-refactor helper (preserved behaviour, not introduced here);
+    `Shift.startTime`/`endTime` are validated `HH:mm` upstream, so it is latent. Out of scope for a
+    behaviour-preserving move; candidate for a future hardening ticket.
+
+- [INFO] git-audit flagged docs/APED artefacts outside the File List (epic-13 context, epics.md,
+  state.yaml, sync-log, triage-decision, the story file itself).
+  - Rationale: all expected sprint/APED artefacts — no out-of-scope production code changed.
+
+### Verification (Iron Law — fresh evidence captured at review time)
+
+- `pnpm --filter @pawly/api test -- "equity-counting.spec.ts|equity-counter.service.spec.ts"`
+  → **68 passed** (28 core + 40 service), exit 0.
+- `pnpm --filter @pawly/api test -- src/trigger`
+  → **11 passed** (2 new equity-recalc + 9 batch-email-publish), exit 0.
+- `pnpm --filter @pawly/api test -- src/modules/planning`
+  → **485 passed / 16 suites**, exit 0. (One transient flake on `planning-generation.service.spec.ts`
+  under parallel load; green in isolation 200/200 and on the immediate re-run — planning code untouched
+  by this story.)
+- Mutation test (discriminating-power proof): reverting the core to pre-13-7 local-time logic
+  (`getUTCDay`→`getDay`, `Date.UTC` bounds→local) turns the `America/New_York` arm red — core spec
+  5 failed, new Trigger spec 2 failed. Restored to `getUTCDay`/`Date.UTC`; working tree clean.
+- `grep -rn '\.getDay()' apps/api/src/modules/planning apps/api/src/trigger/tasks` → none (exit 1).
+  `equity-counting.ts` has zero imports (Trigger bundle stays Prisma-free).
+- `tsc --noEmit`: 24 errors, all pre-existing in untouched specs (clinic/employee/planning.service/
+  variance); zero on the five story files (git-diff-confirmed those files unchanged vs merge-base).
+- Visual verification: N/A — backend-only, no UI surface.
+
+### Ticket sync
+
+- Ticket comment posted: {pending}
+- PR opened/updated: {pending}
