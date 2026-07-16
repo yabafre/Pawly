@@ -24,7 +24,9 @@ export const updateWorkDaysSchema = z.object({
 
 export type UpdateWorkDaysInput = z.infer<typeof updateWorkDaysSchema>;
 
-const timeRegex = /^\d{2}:\d{2}$/;
+// Story 13-3 (KON-132), aped-review N2 — reject out-of-range hours/minutes so the
+// engine's toMinutes never derives a wrong absolute interval from e.g. "24:00".
+export const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const workHoursFieldsSchema = z.object({
   defaultStartTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)'),

@@ -1,5 +1,5 @@
 import { z } from '@pawly/zod';
-import { shiftTypeFieldsSchema } from './onboarding.schema';
+import { shiftTypeFieldsSchema, timeRegex } from './onboarding.schema';
 
 export const createShiftTypeSchema = shiftTypeFieldsSchema.refine(
   (data) => data.endTime !== data.startTime,
@@ -12,14 +12,8 @@ const updateShiftTypeFieldsSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(50).optional(),
   code: z.string().min(1).max(10).toUpperCase().optional(),
-  startTime: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/, 'Invalid time format (HH:MM)')
-    .optional(),
-  endTime: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/, 'Invalid time format (HH:MM)')
-    .optional(),
+  startTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)').optional(),
+  endTime: z.string().regex(timeRegex, 'Invalid time format (HH:MM)').optional(),
   breakMinutes: z.number().int().min(0).max(300).optional(),
   color: z
     .string()

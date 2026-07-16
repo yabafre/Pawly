@@ -28,6 +28,25 @@ describe('createShiftTypeSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  // Story 13-3 (KON-132), aped-review N2 — the HH:MM regex must reject an
+  // out-of-range hour or minute (the loose \d{2}:\d{2} accepted 24:00 / 08:99,
+  // which toMinutes would silently turn into a wrong absolute interval).
+  it.each(['24:00', '08:99', '30:15', '12:60'])('should reject the out-of-range time %s', (bad) => {
+    expect(createShiftTypeSchema.safeParse({ ...validShiftType, startTime: bad }).success).toBe(
+      false
+    );
+  });
+
+  it('should still accept the boundary times 00:00 and 23:59', () => {
+    expect(
+      createShiftTypeSchema.safeParse({
+        ...validShiftType,
+        startTime: '00:00',
+        endTime: '23:59',
+      }).success
+    ).toBe(true);
+  });
+
   it('should reject empty name', () => {
     const result = createShiftTypeSchema.safeParse({
       ...validShiftType,
