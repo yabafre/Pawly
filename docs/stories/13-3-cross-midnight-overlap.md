@@ -25,7 +25,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — RED: shift-interval primitive spec** [AC: 1, 3]
+- [x] **Task 1 — RED: shift-interval primitive spec** [AC: 1, 3]
 
   Create `apps/api/src/modules/planning/shift-interval.spec.ts`. The module does not exist yet, so this fails at import — that IS the RED.
 
@@ -199,7 +199,7 @@
   Expected RED: the suite fails to run — `Cannot find module './shift-interval'`. Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/modules/planning/shift-interval.spec.ts && git commit -m "test(KON-132): RED — shift-interval primitive spec [AC-1]"`
 
-- [ ] **Task 2 — GREEN: shift-interval primitive** [AC: 1, 3, 4]
+- [x] **Task 2 — GREEN: shift-interval primitive** [AC: 1, 3, 4]
 
   Create `apps/api/src/modules/planning/shift-interval.ts` with exactly this content:
 
@@ -291,7 +291,7 @@
   Expected GREEN: `Tests: 17 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/shift-interval.ts && git commit -m "feat(KON-132): wrap-aware shift interval primitive [AC-1]"`
 
-- [ ] **Task 3 — REFACTOR: french-labor-law consumes the primitive** [AC: 3]
+- [x] **Task 3 — REFACTOR: french-labor-law consumes the primitive** [AC: 3]
 
   Removes the third hand-rolled copy of the wrap rule. Behaviour is identical, so the existing 11-3 suite is the regression net.
 
@@ -345,7 +345,7 @@
   Expected GREEN: the existing 11-3 suite passes unchanged, exit 0.
   Commit: `git add apps/api/src/modules/planning/french-labor-law.ts && git commit -m "refactor(KON-132): french-labor-law reuses the shift-interval primitive [AC-3]"`
 
-- [ ] **Task 4 — RED: cross-midnight eligibility specs** [AC: 1, 3]
+- [x] **Task 4 — RED: cross-midnight eligibility specs** [AC: 1, 3]
 
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, find the existing test `prevents double-booking (same employee, overlapping times)` (inside the `describe('scoreAndAssign')` block) and add these two tests immediately after it, in the same `describe`. They reuse the file's existing `callScore` / `mockEmployees` / `baseConstraints` helpers — do not build the service yourself, this suite drives private methods through `callScore`.
 
@@ -459,7 +459,7 @@
   Expected RED: the two cross-midnight tests fail — `expect(received).toBe(0)` receives `1`, because `timesOverlap` never sees the wrap and the bucket scan never looks at the adjacent day. The pre-existing same-date test and the junction test pass. Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-132): RED — cross-midnight eligibility [AC-1]"`
 
-- [ ] **Task 5 — GREEN: wrap-aware overlap in the generation service** [AC: 1, 2, 3]
+- [x] **Task 5 — GREEN: wrap-aware overlap in the generation service** [AC: 1, 2, 3]
 
   In `apps/api/src/modules/planning/planning-generation.service.ts`:
 
@@ -559,7 +559,7 @@
   Expected GREEN: the four Task-4 tests pass and the whole `planning-generation.service` suite stays green (AC-3), exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-132): wrap-aware overlap + adjacent-day scan in eligibility [AC-1][AC-2]"`
 
-- [ ] **Task 6 — RED: minRest across midnight** [AC: 4]
+- [x] **Task 6 — RED: minRest across midnight** [AC: 4]
 
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add these tests inside the existing `describe('MIN_REST_HOURS between shifts')` block, reusing its `makeConstraintsWithMinRest` helper:
 
@@ -642,7 +642,7 @@
   Expected RED: `blocks employee when the previous-day shift ran past midnight and real rest is short` fails — `expect(received).toBe(0)` receives `1`, because the current arithmetic scores the gap as 26h. The second test passes both before and after (it is the no-false-positive guard). Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-132): RED — minRest across midnight [AC-4]"`
 
-- [ ] **Task 7 — GREEN: minRest via absolute intervals** [AC: 4]
+- [x] **Task 7 — GREEN: minRest via absolute intervals** [AC: 4]
 
   In `apps/api/src/modules/planning/planning-generation.service.ts`, replace the whole `minRest` block (currently `:1196-1221`) with:
 
@@ -683,7 +683,7 @@
   Expected GREEN: both Task-6 tests pass, the whole suite stays green, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-132): minRest measures real gaps across midnight [AC-4]"`
 
-- [ ] **Task 8 — RED: all three manual-write entry points across midnight** [AC: 1]
+- [x] **Task 8 — RED: all three manual-write entry points across midnight** [AC: 1]
 
   The Epic-11 audit lesson (`epic-13-context.md` § 5) is that a guard is only verified when EVERY entry point is tested — `moveShift` was the untested one, twice. So all three get a test.
 
@@ -787,7 +787,7 @@
   Expected RED: all four new tests fail — the three overlap ones because the clock-digit compare returns `false` on the wrapped neighbour (no throw / no `OVERLAP` entry), and `loads the adjacent days` because the query still passes a single `Date`. Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-132): RED — manual writes miss overnight neighbours [AC-1]"`
 
-- [ ] **Task 9 — GREEN: adjacent-day window on the three manual-write queries** [AC: 1]
+- [x] **Task 9 — GREEN: adjacent-day window on the three manual-write queries** [AC: 1]
 
   In `apps/api/src/modules/planning/planning-generation.service.ts`, add this private helper next to `getPreviousDate` / `getNextDate` (around `:3590`):
 
@@ -927,7 +927,7 @@
   Expected GREEN: the Task-8 test passes, the whole suite stays green, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-132): manual-write overlap queries span adjacent days [AC-1]"`
 
-- [ ] **Task 10 — RED: solver mutex + amplitude across midnight** [AC: 2, 6]
+- [x] **Task 10 — RED: solver mutex + amplitude across midnight** [AC: 2, 6]
 
   In `apps/api/src/modules/planning/solver-model.spec.ts`, find `mutexes overlapping same-day slots per employee` (in `describe('buildSolverModel — hard constraint parity (AC6)')`) and add after it. These reuse the file's existing `emp` / `slot` / `baseInput` factories — note `slot(id, date, startTime, endTime, breakMinutes, requiredStaff, requiredJobTypes)` and that `baseInput` ships two employees, so each fixture below pins a single employee to keep the mutex count unambiguous.
 
@@ -989,7 +989,7 @@
   Expected RED: `mutexes a cross-midnight pair on adjacent dates` fails (0 mutexes — `a.date !== b.date` short-circuits) and `emits the statutory amplitude mutex when a same-date pair spans midnight` fails (span computed as 480 < 780). Emit the `Confirmed RED:` witness.
   Commit: `git add apps/api/src/modules/planning/solver-model.spec.ts && git commit -m "test(KON-132): RED — solver mutex + amplitude across midnight [AC-2][AC-6]"`
 
-- [ ] **Task 11 — GREEN: solver model wrap-awareness** [AC: 2, 6]
+- [x] **Task 11 — GREEN: solver model wrap-awareness** [AC: 2, 6]
 
   In `apps/api/src/modules/planning/solver-model.ts`:
 
@@ -1062,7 +1062,7 @@
   Expected GREEN: the three Task-10 tests pass and the existing 12-1 model suite stays green, exit 0.
   Commit: `git add apps/api/src/modules/planning/solver-model.ts && git commit -m "feat(KON-132): solver mutex + amplitude are wrap-aware [AC-2][AC-6]"`
 
-- [ ] **Task 12 — RED: validators accept overnight shift types** [AC: 5]
+- [x] **Task 12 — RED: validators accept overnight shift types** [AC: 5]
 
   In `packages/validators/src/clinic/shift-type.schema.test.ts`, add:
 
@@ -1146,7 +1146,7 @@
   Expected RED: the four "accepts an overnight shift type" tests fail (`success` is `false` — the refine still demands `end > start`); the zero-length ones already pass. Emit the `Confirmed RED:` witness.
   Commit: `git add packages/validators/src/clinic/shift-type.schema.test.ts packages/validators/src/clinic/onboarding.schema.test.ts && git commit -m "test(KON-132): RED — overnight shift types rejected by validators [AC-5]"`
 
-- [ ] **Task 13 — GREEN: unlock overnight shift types (validators + front guards)** [AC: 5]
+- [x] **Task 13 — GREEN: unlock overnight shift types (validators + front guards)** [AC: 5]
 
   **13a.** In `packages/validators/src/clinic/onboarding.schema.ts`, replace `shiftTypeSchema` (currently `:61-64`) with:
 
@@ -1214,7 +1214,7 @@
   Expected GREEN: `Tests: ... passed`, exit 0, with the four overnight tests now passing.
   Commit: `git add packages/validators/src/clinic/onboarding.schema.ts packages/validators/src/clinic/shift-type.schema.ts "apps/web/src/app/[locale]/admin/onboarding/_components/steps/StepShiftTypes.tsx" "apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx" && git commit -m "feat(KON-132): allow shift types crossing midnight [AC-5]"`
 
-- [ ] **Task 14 — Full regression + typecheck** [AC: 3]
+- [x] **Task 14 — Full regression + typecheck** [AC: 3]
 
   Rebuild the shared packages before typechecking the apps — `@pawly/*` have no path mapping, so a stale `dist` silently hides validator changes from `apps/web` (Epic 11 lesson, project memory).
 
@@ -1656,17 +1656,83 @@ Story 13-1 (KON-131) runs in the same wave and also edits `moveShift` / `createM
 
 ## Dev Agent Record
 
-- **Model:** _(set by aped-dev)_
-- **Started:** _(set by aped-dev)_
-- **Completed:** _(set by aped-dev)_
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-16
+- **Completed:** 2026-07-16
 
 ### Summary
 
+Extracted one wrap-aware `shift-interval` primitive and routed every overlap /
+rest-gap / amplitude check through it, closing T3 — the only audited path where an
+INVALID plan could be SERVED. The greedy eligibility scan, the minRest arithmetic,
+the three manual-write guards (`moveShift` / `createManualShift` / `preValidateMove`),
+and the CP-SAT model's mutex + amplitude constraints now all agree on what
+"overnight" means. In the same story the product capability was unlocked: the
+validators (and their two hard-coded front mirrors) accept a shift type crossing
+midnight (`22:00 → 06:00`) while still rejecting a zero-length slot; clinic opening
+hours keep `end > start`. Greedy default stays byte-identical (AC-3).
+
 ### Files changed
+
+- apps/api/src/modules/planning/shift-interval.ts (new)
+- apps/api/src/modules/planning/shift-interval.spec.ts (new)
+- apps/api/src/modules/planning/planning-generation.service.ts
+- apps/api/src/modules/planning/planning-generation.service.spec.ts
+- apps/api/src/modules/planning/solver-model.ts
+- apps/api/src/modules/planning/solver-model.spec.ts
+- apps/api/src/modules/planning/french-labor-law.ts
+- apps/api/src/trpc/routers/clinic.router.spec.ts
+- packages/validators/src/clinic/onboarding.schema.ts
+- packages/validators/src/clinic/onboarding.schema.test.ts
+- packages/validators/src/clinic/shift-type.schema.ts
+- packages/validators/src/clinic/shift-type.schema.test.ts
+- apps/web/src/app/[locale]/admin/onboarding/_components/steps/StepShiftTypes.tsx
+- apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx
 
 ### Deviations
 
+- **`shift-interval.spec.ts`, two Task-1 cases corrected (decided with Alex).** The
+  zero-length overlap case: the primitive as written in the story reported an overlap
+  for an empty `[t, t)` interval falling inside another — `intervalsOverlap` now guards
+  on emptiness. And the "same-date morning" case: a `22:00→06:00` shift dated D runs
+  into D+1, so it does not overlap a `05:00→09:00` shift on D itself; that pair is a 25h
+  amplitude breach (11-3), not a double-booking. The test was flipped to `false`.
+- **`timesOverlap` kept as a same-day alias through Tasks 6-8, deleted in Task 9.** The
+  story's Task 5 renamed it to `windowsOverlap` outright, which would have broken the
+  three manual-write guards' still-same-day tests two tasks before Task 9 migrates them.
+- **`shiftEpoch` (french-labor-law) not deleted** — the story predicted it unused after
+  Task 3, but `weekHasRestDeficit` and `findStatutoryViolations` still call it.
+- **Task 12/14 flipped four+one obsolete overnight-reject tests the story didn't list**
+  (`shift-type.schema.test.ts`, `onboarding.schema.test.ts`, and `clinic.router.spec.ts`
+  — the tRPC router validates through the same schema). Clinic-opening-hours and
+  zero-length assertions were left untouched, as the story directs.
+- **Environment:** the worktree shipped half-bootstrapped (root `node_modules` was a
+  symlink to the main checkout; no per-package installs, no Prisma client). Ran
+  `pnpm install` + `pnpm db:generate` to isolate it — otherwise web tests would have
+  resolved `@pawly/validators` against another branch's code.
+- The two front guards (Tasks 13c/13d) have no automated spec (none exists for the
+  onboarding wizard); deferred to the L2 journey at review, as the story notes.
+
 ### Test output
+
+```
+# pnpm --filter @pawly/api test
+Test Suites: 39 passed, 39 total
+Tests:       1070 passed, 1070 total
+
+# pnpm --filter @pawly/validators test
+Test Files  27 passed (27)
+Tests  782 passed (782)
+
+# pnpm --filter @pawly/web test
+Test Files  52 passed (52)
+Tests  769 passed (769)
+```
+
+Production files (`shift-interval.ts`, `solver-model.ts`, `french-labor-law.ts`,
+`planning-generation.service.ts`) are `tsc --noEmit` clean; the 24 remaining strict-tsc
+errors are pre-existing spec type-loosenesses (is24_7, variance pagination, counterType
+enum) in files this story never touched.
 
 ## Review Record
 
