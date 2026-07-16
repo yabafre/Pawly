@@ -1219,27 +1219,29 @@ export class PlanningGenerationService {
       const minRest = config.minRestHoursBetweenShifts as number | undefined;
       if (minRest) {
         const minRestMin = minRest * 60;
-        const prevDate = this.getPreviousDate(slot.date);
-        const prevShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
-        for (const prev of prevShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(prev.endTime) +
-            this.toMinutes(slot.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
-        }
-        const nextDate = this.getNextDate(slot.date);
-        const nextShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
-        for (const next of nextShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(slot.endTime) +
-            this.toMinutes(next.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
+        // Story 13-3 (KON-132) — measure the REAL gap between absolute intervals.
+        // The previous arithmetic (24*60 - end + start) silently credited a full
+        // extra day whenever the neighbouring shift crossed midnight.
+        const candidate = {
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        };
+        for (const neighbourDate of [
+          this.getPreviousDate(slot.date),
+          this.getNextDate(slot.date),
+        ]) {
+          const neighbours =
+            ctx.assignmentIndex.get(`${emp.id}|${neighbourDate}`) || [];
+          for (const neighbour of neighbours) {
+            const rest = restMinutesBetween(candidate, {
+              date: neighbour.date,
+              startTime: neighbour.startTime,
+              endTime: neighbour.endTime,
+            });
+            if (rest < minRestMin)
+              return { eligible: false, blockedOnlyByRotation: false };
+          }
         }
       }
     }
@@ -3640,11 +3642,6 @@ export class PlanningGenerationService {
     const date = new Date(`${dateStr}T00:00:00.000Z`);
     date.setUTCDate(date.getUTCDate() + 1);
     return date.toISOString().split('T')[0];
-  }
-
-  private toMinutes(time: string): number {
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
   }
 
   private getWeekBounds(dateStr: string): { start: string; end: string } {
