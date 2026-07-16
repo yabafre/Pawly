@@ -4499,6 +4499,79 @@ describe('PlanningGenerationService', () => {
       expect(result.holeInfo).toBeDefined();
     });
 
+    // Story 13-3 (KON-132) — AC4: the rest gap must be measured in real time. With
+    // an overnight neighbour the old arithmetic (24*60 - end + start) credited a
+    // whole extra day: 06:00 -> 08:00 scored as 26h of rest instead of 2h.
+    it('blocks employee when the previous-day shift ran past midnight and real rest is short', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 works 22:00 on 03-02 -> 06:00 on 03-03. Real rest before 08:00 = 2h.
+      const prevShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('still allows employee when the previous-day shift ran past midnight but real rest suffices', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '18:00',
+        endTime: '22:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Same overnight shift, but the slot starts at 18:00 -> real rest = 12h >= 11h.
+      const prevShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+
     it('blocks employee when rest before next day shift is insufficient', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
