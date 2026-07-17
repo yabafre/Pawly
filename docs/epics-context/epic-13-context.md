@@ -111,4 +111,24 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
 
 ## 8. Previous stories — outcomes
 
-_(append as Epic 13 stories complete)_
+### Story 13-7-equity-counters-utc — done 2026-07-16T13:39:39Z
+
+- **Decisions:** Persisted equity counting is now a single pure UTC core
+  (`equity-counting.ts`, next to `french-labor-law.ts`/`rule-engine.ts`); both runners
+  (Nest `EquityCounterService.recalculateForPeriod` + Trigger `equity-recalc.ts`) import it —
+  no counting logic may be duplicated between them again (T8). Cron month-selection stays
+  local by design (documented Non-Goal). `EquityCounterName` mirrors Prisma's enum locally to
+  keep the core Prisma-free for the Trigger bundle.
+- **Files:** `apps/api/src/modules/planning/equity-counting.ts` (new),
+  `equity-counting.spec.ts` (new), `equity-counter.service.ts` (delegates),
+  `equity-counter.service.spec.ts` (UTC-midnight mocks), `trigger/tasks/equity-recalc.ts`
+  (duplication removed), `trigger/tasks/equity-recalc.spec.ts` (new, review-added AC-1 coverage),
+  root `package.json` (engines `>=22.3.0`).
+- **Contracts:** exports `computeEquityCounters`, `utcMonthBounds`, `utcDateKey`,
+  `utcDaysInMonth`, `calculateShiftMinutes`, and types `EquityCounterRow` / `EquityCounterName` /
+  `EquityShiftInput` / `EquityEmployeeInput` / `EquityCountingInput`. Any future story recomputing
+  equity counters MUST call this core, not re-implement day/bounds math.
+- **Deviations from plan:** timezone-invariance specs needed `process.getBuiltinModule('node:process')`
+  to flush V8's TZ cache under Jest (plain `process.env.TZ` is a no-op there); engines bumped to
+  `>=22.3.0` for that API. Review added a Trigger-runner spec (AC-1 was proven only by inspection).
+  `OVERTIME_HOURS` still stores MINUTES (persisted enum name unchanged — separate migration).

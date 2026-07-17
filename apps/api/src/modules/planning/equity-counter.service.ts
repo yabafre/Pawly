@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import type { EquityCounterType } from '@prisma/client';
+import {
+  computeEquityCounters,
+  utcDateKey,
+  utcMonthBounds,
+} from './equity-counting';
 
 export interface CounterWithEmployee {
   id: string;
@@ -147,15 +152,15 @@ export class EquityCounterService {
 
   /**
    * Full recalculation of all counters for a clinic/period from source-of-truth.
-   * Uses a Prisma transaction for atomic batch upsert.
+   * Bounds and counting are UTC and shared with the equity-recalc Trigger task via
+   * equity-counting.ts (Story 13-7). Uses a Prisma transaction for atomic batch upsert.
    */
   async recalculateForPeriod(
     clinicId: string,
     year: number,
     month: number,
   ): Promise<{ countersUpdated: number }> {
-    const periodStart = new Date(year, month - 1, 1);
-    const periodEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    const { periodStart, periodEnd } = utcMonthBounds(year, month);
 
     // Fetch all active employees for this clinic
     const employees = await this.prisma.employee.findMany({
@@ -186,9 +191,7 @@ export class EquityCounterService {
       select: { date: true },
     });
 
-    const closedDaySet = new Set(
-      closedDays.map((cd) => cd.date.toISOString().split('T')[0]),
-    );
+    const closedDayKeys = new Set(closedDays.map((cd) => utcDateKey(cd.date)));
 
     // Fetch CONTRACT_COMPLIANCE rule for overtime threshold
     const contractRule = await this.prisma.planningRule.findFirst({
@@ -205,81 +208,16 @@ export class EquityCounterService {
           .overtimeThresholdPercent as number) ?? 0)
       : 0;
 
-    // Calculate counters per employee
+    const counters = computeEquityCounters({
+      year,
+      month,
+      employees,
+      shifts,
+      closedDayKeys,
+      overtimeThresholdPercent,
+    });
+
     const now = new Date();
-    const counters: {
-      employeeId: string;
-      counterType: EquityCounterType;
-      count: number;
-    }[] = [];
-
-    for (const employee of employees) {
-      const employeeShifts = shifts.filter((s) => s.employeeId === employee.id);
-
-      let saturdayCount = 0;
-      let weekendCount = 0;
-      let holidayCount = 0;
-      let totalShiftMinutes = 0;
-
-      for (const shift of employeeShifts) {
-        const shiftDate = new Date(shift.date);
-        const dayOfWeek = shiftDate.getDay(); // 0=Sunday, 6=Saturday
-
-        if (dayOfWeek === 6) {
-          saturdayCount++;
-          weekendCount++;
-        } else if (dayOfWeek === 0) {
-          weekendCount++;
-        }
-
-        // Holiday detection: check if shift date is a closed day
-        const dateKey = shiftDate.toISOString().split('T')[0];
-        if (closedDaySet.has(dateKey)) {
-          holidayCount++;
-        }
-
-        // Calculate shift duration in minutes
-        totalShiftMinutes += this.calculateShiftMinutes(
-          shift.startTime,
-          shift.endTime,
-        );
-      }
-
-      // Calculate overtime: excess minutes beyond adjusted contract limit
-      const daysInMonthCount = new Date(year, month, 0).getDate();
-      const weeksInMonthCount = daysInMonthCount / 7;
-      const contractLimitMinutes =
-        employee.contractHours * 60 * weeksInMonthCount;
-      const adjustedLimitMinutes =
-        contractLimitMinutes * (1 + overtimeThresholdPercent / 100);
-      const overtimeMinutes = Math.max(
-        0,
-        Math.round(totalShiftMinutes - adjustedLimitMinutes),
-      );
-
-      counters.push(
-        {
-          employeeId: employee.id,
-          counterType: 'SATURDAY_WORKED',
-          count: saturdayCount,
-        },
-        {
-          employeeId: employee.id,
-          counterType: 'WEEKEND_TOTAL',
-          count: weekendCount,
-        },
-        {
-          employeeId: employee.id,
-          counterType: 'HOLIDAY_WORKED',
-          count: holidayCount,
-        },
-        {
-          employeeId: employee.id,
-          counterType: 'OVERTIME_HOURS',
-          count: overtimeMinutes,
-        },
-      );
-    }
 
     // Batch upsert in a transaction
     const result = await this.prisma.$transaction(
@@ -334,19 +272,5 @@ export class EquityCounterService {
         );
       }
     }
-  }
-
-  /**
-   * Calculate shift duration in minutes from HH:mm time strings.
-   */
-  private calculateShiftMinutes(startTime: string, endTime: string): number {
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    // Handle overnight shifts
-    return endMinutes >= startMinutes
-      ? endMinutes - startMinutes
-      : 1440 - startMinutes + endMinutes;
   }
 }

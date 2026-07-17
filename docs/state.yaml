@@ -181,7 +181,7 @@ sprint:
     13-4-statutory-extensions: {status: pending, depends_on: [13-2-unified-validation-windows], ticket: "KON-136", worktree: null}
     13-5-solver-model-fidelity: {status: pending, depends_on: [13-3-cross-midnight-overlap], ticket: "KON-135", worktree: null}
     13-6-served-plan-truth-observability: {status: pending, depends_on: [13-5-solver-model-fidelity], ticket: "KON-137", worktree: null}
-    13-7-equity-counters-utc: {status: pending, depends_on: [], ticket: "KON-133", worktree: null}
+    13-7-equity-counters-utc: {status: done, depends_on: [], ticket: "KON-133", worktree: null, completed_at: "2026-07-16T13:39:39Z"}
     13-8-invariant-test-harness: {status: pending, depends_on: [13-3-cross-midnight-overlap, 13-4-statutory-extensions, 13-6-served-plan-truth-observability], ticket: "KON-138", worktree: null}
   umbrella_branch: sprint/epic-13
 # Optional top-level blocks (Tier 6, 3.12.0). Skills populate these as
