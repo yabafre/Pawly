@@ -1819,6 +1819,10 @@ findings sat in the periphery the story's own scope opened up.
   with the web Vitest suite + review subagents (machine load 10–30). It passes in isolation
   (1561–1752 ms) and in the final uncontended full-suite run; confirmed environmental
   (unchanged by this story) by all three auditors independently.
-- **Visual:** not applicable — backend-heavy story; the two front guards are single boolean
-  conditions and their validation was deferred to the L2 journey per the story's own scope,
-  with the Zod schemas (fully tested) as the real net.
+- **L2 headed journey (next-browser, run post-review at Alex's request):** registered a fresh
+  Starter clinic → onboarding wizard → step "Types de postes" → set a shift type to `22:00 → 06:00`.
+  The overnight type is accepted (no `incompleteStep` toast; with the pre-fix `endTime > startTime`
+  guard it would have been blocked), the wizard completes (`completeOnboardingAction` 200 →
+  `/admin/dashboard`), and the DB confirms the persisted shift type `CHIR 22:00→06:00` — closing
+  the front-guard gap the automated tests don't cover. The "+1 day" render indicator on
+  `ShiftCell` / `ShiftDayCard` remains deferred to a separate UX story (per the story's own scope).
