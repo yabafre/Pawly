@@ -96,7 +96,7 @@ describe('PlanningGenerationService', () => {
   };
 
   const mockOperationalConfig = {
-    workDays: ['1', '2', '3', '4', '5'],
+    workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
     defaultStartTime: '08:00',
     defaultEndTime: '18:00',
     closedDays: [] as Array<{
@@ -181,6 +181,9 @@ describe('PlanningGenerationService', () => {
     clinic: {
       findUniqueOrThrow: jest.fn(),
     },
+    // Story 13-1 — the default interactive-tx mock runs the callback with this base mock as
+    // `tx`, so `lockMonths` calls `tx.$executeRaw` (the manual-write advisory lock) against it.
+    $executeRaw: jest.fn().mockResolvedValue(0),
     $transaction: jest.fn(),
   };
 
@@ -1613,6 +1616,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -1666,6 +1670,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
             },
@@ -1707,6 +1712,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -1883,6 +1889,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue(createdShifts),
             },
@@ -1980,6 +1987,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -2039,6 +2047,7 @@ describe('PlanningGenerationService', () => {
           return fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -2106,6 +2115,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -2469,6 +2479,44 @@ describe('PlanningGenerationService', () => {
       // emp-1 is overlap-excluded; the remaining position goes to emp-2.
       expect(mar2[0].employeeId).toBe('emp-2');
     });
+
+    // AC4 (verbatim from story 13-1): Given a plan computed on a snapshot a concurrent
+    //   manual write has since invalidated, When generateMonthlyPlan reaches its write
+    //   transaction, Then it rejects with STALE_PLAN_REGENERATE rather than persisting a
+    //   double-booking. This is the audit T2 race: the survivor read that fed the plan
+    //   happened before the lock; the re-read under the lock sees the racing shift.
+    it('Story 13-1 — rejects a plan whose assignment now overlaps a shift committed since it was computed', async () => {
+      mockTemplateService.getTemplateById.mockResolvedValue(mondaySurgery2);
+      mockPrismaService.employee.findMany.mockResolvedValue(twoVets);
+      // Plan computed against an empty month (pre-lock survivors read via prisma => []), so
+      // the greedy pass assigns emp-1 + emp-2 to the two Mon 2026-03-02 SURGERY slots.
+      mockShiftQueries([]);
+      // By the time the lock is held a concurrent write has committed an overlapping MANUAL
+      // shift on emp-1 / Mon 2026-03-02 (08:00-18:00 covers the generated 08:00-12:00), which
+      // the re-read under the lock (tx.shift.findMany) sees.
+      const racingShift = {
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '18:00',
+      };
+      const tx = {
+        $executeRaw: jest.fn().mockResolvedValue(0),
+        shift: {
+          findMany: jest.fn().mockResolvedValue([racingShift]),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createManyAndReturn: jest.fn().mockResolvedValue([]),
+        },
+      };
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+      );
+
+      await expect(
+        service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-11-2'),
+      ).rejects.toThrow('STALE_PLAN_REGENERATE');
+      expect(tx.shift.createManyAndReturn).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Story 11-7 — equity entry for every employee (seeding + create-if-absent) ──
@@ -2495,6 +2543,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -4349,6 +4398,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -4376,6 +4426,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -4416,6 +4467,7 @@ describe('PlanningGenerationService', () => {
           return cb({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockImplementation(({ data }) => {
                 const created = data.map((d: any, idx: number) => ({
@@ -5290,6 +5342,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -5318,6 +5371,7 @@ describe('PlanningGenerationService', () => {
         cb({
           $executeRaw: jest.fn().mockResolvedValue(0),
           shift: {
+            findMany: jest.fn().mockResolvedValue([]),
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createManyAndReturn: jest.fn().mockResolvedValue([]),
           },
@@ -5369,6 +5423,10 @@ describe('PlanningGenerationService', () => {
     };
 
     beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
       mockPrismaService.shift.findUnique.mockResolvedValue(mockShift);
       mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
       mockPrismaService.shift.findMany.mockResolvedValue([]);
@@ -6483,6 +6541,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: txDeleteMany,
               createManyAndReturn: jest.fn().mockResolvedValue([
                 {
@@ -6539,6 +6598,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest.fn().mockResolvedValue([]),
             },
@@ -6646,6 +6706,7 @@ describe('PlanningGenerationService', () => {
           const tx = {
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
               createManyAndReturn: jest.fn().mockResolvedValue([
                 {
@@ -6846,10 +6907,9 @@ describe('PlanningGenerationService', () => {
     });
 
     it('returns HARD OVERLAP violation when shift times overlap', async () => {
-      // shift.findMany is called multiple times in preValidateMove:
-      // 1st call: existingShifts (in Promise.all) — return overlapping shift
-      // 2nd call: weekShifts — return empty
-      // 3rd call: monthShifts — return empty
+      // Story 13-1 — loadMoveValidationInputs issues 4 shift.findMany calls in order:
+      // overlapWindowShifts, weekShifts, monthShifts, statutoryWindowShifts (the last one
+      // falls back to the beforeEach default []).
       mockPrismaService.shift.findMany
         .mockResolvedValueOnce([
           {
@@ -6858,9 +6918,9 @@ describe('PlanningGenerationService', () => {
             endTime: '14:00',
             breakMinutes: 0,
           },
-        ])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+        ]) // overlapWindowShifts — overlapping
+        .mockResolvedValueOnce([]) // weekShifts
+        .mockResolvedValueOnce([]); // monthShifts
 
       const result = await service.preValidateMove(clinicId, defaultInput);
       expect(result.hard).toEqual(
@@ -6902,9 +6962,10 @@ describe('PlanningGenerationService', () => {
         clinicId,
       }));
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts — no overlap
+        .mockResolvedValueOnce([]) // overlapWindowShifts — no overlap
         .mockResolvedValueOnce([]) // weekShifts
-        .mockResolvedValueOnce(consec); // monthShifts — statutory window
+        .mockResolvedValueOnce([]) // monthShifts
+        .mockResolvedValueOnce(consec); // statutoryWindowShifts (+/-8 real days, Story 13-1)
 
       const result = await service.preValidateMove(clinicId, {
         ...defaultInput,
@@ -6949,12 +7010,32 @@ describe('PlanningGenerationService', () => {
       // 2nd: weekShifts — heavy week
       // 3rd: monthShifts — empty
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 }, // 9h net
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 }, // 6h net = total 33h
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          }, // 9h net
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          }, // 6h net = total 33h
         ]) // weekShifts
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -6984,12 +7065,32 @@ describe('PlanningGenerationService', () => {
       ]);
       // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
         ]) // weekShifts = 33h net
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -7017,12 +7118,32 @@ describe('PlanningGenerationService', () => {
         },
       ]);
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // existingShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '18:00', breakMinutes: 60 },
-          { startTime: '08:00', endTime: '14:00', breakMinutes: 0 },
+          {
+            date: new Date('2025-03-03T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-05T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '18:00',
+            breakMinutes: 60,
+          },
+          {
+            date: new Date('2025-03-07T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '14:00',
+            breakMinutes: 0,
+          },
         ]) // weekShifts = 33h net
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -7075,6 +7196,9 @@ describe('PlanningGenerationService', () => {
             return Promise.resolve(0);
           }),
         shift: {
+          // Story 13-1 — the stale-plan re-validation reads survivors under the lock;
+          // return none so this recording tx exercises the happy path unchanged.
+          findMany: jest.fn().mockResolvedValue([]),
           deleteMany: jest.fn().mockImplementation(() => {
             calls.push('deleteMany');
             return Promise.resolve({ count: 0 });
@@ -7946,6 +8070,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -8081,6 +8206,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -8243,6 +8369,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -8548,6 +8675,8 @@ describe('PlanningGenerationService', () => {
             fn({
               $executeRaw: jest.fn().mockResolvedValue(0),
               shift: {
+                // Story 13-1 — the generation tx reads survivors for the stale-plan check.
+                findMany: jest.fn().mockResolvedValue([]),
                 deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
                 createManyAndReturn: jest
                   .fn()
@@ -8667,6 +8796,7 @@ describe('PlanningGenerationService', () => {
             fn({
               $executeRaw: jest.fn().mockResolvedValue(0),
               shift: {
+                findMany: jest.fn().mockResolvedValue([]),
                 deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
                 createManyAndReturn: jest
                   .fn()
@@ -8804,6 +8934,7 @@ describe('PlanningGenerationService', () => {
             fn({
               $executeRaw: jest.fn().mockResolvedValue(0),
               shift: {
+                findMany: jest.fn().mockResolvedValue([]),
                 deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
                 createManyAndReturn: jest
                   .fn()
@@ -8918,6 +9049,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -9029,6 +9161,7 @@ describe('PlanningGenerationService', () => {
           fn({
             $executeRaw: jest.fn().mockResolvedValue(0),
             shift: {
+              findMany: jest.fn().mockResolvedValue([]),
               deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
               createManyAndReturn: jest
                 .fn()
@@ -9103,5 +9236,350 @@ describe('PlanningGenerationService', () => {
       // Keep the wrapper timeout above the CI budget so the assertion — not Jest's
       // default 5000ms timeout — is what gates on a contended runner.
     }, 30000);
+  });
+
+  // ─── Story 13-1 (KON-131) — server-side manual-write guards ──────
+  // Audit 2026-07-14 T1: moveShift persisted with zero statutory / rule-engine guard;
+  // preValidateMove (client-invoked) was the only check. These tests call the service
+  // directly — exactly what a client hitting the tRPC API without pre-validating does.
+  describe('Story 13-1 — moveShift server-side guards', () => {
+    const movedShift = {
+      id: 'shift-1',
+      clinicId: 'clinic-123',
+      employeeId: 'emp-1',
+      date: new Date('2026-03-02T00:00:00.000Z'), // Monday
+      startTime: '08:00',
+      endTime: '12:00',
+      shiftTypeCode: 'SURGERY',
+      breakMinutes: 0,
+      source: 'GENERATED',
+      isConfirmed: false,
+    };
+
+    beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
+      mockPrismaService.shift.findUnique.mockResolvedValue(movedShift);
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        ...movedShift,
+        employeeId: 'emp-2',
+        source: 'MANUAL',
+      });
+    });
+
+    // AC1 (verbatim from story 13-1): Given a move that would introduce a statutory or
+    //   HARD-rule violation, When planning.moveShift is called from any client, Then the
+    //   mutation is rejected server-side and no shift.update is persisted.
+    it('rejects a move that breaches a statutory limit, with no client pre-check involved', async () => {
+      // emp-2 already holds 13:00-20:00 (7h) on 2026-03-02; the moved 08:00-12:00 (4h)
+      // takes the day to 11h > the 10h L.3121-18 limit. Amplitude 08:00->20:00 = 12h stays
+      // under 13h, so DAILY_WORK is the only statutory breach, and 13:00 does not overlap
+      // 08:00-12:00 so OVERLAP stays silent.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-2',
+          employeeId: 'emp-2',
+          clinicId: 'clinic-123',
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '13:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'RECEPTION',
+        },
+      ]);
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetEmployeeId: 'emp-2',
+        }),
+      ).rejects.toThrow('Statutory limit exceeded: DAILY_WORK');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a move onto a non-work day', async () => {
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetDate: '2026-03-07', // Saturday
+        }),
+      ).rejects.toThrow('Target date is not a work day');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a move onto a HARD-unavailable employee', async () => {
+      mockPrismaService.unavailability.findMany.mockResolvedValue([
+        { type: 'VACATION', reason: null, daysOfWeek: [] },
+      ]);
+      await expect(
+        service.moveShift('clinic-123', 'shift-1', {
+          targetEmployeeId: 'emp-2',
+        }),
+      ).rejects.toThrow('Employee is unavailable (VACATION)');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+    });
+
+    it('persists a legal move', async () => {
+      const result = await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(result.employeeId).toBe('emp-2');
+      expect(mockPrismaService.shift.update).toHaveBeenCalled();
+    });
+
+    // AC2 (verbatim from story 13-1): Given a PUBLISHED month, When an acknowledged
+    //   amendment would violate a statutory limit, Then it is rejected before any employee
+    //   notification is sent and before any amendment is recorded.
+    it('rejects a statutory-breaching amendment on a PUBLISHED month before notifying', async () => {
+      mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
+        { month: '2026-03' },
+      ]);
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-2',
+          employeeId: 'emp-2',
+          clinicId: 'clinic-123',
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '13:00',
+          endTime: '20:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'RECEPTION',
+        },
+      ]);
+      await expect(
+        service.moveShift(
+          'clinic-123',
+          'shift-1',
+          { targetEmployeeId: 'emp-2' },
+          { acknowledgePublishedChange: true },
+        ),
+      ).rejects.toThrow('Statutory limit exceeded: DAILY_WORK');
+      expect(mockPrismaService.shift.update).not.toHaveBeenCalled();
+      expect(mockMailService.sendScheduleChangedEmail).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.planningPeriodStatus.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Story 13-1 (KON-131) — shared lock + TOCTOU ─────────────────
+  // Audit 2026-07-14 T2: manual writes took no advisory lock, and the generated plan was
+  // persisted without being re-checked against the state committed since it was computed.
+  describe('Story 13-1 — shared advisory lock and stale-plan rejection', () => {
+    const lockSql = (calls: unknown[][]) =>
+      calls.filter((c) => String(c[0]).includes('pg_advisory_xact_lock'));
+
+    beforeEach(() => {
+      mockClinicService.getOperationalConfig.mockResolvedValue({
+        ...mockOperationalConfig,
+        workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      });
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+    });
+
+    // AC3 (verbatim from story 13-1): moveShift, createManualShift and generateMonthlyPlan
+    //   all serialize on the same pg_advisory_xact_lock(clinicId, month).
+    it('moveShift takes the (clinicId, month) advisory lock', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-2',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(
+        lockSql(mockPrismaService.$executeRaw.mock.calls).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+
+    // A cross-month move locks BOTH months, in sorted order — two admins moving in
+    // opposite directions must not deadlock.
+    it('a cross-month move locks both months in sorted order', async () => {
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-04-01T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+      mockPrismaService.shift.update.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'MANUAL',
+        isConfirmed: false,
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetDate: '2026-03-02',
+      });
+      const months = lockSql(mockPrismaService.$executeRaw.mock.calls).flatMap(
+        (c) => (c as unknown[]).slice(1).map(String),
+      );
+      const monthArgs = months.filter((m) => /^\d{4}-\d{2}$/.test(m));
+      expect(monthArgs).toEqual([...monthArgs].sort());
+      expect(new Set(monthArgs)).toEqual(new Set(['2026-03', '2026-04']));
+    });
+
+    // Audit F1 (aped-review) — the comment above claims createManualShift serializes on the
+    // same lock, but no test exercised it: createManualShift was the one Epic-13 write path
+    // whose lock acquisition was unverified (exactly the "untested entry point" class this
+    // story exists to close, epic-13 context §5).
+    it('createManualShift takes the (clinicId, month) advisory lock', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[0]);
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        code: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 30,
+        clinicId: 'clinic-123',
+      });
+      mockPrismaService.shift.create.mockResolvedValue({
+        id: 'new-shift',
+        date: new Date('2026-03-03T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 30,
+        source: 'MANUAL',
+        employeeId: 'emp-1',
+        isConfirmed: false,
+        clinicId: 'clinic-123',
+      });
+      mockPrismaService.$executeRaw.mockResolvedValue(0);
+
+      await service.createManualShift('clinic-123', {
+        employeeId: 'emp-1',
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+      });
+
+      const months = lockSql(mockPrismaService.$executeRaw.mock.calls).flatMap(
+        (c) => (c as unknown[]).slice(1).map(String),
+      );
+      expect(
+        lockSql(mockPrismaService.$executeRaw.mock.calls).length,
+      ).toBeGreaterThanOrEqual(1);
+      expect(months).toContain('2026-03');
+    });
+
+    // Audit F1 (aped-review) — the lock set must key off `fresh` (the shift's LIVE month),
+    // not the pre-lock read. A concurrent move relocated the shift 2026-03 -> 2026-04 before
+    // the lock; the write lands in 2026-04, so 2026-04 MUST be locked or the double-book
+    // window this story closes reopens. The bespoke tx returns the relocated row while the
+    // pre-lock read (this.prisma) still shows 2026-03.
+    it("locks fresh's live month when a concurrent move relocated the shift since the pre-lock read", async () => {
+      // Pre-lock read (this.prisma) — stale: the shift still appears in 2026-03.
+      mockPrismaService.shift.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        clinicId: 'clinic-123',
+        employeeId: 'emp-1',
+        date: new Date('2026-03-02T00:00:00.000Z'),
+        startTime: '08:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+        source: 'GENERATED',
+        isConfirmed: false,
+      });
+      mockPrismaService.employee.findFirst.mockResolvedValue(mockEmployees[1]);
+
+      const lockArgs: string[] = [];
+      const tx = {
+        $executeRaw: jest.fn((strings: unknown, ...args: unknown[]) => {
+          if (String(strings).includes('pg_advisory_xact_lock')) {
+            lockArgs.push(...args.map(String));
+          }
+          return Promise.resolve(0);
+        }),
+        shift: {
+          // Under the lock, the LIVE row is 2026-04-06 (Monday) — relocated by a racing move.
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'shift-1',
+            clinicId: 'clinic-123',
+            employeeId: 'emp-1',
+            date: new Date('2026-04-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '12:00',
+            shiftTypeCode: 'SURGERY',
+            breakMinutes: 0,
+            source: 'GENERATED',
+            isConfirmed: false,
+          }),
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn().mockResolvedValue({
+            id: 'shift-1',
+            clinicId: 'clinic-123',
+            employeeId: 'emp-2',
+            date: new Date('2026-04-06T00:00:00.000Z'),
+            startTime: '08:00',
+            endTime: '12:00',
+            shiftTypeCode: 'SURGERY',
+            breakMinutes: 0,
+            source: 'MANUAL',
+            isConfirmed: false,
+          }),
+        },
+        employee: {
+          findFirst: jest.fn().mockResolvedValue(mockEmployees[1]),
+        },
+        unavailability: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+      );
+
+      // Employee-only move (no targetDate) => destination month = fresh's live month, 2026-04.
+      await service.moveShift('clinic-123', 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+
+      const monthArgs = lockArgs.filter((m) => /^\d{4}-\d{2}$/.test(m));
+      expect(monthArgs).toContain('2026-04');
+      // Still taken in sorted order — the single-shot union stays deadlock-free.
+      expect(monthArgs).toEqual([...monthArgs].sort());
+    });
   });
 });

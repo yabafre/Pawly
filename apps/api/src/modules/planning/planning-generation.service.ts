@@ -30,6 +30,11 @@ import {
   type RuleType,
 } from './rule-engine';
 import {
+  evaluateMoveViolations,
+  type MoveEvalContext,
+  type MoveEvalShift,
+} from './move-validation';
+import {
   computeLoads,
   deriveEquityWeights,
   equityObjective,
@@ -191,6 +196,24 @@ export class PlanningGenerationService {
       }
     }
     throw lastError;
+  }
+
+  /**
+   * Story 13-1 (KON-131) — takes the (clinicId, month) advisory lock for every month a write
+   * touches, in SORTED order. Sorting is load-bearing: a cross-month move locks two months,
+   * and two admins moving in opposite directions (2026-03 -> 2026-04 and 2026-04 -> 2026-03)
+   * would deadlock if each locked "source then target". Same key shape as generation (:747)
+   * and publish (:3048), so manual writes now serialize against both. Auto-released at
+   * COMMIT / ROLLBACK on the transaction's pinned connection.
+   */
+  private async lockMonths(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    months: string[],
+  ): Promise<void> {
+    for (const m of [...new Set(months)].sort()) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${m}))`;
+    }
   }
 
   async generateMonthlyPlan(
@@ -758,6 +781,62 @@ export class PlanningGenerationService {
             // single-argument form; the tagged template binds them as parameters.
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
+            // Story 13-1 (KON-131) — audit T2 (TOCTOU). `assignedShifts` was computed far
+            // above, OUTSIDE this transaction and BEFORE the lock: survivors and manual
+            // shifts were read from a snapshot a concurrent moveShift / createManualShift may
+            // have invalidated since. Now that the lock is held, re-read the shifts that will
+            // SURVIVE the deleteMany below (exact complement of its filter) and re-check the
+            // plan against them. The 11-2 @@unique constraint only catches an exact
+            // (employee, date, slot) duplicate — a partial time overlap between two different
+            // slots slips past it, which is precisely the double-booking this closes.
+            const survivors = await tx.shift.findMany({
+              where: {
+                clinicId,
+                date: { gte: monthStart, lte: monthEnd },
+                NOT: {
+                  source: 'GENERATED',
+                  isConfirmed: false,
+                  varianceEvents: { none: {} },
+                },
+              },
+              select: {
+                employeeId: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+              },
+            });
+            const survivorsByKey = new Map<string, typeof survivors>();
+            for (const s of survivors) {
+              const key = `${s.employeeId}|${s.date.toISOString().split('T')[0]}`;
+              const arr = survivorsByKey.get(key) ?? [];
+              arr.push(s);
+              survivorsByKey.set(key, arr);
+            }
+            const staleConflicts = assignedShifts.filter((a) =>
+              (survivorsByKey.get(`${a.employeeId}|${a.date}`) ?? []).some(
+                (s) =>
+                  shiftsOverlap(
+                    {
+                      date: a.date,
+                      startTime: a.startTime,
+                      endTime: a.endTime,
+                    },
+                    {
+                      date: s.date.toISOString().split('T')[0],
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                    },
+                  ),
+              ),
+            );
+            if (staleConflicts.length > 0) {
+              this.logger.warn(
+                `KON-131 stale plan for ${clinicId}/${month}: ${staleConflicts.length} assignment(s) conflict with shifts committed since the plan was computed — rejecting, the client can regenerate`,
+              );
+              throw new ConflictException('STALE_PLAN_REGENERATE');
+            }
+
             // Story 11-1 — preserve confirmed shifts and shifts carrying variance
             // history (VarianceEvent cascades on delete → would erase no-show /
             // clock-in records). Only unconfirmed, history-free GENERATED shifts
@@ -798,6 +877,12 @@ export class PlanningGenerationService {
         throw new ConflictException(
           'Duplicate shift detected during generation',
         );
+      }
+      // Story 13-1 (KON-131) — the in-transaction stale-plan re-validation throws a
+      // ConflictException on purpose (AC4). It is a real, retriable business conflict, not
+      // an infra failure, so surface it to the caller rather than masking it as a 500.
+      if (error instanceof ConflictException) {
+        throw error;
       }
       this.logger.error('Transaction failed during shift generation', error);
       throw new InternalServerErrorException(
@@ -2387,7 +2472,6 @@ export class PlanningGenerationService {
     }
 
     // Story 7.6 — post-publication guard (checks BOTH months on a cross-month move)
-    const originalEmployeeId = shift.employeeId;
     const originalDateISO = shift.date.toISOString().split('T')[0];
     const originalMonth = originalDateISO.slice(0, 7);
     const targetMonth = target.targetDate
@@ -2399,85 +2483,126 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const overlapEmployeeId = target.targetEmployeeId || shift.employeeId;
-    const overlapDateISO = target.targetDate
-      ? target.targetDate
-      : shift.date.toISOString().split('T')[0];
+    // Story 11-6 — the shift mutation and the amendment bookkeeping commit atomically.
+    // Story 13-1 (KON-131) — and so does the DECISION: the lock is the transaction's first
+    // statement, every validation read is replayed from `tx` under it, and the write only
+    // happens if that replay is clean. Before this story the overlap check ran outside the
+    // transaction against an unlocked snapshot (audit T2) and no statutory / rule-engine
+    // check ran on this path at all (audit T1) — `preValidateMove` was the only guard, and
+    // it is client-invoked. Notification still fires AFTER commit (below), so a rejected or
+    // rolled-back change can never notify (AC2).
+    //
+    // Audit F1 (aped-review) — the lock set, the change flags and the amendment /
+    // notification recipients all key off `fresh` (the row actually being overwritten),
+    // NOT the pre-lock `shift`. Deriving them from the pre-lock snapshot left a window in
+    // which a concurrent same-shift relocation could make the write land in a month the
+    // lock never covered (reopening the T2 double-book) and make the amend / isConfirmed
+    // bookkeeping compare against a row that no longer reflected the write.
+    let amend = false;
+    let notifyRecipients: Array<{ employeeId: string; month: string }> = [];
+    const updated = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          // Re-read the shift's LIVE position first, so the lock set below covers the month
+          // it actually occupies now — a concurrent move may have relocated it since the
+          // pre-lock read. The shift is addressed by immutable id; its context (the other
+          // shifts) is read under the lock inside loadMoveValidationInputs.
+          const fresh = await tx.shift.findUnique({ where: { id: shiftId } });
+          if (!fresh) throw new NotFoundException('Shift not found');
+          if (fresh.clinicId !== clinicId)
+            throw new ForbiddenException(
+              'Shift does not belong to this clinic',
+            );
 
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: overlapEmployeeId,
-        clinicId,
-        date: { in: this.adjacentDayRange(overlapDateISO) },
-        id: { not: shiftId },
-      },
-    });
+          const freshDateISO = fresh.date.toISOString().split('T')[0];
+          const freshMonth = freshDateISO.slice(0, 7);
+          const resolvedTargetDate = target.targetDate ?? freshDateISO;
+          const resolvedTargetMonth = resolvedTargetDate.slice(0, 7);
+          // ONE sorted acquisition over every month this write reads or writes — the
+          // stale-derived pair AND fresh's live month + resolved destination. lockMonths
+          // sorts + dedupes, so the whole set is still taken in a single deadlock-free order.
+          await this.lockMonths(tx, clinicId, [
+            originalMonth,
+            targetMonth,
+            freshMonth,
+            resolvedTargetMonth,
+          ]);
 
-    for (const existing of existingShifts) {
-      if (
-        shiftsOverlap(
-          {
-            date: overlapDateISO,
-            startTime: shift.startTime,
-            endTime: shift.endTime,
-          },
-          {
-            date: existing.date.toISOString().split('T')[0],
-            startTime: existing.startTime,
-            endTime: existing.endTime,
-          },
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
+          const inputs = await this.loadMoveValidationInputs(
+            clinicId,
+            {
+              shift: {
+                id: fresh.id,
+                employeeId: fresh.employeeId,
+                date: freshDateISO,
+                startTime: fresh.startTime,
+                endTime: fresh.endTime,
+                breakMinutes: fresh.breakMinutes ?? 0,
+                shiftTypeCode: fresh.shiftTypeCode,
+              },
+              targetEmployeeId: target.targetEmployeeId ?? fresh.employeeId,
+              targetDate: resolvedTargetDate,
+            },
+            tx,
+          );
+          const { hard } = evaluateMoveViolations(inputs);
+          if (hard.length > 0) {
+            throw new ConflictException(
+              `Move rejected — ${hard.length} blocking violation(s): ${hard
+                .map((h) => h.message)
+                .join('; ')}`,
+            );
+          }
 
-    const employeeChanged =
-      !!target.targetEmployeeId && target.targetEmployeeId !== shift.employeeId;
-    const dateChanged =
-      !!target.targetDate && target.targetDate !== originalDateISO;
+          // Change flags key off `fresh`, the row actually being overwritten (audit F1).
+          const employeeChanged =
+            !!target.targetEmployeeId &&
+            target.targetEmployeeId !== fresh.employeeId;
+          const dateChanged =
+            !!target.targetDate && target.targetDate !== freshDateISO;
 
-    // Story 11-6 — the shift mutation and the amendment bookkeeping commit
-    // atomically. If recordAmendment throws, shift.update rolls back, so a
-    // moved shift can never be left without its amendment record. Notification
-    // fires AFTER commit (below), so a rolled-back change never notifies.
-    const amend =
-      publishedMonths.length > 0 && (employeeChanged || dateChanged);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.shift.update({
-        where: { id: shiftId },
-        data: {
-          ...(target.targetEmployeeId && {
-            employeeId: target.targetEmployeeId,
-          }),
-          ...(target.targetDate && {
-            date: new Date(`${target.targetDate}T00:00:00.000Z`),
-          }),
-          source: 'MANUAL',
-          // Story 7.6 — a moved shift is no longer the one the employee confirmed
-          ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+          const u = await tx.shift.update({
+            where: { id: shiftId },
+            data: {
+              ...(target.targetEmployeeId && {
+                employeeId: target.targetEmployeeId,
+              }),
+              ...(target.targetDate && {
+                date: new Date(`${target.targetDate}T00:00:00.000Z`),
+              }),
+              source: 'MANUAL',
+              // Story 7.6 — a moved shift is no longer the one the employee confirmed
+              ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+            },
+          });
+
+          amend =
+            publishedMonths.length > 0 && (employeeChanged || dateChanged);
+          if (amend) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+            const updatedMonth = u.date.toISOString().split('T')[0].slice(0, 7);
+            // Recipients keyed off `fresh` (source) and the committed row (destination),
+            // filtered to the published months. The published-month DETERMINATION still
+            // runs pre-lock (assertPublishedChangeAcknowledged) — widening that read under
+            // the lock is story 13-2's scope (audit F5), out of scope here.
+            notifyRecipients = [
+              { employeeId: fresh.employeeId, month: freshMonth },
+              { employeeId: u.employeeId, month: updatedMonth },
+            ].filter((r) => publishedMonths.includes(r.month));
+          }
+          return u;
         },
-      });
-      if (amend) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return u;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published months only), fire-and-forget
-    if (amend) {
-      const updatedMonth = updated.date.toISOString().split('T')[0].slice(0, 7);
-      const recipients = [
-        { employeeId: originalEmployeeId, month: originalMonth },
-        { employeeId: updated.employeeId, month: updatedMonth },
-      ].filter((r) => publishedMonths.includes(r.month));
-      this.notifyScheduleChange(clinicId, recipients).catch((err: Error) =>
-        this.logger.error(
-          `schedule-change notification failed: ${err.message}`,
-        ),
+    if (amend && notifyRecipients.length > 0) {
+      this.notifyScheduleChange(clinicId, notifyRecipients).catch(
+        (err: Error) =>
+          this.logger.error(
+            `schedule-change notification failed: ${err.message}`,
+          ),
       );
     }
 
@@ -2533,89 +2658,100 @@ export class PlanningGenerationService {
       input.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: { in: this.adjacentDayRange(input.date) },
-      },
-    });
+    // Story 13-1 (KON-131) — same shape as moveShift: lock first, then replay every check
+    // from `tx` under it. The overlap check and the 11-3 statutory check used to run against
+    // an unlocked pre-transaction snapshot, so a concurrent generation could commit a
+    // conflicting shift between the check and the create (audit T2).
+    const created = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await this.lockMonths(tx, clinicId, [month]);
 
-    for (const existing of existingShifts) {
-      if (
-        shiftsOverlap(
-          {
-            date: input.date,
-            startTime: shiftType.startTime,
-            endTime: shiftType.endTime,
-          },
-          {
-            date: existing.date.toISOString().split('T')[0],
-            startTime: existing.startTime,
-            endTime: existing.endTime,
-          },
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
+          // Story 13-3 (KON-132) — span the adjacent days and use the wrap-aware
+          // overlap so a shift crossing midnight on D-1 (or a candidate crossing
+          // into D+1) is caught. Still read from `tx` under the lock (Story 13-1).
+          const existingShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: { in: this.adjacentDayRange(input.date) },
+            },
+          });
+          for (const existing of existingShifts) {
+            if (
+              shiftsOverlap(
+                {
+                  date: input.date,
+                  startTime: shiftType.startTime,
+                  endTime: shiftType.endTime,
+                },
+                {
+                  date: existing.date.toISOString().split('T')[0],
+                  startTime: existing.startTime,
+                  endTime: existing.endTime,
+                },
+              )
+            ) {
+              throw new ConflictException(
+                `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+              );
+            }
+          }
 
-    // Story 11-3 — statutory French labor-law HARD check. Load the employee's shifts in a
-    // window around the target day (ISO week + neighbours) and reject the create if it would
-    // breach a statutory limit. Enforced regardless of configured rules.
-    const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
-    const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
-    const statWindowShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: { gte: statWindowStart, lte: statWindowEnd },
-      },
-    });
-    const createBreaches = wouldExceedStatutory(
-      statWindowShifts.map((s) => ({
-        date: s.date.toISOString().split('T')[0],
-        startTime: s.startTime,
-        endTime: s.endTime,
-        breakMinutes: s.breakMinutes,
-      })),
-      {
-        date: input.date,
-        startTime: shiftType.startTime,
-        endTime: shiftType.endTime,
-        breakMinutes: shiftType.breakMinutes,
-      },
-    );
-    if (createBreaches.length > 0) {
-      throw new ConflictException(
-        `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
-      );
-    }
+          // Story 11-3 — statutory French labor-law HARD check on the +/-8 real-day window.
+          // Enforced regardless of configured rules.
+          const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+          const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+          const statWindowShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: { gte: statWindowStart, lte: statWindowEnd },
+            },
+          });
+          const createBreaches = wouldExceedStatutory(
+            statWindowShifts.map((s) => ({
+              date: s.date.toISOString().split('T')[0],
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            })),
+            {
+              date: input.date,
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              breakMinutes: shiftType.breakMinutes,
+            },
+          );
+          if (createBreaches.length > 0) {
+            throw new ConflictException(
+              `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
+            );
+          }
 
-    // Story 11-6 — create + amendment commit atomically; notify post-commit.
-    const created = await this.prisma.$transaction(async (tx) => {
-      const c = await tx.shift.create({
-        data: {
-          date: new Date(`${input.date}T00:00:00.000Z`),
-          startTime: shiftType.startTime,
-          endTime: shiftType.endTime,
-          shiftTypeCode: input.shiftTypeCode,
-          breakMinutes: shiftType.breakMinutes,
-          source: 'MANUAL',
-          employeeId: input.employeeId,
-          clinicId,
+          // Story 11-6 — create + amendment commit atomically; notify post-commit.
+          const c = await tx.shift.create({
+            data: {
+              date: new Date(`${input.date}T00:00:00.000Z`),
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              shiftTypeCode: input.shiftTypeCode,
+              breakMinutes: shiftType.breakMinutes,
+              source: 'MANUAL',
+              employeeId: input.employeeId,
+              clinicId,
+            },
+          });
+          if (publishedMonths.length > 0) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+          }
+          return c;
         },
-      });
-      if (publishedMonths.length > 0) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return c;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published month only), fire-and-forget
     if (publishedMonths.length > 0) {
@@ -2686,39 +2822,69 @@ export class PlanningGenerationService {
     return { deleted: true };
   }
 
-  async preValidateMove(
+  /**
+   * Story 13-1 (KON-131) — loads every input the move decision reads, from `client`.
+   * Pass `this.prisma` for the advisory path or the active `tx` for the write path, so the
+   * enforcement replay sees the same rows the write is about to commit against.
+   *
+   * The statutory window is +/- 8 REAL days around the target date — the same window
+   * `createManualShift` uses, and the one `wouldExceedStatutory` documents as its minimum
+   * (candidate's ISO week +/- 1 day). The rotation pool stays month-based (quarter loaded
+   * lazily, only when a quarterly rule exists) to preserve the historic counting semantics.
+   */
+  private async loadMoveValidationInputs(
     clinicId: string,
-    input: { shiftId: string; targetEmployeeId: string; targetDate: string },
-  ): Promise<MoveValidationResult> {
-    const hard: Array<{ rule: string; message: string }> = [];
-    const soft: Array<{ rule: string; message: string }> = [];
-
-    // Load the shift
-    const shift = await this.prisma.shift.findUnique({
-      where: { id: input.shiftId },
-    });
-    if (!shift) throw new NotFoundException('Shift not found');
-    if (shift.clinicId !== clinicId)
-      throw new ForbiddenException('Shift does not belong to this clinic');
-
-    // Parallelize independent DB queries after shift ownership check
-    const targetDateObj = new Date(`${input.targetDate}T00:00:00.000Z`);
-    const [year, monthNum] = input.targetDate
-      .substring(0, 7)
-      .split('-')
-      .map(Number);
+    args: {
+      shift: MoveEvalShift;
+      targetEmployeeId: string;
+      targetDate: string;
+    },
+    client: Prisma.TransactionClient,
+  ): Promise<MoveEvalContext> {
+    const { shift, targetEmployeeId, targetDate } = args;
+    const targetDateObj = new Date(`${targetDate}T00:00:00.000Z`);
+    const [year, monthNum] = targetDate.substring(0, 7).split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+    const weekBounds = this.getWeekBounds(targetDate);
+
+    const statWindowStart = new Date(targetDateObj);
+    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    const statWindowEnd = new Date(targetDateObj);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+
+    const rules = await this.planningService.listRules(clinicId, {
+      isActive: true,
+    });
+    const needsQuarter = rules.some(
+      (r) =>
+        r.category === 'ROTATION_EQUITY' &&
+        (r.config as Record<string, unknown>).trackingPeriod === 'quarterly',
+    );
+    const quarter = Math.floor((monthNum - 1) / 3);
+    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
+    const quarterEnd = new Date(
+      Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999),
+    );
+
+    const employeeShiftWhere = {
+      employeeId: targetEmployeeId,
+      clinicId,
+      id: { not: shift.id },
+    };
 
     const [
       employee,
       operationalConfig,
       unavailabilities,
-      existingShifts,
-      rules,
+      overlapWindowShifts,
+      weekShifts,
+      monthShifts,
+      statutoryWindowShifts,
+      quarterExtraShifts,
     ] = await Promise.all([
-      this.prisma.employee.findFirst({
-        where: { id: input.targetEmployeeId, clinicId, isActive: true },
+      client.employee.findFirst({
+        where: { id: targetEmployeeId, clinicId, isActive: true },
         select: {
           id: true,
           firstName: true,
@@ -2728,314 +2894,135 @@ export class PlanningGenerationService {
         },
       }),
       this.clinicService.getOperationalConfig(clinicId),
-      this.prisma.unavailability.findMany({
+      client.unavailability.findMany({
         where: {
-          employeeId: input.targetEmployeeId,
+          employeeId: targetEmployeeId,
           clinicId,
-          startDate: { lte: new Date(`${input.targetDate}T23:59:59.999Z`) },
-          endDate: { gte: new Date(`${input.targetDate}T00:00:00.000Z`) },
+          startDate: { lte: new Date(`${targetDate}T23:59:59.999Z`) },
+          endDate: { gte: new Date(`${targetDate}T00:00:00.000Z`) },
         },
       }),
-      this.prisma.shift.findMany({
+      // Story 13-3 (KON-132) — the overlap pool spans D-1/D/D+1 so the wrap-aware
+      // check in evaluateMoveViolations sees a shift crossing midnight on an
+      // adjacent day. Read under the same lock / tx as every other input.
+      client.shift.findMany({
         where: {
-          employeeId: input.targetEmployeeId,
-          clinicId,
-          date: { in: this.adjacentDayRange(input.targetDate) },
-          id: { not: input.shiftId },
+          ...employeeShiftWhere,
+          date: { in: this.adjacentDayRange(targetDate) },
         },
       }),
-      this.planningService.listRules(clinicId, { isActive: true }),
-    ]);
-
-    // Verify target employee
-    if (!employee) {
-      hard.push({
-        rule: 'EMPLOYEE',
-        message: 'Target employee not found or inactive',
-      });
-      return { hard, soft };
-    }
-
-    // Check closed/non-work days
-    const dayNameToIso: Record<string, number> = {
-      MONDAY: 1,
-      TUESDAY: 2,
-      WEDNESDAY: 3,
-      THURSDAY: 4,
-      FRIDAY: 5,
-      SATURDAY: 6,
-      SUNDAY: 7,
-    };
-    const workDaySet = new Set(
-      operationalConfig.workDays
-        .map((d: string) => dayNameToIso[d])
-        .filter(Boolean),
-    );
-    const closedDateSet = new Set(
-      operationalConfig.closedDays.map((cd: { date: string }) => cd.date),
-    );
-
-    if (closedDateSet.has(input.targetDate)) {
-      hard.push({ rule: 'CLOSED_DAY', message: 'Target date is a closed day' });
-    }
-
-    const targetIsoDay =
-      targetDateObj.getUTCDay() === 0 ? 7 : targetDateObj.getUTCDay();
-    if (!workDaySet.has(targetIsoDay)) {
-      hard.push({
-        rule: 'NON_WORK_DAY',
-        message: 'Target date is not a work day',
-      });
-    }
-
-    // Check unavailabilities
-    for (const ua of unavailabilities) {
-      if (ua.daysOfWeek.length === 0) {
-        hard.push({
-          rule: 'UNAVAILABILITY',
-          message: `Employee is unavailable (${ua.type}${ua.reason ? ': ' + ua.reason : ''})`,
-        });
-      } else if (ua.daysOfWeek.includes(targetIsoDay)) {
-        hard.push({
-          rule: 'UNAVAILABILITY',
-          message: `Employee has recurring unavailability on this day (${ua.type})`,
-        });
-      }
-    }
-
-    // Check time overlap with existing shifts
-    for (const existing of existingShifts) {
-      if (
-        shiftsOverlap(
-          {
-            date: input.targetDate,
-            startTime: shift.startTime,
-            endTime: shift.endTime,
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: {
+            gte: new Date(`${weekBounds.start}T00:00:00.000Z`),
+            lte: new Date(`${weekBounds.end}T23:59:59.999Z`),
           },
-          {
-            date: existing.date.toISOString().split('T')[0],
-            startTime: existing.startTime,
-            endTime: existing.endTime,
-          },
-        )
-      ) {
-        hard.push({
-          rule: 'OVERLAP',
-          message: `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        });
-        break;
-      }
-    }
-
-    // HARD SKILL_REQUIREMENT check
-    for (const rule of rules.filter(
-      (r) => r.ruleType === 'HARD' && r.category === 'SKILL_REQUIREMENT',
-    )) {
-      const config = rule.config as Record<string, unknown>;
-      if (config.shiftTypeCode === shift.shiftTypeCode) {
-        const requiredJobTypes = config.requiredJobTypes as string[];
-        if (requiredJobTypes && !requiredJobTypes.includes(employee.jobType)) {
-          hard.push({
-            rule: 'SKILL_REQUIREMENT',
-            message: `Employee job type ${employee.jobType} does not match required: ${requiredJobTypes.join(', ')}`,
-          });
-        }
-      }
-    }
-
-    // CONTRACT_COMPLIANCE check — respects HARD vs SOFT ruleType
-    const shiftMinutes =
-      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
-      (shift.breakMinutes || 0);
-    const weekBounds = this.getWeekBounds(input.targetDate);
-
-    const weekShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.targetEmployeeId,
-        clinicId,
-        date: {
-          gte: new Date(`${weekBounds.start}T00:00:00.000Z`),
-          lte: new Date(`${weekBounds.end}T23:59:59.999Z`),
         },
-        id: { not: input.shiftId },
-      },
-    });
-
-    let weeklyMinutes = 0;
-    for (const ws of weekShifts) {
-      weeklyMinutes +=
-        this.calculateShiftMinutes(ws.startTime, ws.endTime) -
-        (ws.breakMinutes || 0);
-    }
-
-    const projectedWeeklyMinutes = weeklyMinutes + shiftMinutes;
-    const projectedWeeklyHours =
-      Math.round((projectedWeeklyMinutes / 60) * 10) / 10;
-    const contractWeeklyMinutes = employee.contractHours * 60;
-
-    for (const rule of rules.filter(
-      (r) => r.category === 'CONTRACT_COMPLIANCE',
-    )) {
-      const config = rule.config as Record<string, unknown>;
-      const maxWeekly = config.maxWeeklyHours as number | undefined;
-      const effectiveLimit = maxWeekly
-        ? Math.min(employee.contractHours, maxWeekly)
-        : employee.contractHours;
-
-      // Story 11-8 — weekly cap decision delegated to the shared rule engine.
-      // maxMonthlyHours is stripped so only the weekly cap is evaluated,
-      // matching the move's historic weekly-only semantics.
-      if (
-        violatesHardContractIncremental(
-          {
-            id: rule.id,
-            name: rule.name,
-            ruleType: rule.ruleType as RuleType,
-            category: rule.category,
-            config: { ...config, maxMonthlyHours: undefined },
-          },
-          {
-            weekMinutes: weeklyMinutes,
-            monthMinutes: 0,
-            candidateMinutes: shiftMinutes,
-            contractHours: employee.contractHours,
-          },
-        )
-      ) {
-        const bucket = rule.ruleType === 'HARD' ? hard : soft;
-        bucket.push({
-          rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
-        });
-        break;
-      }
-    }
-
-    // If no contract rules exist, still warn based on contractHours
-    if (
-      rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE').length === 0
-    ) {
-      if (projectedWeeklyMinutes > contractWeeklyMinutes) {
-        soft.push({
-          rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${projectedWeeklyHours}h this week, contract limit ${employee.contractHours}h`,
-        });
-      }
-    }
-
-    // ROTATION_EQUITY check — load monthShifts once before the loop
-    const monthShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.targetEmployeeId,
-        clinicId,
-        date: { gte: monthStart, lte: monthEnd },
-        id: { not: input.shiftId },
-      },
-    });
-
-    // Pre-load quarterly shifts (other months in same quarter) for quarterly-tracked rules
-    const quarter = Math.floor((monthNum - 1) / 3);
-    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
-    const quarterEnd = new Date(
-      Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999),
-    );
-    let quarterlyShifts: typeof monthShifts | null = null;
-
-    for (const rule of rules.filter((r) => r.category === 'ROTATION_EQUITY')) {
-      const config = rule.config as Record<string, unknown>;
-      const targetDay = config.targetDay as string;
-      const maxPerPeriod = config.maxPerPeriod as number;
-      const trackingPeriod = config.trackingPeriod as string | undefined;
-      const dayMap: Record<string, number> = {
-        monday: 1,
-        tuesday: 2,
-        wednesday: 3,
-        thursday: 4,
-        friday: 5,
-        saturday: 6,
-        sunday: 7,
-      };
-      const ruleDayIso = dayMap[targetDay];
-      if (!ruleDayIso || ruleDayIso !== targetIsoDay) continue;
-
-      const applicableJobTypes = config.applicableJobTypes as
-        | string[]
-        | undefined;
-      if (
-        applicableJobTypes &&
-        applicableJobTypes.length > 0 &&
-        !applicableJobTypes.includes(employee.jobType)
-      ) {
-        continue;
-      }
-
-      // Load quarterly shifts lazily on first quarterly rule
-      let shiftPool = monthShifts;
-      if (trackingPeriod === 'quarterly') {
-        if (!quarterlyShifts) {
-          quarterlyShifts = await this.prisma.shift.findMany({
+      }),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: { gte: monthStart, lte: monthEnd },
+        },
+      }),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: { gte: statWindowStart, lte: statWindowEnd },
+        },
+      }),
+      needsQuarter
+        ? client.shift.findMany({
             where: {
-              employeeId: input.targetEmployeeId,
-              clinicId,
+              ...employeeShiftWhere,
               date: { gte: quarterStart, lte: quarterEnd },
-              id: { not: input.shiftId },
               NOT: { date: { gte: monthStart, lte: monthEnd } },
             },
-          });
-        }
-        shiftPool = [...monthShifts, ...quarterlyShifts];
-      }
+          })
+        : Promise.resolve([]),
+    ]);
 
-      const targetDayCount = shiftPool.filter((s) => {
-        const d = s.date.getUTCDay() === 0 ? 7 : s.date.getUTCDay();
-        return d === ruleDayIso;
-      }).length;
+    const toEval = (s: {
+      id: string;
+      employeeId: string;
+      date: Date;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+      shiftTypeCode: string;
+    }): MoveEvalShift => ({
+      id: s.id,
+      employeeId: s.employeeId,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      breakMinutes: s.breakMinutes ?? 0,
+      shiftTypeCode: s.shiftTypeCode,
+    });
 
-      if (
-        violatesHardRotation(
-          {
-            id: rule.id,
-            name: rule.name,
-            ruleType: rule.ruleType as RuleType,
-            category: rule.category,
-            config: rule.config as Record<string, unknown>,
-          },
-          { currentCount: targetDayCount, jobType: employee.jobType },
-        )
-      ) {
-        const bucket = rule.ruleType === 'HARD' ? hard : soft;
-        bucket.push({
-          rule: 'ROTATION_EQUITY',
-          message: `${employee.firstName} ${employee.lastName} — would be ${targetDayCount + 1}th ${targetDay} this ${trackingPeriod || 'month'} (max ${maxPerPeriod})`,
-        });
-      }
-    }
-
-    // Story 11-3 — statutory French labor-law HARD check on the moved shift. `monthShifts`
-    // (target employee, target month, excluding the moved shift) is the window; the candidate
-    // is the moved shift placed at the target date.
-    const moveBreaches = wouldExceedStatutory(
-      monthShifts.map((s) => ({
-        date: s.date.toISOString().split('T')[0],
-        startTime: s.startTime,
-        endTime: s.endTime,
-        breakMinutes: s.breakMinutes,
-      })),
-      {
-        date: input.targetDate,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        breakMinutes: shift.breakMinutes,
+    return {
+      shift,
+      target: { employeeId: targetEmployeeId, date: targetDate },
+      employee,
+      operationalConfig: {
+        workDays: operationalConfig.workDays,
+        closedDays: operationalConfig.closedDays,
       },
-    );
-    for (const kind of moveBreaches) {
-      hard.push({
-        rule: 'CONTRACT_COMPLIANCE',
-        message: `Statutory limit exceeded: ${kind}`,
-      });
-    }
+      unavailabilities: unavailabilities.map((ua) => ({
+        type: ua.type,
+        reason: ua.reason,
+        daysOfWeek: ua.daysOfWeek,
+      })),
+      overlapWindowShifts: overlapWindowShifts.map(toEval),
+      weekShifts: weekShifts.map(toEval),
+      monthShifts: monthShifts.map(toEval),
+      quarterExtraShifts: quarterExtraShifts.map(toEval),
+      statutoryWindowShifts: statutoryWindowShifts.map(toEval),
+      rules: rules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        ruleType: r.ruleType as RuleType,
+        category: r.category,
+        config: r.config as Record<string, unknown>,
+      })),
+    };
+  }
 
-    return { hard, soft };
+  /**
+   * Advisory dry-run for drop feedback in the grid. Story 13-1 (KON-131): this is now UX
+   * ONLY — `moveShift` replays the same evaluator inside its write transaction, so a client
+   * that skips this call (or ignores its result) cannot persist an illegal move (audit T1).
+   */
+  async preValidateMove(
+    clinicId: string,
+    input: { shiftId: string; targetEmployeeId: string; targetDate: string },
+  ): Promise<MoveValidationResult> {
+    const shift = await this.prisma.shift.findUnique({
+      where: { id: input.shiftId },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.clinicId !== clinicId)
+      throw new ForbiddenException('Shift does not belong to this clinic');
+
+    const inputs = await this.loadMoveValidationInputs(
+      clinicId,
+      {
+        shift: {
+          id: shift.id,
+          employeeId: shift.employeeId,
+          date: shift.date.toISOString().split('T')[0],
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes ?? 0,
+          shiftTypeCode: shift.shiftTypeCode,
+        },
+        targetEmployeeId: input.targetEmployeeId,
+        targetDate: input.targetDate,
+      },
+      this.prisma,
+    );
+    return evaluateMoveViolations(inputs);
   }
 
   async publishPlan(

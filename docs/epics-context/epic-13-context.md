@@ -111,6 +111,47 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
 
 ## 8. Previous stories — outcomes
 
+### Story 13-1-manual-write-guards-locks — done 2026-07-16T00:00:00Z
+
+- **Decisions:** Manual writes (`moveShift`, `createManualShift`) and generation share one
+  advisory lock (`lockMonths`, sorted+deduped over every touched month) and one pure evaluator
+  (`move-validation.ts`); the lock/flags/recipients key off the in-tx `fresh` re-read, never a
+  pre-lock snapshot (aped-review F1). Statutory window is ±8 real days on BOTH write and advisory
+  paths. Stale generated plan → `ConflictException('STALE_PLAN_REGENERATE')`, surfaced through the
+  generation catch. No web change (existing optimistic rollback + error toast hold).
+- **Files:** `apps/api/src/modules/planning/move-validation.ts` (new), `move-validation.spec.ts`
+  (new), `planning-generation.service.ts`, `planning-generation.service.spec.ts`.
+- **Contracts:** new pure module `move-validation.ts` exporting `evaluateMoveViolations` +
+  `MoveEvalContext`/`MoveEvalShift` — 13-2 turns the single `statutoryWindowShifts` window knob here.
+  `MoveValidationResult` (`@pawly/validators`) and the tRPC `planning.moveShift` contract unchanged.
+- **Deviations from plan:** global `mockOperationalConfig.workDays` corrected to day-NAMES (approved)
+  rather than per-describe overrides; `$executeRaw` added to the global mock; generation `catch`
+  taught to re-throw `ConflictException` (AC4). aped-review added the `moveShift` fresh-keyed lock
+  fix + a `createManualShift` lock-acquisition test (AC3 was code-correct but untested). Known
+  residual (NIT): sub-ms intra-tx window between the `fresh` read and `lockMonths` — deferred to 13-8.
+
+### Story 13-7-equity-counters-utc — done 2026-07-16T13:39:39Z
+
+- **Decisions:** Persisted equity counting is now a single pure UTC core
+  (`equity-counting.ts`, next to `french-labor-law.ts`/`rule-engine.ts`); both runners
+  (Nest `EquityCounterService.recalculateForPeriod` + Trigger `equity-recalc.ts`) import it —
+  no counting logic may be duplicated between them again (T8). Cron month-selection stays
+  local by design (documented Non-Goal). `EquityCounterName` mirrors Prisma's enum locally to
+  keep the core Prisma-free for the Trigger bundle.
+- **Files:** `apps/api/src/modules/planning/equity-counting.ts` (new),
+  `equity-counting.spec.ts` (new), `equity-counter.service.ts` (delegates),
+  `equity-counter.service.spec.ts` (UTC-midnight mocks), `trigger/tasks/equity-recalc.ts`
+  (duplication removed), `trigger/tasks/equity-recalc.spec.ts` (new, review-added AC-1 coverage),
+  root `package.json` (engines `>=22.3.0`).
+- **Contracts:** exports `computeEquityCounters`, `utcMonthBounds`, `utcDateKey`,
+  `utcDaysInMonth`, `calculateShiftMinutes`, and types `EquityCounterRow` / `EquityCounterName` /
+  `EquityShiftInput` / `EquityEmployeeInput` / `EquityCountingInput`. Any future story recomputing
+  equity counters MUST call this core, not re-implement day/bounds math.
+- **Deviations from plan:** timezone-invariance specs needed `process.getBuiltinModule('node:process')`
+  to flush V8's TZ cache under Jest (plain `process.env.TZ` is a no-op there); engines bumped to
+  `>=22.3.0` for that API. Review added a Trigger-runner spec (AC-1 was proven only by inspection).
+  `OVERTIME_HOURS` still stores MINUTES (persisted enum name unchanged — separate migration).
+
 ### Story 13-3-cross-midnight-overlap — done 2026-07-16T14:10:00Z
 
 - **Decisions:** One wrap-aware `shift-interval.ts` primitive is the single source of truth for
@@ -134,3 +175,10 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   claim that the month frontier needed no extra border loading was wrong (fixed in review, M1).
   Known gap carried forward (not this story): the settings-page `ShiftTypeFormSheet` still has no
   client-side error surface for overnight validation — deferred to a UX story.
+- **Merge weave with 13-1 (KON-131):** 13-1's shared `move-validation.ts` overlap check was ported
+  as a deliberately same-day `timesOverlap` awaiting this story; the merge makes it wrap-aware —
+  `evaluateMoveViolations` now uses `shiftsOverlap`, the `MoveEvalContext.sameDayShifts` field was
+  renamed `overlapWindowShifts` and `loadMoveValidationInputs` loads it over the `adjacentDayRange`
+  D-1/D/D+1 window (still read under 13-1's advisory lock, inside the write transaction).
+  `createManualShift`'s in-tx overlap and the stale-plan check adopted `shiftsOverlap` + the
+  adjacent-day window too. `move-validation.ts`'s obsolete `timesOverlap`/`toMinutes` were removed.
