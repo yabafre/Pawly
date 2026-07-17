@@ -111,6 +111,27 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
 
 ## 8. Previous stories — outcomes
 
+_(append as Epic 13 stories complete)_
+
+### Story 13-1-manual-write-guards-locks — done 2026-07-16T00:00:00Z
+
+- **Decisions:** Manual writes (`moveShift`, `createManualShift`) and generation share one
+  advisory lock (`lockMonths`, sorted+deduped over every touched month) and one pure evaluator
+  (`move-validation.ts`); the lock/flags/recipients key off the in-tx `fresh` re-read, never a
+  pre-lock snapshot (aped-review F1). Statutory window is ±8 real days on BOTH write and advisory
+  paths. Stale generated plan → `ConflictException('STALE_PLAN_REGENERATE')`, surfaced through the
+  generation catch. No web change (existing optimistic rollback + error toast hold).
+- **Files:** `apps/api/src/modules/planning/move-validation.ts` (new), `move-validation.spec.ts`
+  (new), `planning-generation.service.ts`, `planning-generation.service.spec.ts`.
+- **Contracts:** new pure module `move-validation.ts` exporting `evaluateMoveViolations` +
+  `MoveEvalContext`/`MoveEvalShift` — 13-2 turns the single `statutoryWindowShifts` window knob here.
+  `MoveValidationResult` (`@pawly/validators`) and the tRPC `planning.moveShift` contract unchanged.
+- **Deviations from plan:** global `mockOperationalConfig.workDays` corrected to day-NAMES (approved)
+  rather than per-describe overrides; `$executeRaw` added to the global mock; generation `catch`
+  taught to re-throw `ConflictException` (AC4). aped-review added the `moveShift` fresh-keyed lock
+  fix + a `createManualShift` lock-acquisition test (AC3 was code-correct but untested). Known
+  residual (NIT): sub-ms intra-tx window between the `fresh` read and `lockMonths` — deferred to 13-8.
+
 ### Story 13-7-equity-counters-utc — done 2026-07-16T13:39:39Z
 
 - **Decisions:** Persisted equity counting is now a single pure UTC core
