@@ -380,6 +380,80 @@ describe('PlanningGenerationService', () => {
       expect(march2Slots[1].endTime).toBe('14:00');
     });
 
+    // Story 13-3 (KON-132), aped-review M2 — AC-5 legalised overnight shift types,
+    // but the special-day clamp used a same-day-only overlap test that never saw the
+    // wrap, so an overnight shift on a reduced-hours day ran its full duration. The
+    // clamp is now wrap-aware (interval intersection).
+    const nightTemplate: TemplateData = {
+      days: [
+        { dayOfWeek: 1, slots: [{ shiftTypeCode: 'NIGHT', requiredStaff: 1 }] },
+      ],
+    };
+    const nightShiftTypeMap = new Map([
+      ['NIGHT', { startTime: '22:00', endTime: '06:00', breakMinutes: 0 }],
+    ]);
+
+    it('clamps an overnight shift type to a special-day window that cuts its evening', () => {
+      const configWithSpecial = {
+        ...mockOperationalConfig,
+        specialDays: [
+          {
+            id: 'sd-night',
+            date: '2026-03-02', // Monday
+            startTime: '09:00',
+            endTime: '23:00', // clinic closes at 23:00 -> the 22:00 shift must end at 23:00
+            label: 'Reduced night',
+          },
+        ],
+      };
+
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
+        nightTemplate,
+        '2026-03',
+        configWithSpecial,
+        nightShiftTypeMap,
+      );
+
+      const march2 = slots.filter(
+        (s: SlotRequirement) => s.date === '2026-03-02',
+      );
+      expect(march2).toHaveLength(1);
+      // NIGHT (22:00->06:00) real-overlaps the special window only on 22:00-23:00.
+      expect(march2[0].startTime).toBe('22:00');
+      expect(march2[0].endTime).toBe('23:00');
+    });
+
+    it('leaves an overnight shift type untouched when it does not overlap the special-day window', () => {
+      const configWithSpecial = {
+        ...mockOperationalConfig,
+        specialDays: [
+          {
+            id: 'sd-day',
+            date: '2026-03-02',
+            startTime: '09:00',
+            endTime: '17:00', // daytime window — no real overlap with 22:00->06:00
+            label: 'Daytime only',
+          },
+        ],
+      };
+
+      const slots: SlotRequirement[] = callPrivate(
+        'expandTemplateToMonth',
+        nightTemplate,
+        '2026-03',
+        configWithSpecial,
+        nightShiftTypeMap,
+      );
+
+      const march2 = slots.filter(
+        (s: SlotRequirement) => s.date === '2026-03-02',
+      );
+      expect(march2).toHaveLength(1);
+      expect(march2[0].startTime).toBe('22:00');
+      expect(march2[0].endTime).toBe('06:00');
+    });
+
     it('handles months with 4 and 5 weeks correctly', () => {
       // February 2026: 28 days, starts on Sunday
       // Mon: 2,9,16,23 → 4 Mondays
@@ -770,6 +844,110 @@ describe('PlanningGenerationService', () => {
       // Verify partial fill: another employee should be assigned
       expect(result.assigned.length).toBe(1);
       expect(result.assigned[0].employeeId).not.toBe('emp-1');
+    });
+
+    // Story 13-3 (KON-132) — AC1: an employee already holding a shift that runs
+    // past midnight must not be given an overlapping slot on the adjacent day.
+    it('prevents double-booking when an existing overnight shift on D-1 runs into the D slot', () => {
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '05:00',
+        endTime: '09:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 works 22:00 on 03-02 -> 06:00 on 03-03. The slot starts at 05:00 on
+      // 03-03, so the real overlap is 05:00-06:00.
+      const nightShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [nightShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [nightShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('prevents double-booking when the D slot itself crosses midnight into an existing D+1 shift', () => {
+      const slot = {
+        date: '2026-03-02',
+        shiftTypeCode: 'SURGERY',
+        startTime: '22:00',
+        endTime: '06:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      const morningShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-03',
+        startTime: '05:00',
+        endTime: '09:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-03', [morningShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [morningShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('still assigns when the adjacent-day shift only touches the slot at the junction', () => {
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '06:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Ends exactly when the slot starts -> no overlap, emp-1 stays eligible.
+      const nightShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [nightShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        baseConstraints,
+        [nightShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-1');
     });
 
     it('respects job type requirements (requiredJobTypes filter)', () => {
@@ -1568,6 +1746,27 @@ describe('PlanningGenerationService', () => {
       await expect(
         service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-other'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    // Story 13-3 (KON-132), aped-review M1 — the cross-midnight overlap / minRest /
+    // consecutive-day scans read the D-1 and D+1 assignmentIndex buckets, which for
+    // out-of-month days are populated ONLY by this loader. The original straddle
+    // logic loads an out-of-month day only when it shares the ISO week of the
+    // first/last day of the month — so a month that STARTS on a Monday (or ENDS on a
+    // Sunday) leaves its immediate calendar neighbour unloaded, and an overnight
+    // shift on that neighbour can double-book a frontier slot (the exact T3 class).
+    it('loads the immediate calendar D-1/D+1 even when the month starts Monday and ends Sunday', async () => {
+      // February 2027 starts Monday (2027-02-01) and ends Sunday (2027-02-28): both
+      // border ISO-weeks coincide with the month edges, so the straddle logic alone
+      // loads nothing.
+      mockPrismaService.shift.findMany.mockResolvedValue([]);
+      await callPrivate('loadBorderWeekShifts', clinicId, '2027-02');
+      const call = mockPrismaService.shift.findMany.mock.calls[0]?.[0];
+      const loaded = (call?.where?.date?.in ?? []).map(
+        (d: Date) => d.toISOString().split('T')[0],
+      );
+      expect(loaded).toContain('2027-01-31'); // immediate D-1 of the first day
+      expect(loaded).toContain('2027-03-01'); // immediate D+1 of the last day
     });
 
     it('loads border week shifts from adjacent months for weekly hour calculation', async () => {
@@ -4447,6 +4646,79 @@ describe('PlanningGenerationService', () => {
       expect(result.holeInfo).toBeDefined();
     });
 
+    // Story 13-3 (KON-132) — AC4: the rest gap must be measured in real time. With
+    // an overnight neighbour the old arithmetic (24*60 - end + start) credited a
+    // whole extra day: 06:00 -> 08:00 scored as 26h of rest instead of 2h.
+    it('blocks employee when the previous-day shift ran past midnight and real rest is short', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '08:00',
+        endTime: '12:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // emp-1 works 22:00 on 03-02 -> 06:00 on 03-03. Real rest before 08:00 = 2h.
+      const prevShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(0);
+      expect(result.holeInfo).toBeDefined();
+    });
+
+    it('still allows employee when the previous-day shift ran past midnight but real rest suffices', () => {
+      const constraints = makeConstraintsWithMinRest(11);
+      const slot = {
+        date: '2026-03-03',
+        shiftTypeCode: 'SURGERY',
+        startTime: '18:00',
+        endTime: '22:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+
+      // Same overnight shift, but the slot starts at 18:00 -> real rest = 12h >= 11h.
+      const prevShift = {
+        employeeId: 'emp-1',
+        date: '2026-03-02',
+        startTime: '22:00',
+        endTime: '06:00',
+        shiftTypeCode: 'SURGERY',
+      };
+      const assignmentIndex = new Map([['emp-1|2026-03-02', [prevShift]]]);
+
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        [mockEmployees[0]],
+        constraints,
+        [prevShift],
+        assignmentIndex,
+        new Map(),
+        31 / 7,
+      );
+
+      expect(result.assigned.length).toBe(1);
+      expect(result.assigned[0].employeeId).toBe('emp-1');
+    });
+
     it('blocks employee when rest before next day shift is insufficient', () => {
       const constraints = makeConstraintsWithMinRest(11);
       const slot = {
@@ -5241,6 +5513,44 @@ describe('PlanningGenerationService', () => {
         service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
       ).rejects.toThrow('overlaps');
     });
+
+    // Story 13-3 (KON-132) — AC1: emp-2 already works 23:00 on 03-02 -> 08:30 on
+    // 03-03; moving shift-1 (08:00-12:00 on 03-03) onto emp-2 really overlaps
+    // 08:00-08:30. The old clock-digit compare never saw it.
+    it('throws ConflictException when the target employee has an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          ...mockShift,
+          id: 'shift-night',
+          employeeId: 'emp-2',
+          date: new Date('2025-03-02T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+        },
+      ]);
+      await expect(
+        service.moveShift(clinicId, 'shift-1', { targetEmployeeId: 'emp-2' }),
+      ).rejects.toThrow('overlaps');
+    });
+
+    it('loads the adjacent days when checking overlap on a move', async () => {
+      await service.moveShift(clinicId, 'shift-1', {
+        targetEmployeeId: 'emp-2',
+      });
+      expect(mockPrismaService.shift.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            date: {
+              in: [
+                new Date('2025-03-02T00:00:00.000Z'),
+                new Date('2025-03-03T00:00:00.000Z'),
+                new Date('2025-03-04T00:00:00.000Z'),
+              ],
+            },
+          }),
+        }),
+      );
+    });
   });
 
   // ─── createManualShift ────────────────────────────────────────────
@@ -5354,6 +5664,36 @@ describe('PlanningGenerationService', () => {
           breakMinutes: 0,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    // Story 13-3 (KON-132) — AC1: existing 23:00 on 03-09 -> 08:30 on 03-10 really
+    // overlaps the candidate SURGERY 08:00-12:00 on 03-10 (08:00-08:30). 9h30 net
+    // keeps the statutory check quiet, so the ConflictException can only come from
+    // the overlap guard.
+    it('throws ConflictException when the new shift overlaps an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'ex-night',
+          date: new Date('2026-03-09T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+          breakMinutes: 0,
+          employeeId: 'emp-1',
+          clinicId,
+        },
+      ]);
+      await expect(
+        service.createManualShift(clinicId, {
+          employeeId: 'emp-1',
+          date: '2026-03-10',
+          shiftTypeCode: 'SURGERY',
+          // Ignored by the service (it reads the times from clinicShiftType), but
+          // the input type requires them.
+          startTime: '08:00',
+          endTime: '12:00',
+          breakMinutes: 0,
+        }),
+      ).rejects.toThrow('overlaps');
     });
   });
 
@@ -6568,7 +6908,7 @@ describe('PlanningGenerationService', () => {
 
     it('returns HARD OVERLAP violation when shift times overlap', async () => {
       // Story 13-1 — loadMoveValidationInputs issues 4 shift.findMany calls in order:
-      // sameDayShifts, weekShifts, monthShifts, statutoryWindowShifts (the last one
+      // overlapWindowShifts, weekShifts, monthShifts, statutoryWindowShifts (the last one
       // falls back to the beforeEach default []).
       mockPrismaService.shift.findMany
         .mockResolvedValueOnce([
@@ -6578,7 +6918,7 @@ describe('PlanningGenerationService', () => {
             endTime: '14:00',
             breakMinutes: 0,
           },
-        ]) // sameDayShifts — overlapping
+        ]) // overlapWindowShifts — overlapping
         .mockResolvedValueOnce([]) // weekShifts
         .mockResolvedValueOnce([]); // monthShifts
 
@@ -6586,6 +6926,25 @@ describe('PlanningGenerationService', () => {
       expect(result.hard).toEqual(
         expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
       );
+    });
+
+    // Story 13-3 (KON-132) — AC1: the advisory UX check must agree with the server
+    // guard, or the grid shows green on a move the API then rejects.
+    it('returns HARD OVERLAP violation when the target employee has an overnight shift from the previous day', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 'shift-night',
+          clinicId,
+          employeeId: 'emp-2',
+          date: new Date('2025-03-03T00:00:00.000Z'),
+          startTime: '23:00',
+          endTime: '08:30',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        },
+      ]);
+      const result = await service.preValidateMove(clinicId, defaultInput);
+      expect(result.hard.map((h) => h.rule)).toContain('OVERLAP');
     });
 
     // AC2 (verbatim from story 11-3): "the move surfaces a blocking (hard) conflict in the
@@ -6603,7 +6962,7 @@ describe('PlanningGenerationService', () => {
         clinicId,
       }));
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // sameDayShifts — no overlap
+        .mockResolvedValueOnce([]) // overlapWindowShifts — no overlap
         .mockResolvedValueOnce([]) // weekShifts
         .mockResolvedValueOnce([]) // monthShifts
         .mockResolvedValueOnce(consec); // statutoryWindowShifts (+/-8 real days, Story 13-1)
@@ -6651,7 +7010,7 @@ describe('PlanningGenerationService', () => {
       // 2nd: weekShifts — heavy week
       // 3rd: monthShifts — empty
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // sameDayShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
           {
             date: new Date('2025-03-03T00:00:00.000Z'),
@@ -6706,7 +7065,7 @@ describe('PlanningGenerationService', () => {
       ]);
       // Week already at 33h net; the moved 4h shift projects to 37h > 35h.
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // sameDayShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
           {
             date: new Date('2025-03-03T00:00:00.000Z'),
@@ -6759,7 +7118,7 @@ describe('PlanningGenerationService', () => {
         },
       ]);
       mockPrismaService.shift.findMany
-        .mockResolvedValueOnce([]) // sameDayShifts
+        .mockResolvedValueOnce([]) // overlapWindowShifts
         .mockResolvedValueOnce([
           {
             date: new Date('2025-03-03T00:00:00.000Z'),
@@ -8225,6 +8584,134 @@ describe('PlanningGenerationService', () => {
         // would take, since both go through evaluateEligibility).
         expect(warnSpy).toHaveBeenCalledWith(
           expect.stringContaining('rejected by re-validation'),
+        );
+      });
+
+      // Story 13-3 (KON-132), aped-review M3 — AC-2's replay half. The solver model
+      // mutexes a cross-midnight pair (Task 11), but the served-plan safety net is
+      // the re-validation REPLAY. Inject a MODEL-EXISTING solver plan that
+      // double-books emp-1 across midnight (NIGHT 03-02 22:00->06:00 overlaps EARLY
+      // 03-03 05:00->09:00 on 05:00-06:00) and prove the replay rejects it and
+      // greedy is served — closing "the only path where an invalid plan is SERVED".
+      it('AC2 — replay rejects a cross-midnight double-booking and serves greedy', async () => {
+        mockClinicService.listShiftTypes.mockResolvedValue([
+          {
+            id: 'st-n',
+            code: 'NIGHT',
+            name: 'Night',
+            startTime: '22:00',
+            endTime: '06:00',
+            breakMinutes: 0,
+            color: '#111111',
+            clinicId,
+          },
+          {
+            id: 'st-e',
+            code: 'EARLY',
+            name: 'Early',
+            startTime: '05:00',
+            endTime: '09:00',
+            breakMinutes: 0,
+            color: '#222222',
+            clinicId,
+          },
+        ]);
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-night',
+          name: 'Mon NIGHT + Tue EARLY',
+          clinicId,
+          data: {
+            days: [
+              {
+                dayOfWeek: 1,
+                slots: [
+                  {
+                    shiftTypeCode: 'NIGHT',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+              {
+                dayOfWeek: 2,
+                slots: [
+                  {
+                    shiftTypeCode: 'EARLY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        // Keep only Mon 2026-03-02 + Tue 2026-03-03 open, so greedy produces exactly
+        // one fill and one overlap hole (candidate=2 > greedy=1 reaches the replay).
+        mockClinicService.getOperationalConfig.mockResolvedValue({
+          ...mockOperationalConfig,
+          closedDays: [
+            '2026-03-09',
+            '2026-03-10',
+            '2026-03-16',
+            '2026-03-17',
+            '2026-03-23',
+            '2026-03-24',
+            '2026-03-30',
+            '2026-03-31',
+          ].map((date, i) => ({ id: `c${i}`, date, reason: null })),
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        ]);
+        mockPrismaService.shift.findMany.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) =>
+            fn({
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                // Story 13-1 — the generation tx reads survivors for the stale-plan check.
+                findMany: jest.fn().mockResolvedValue([]),
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest
+                  .fn()
+                  .mockImplementation(({ data }: { data: any[] }) =>
+                    data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                  ),
+              },
+            }),
+        );
+
+        // Model-existing vars that form a real cross-midnight double-booking.
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'OPTIMAL',
+          chosenVarNames: new Set([
+            'emp-1@2026-03-02|NIGHT|22:00',
+            'emp-1@2026-03-03|EARLY|05:00',
+          ]),
+        });
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
+
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-night',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+
+        expect(result.stats.engine).toBe('greedy');
+        // The replay applied NIGHT@03-02 first (eligible), then rejected EARLY@03-03
+        // — the ONLY reason emp-1 is ineligible there is the cross-midnight overlap
+        // (no rest rule, no unavailability, EARLY alone is well inside every cap).
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'rejected by re-validation (emp-1 ineligible on 2026-03-03 05:00)',
+          ),
         );
       });
 

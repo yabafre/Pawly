@@ -1,6 +1,5 @@
 import {
   evaluateMoveViolations,
-  timesOverlap,
   type MoveEvalContext,
   type MoveEvalShift,
 } from './move-validation';
@@ -42,23 +41,13 @@ const baseCtx = (
     closedDays: [],
   },
   unavailabilities: [],
-  sameDayShifts: [],
+  overlapWindowShifts: [],
   weekShifts: [],
   monthShifts: [],
   quarterExtraShifts: [],
   statutoryWindowShifts: [],
   rules: [],
   ...overrides,
-});
-
-describe('timesOverlap', () => {
-  it('detects an overlap on the same day', () => {
-    expect(timesOverlap('08:00', '12:00', '10:00', '14:00')).toBe(true);
-  });
-
-  it('treats back-to-back shifts as non-overlapping', () => {
-    expect(timesOverlap('08:00', '12:00', '12:00', '18:00')).toBe(false);
-  });
 });
 
 describe('evaluateMoveViolations', () => {
@@ -115,7 +104,9 @@ describe('evaluateMoveViolations', () => {
 
   it('flags HARD OVERLAP against an existing shift on the target date', () => {
     const result = evaluateMoveViolations(
-      baseCtx({ sameDayShifts: [shiftAt('2026-03-02', '10:00', '14:00')] }),
+      baseCtx({
+        overlapWindowShifts: [shiftAt('2026-03-02', '10:00', '14:00')],
+      }),
     );
     expect(result.hard).toEqual(
       expect.arrayContaining([
@@ -124,6 +115,41 @@ describe('evaluateMoveViolations', () => {
           message: 'Shift overlaps with existing shift (10:00-14:00)',
         }),
       ]),
+    );
+  });
+
+  // Story 13-3 (KON-132), merge weave — the overlap check is wrap-aware across the
+  // D-1/D/D+1 window: a shift crossing midnight on the previous day really overlaps
+  // a morning slot on the target date and must be caught (the moved shift here runs
+  // 05:00-09:00, the neighbour 22:00->06:00 on D-1, so they collide 05:00-06:00).
+  it('flags HARD OVERLAP against an overnight shift from the previous day', () => {
+    const result = evaluateMoveViolations(
+      baseCtx({
+        shift: shiftAt('2026-03-02', '05:00', '09:00', {
+          id: 'shift-1',
+          employeeId: 'emp-1',
+        }),
+        overlapWindowShifts: [shiftAt('2026-03-01', '22:00', '06:00')],
+      }),
+    );
+    expect(result.hard).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
+    );
+  });
+
+  it('does not flag OVERLAP when the adjacent-day shift only touches at the junction', () => {
+    const result = evaluateMoveViolations(
+      baseCtx({
+        shift: shiftAt('2026-03-02', '06:00', '10:00', {
+          id: 'shift-1',
+          employeeId: 'emp-1',
+        }),
+        // ends exactly when the moved shift starts -> no overlap
+        overlapWindowShifts: [shiftAt('2026-03-01', '22:00', '06:00')],
+      }),
+    );
+    expect(result.hard).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ rule: 'OVERLAP' })]),
     );
   });
 

@@ -111,8 +111,6 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
 
 ## 8. Previous stories — outcomes
 
-_(append as Epic 13 stories complete)_
-
 ### Story 13-1-manual-write-guards-locks — done 2026-07-16T00:00:00Z
 
 - **Decisions:** Manual writes (`moveShift`, `createManualShift`) and generation share one
@@ -153,3 +151,34 @@ _(append as Epic 13 stories complete)_
   to flush V8's TZ cache under Jest (plain `process.env.TZ` is a no-op there); engines bumped to
   `>=22.3.0` for that API. Review added a Trigger-runner spec (AC-1 was proven only by inspection).
   `OVERTIME_HOURS` still stores MINUTES (persisted enum name unchanged — separate migration).
+
+### Story 13-3-cross-midnight-overlap — done 2026-07-16T14:10:00Z
+
+- **Decisions:** One wrap-aware `shift-interval.ts` primitive is the single source of truth for
+  overlap / rest-gap / amplitude across the greedy engine, the solver IR, and french-labor-law —
+  do not re-implement the `(date, HH:MM) → absolute minutes` mapping anywhere else (13-5 solver
+  work must import it). `loadBorderWeekShifts` now ALWAYS loads the immediate calendar D-1/D+1
+  (not only ISO-week straddle days) — a shared border-loading fix that also benefits minRest /
+  consecutive-day / rotation scans; keep it. Overnight shift types (`endTime < startTime`) are now
+  legal end-to-end (validators reject only `start === end`); clinic opening hours keep `end > start`.
+  `HH:MM` is validated by the tightened `timeRegex` (`^([01]\d|2[0-3]):[0-5]\d$`, exported from
+  `onboarding.schema.ts`).
+- **Files:** `shift-interval.ts` (+spec, new); `planning-generation.service.ts` (+spec);
+  `solver-model.ts` (+spec); `french-labor-law.ts`; `clinic.service.spec.ts`; `clinic.router.spec.ts`;
+  `packages/validators/src/clinic/{onboarding,shift-type}.schema.ts` (+tests);
+  `apps/web/.../onboarding/_components/{StepShiftTypes,OnboardingWizard}.tsx`.
+- **Contracts:** new exports `toAbsoluteInterval`, `intervalsOverlap`, `shiftsOverlap`,
+  `restMinutesBetween`, types `IntervalShift` / `AbsoluteInterval` from `shift-interval.ts`.
+  `timeRegex` now exported from `onboarding.schema.ts`. No tRPC/Prisma/dependency change.
+- **Deviations from plan:** `windowsOverlap` (kept same-day by the story's Task 5c) was removed
+  during review — the special-day clamp is now wrap-aware, leaving it with no caller. The Dev-Notes
+  claim that the month frontier needed no extra border loading was wrong (fixed in review, M1).
+  Known gap carried forward (not this story): the settings-page `ShiftTypeFormSheet` still has no
+  client-side error surface for overnight validation — deferred to a UX story.
+- **Merge weave with 13-1 (KON-131):** 13-1's shared `move-validation.ts` overlap check was ported
+  as a deliberately same-day `timesOverlap` awaiting this story; the merge makes it wrap-aware —
+  `evaluateMoveViolations` now uses `shiftsOverlap`, the `MoveEvalContext.sameDayShifts` field was
+  renamed `overlapWindowShifts` and `loadMoveValidationInputs` loads it over the `adjacentDayRange`
+  D-1/D/D+1 window (still read under 13-1's advisory lock, inside the write transaction).
+  `createManualShift`'s in-tx overlap and the stale-plan check adopted `shiftsOverlap` + the
+  adjacent-day window too. `move-validation.ts`'s obsolete `timesOverlap`/`toMinutes` were removed.

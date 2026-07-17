@@ -21,6 +21,11 @@
  * objective is only used by the service's acceptance gate via equityObjective().
  */
 import type { EquityWeights } from './local-repair';
+import {
+  intervalsOverlap,
+  toAbsoluteInterval,
+  type AbsoluteInterval,
+} from './shift-interval';
 
 export interface SolverEmployee {
   id: string;
@@ -143,19 +148,25 @@ function addDays(dateISO: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function overlaps(a: SolverSlot, b: SolverSlot): boolean {
-  if (a.date !== b.date) return false;
-  return (
-    toMin(a.startTime) < toMin(b.endTime) &&
-    toMin(b.startTime) < toMin(a.endTime)
-  );
+function overlaps(a: AbsoluteInterval, b: AbsoluteInterval): boolean {
+  return intervalsOverlap(a, b);
 }
 
-function amplitudeExceeded(a: SolverSlot, b: SolverSlot): boolean {
+/**
+ * Statutory 13h amplitude for one calendar day: first start -> last end, breaks
+ * included. Stays same-date on purpose — amplitude is a per-day limit (see
+ * french-labor-law.ts dayAmplitudeMinutes); the inter-day gap is the 11h daily
+ * rest, which story 13-4 owns. Story 13-3 only fixes the span arithmetic: with a
+ * midnight-crossing slot the raw HH:MM span was computed as 8h instead of 24h.
+ */
+function amplitudeExceeded(
+  a: SolverSlot,
+  b: SolverSlot,
+  ia: AbsoluteInterval,
+  ib: AbsoluteInterval,
+): boolean {
   if (a.date !== b.date) return false;
-  const span =
-    Math.max(toMin(a.endTime), toMin(b.endTime)) -
-    Math.min(toMin(a.startTime), toMin(b.startTime));
+  const span = Math.max(ia[1], ib[1]) - Math.min(ia[0], ib[0]);
   return span > STATUTORY_AMPLITUDE_MINUTES;
 }
 
@@ -193,6 +204,13 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   const constraints: IrConstraint[] = [];
   const slotById = new Map(slots.map((s) => [s.id, s]));
 
+  // Story 13-3 (KON-132) — one absolute interval per slot, computed once. The
+  // pairwise mutex loop below is O(slots^2) per employee; date parsing inside it
+  // would be a NFR2 regression.
+  const intervalBySlotId = new Map<string, AbsoluteInterval>(
+    slots.map((s) => [s.id, toAbsoluteInterval(s)]),
+  );
+
   // Fill caps: sum_e x[e,s] <= requiredStaff.
   for (const s of slots) {
     const sv = varsBySlot.get(s.id) ?? [];
@@ -215,7 +233,9 @@ export function buildSolverModel(input: SolverInput): SolverModel {
       for (let j = i + 1; j < evSlots.length; j++) {
         const A = evSlots[i];
         const B = evSlots[j];
-        if (overlaps(A.s, B.s)) {
+        const iA = intervalBySlotId.get(A.s.id)!;
+        const iB = intervalBySlotId.get(B.s.id)!;
+        if (overlaps(iA, iB)) {
           constraints.push({
             kind: 'linearLe',
             tag: `overlap:${e.id}:${A.s.id}:${B.s.id}`,
@@ -225,7 +245,7 @@ export function buildSolverModel(input: SolverInput): SolverModel {
             ],
             bound: 1,
           });
-        } else if (amplitudeExceeded(A.s, B.s)) {
+        } else if (amplitudeExceeded(A.s, B.s, iA, iB)) {
           constraints.push({
             kind: 'linearLe',
             tag: `statutory-amplitude:${e.id}:${A.s.id}:${B.s.id}`,

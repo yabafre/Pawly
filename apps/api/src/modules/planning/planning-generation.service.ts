@@ -19,6 +19,12 @@ import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
 import {
+  intervalsOverlap,
+  restMinutesBetween,
+  shiftsOverlap,
+  toAbsoluteInterval,
+} from './shift-interval';
+import {
   violatesHardContractIncremental,
   violatesHardRotation,
   type RuleType,
@@ -567,11 +573,17 @@ export class PlanningGenerationService {
       for (const cov of coverageBucket) {
         if (cov.consumed) continue;
         if (
-          !this.timesOverlap(
-            slot.startTime,
-            slot.endTime,
-            cov.startTime,
-            cov.endTime,
+          !shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: slot.date,
+              startTime: cov.startTime,
+              endTime: cov.endTime,
+            },
           )
         ) {
           continue;
@@ -804,11 +816,17 @@ export class PlanningGenerationService {
             const staleConflicts = assignedShifts.filter((a) =>
               (survivorsByKey.get(`${a.employeeId}|${a.date}`) ?? []).some(
                 (s) =>
-                  this.timesOverlap(
-                    a.startTime,
-                    a.endTime,
-                    s.startTime,
-                    s.endTime,
+                  shiftsOverlap(
+                    {
+                      date: a.date,
+                      startTime: a.startTime,
+                      endTime: a.endTime,
+                    },
+                    {
+                      date: s.date.toISOString().split('T')[0],
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                    },
                   ),
               ),
             );
@@ -974,24 +992,32 @@ export class PlanningGenerationService {
         const specialDay = specialDayMap.get(dateStr);
         let startTime = shiftTimes.startTime;
         let endTime = shiftTimes.endTime;
-        if (
-          specialDay &&
-          this.timesOverlap(
-            shiftTimes.startTime,
-            shiftTimes.endTime,
-            specialDay.startTime,
-            specialDay.endTime,
-          )
-        ) {
-          // Clamp shift times to the special-day window
-          startTime =
-            shiftTimes.startTime < specialDay.startTime
-              ? specialDay.startTime
-              : shiftTimes.startTime;
-          endTime =
-            shiftTimes.endTime > specialDay.endTime
-              ? specialDay.endTime
-              : shiftTimes.endTime;
+        if (specialDay) {
+          // Story 13-3 (KON-132) — clamp the shift to its real-time intersection
+          // with the special-day window. AC-5 legalised overnight shift types, so a
+          // same-day clock compare (the old windowsOverlap) could miss the midnight
+          // wrap and leave a night shift running its full duration on a reduced-hours
+          // day. Both operands are anchored on dateStr; the special window is
+          // same-day. For a same-day shift this reduces to the previous
+          // max-start / min-end clamp.
+          const shiftItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: shiftTimes.startTime,
+            endTime: shiftTimes.endTime,
+          });
+          const specialItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: specialDay.startTime,
+            endTime: specialDay.endTime,
+          });
+          if (intervalsOverlap(shiftItv, specialItv)) {
+            startTime = this.absMinutesToTime(
+              Math.max(shiftItv[0], specialItv[0]),
+            );
+            endTime = this.absMinutesToTime(
+              Math.min(shiftItv[1], specialItv[1]),
+            );
+          }
         }
 
         slots.push({
@@ -1219,19 +1245,35 @@ export class PlanningGenerationService {
     if (unavailDates?.has(slot.date))
       return { eligible: false, blockedOnlyByRotation: false };
 
-    // 2) Time overlap with an existing assignment on the same date
-    const existingOnDate =
-      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || [];
-    for (const existing of existingOnDate) {
-      if (
-        this.timesOverlap(
-          slot.startTime,
-          slot.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        return { eligible: false, blockedOnlyByRotation: false };
+    // 2) Time overlap with an existing assignment — Story 13-3 (KON-132): scan
+    // D-1/D/D+1, because a shift crossing midnight occupies real time on the
+    // next calendar day. Mirrors the adjacent-day lookups the minRest and
+    // statutory blocks below already do. Border shifts are pre-seeded into
+    // assignmentIndex (see :347), so this also covers the month frontier.
+    for (const bucketDate of [
+      this.getPreviousDate(slot.date),
+      slot.date,
+      this.getNextDate(slot.date),
+    ]) {
+      const existingOnDate =
+        ctx.assignmentIndex.get(`${emp.id}|${bucketDate}`) || [];
+      for (const existing of existingOnDate) {
+        if (
+          shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: existing.date,
+              startTime: existing.startTime,
+              endTime: existing.endTime,
+            },
+          )
+        ) {
+          return { eligible: false, blockedOnlyByRotation: false };
+        }
       }
     }
 
@@ -1275,27 +1317,29 @@ export class PlanningGenerationService {
       const minRest = config.minRestHoursBetweenShifts as number | undefined;
       if (minRest) {
         const minRestMin = minRest * 60;
-        const prevDate = this.getPreviousDate(slot.date);
-        const prevShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
-        for (const prev of prevShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(prev.endTime) +
-            this.toMinutes(slot.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
-        }
-        const nextDate = this.getNextDate(slot.date);
-        const nextShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
-        for (const next of nextShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(slot.endTime) +
-            this.toMinutes(next.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
+        // Story 13-3 (KON-132) — measure the REAL gap between absolute intervals.
+        // The previous arithmetic (24*60 - end + start) silently credited a full
+        // extra day whenever the neighbouring shift crossed midnight.
+        const candidate = {
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        };
+        for (const neighbourDate of [
+          this.getPreviousDate(slot.date),
+          this.getNextDate(slot.date),
+        ]) {
+          const neighbours =
+            ctx.assignmentIndex.get(`${emp.id}|${neighbourDate}`) || [];
+          for (const neighbour of neighbours) {
+            const rest = restMinutesBetween(candidate, {
+              date: neighbour.date,
+              startTime: neighbour.startTime,
+              endTime: neighbour.endTime,
+            });
+            if (rest < minRestMin)
+              return { eligible: false, blockedOnlyByRotation: false };
+          }
         }
       }
     }
@@ -2623,20 +2667,29 @@ export class PlanningGenerationService {
         async (tx) => {
           await this.lockMonths(tx, clinicId, [month]);
 
+          // Story 13-3 (KON-132) — span the adjacent days and use the wrap-aware
+          // overlap so a shift crossing midnight on D-1 (or a candidate crossing
+          // into D+1) is caught. Still read from `tx` under the lock (Story 13-1).
           const existingShifts = await tx.shift.findMany({
             where: {
               employeeId: input.employeeId,
               clinicId,
-              date: new Date(`${input.date}T00:00:00.000Z`),
+              date: { in: this.adjacentDayRange(input.date) },
             },
           });
           for (const existing of existingShifts) {
             if (
-              this.timesOverlap(
-                shiftType.startTime,
-                shiftType.endTime,
-                existing.startTime,
-                existing.endTime,
+              shiftsOverlap(
+                {
+                  date: input.date,
+                  startTime: shiftType.startTime,
+                  endTime: shiftType.endTime,
+                },
+                {
+                  date: existing.date.toISOString().split('T')[0],
+                  startTime: existing.startTime,
+                  endTime: existing.endTime,
+                },
               )
             ) {
               throw new ConflictException(
@@ -2824,7 +2877,7 @@ export class PlanningGenerationService {
       employee,
       operationalConfig,
       unavailabilities,
-      sameDayShifts,
+      overlapWindowShifts,
       weekShifts,
       monthShifts,
       statutoryWindowShifts,
@@ -2849,8 +2902,14 @@ export class PlanningGenerationService {
           endDate: { gte: new Date(`${targetDate}T00:00:00.000Z`) },
         },
       }),
+      // Story 13-3 (KON-132) — the overlap pool spans D-1/D/D+1 so the wrap-aware
+      // check in evaluateMoveViolations sees a shift crossing midnight on an
+      // adjacent day. Read under the same lock / tx as every other input.
       client.shift.findMany({
-        where: { ...employeeShiftWhere, date: targetDateObj },
+        where: {
+          ...employeeShiftWhere,
+          date: { in: this.adjacentDayRange(targetDate) },
+        },
       }),
       client.shift.findMany({
         where: {
@@ -2915,7 +2974,7 @@ export class PlanningGenerationService {
         reason: ua.reason,
         daysOfWeek: ua.daysOfWeek,
       })),
-      sameDayShifts: sameDayShifts.map(toEval),
+      overlapWindowShifts: overlapWindowShifts.map(toEval),
       weekShifts: weekShifts.map(toEval),
       monthShifts: monthShifts.map(toEval),
       quarterExtraShifts: quarterExtraShifts.map(toEval),
@@ -3546,19 +3605,18 @@ export class PlanningGenerationService {
     };
   }
 
-  private timesOverlap(
-    start1: string,
-    end1: string,
-    start2: string,
-    end2: string,
-  ): boolean {
-    const toMinutes = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      return h * 60 + m;
-    };
-    return (
-      toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
-    );
+  /**
+   * Story 13-3 (KON-132) — format an absolute minute count (as produced by
+   * toAbsoluteInterval) back to a wall-clock `HH:MM` string. The day offset is
+   * dropped modulo 1440, so an interval end that lands on the next calendar day
+   * (an overnight shift) round-trips to its wall-clock time and the
+   * endTime < startTime wrap convention is preserved downstream.
+   */
+  private absMinutesToTime(abs: number): string {
+    const m = ((abs % 1440) + 1440) % 1440;
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
   }
 
   private calculateShiftMinutes(startTime: string, endTime: string): number {
@@ -3583,9 +3641,17 @@ export class PlanningGenerationService {
     return date.toISOString().split('T')[0];
   }
 
-  private toMinutes(time: string): number {
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
+  /**
+   * Story 13-3 (KON-132) — the three UTC-midnight Date objects an overlap query
+   * must load for a target day: a shift crossing midnight on D-1 occupies real
+   * time on D, and a shift on D can run into D+1.
+   */
+  private adjacentDayRange(dateISO: string): Date[] {
+    return [
+      this.getPreviousDate(dateISO),
+      dateISO,
+      this.getNextDate(dateISO),
+    ].map((d) => new Date(`${d}T00:00:00.000Z`));
   }
 
   private getWeekBounds(dateStr: string): { start: string; end: string } {
@@ -4753,14 +4819,25 @@ export class PlanningGenerationService {
     const firstWeek = this.getWeekBounds(firstDayStr);
     const lastWeek = this.getWeekBounds(lastDayStr);
 
-    const borderDates: Date[] = [];
+    // Collect border-day date strings, de-duplicated. Two sources:
+    //   1) ISO-week straddle days — weekly-hour calc for a week spanning the month
+    //      boundary (the original Story 11-2 purpose).
+    //   2) Story 13-3 (KON-132) — the immediate calendar D-1 of the first day and
+    //      D+1 of the last day, ALWAYS. When the month starts on a Monday (or ends
+    //      on a Sunday) those neighbours live in a different ISO week, so the
+    //      straddle logic alone never loads them — leaving the cross-midnight
+    //      overlap / minRest / consecutive-day scans blind to an overnight shift on
+    //      the adjacent day and letting the generator double-book across the month
+    //      frontier. These land in a different ISO week from any in-month day, so
+    //      they never perturb the weekly-hour totals.
+    const borderDateStrs = new Set<string>();
 
     // First week overlap: days before month start in the same ISO week
     if (firstWeek.start < firstDayStr) {
       const cursor = new Date(`${firstWeek.start}T00:00:00Z`);
       const limit = new Date(`${firstDayStr}T00:00:00Z`);
       while (cursor < limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
@@ -4771,12 +4848,20 @@ export class PlanningGenerationService {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
       const limit = new Date(`${lastWeek.end}T00:00:00Z`);
       while (cursor <= limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
 
-    if (borderDates.length === 0) return [];
+    // Story 13-3 — always include the immediate calendar neighbours.
+    borderDateStrs.add(this.getPreviousDate(firstDayStr));
+    borderDateStrs.add(this.getNextDate(lastDayStr));
+
+    if (borderDateStrs.size === 0) return [];
+
+    const borderDates = [...borderDateStrs].map(
+      (d) => new Date(`${d}T00:00:00.000Z`),
+    );
 
     this.logger.debug(
       `Loading border week shifts for ${borderDates.length} days outside ${month}`,

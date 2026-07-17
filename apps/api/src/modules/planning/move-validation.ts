@@ -14,6 +14,7 @@
  */
 import type { MoveValidationResult } from '@pawly/validators';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import { shiftsOverlap } from './shift-interval';
 import {
   netMinutes,
   isoWeekday,
@@ -67,8 +68,12 @@ export type MoveEvalContext = {
     closedDays: Array<{ date: string }>;
   };
   unavailabilities: MoveEvalUnavailability[];
-  /** Target employee's shifts on the target DATE, excluding the moved shift. */
-  sameDayShifts: MoveEvalShift[];
+  /**
+   * Story 13-3 (KON-132) — target employee's shifts across the target date AND its
+   * immediate neighbours (D-1/D/D+1), excluding the moved shift. The window spans
+   * adjacent days so the wrap-aware overlap check sees a shift crossing midnight.
+   */
+  overlapWindowShifts: MoveEvalShift[];
   /** Target employee's shifts in the target ISO week, excluding the moved shift. */
   weekShifts: MoveEvalShift[];
   /** Target employee's shifts in the target MONTH, excluding the moved shift (rotation pool). */
@@ -101,28 +106,6 @@ const ROTATION_DAY_TO_ISO: Record<string, number> = {
   saturday: 6,
   sunday: 7,
 };
-
-function toMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-/**
- * Same-day time overlap. Deliberately NOT wrap-aware — this is a verbatim port of
- * `PlanningGenerationService.timesOverlap` (:3565-3578). Cross-midnight overlap is audit
- * finding T3 and belongs to story 13-3; fixing it here would silently widen this story's
- * blast radius and break 13-3's "same-date behaviour unchanged" regression baseline.
- */
-export function timesOverlap(
-  start1: string,
-  end1: string,
-  start2: string,
-  end2: string,
-): boolean {
-  return (
-    toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
-  );
-}
 
 function toStatutoryShift(s: MoveEvalShift): StatutoryShift {
   return {
@@ -189,14 +172,21 @@ export function evaluateMoveViolations(
     }
   }
 
-  // Time overlap on the target employee + date
-  for (const existing of ctx.sameDayShifts) {
+  // Time overlap on the target employee — Story 13-3 (KON-132): wrap-aware across
+  // the D-1/D/D+1 window, so a shift crossing midnight on an adjacent day is caught.
+  for (const existing of ctx.overlapWindowShifts) {
     if (
-      timesOverlap(
-        ctx.shift.startTime,
-        ctx.shift.endTime,
-        existing.startTime,
-        existing.endTime,
+      shiftsOverlap(
+        {
+          date: targetDate,
+          startTime: ctx.shift.startTime,
+          endTime: ctx.shift.endTime,
+        },
+        {
+          date: existing.date,
+          startTime: existing.startTime,
+          endTime: existing.endTime,
+        },
       )
     ) {
       hard.push({
