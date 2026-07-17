@@ -1,22 +1,17 @@
-// WARNING: Business logic duplicated from EquityCounterService (equity-counter.service.ts).
-// Any changes to equity calculation rules MUST be applied in both places.
-// TODO: Extract shared pure functions to eliminate duplication (Phase 2).
 import { schedules, logger } from '@trigger.dev/sdk';
 import { getPrisma } from '../lib/prisma';
+import {
+  computeEquityCounters,
+  utcDateKey,
+  utcMonthBounds,
+} from '../../modules/planning/equity-counting';
 
-function calculateShiftMinutes(startTime: string, endTime: string): number {
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
-  return endMinutes >= startMinutes
-    ? endMinutes - startMinutes
-    : 1440 - startMinutes + endMinutes;
-}
-
-async function recalculateForClinic(clinicId: string, year: number, month: number): Promise<number> {
-  const periodStart = new Date(year, month - 1, 1);
-  const periodEnd = new Date(year, month, 0, 23, 59, 59, 999);
+async function recalculateForClinic(
+  clinicId: string,
+  year: number,
+  month: number,
+): Promise<number> {
+  const { periodStart, periodEnd } = utcMonthBounds(year, month);
 
   const employees = await getPrisma().employee.findMany({
     where: { clinicId, isActive: true },
@@ -36,9 +31,7 @@ async function recalculateForClinic(clinicId: string, year: number, month: numbe
     select: { date: true },
   });
 
-  const closedDaySet = new Set(
-    closedDays.map((cd) => cd.date.toISOString().split('T')[0]),
-  );
+  const closedDayKeys = new Set(closedDays.map((cd) => utcDateKey(cd.date)));
 
   const contractRule = await getPrisma().planningRule.findFirst({
     where: { clinicId, category: 'CONTRACT_COMPLIANCE', isActive: true },
@@ -46,50 +39,20 @@ async function recalculateForClinic(clinicId: string, year: number, month: numbe
   });
 
   const overtimeThresholdPercent = contractRule
-    ? ((contractRule.config as Record<string, unknown>).overtimeThresholdPercent as number) ?? 0
+    ? (((contractRule.config as Record<string, unknown>)
+        .overtimeThresholdPercent as number) ?? 0)
     : 0;
 
+  const counters = computeEquityCounters({
+    year,
+    month,
+    employees,
+    shifts,
+    closedDayKeys,
+    overtimeThresholdPercent,
+  });
+
   const now = new Date();
-  const counters: Array<{
-    employeeId: string;
-    counterType: 'SATURDAY_WORKED' | 'WEEKEND_TOTAL' | 'HOLIDAY_WORKED' | 'OVERTIME_HOURS';
-    count: number;
-  }> = [];
-
-  for (const employee of employees) {
-    const employeeShifts = shifts.filter((s) => s.employeeId === employee.id);
-
-    let saturdayCount = 0;
-    let weekendCount = 0;
-    let holidayCount = 0;
-    let totalShiftMinutes = 0;
-
-    for (const shift of employeeShifts) {
-      const shiftDate = new Date(shift.date);
-      const dayOfWeek = shiftDate.getDay();
-
-      if (dayOfWeek === 6) { saturdayCount++; weekendCount++; }
-      else if (dayOfWeek === 0) { weekendCount++; }
-
-      const dateKey = shiftDate.toISOString().split('T')[0];
-      if (closedDaySet.has(dateKey)) { holidayCount++; }
-
-      totalShiftMinutes += calculateShiftMinutes(shift.startTime, shift.endTime);
-    }
-
-    const daysInMonthCount = new Date(year, month, 0).getDate();
-    const weeksInMonthCount = daysInMonthCount / 7;
-    const contractLimitMinutes = employee.contractHours * 60 * weeksInMonthCount;
-    const adjustedLimitMinutes = contractLimitMinutes * (1 + overtimeThresholdPercent / 100);
-    const overtimeMinutes = Math.max(0, Math.round(totalShiftMinutes - adjustedLimitMinutes));
-
-    counters.push(
-      { employeeId: employee.id, counterType: 'SATURDAY_WORKED', count: saturdayCount },
-      { employeeId: employee.id, counterType: 'WEEKEND_TOTAL', count: weekendCount },
-      { employeeId: employee.id, counterType: 'HOLIDAY_WORKED', count: holidayCount },
-      { employeeId: employee.id, counterType: 'OVERTIME_HOURS', count: overtimeMinutes },
-    );
-  }
 
   const result = await getPrisma().$transaction(
     counters.map((c) =>
@@ -148,11 +111,17 @@ export const equityNightlyRecalcTask = schedules.task({
         const count = await recalculateForClinic(clinic.id, year, month);
         totalCounters += count;
       } catch (error) {
-        logger.error(`Failed for clinic "${clinic.name}"`, { clinicId: clinic.id, error: String(error) });
+        logger.error(`Failed for clinic "${clinic.name}"`, {
+          clinicId: clinic.id,
+          error: String(error),
+        });
       }
     }
 
-    logger.info('Nightly recalculation complete', { totalCounters, clinics: clinics.length });
+    logger.info('Nightly recalculation complete', {
+      totalCounters,
+      clinics: clinics.length,
+    });
     return { totalCounters };
   },
 });
@@ -187,11 +156,17 @@ export const equityMonthlyFinalTask = schedules.task({
         const count = await recalculateForClinic(clinic.id, year, month);
         totalCounters += count;
       } catch (error) {
-        logger.error(`Failed for clinic "${clinic.name}"`, { clinicId: clinic.id, error: String(error) });
+        logger.error(`Failed for clinic "${clinic.name}"`, {
+          clinicId: clinic.id,
+          error: String(error),
+        });
       }
     }
 
-    logger.info('Monthly finalization complete', { totalCounters, clinics: clinics.length });
+    logger.info('Monthly finalization complete', {
+      totalCounters,
+      clinics: clinics.length,
+    });
     return { totalCounters };
   },
 });
