@@ -42,6 +42,7 @@ import {
   selectImprovingSwap,
   type RepairSlot,
   type RepairAssignment,
+  type EmployeeLoad,
 } from './local-repair';
 import {
   buildSolverModel,
@@ -530,10 +531,32 @@ export class PlanningGenerationService {
     // Story 12-1 (KON-129) — freeze the pre-greedy fixed baseline (border +
     // survivors + school) so the solver's model re-decides GENERATED assignments
     // only. Captured ONLY on the cpsat path: the default engine pays nothing.
+    // Story 13-5 adds the monthly-minute baseline (employeeMinutes is seeded with
+    // this month's survivors above; border shifts never enter it — exactly the
+    // per-month figure the monthly cap must deduct) and the survivor equity loads
+    // the spread + gate use.
     const solverBaseline =
       options.engine === 'cpsat'
         ? {
             weeklyMinutes: new Map(weeklyMinutesCounter),
+            monthlyMinutes: new Map(employeeMinutes),
+            equityLoads: (() => {
+              const survSlotById = new Map<string, RepairSlot>();
+              const survAssignments: RepairAssignment[] = [];
+              survivingShifts.forEach((ss, i) => {
+                const id = `surv|${i}`;
+                survSlotById.set(id, {
+                  id,
+                  date: ss.date,
+                  shiftTypeCode: ss.shiftTypeCode,
+                  startTime: ss.startTime,
+                  endTime: ss.endTime,
+                  breakMinutes: ss.breakMinutes ?? 0,
+                });
+                survAssignments.push({ slotId: id, employeeId: ss.employeeId });
+              });
+              return computeLoads(survAssignments, survSlotById);
+            })(),
             fixedShiftsByEmployee: (() => {
               const byEmp = new Map<string, AssignedShift[]>();
               for (const bucket of assignmentIndex.values()) {
@@ -4250,6 +4273,8 @@ export class PlanningGenerationService {
     priorHoles: GenerationResult['holes'];
     baseline: {
       weeklyMinutes: Map<string, number>;
+      monthlyMinutes: Map<string, number>;
+      equityLoads: Map<string, EmployeeLoad>;
       fixedShiftsByEmployee: Map<string, AssignedShift[]>;
       rotationCounts: Map<string, Map<number, number>>;
     };
@@ -4412,6 +4437,8 @@ export class PlanningGenerationService {
       slots: positionSlots,
       unavailable: ctx.constraints.unavailableMap,
       fixedWeeklyMinutes: ctx.baseline.weeklyMinutes,
+      fixedMonthlyMinutes: ctx.baseline.monthlyMinutes,
+      fixedEquityLoads: ctx.baseline.equityLoads,
       fixedDailyMinutes,
       fixedWorkedDates,
       fixedRotationCounts,
@@ -4473,12 +4500,42 @@ export class PlanningGenerationService {
         slotId: `${s.date}|${s.shiftTypeCode}|${s.startTime}`,
         employeeId: s.employeeId,
       }));
+    // Story 13-5 (T7) — the gate judges TOTAL fairness (survivors + generated),
+    // matching the survivor-aware spread the model now optimizes. Each employee's
+    // immovable survivor load is added to BOTH plans, so the comparison stays a
+    // strict apples-to-apples improvement test while "fairer" means fairer in
+    // reality, not just across the shifts the pass can move.
+    const withSurvivors = (
+      generated: Map<string, EmployeeLoad>,
+    ): Map<string, EmployeeLoad> => {
+      const merged = new Map<string, EmployeeLoad>();
+      for (const [empId, l] of ctx.baseline.equityLoads) {
+        merged.set(empId, { ...l });
+      }
+      for (const [empId, l] of generated) {
+        const cur = merged.get(empId) ?? {
+          saturdayCount: 0,
+          weekendCount: 0,
+          shiftCount: 0,
+        };
+        merged.set(empId, {
+          saturdayCount: cur.saturdayCount + l.saturdayCount,
+          weekendCount: cur.weekendCount + l.weekendCount,
+          shiftCount: cur.shiftCount + l.shiftCount,
+        });
+      }
+      return merged;
+    };
     const greedyEquity = equityObjective(
-      computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
+      withSurvivors(
+        computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
+      ),
       equityWeights,
     );
     const candidateEquity = equityObjective(
-      computeLoads(toRepairAssignments(candidate), repairSlotById),
+      withSurvivors(
+        computeLoads(toRepairAssignments(candidate), repairSlotById),
+      ),
       equityWeights,
     );
     const greedyFilled = ctx.assignedShifts.length;
