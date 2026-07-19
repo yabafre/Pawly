@@ -797,6 +797,8 @@ Story 13-5 is Wave 2, cut on top of Wave 1 (13-3 merged). It shares `planning-ge
 - `apps/api/src/modules/planning/planning-generation.service.ts` (modify)
 - `apps/api/src/modules/planning/planning-generation.service.spec.ts` (modify)
 - `apps/api/src/modules/planning/solver-engine.service.spec.ts` (modify — not in the original plan; its SolverInput fixtures needed the two new required fields)
+- `apps/api/src/modules/planning/local-repair.ts` (modify — aped-review: extracted the survivor-merge into a pure exported `mergeEquityLoads`)
+- `apps/api/src/modules/planning/local-repair.spec.ts` (modify — aped-review: 4 unit tests proving the survivor-aware gate is load-bearing)
 
 ## Dev Agent Record
 
@@ -873,3 +875,89 @@ $ pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json  # touched files: 
 > code is cpsat-gated and never executes there; it failed identically before any service edit
 > (2441 ms at the first RED commit). Under the intended contended-runner budget the full suite is
 > green.
+
+## Review Record
+
+**Date:** 2026-07-19
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface — no Aria; no preview app)
+**Verdict:** done — all findings resolved or dismissed with rationale
+
+Three method-driven auditors ran in parallel plus an inline git-audit. Code and Edge
+returned APPROVED / HIGH; Spec returned CHANGES_REQUESTED on one MAJOR test-coverage gap,
+re-verified RESOLVED after the fix. The T5 monthly deduction, T7 survivor spread + fill
+dominance, the survivor-aware gate, determinism, and the byte-identical greedy default
+were each traced to fresh evidence (not the Dev Record's prose).
+
+### Findings
+
+#### Resolved
+- [MAJOR] AC-2 — the survivor-aware acceptance gate had no outcome-differentiating test.
+  `equityObjective` is a mean-normalized quadratic, so merging survivors is load-bearing
+  (not a neutral offset), yet the AC-4 fixture always short-circuits `strictlyBetter` on the
+  fill-count branch before equity decides — a bug in the merge (sign / double-count / wrong
+  key) would ship undetected. [planning-generation.service.ts:4503, local-repair.ts]
+  - Source: Spec
+  - Resolution: `607ec4b` — extracted the inline merge into a pure exported
+    `mergeEquityLoads(baseline, generated)` (local-repair.ts, beside equityObjective/computeLoads);
+    the service calls it at both gate sites (behaviour-preserving extraction). Added 4 unit
+    tests (local-repair.spec.ts): identity / no-alias / per-employee sum, plus a LOAD-BEARING
+    test proving a skewed survivor baseline flips which equal-fill plan the gate judges fairer
+    (B wins survivor-blind → A wins after the merge). Spec auditor re-derived the arithmetic
+    independently (0.08 < 0.72) and confirmed RESOLVED; 4/4 green.
+- [MINOR] AC-4 fixture routed survivor-vs-border on bare `where.OR` truthiness; the
+  quarterly-rotation historical load also uses `where.OR` (date-range) — no collision today
+  but fragile if reused. [planning-generation.service.spec.ts:9112]
+  - Source: Code
+  - Resolution: `4de6f84` — discriminator now matches the survivor OR shape
+    (`source` / `isConfirmed` / `varianceEvents`); any other OR falls through to the empty
+    branch. AC-4 3/3 green.
+
+#### Dismissed
+- [MINOR] AC-1 end-to-end causal proof — the shipped AC-4 fixture's cpsat flip is driven by
+  the depth-3 crossed-availability trap, not by the T5 deduction (emp-4's bound is 240−120
+  either way); no test isolates T5 as the sole cause of a greedy→cpsat flip. [service.spec.ts]
+  - Source: Spec
+  - Rationale: Pre-authorized by the story's Dev Notes (§ "AC-4 end-to-end" — model-inspection
+    test is the reliable GREEN; tune the fixture, not the assertion). The model-inspection test
+    proves the T5 deduction reaches the solver's model directly (`monthly:emp-4` = 240−120).
+    Non-blocking; a tighter e2e causal proof is a candidate for 13-6 / 13-8.
+- [MINOR] Gate merge population can exceed the model spread's population (inactive-employee
+  survivors present in the gate but not the solver pool). [planning-generation.service.ts:4503]
+  - Source: Edge
+  - Rationale: Applied identically to greedy AND candidate, so the comparison stays
+    apples-to-apples; counting a genuinely-worked survivor load is arguably correct (Option A
+    intent). Report-only, not a correctness bug.
+- [NIT] An all-fixed spread (every kept employee has `fixed > 0`, zero free terms) emits a
+  constant objective term — a few wasted CP vars, no argmax effect. [solver-model.ts]
+  - Source: Edge
+  - Rationale: Correct and in-domain (`upper = max(terms.length + fixed) ≥ fixed`),
+    deterministic, rare. Not worth an added branch.
+- [NIT] The T7a assertion (`objective.some(t => t.tag === 'spread:shift')`) is unconditional —
+  `spread:shift` is now always modeled (the one always-on change), so it passes on any fixture.
+  [solver-model.spec.ts]
+  - Source: Spec
+  - Rationale: Not a bug; the metric is asserted meaningfully elsewhere (T7b `fixed` +
+    fill-dominance). No action.
+- [NIT] The survivor merge shifts `equityObjective`'s `n` only insofar as greedy/candidate could
+  already differ pre-story; the identical baseline is merged into both sides, dampening rather
+  than worsening the pre-existing asymmetry. [planning-generation.service.ts]
+  - Source: Code
+  - Rationale: Pre-existing latent gate property, not introduced here. Out of scope.
+
+git-audit: clean of code discrepancies (only `state.yaml` + this story file fall outside the
+File List — expected APED artefacts).
+
+### Verification
+- Test command: `pnpm --filter @pawly/api test` (TURBO_HASH=1 contended-runner budget)
+- Test output (final pass): `Test Suites: 42 passed, 42 total` · `Tests: 1139 passed, 1139 total`
+  (+4 from the new `mergeEquityLoads` unit tests; the NFR2 ejection-scan perf pin passed on the
+  final run). Targeted witnesses: `solver-model.spec.ts` 18/18; `local-repair.spec.ts` incl. the
+  4 new gate tests green; AC-4 3/3 (model-inspection + served-cpsat + determinism).
+- Type check: `tsc --noEmit` — 24 pre-existing spec-only strictness errors in 4 UNTOUCHED specs
+  (clinic / employee / planning.service / variance, per 13-3); ZERO in any 13-5-touched file, so
+  the two new required `SolverInput` fields are wired at every call site.
+- Visual verification: n/a (backend surface, no preview app).
+
+### Ticket sync
+- Ticket comment posted: YES — Linear KON-135 (verdict `done`, 0 open findings)
+- PR opened/updated: https://github.com/yabafre/Pawly/pull/116 (draft → `sprint/epic-13`)

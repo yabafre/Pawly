@@ -182,3 +182,29 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   D-1/D/D+1 window (still read under 13-1's advisory lock, inside the write transaction).
   `createManualShift`'s in-tx overlap and the stale-plan check adopted `shiftsOverlap` + the
   adjacent-day window too. `move-validation.ts`'s obsolete `timesOverlap`/`toMinutes` were removed.
+
+### Story 13-5-solver-model-fidelity — done 2026-07-19T16:15:00Z
+
+- **Decisions:** The cpsat improve pass is now survivor-aware on BOTH sides (Option A, locked with
+  Alex). The monthly bound deducts in-month survivor minutes (`fixedMonthlyMinutes`, the exact
+  mirror of the weekly cap); the equity spread models a third `spread:shift` metric whose
+  per-employee count carries the survivor's immovable load (`fixedEquityLoads`); the acceptance gate
+  scores fairness over survivors + generated via the pure `mergeEquityLoads`. Any future story
+  recomputing solver equity fairness MUST call `mergeEquityLoads` (do not re-inline the merge) and
+  source the monthly baseline from the pre-greedy `employeeMinutes` snapshot (survivors only —
+  border shifts never enter it). Fill still lexicographically dominates: `maxSpread` tracks
+  `terms.length + fixed`, not just `slots.length`. `local-repair.ts`'s own greedy-repair
+  `equityObjective` usage stays survivor-blind by design (out of scope).
+- **Files:** `solver-model.ts` (+spec), `planning-generation.service.ts` (+spec),
+  `solver-engine.service.spec.ts`, `local-repair.ts` (+spec — review-added `mergeEquityLoads`).
+- **Contracts:** `SolverInput` gains two REQUIRED maps — `fixedMonthlyMinutes: Map<string, number>`
+  and `fixedEquityLoads: Map<string, EmployeeLoad>` (every SolverInput construction site must supply
+  them; 13-6 will). New pure export `mergeEquityLoads(baseline, generated)` from `local-repair.ts`.
+  The `spread:shift` tag joins `spread:saturday`/`spread:weekend` in the IR objective (the or-tools
+  adapter already materializes any spread generically via `p.fixed` — no adapter change).
+- **Deviations from plan:** AC-4 fixture rebuilt at GREEN as a depth-3 crossed-availability trap +
+  a bystander emp-4 carrying a 2h survivor against a 4h cap (bound 240−120), per the story's own
+  "tune the fixture" Dev Note — the model-inspection test is the reliable T5/T7 proof. aped-review
+  extracted the inline gate merge into the pure `mergeEquityLoads` + added a load-bearing unit test
+  (the merge was correct but only reachable through the fill branch, so untested), and hardened the
+  AC-4 mock's `where.OR` discriminator against a latent quarterly-query collision.
