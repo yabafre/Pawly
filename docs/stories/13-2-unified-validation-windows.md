@@ -944,5 +944,5 @@ re-confirmed by the finding's original auditor.
 
 ### Ticket sync
 
-- Ticket comment posted: Linear KON-134.
-- PR opened/updated: draft → `sprint/epic-13`.
+- Ticket comment posted: Linear KON-134 (comment `3cdea896`).
+- PR opened: [#117](https://github.com/yabafre/Pawly/pull/117) — draft → `sprint/epic-13`.
