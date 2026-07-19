@@ -1,7 +1,7 @@
 # Story: 13-2-unified-validation-windows — Unified Cross-Month Validation Windows
 
 **Epic:** Epic 13 — Planning Integrity & Solver Fidelity
-**Status:** ready-for-dev
+**Status:** done
 **Branch:** feature/KON-134-13-2-unified-validation-windows
 **Ticket:** KON-134 (Linear · project Pawly · milestone Epic 13 · High · blocked-by KON-131 / 13-1 [done] · blocks KON-136 / 13-4)
 **Origin:** Multi-agent planning audit 2026-07-14, finding **T4** (triage `docs/triage-decision.md`): *"Fenêtres de validation incohérentes : move/publish = mois strict, génération = semaine ISO border ; `clampGapLen` crédite du repos fantôme. Référence correcte : `createManualShift` ±8 j réels."* Wave W2 — extends the `move-validation.ts` window knob that 13-1 introduced.
@@ -871,3 +871,78 @@ Full `@pawly/api` suite: 1135 passed, 1 failed — the single failure is the pre
 timing-flaky perf test `meets NFR2 when the ejection scan runs against many real holes`
 (wall-clock budget under full-suite contention; the test's own comment documents this). It
 passes in isolation (1505 ms < 2000 ms budget) and is untouched by this story.
+
+## Review Record
+
+**Date:** 2026-07-19
+**Auditors:** Spec, Code, Edge & Hallucination (backend surface — no Aria)
+**Verdict:** done
+
+Three method-driven auditors ran in parallel; the Lead inlined `git-audit.sh` (clean — only
+`state.yaml` + the story file outside the File List, expected) and re-ran every claim fresh.
+Two MAJOR findings surfaced (each caught by only one auditor — the adversarial divergence paid
+off) plus one MINOR and one NIT. All fixes were verified RED→GREEN by reverting each fix, then
+re-confirmed by the finding's original auditor.
+
+### Resolved
+
+- **[MAJOR] Publish silently missed a 7+ consecutive-day run straddling into the published month**
+  [`french-labor-law.ts:290-313` + `planning.service.ts:315-326`]
+  - Source: Code auditor.
+  - Cause: `findStatutoryViolations` flagged `CONSECUTIVE_DAYS` only on the *first* over-limit day
+    (the 7th); when that day fell in an adjacent month but the run continued into the published
+    range, `violationInPublishedRange` dropped it and `WEEKLY_REST` (genuine rest after the run)
+    did not backstop — a HARD statutory block bypassed at a frontier (AC3/NFR3 gap).
+  - Resolution: **ebe114d** — flag *every* worked day beyond the max, each attributed to its own
+    in-grid day, so the range filter keeps the in-range days and the health bar highlights the
+    cell. `violationInPublishedRange` unchanged; incremental `wouldExceedStatutory` untouched.
+    Differential test `planning.service.spec.ts` (Dec 24→Jan 2 straddle). Code auditor re-verified.
+
+- **[MAJOR] Task-5 seed perturbed greedy scoring near a month frontier (byte-identical claim false)**
+  [`planning-generation.service.ts` seed → `scoreAndAssign` consecutive-days penalty]
+  - Source: Spec auditor.
+  - Cause: the `assignmentIndex` widening (for the eligibility statutory window) was also read by
+    `scoreAndAssign`'s consecutive-days *scoring* scan (up to 6 days back), silently changing which
+    eligible employee wins a near-frontier slot — contradicting the seed's own "byte-identical
+    fill/equity (invariant 11-10)" claim, untested.
+  - Resolution: **ba361de** — record the purely-statutory keys in `statutoryOnlyKeys` and stop the
+    scoring scan at them (invisible to it pre-13-2 → exact pre-13-2 scoring). Eligibility / repair /
+    replay still read them from `assignmentIndex`, so cross-month statutory coverage is unchanged.
+    Differential test `planning-generation.service.spec.ts` (symmetric border history, emp-1 with a
+    statutory-only run: guard ON → tie → emp-1; guard OFF → emp-1 over-penalized → emp-2). Spec
+    auditor re-verified.
+
+- **[NIT] Statutory-only days also widened the CP-SAT solver baseline (undocumented scope creep)**
+  [`planning-generation.service.ts` `solverBaseline.fixedShiftsByEmployee`]
+  - Source: Edge + Code + Spec auditors (converged independently). Fixed at Alex's request (keep
+    13-2 a greedy-scope change rather than silently altering the `engine: 'cpsat'` model).
+  - Resolution: **d78c20b** — skip statutory-only keys when building `fixedShiftsByEmployee` too.
+    Correctness-safe: a cross-frontier breach in a served cpsat plan is still caught by the
+    eligibility replay (which reads `assignmentIndex`). Differential test spies `buildSolverModel`
+    and asserts `fixedWorkedDates` keeps the border days but excludes the statutory-only ones.
+
+### Dismissed
+
+- **[MINOR] Task-4 "adjacent-month breach" test is not a true differential** [`planning.service.spec.ts:1461-1471`]
+  - Source: Spec auditor.
+  - Rationale: pre-Task-3 code issued a single `shift.findMany`, so the Feb-3 shift was never read
+    and `hardViolations` was already `[]` — the test proves the range filter is *present*, not that
+    the ±8-day widening changed behaviour. Still valid coverage of `violationInPublishedRange`; no
+    code change warranted (auditor: "none required for merge"). Just don't cite it as proof of the
+    widening — the first test in the same block is the real differential.
+
+### Verification
+
+- Test command: `pnpm --filter @pawly/api test` (and story-scoped `-- french-labor-law
+  planning.service.spec planning-generation.service.spec move-validation`).
+- Test output (final pass): full `@pawly/api` **42 suites, 1139 passed, 0 failed**; story-scoped
+  **4 suites, 302 passed**; build gate `tsc -p tsconfig.types.json` **exit 0**. The previously
+  flaky NFR2 perf test passed in the final full run.
+- Each of the three fixes was independently confirmed RED (reverted) → GREEN (applied) in this
+  session.
+- Visual verification: N/A — backend-only story, no preview surface.
+
+### Ticket sync
+
+- Ticket comment posted: Linear KON-134.
+- PR opened/updated: draft → `sprint/epic-13`.
