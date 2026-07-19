@@ -1412,4 +1412,62 @@ describe('PlanningService', () => {
       expect(soft?.equityContext?.clinicAverage).toBe(0);
     });
   });
+
+  describe('Story 13-2 — cross-month statutory window (validateShiftsAgainstRules)', () => {
+    const mkStatShift = (
+      employeeId: string,
+      date: string,
+      startTime: string,
+      endTime: string,
+    ) => ({
+      employeeId,
+      date: new Date(`${date}T00:00:00.000Z`),
+      startTime,
+      endTime,
+      breakMinutes: 0,
+      shiftTypeCode: 'SURGERY',
+      employee: { id: employeeId },
+    });
+
+    beforeEach(() => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // no configured rules
+    });
+
+    it('detects a 35h weekly-rest deficit straddling the month frontier', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict-month validShifts
+      const dense: ReturnType<typeof mkStatShift>[] = [];
+      for (let d = 22; d <= 31; d++)
+        dense.push(mkStatShift('e1', `2025-12-${d}`, '09:00', '18:00'));
+      for (let d = 1; d <= 11; d++)
+        dense.push(
+          mkStatShift(
+            'e1',
+            `2026-01-${String(d).padStart(2, '0')}`,
+            '09:00',
+            '18:00',
+          ),
+        );
+      mockPrismaService.shift.findMany.mockResolvedValueOnce(dense); // ±8-day statutory set
+
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(
+        res.hardViolations.some((h) => h.ruleId === 'statutory:weekly_rest'),
+      ).toBe(true);
+    });
+
+    it('does NOT report a breach living purely in an adjacent month', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict January: empty
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([
+        mkStatShift('e1', '2026-02-03', '06:00', '20:00'), // 14h net > 10h, but Feb (out of range)
+      ]);
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(res.hardViolations).toHaveLength(0);
+    });
+  });
 });
