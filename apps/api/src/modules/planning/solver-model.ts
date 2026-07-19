@@ -20,7 +20,7 @@
  * weighted by the KON-128 EquityWeights); the exact quadratic normalized
  * objective is only used by the service's acceptance gate via equityObjective().
  */
-import type { EquityWeights } from './local-repair';
+import type { EquityWeights, EmployeeLoad } from './local-repair';
 import {
   intervalsOverlap,
   toAbsoluteInterval,
@@ -61,6 +61,8 @@ export interface SolverInput {
   fixedWeeklyMinutes: Map<string, number>;
   /** employeeId -> fixed net minutes already worked THIS month (survivors) — deducted from the monthly cap, the exact mirror of fixedWeeklyMinutes (Story 13-5, T5). */
   fixedMonthlyMinutes: Map<string, number>;
+  /** employeeId -> survivor equity load (saturday/weekend/shift counts) — the per-metric spread baseline, so the spread reflects TOTAL fairness the survivor-aware gate judges (Story 13-5, T7). */
+  fixedEquityLoads: Map<string, EmployeeLoad>;
   /** `${employeeId}|${date}` -> fixed net minutes that day (survivors). */
   fixedDailyMinutes: Map<string, number>;
   /** employeeId -> Set<'YYYY-MM-DD'> of days already worked (survivors/border) — feeds consecutive-days. */
@@ -374,15 +376,38 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   }
 
   // Objective: fill lexicographically dominates the weighted equity spreads.
-  // Spread vars are bounded by the slot count, so fillWeight = totalSpreadWeight
-  // * (maxSpread + 1) guarantees a filled position always beats any spread gain.
+  // The three spread metrics mirror equityObjective (local-repair.ts) EXACTLY —
+  // saturday, weekend AND shift — so the solver optimizes every metric the
+  // service's acceptance gate judges (Story 13-5, T7a). Each per-employee count
+  // carries a `fixed` survivor baseline (that employee's immovable MANUAL/confirmed
+  // load for the metric), so the spread reflects TOTAL fairness the same way the
+  // survivor-aware gate does — the model no longer balances only what it can move.
   const w = input.equityWeights;
-  const spreadDefs: Array<{ tag: string; isoDays: number[]; weight: number }> =
-    [
-      { tag: 'spread:saturday', isoDays: [6], weight: w.saturday },
-      { tag: 'spread:weekend', isoDays: [6, 7], weight: w.weekend },
-    ];
-  const maxSpread = slots.length;
+  const spreadDefs: Array<{
+    tag: string;
+    isoDays: number[];
+    weight: number;
+    metric: keyof EmployeeLoad;
+  }> = [
+    {
+      tag: 'spread:saturday',
+      isoDays: [6],
+      weight: w.saturday,
+      metric: 'saturdayCount',
+    },
+    {
+      tag: 'spread:weekend',
+      isoDays: [6, 7],
+      weight: w.weekend,
+      metric: 'weekendCount',
+    },
+    {
+      tag: 'spread:shift',
+      isoDays: [1, 2, 3, 4, 5, 6, 7],
+      weight: w.shift,
+      metric: 'shiftCount',
+    },
+  ];
   const activeSpreads: IrSpread[] = [];
   for (const def of spreadDefs) {
     const perEmployee = employees
@@ -393,9 +418,13 @@ export function buildSolverModel(input: SolverInput): SolverModel {
             def.isoDays.includes(isoWeekday(slotById.get(v.slotId)!.date)),
           )
           .map((v) => ({ varName: v.name, coeff: 1 }));
-        return { employeeId: e.id, terms, fixed: 0 };
+        const fixed = input.fixedEquityLoads.get(e.id)?.[def.metric] ?? 0;
+        return { employeeId: e.id, terms, fixed };
       })
-      .filter((p) => p.terms.length > 0);
+      // Keep an employee whose only contribution is a survivor baseline: a
+      // `fixed > 0` with no free term still shifts the spread, so the model must
+      // see it to balance TOTAL load (the survivor-aware gate does).
+      .filter((p) => p.terms.length > 0 || p.fixed > 0);
     if (perEmployee.length < 2) continue;
     activeSpreads.push({ kind: 'spread', tag: def.tag, perEmployee });
   }
@@ -403,6 +432,18 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   const totalSpreadWeight = spreadDefs.reduce(
     (s, d) => s + Math.ceil(d.weight * 100),
     0,
+  );
+  // Fill must beat any weighted spread swing. A survivor `fixed` can push a
+  // per-employee count past slots.length, so the dominance bound tracks the
+  // largest achievable spread across active defs, not just the slot count
+  // (Story 13-5, AC-3) — otherwise a heavy survivor imbalance could let the
+  // optimizer trade a filled position for fairness.
+  const maxSpread = Math.max(
+    slots.length,
+    0,
+    ...activeSpreads.map((sp) =>
+      Math.max(...sp.perEmployee.map((p) => p.terms.length + p.fixed)),
+    ),
   );
   const fillWeight = totalSpreadWeight * (maxSpread + 1);
 
