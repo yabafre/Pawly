@@ -386,11 +386,21 @@ export class PlanningGenerationService {
     }
 
     // Story 13-2 (KON-134) — widen the cross-month context the statutory eligibility window
-    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex ONLY:
-    // deliberately NOT into dayOfWeekCounts / weeklyMinutesCounter / allShiftsForScoring, so
-    // rotation/equity/fill decisions stay byte-identical (invariant 11-10). Border days
-    // (ISO-straddle + D±1) are already seeded above — skip them to avoid double-counting.
+    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex so the
+    // eligibility predicate — main loop + repair + replay, which all share this one map — sees
+    // the frontier context. Deliberately NOT seeded into dayOfWeekCounts / weeklyMinutesCounter
+    // / allShiftsForScoring, so rotation/equity/fill stay byte-identical (invariant 11-10).
+    // Border days (ISO-straddle + D±1) are already seeded above — skip them to avoid
+    // double-counting.
+    // aped-review M2: scoreAndAssign's "Consecutive days penalty" SCORING scan reads this same
+    // map directly, walking up to 6 days back — so these purely-statutory out-of-month days
+    // would extend that scan for near-frontier slots and change which eligible employee wins,
+    // silently breaking the byte-identical claim above. Their keys are recorded in
+    // `statutoryOnlyKeys`; that one scoring scan stops at them (they were invisible to it
+    // pre-13-2), restoring exact pre-13-2 greedy selection while the eligibility window
+    // (step 5) still reads them from assignmentIndex.
     const borderDateSet = new Set(borderShifts.map((bs) => bs.date));
+    const statutoryOnlyKeys = new Set<string>();
     const statutoryBorderShifts = await this.loadStatutoryBorderShifts(
       clinicId,
       month,
@@ -401,6 +411,7 @@ export class PlanningGenerationService {
       const existing = assignmentIndex.get(key) || [];
       existing.push(sbs);
       assignmentIndex.set(key, existing);
+      statutoryOnlyKeys.add(key);
     }
 
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
@@ -630,6 +641,7 @@ export class PlanningGenerationService {
         constraints,
         allShiftsForScoring,
         assignmentIndex,
+        statutoryOnlyKeys,
         employeeMinutes,
         weeksInMonth,
         weeklyMinutesCounter,
@@ -1415,6 +1427,11 @@ export class PlanningGenerationService {
     constraints: ConstraintMap,
     alreadyAssigned: AssignedShift[],
     assignmentIndex: Map<string, AssignedShift[]>,
+    // Story 13-2 (KON-134) aped-review M2 — keys of the purely-statutory out-of-month days
+    // seeded into assignmentIndex for the eligibility window. The consecutive-days scoring scan
+    // below must NOT count them (they were invisible to scoring pre-13-2), or greedy selection
+    // shifts near a month frontier.
+    statutoryOnlyKeys: Set<string>,
     employeeMinutes: Map<string, number>,
     weeksInMonth: number,
     weeklyMinutesCounter: Map<string, number>,
@@ -1682,11 +1699,17 @@ export class PlanningGenerationService {
         score += 15; // moderate headroom
       }
 
-      // Consecutive days penalty
+      // Consecutive days penalty.
+      // Story 13-2 (KON-134) aped-review M2 — stop at a purely-statutory out-of-month day: it
+      // lives in assignmentIndex only for the eligibility window (evaluateEligibility step 5)
+      // and was invisible to this scoring scan before 13-2. Counting it would extend the run
+      // near a month frontier and change which eligible employee wins (breaking the
+      // byte-identical greedy invariant 11-10). Excluding it restores exact pre-13-2 scoring.
       let consecutiveDays = 0;
       let checkDate = this.getPreviousDate(slot.date);
       while (
         consecutiveDays < 6 &&
+        !statutoryOnlyKeys.has(`${emp.id}|${checkDate}`) &&
         (assignmentIndex.get(`${emp.id}|${checkDate}`) || []).length > 0
       ) {
         consecutiveDays++;

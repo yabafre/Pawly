@@ -668,6 +668,15 @@ describe('PlanningGenerationService', () => {
   // Accepts 6 args (slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)
   // or 7 args (same + weeksInMonth). Appends the 3 new counter params automatically.
   const callScore = (...args: unknown[]) => {
+    // Story 13-2 (KON-134) aped-review M2 — scoreAndAssign gained a `statutoryOnlyKeys` param
+    // between assignmentIndex (arg 4) and employeeMinutes (arg 5). A test may pass its own Set
+    // as a trailing arg to exercise the exclusion; otherwise it defaults to empty. No existing
+    // caller passes a Set (the last real arg is employeeMinutes:Map or weeksInMonth:number).
+    let statutoryOnlyKeys = new Set<string>();
+    if (args.length > 0 && args[args.length - 1] instanceof Set) {
+      statutoryOnlyKeys = args.pop() as Set<string>;
+    }
+
     const alreadyAssigned = (args[3] || []) as Array<{
       employeeId: string;
       date: string;
@@ -679,7 +688,13 @@ describe('PlanningGenerationService', () => {
 
     // Determine weeksInMonth: if 7th arg exists and is a number, it's weeksInMonth
     const hasWeeksInMonth = args.length >= 7 && typeof args[6] === 'number';
-    const baseArgs = hasWeeksInMonth ? args : [...args, 4.43];
+    const baseArgsRaw = hasWeeksInMonth ? args : [...args, 4.43];
+    // statutoryOnlyKeys slots in between assignmentIndex (arg 4) and employeeMinutes (arg 5).
+    const baseArgs = [
+      ...baseArgsRaw.slice(0, 5),
+      statutoryOnlyKeys,
+      ...baseArgsRaw.slice(5),
+    ];
 
     const toMin = (t: string) => {
       const [h, m] = t.split(':').map(Number);
@@ -774,6 +789,88 @@ describe('PlanningGenerationService', () => {
 
       expect(result.assigned.length).toBe(2);
       expect(result.holeInfo).toBeUndefined();
+    });
+
+    it('Story 13-2 M2 — statutory-only days do not perturb the consecutive-days scoring', () => {
+      // A Jan-1 slot, two otherwise-identical eligible employees. BOTH worked the border days
+      // Dec 29-31 (symmetric → all rotation/weekly coupling cancels). emp-1 ALSO worked the
+      // purely-statutory days Dec 27-28 — seeded into assignmentIndex only for the eligibility
+      // window (evaluateEligibility step 5). If those leak into the "Consecutive days penalty"
+      // SCORING scan, emp-1's penalty rises (5 days back vs emp-2's 3) and flips the winner.
+      // The statutoryOnlyKeys guard must exclude them so the two stay tied → byte-identical
+      // greedy selection (invariant 11-10). This test is the differential: same inputs, only
+      // the guard set differs.
+      const slot = {
+        date: '2026-01-01',
+        shiftTypeCode: 'SURGERY',
+        startTime: '09:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      const employees = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'A',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'B',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const mkIdxShift = (employeeId: string, date: string) => ({
+        employeeId,
+        date,
+        startTime: '09:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      });
+      const idx = new Map<string, ReturnType<typeof mkIdxShift>[]>();
+      const add = (e: string, d: string) =>
+        idx.set(`${e}|${d}`, [
+          ...(idx.get(`${e}|${d}`) || []),
+          mkIdxShift(e, d),
+        ]);
+      // Symmetric border history for BOTH employees.
+      for (const e of ['emp-1', 'emp-2'])
+        for (const d of ['2025-12-29', '2025-12-30', '2025-12-31']) add(e, d);
+      // Purely-statutory extra days — emp-1 only.
+      const statutoryDays = ['2025-12-27', '2025-12-28'];
+      for (const d of statutoryDays) add('emp-1', d);
+      const statutoryKeys = new Set(statutoryDays.map((d) => `emp-1|${d}`));
+
+      // Guard ON (production): statutory days excluded → tie → deterministic winner (emp-1).
+      const guarded: ScoreAndAssignResult = callScore(
+        slot,
+        employees,
+        baseConstraints,
+        [],
+        idx,
+        new Map(),
+        statutoryKeys,
+      );
+      // Guard OFF (empty set = pre-fix behaviour): emp-1's penalty counts Dec 27-28 → emp-2 wins.
+      const unguarded: ScoreAndAssignResult = callScore(
+        slot,
+        employees,
+        baseConstraints,
+        [],
+        idx,
+        new Map(),
+        new Set<string>(),
+      );
+
+      expect(guarded.assigned).toHaveLength(1);
+      expect(unguarded.assigned).toHaveLength(1);
+      // The guard flips the winner: proof the statutory-only days are neutralised in scoring.
+      expect(unguarded.assigned[0].employeeId).toBe('emp-2');
+      expect(guarded.assigned[0].employeeId).toBe('emp-1');
     });
 
     it('filters out unavailable employees', () => {
