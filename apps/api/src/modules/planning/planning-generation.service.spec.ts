@@ -1912,6 +1912,91 @@ describe('PlanningGenerationService', () => {
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
     });
 
+    it('Story 13-2 — rejects a 7th consecutive day straddling the month frontier', async () => {
+      // Template: Thursday-only SURGERY slot (2026-01-01 is a Thursday).
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Thursday Only',
+        data: {
+          days: [
+            {
+              dayOfWeek: 4,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      });
+
+      // emp-1 worked Dec 26–31 2025 (6 consecutive days), 09:00-15:00. Dec 29/30/31 land in
+      // the border ISO week; Dec 26/27/28 come ONLY from the statutory gte/lte load — without
+      // Task 5 emp-1 would show <=6 consecutive days and Jan 1 would be assignable.
+      const priorRun = ['26', '27', '28', '29', '30', '31'].map((d) => ({
+        employeeId: 'emp-1',
+        date: new Date(`2025-12-${d}T00:00:00.000Z`),
+        startTime: '09:00',
+        endTime: '15:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      }));
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve([]); // survivors
+        if (args?.where?.date?.gte && args?.where?.date?.lte)
+          return Promise.resolve(priorRun); // 13-2 statutory context
+        return Promise.resolve([]); // border (date.in)
+      });
+
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 60,
+        },
+      ]);
+      mockPlanningService.listRules.mockResolvedValue([]); // statutory limits are non-disableable
+
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              findMany: jest.fn().mockResolvedValue([]),
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              // Echo the persisted plan back so result.assignments reflects the
+              // shifts the generator actually decided to write (buildResult maps
+              // createManyAndReturn's rows). A flat mockResolvedValue([]) would make
+              // `assignments` always empty — masking whether Jan 1 was truly rejected.
+              createManyAndReturn: jest.fn().mockImplementation((args: any) =>
+                Promise.resolve(
+                  (args?.data ?? []).map((d: any, i: number) => ({
+                    ...d,
+                    id: `gen-${i}`,
+                  })),
+                ),
+              ),
+            },
+          };
+          return fn(tx);
+        },
+      );
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-01',
+        'tpl-1',
+      );
+
+      // Jan 1 must be a hole for emp-1 (7th consecutive day), not an assignment.
+      const jan1Assigned = result.assignments.some(
+        (a) => a.date === '2026-01-01',
+      );
+      expect(jan1Assigned).toBe(false);
+      // Later Thursdays (Jan 8/15/22/29) are non-consecutive and still assignable.
+      expect(result.assignments.length).toBeGreaterThan(0);
+    });
+
     // AC3 (verbatim from story 11-10-generation-performance-under-load:21):
     //   "Given the stress configuration, When the month is generated, Then
     //   generation completes within the < 2s target (NFR2) at 50 employees with
