@@ -287,13 +287,21 @@ export function findStatutoryViolations(
     }
   }
 
-  // Consecutive days — report the day at which a run first exceeds the max.
+  // Consecutive days — EVERY worked day beyond the max is itself a breach (the 7th, 8th, …),
+  // each attributed to its own day.
+  // Story 13-2 (KON-134) aped-review: flag each excess day, not just the first. A run whose
+  // 7th day falls in an adjacent month but which continues INTO the reported range would
+  // otherwise be attributed solely to that out-of-range first-breach day and then dropped by
+  // the publish range filter (PlanningService.violationInPublishedRange) — a HARD statutory
+  // block silently bypassed at a month frontier (the exact gap 13-2 exists to close). Per-day
+  // attribution also lets the Planning Health Bar highlight the offending in-grid cell
+  // (statutoryToHardViolation's affectedDate keys the grid-cell conflict lookup).
   const sortedDays = [...byDay.keys()].sort();
   let run = 0;
   let prev: string | null = null;
   for (const d of sortedDays) {
     run = prev !== null && dayDiff(d, prev) === 1 ? run + 1 : 1;
-    if (run === FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS + 1) {
+    if (run > FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS) {
       out.push({
         kind: 'CONSECUTIVE_DAYS',
         date: d,

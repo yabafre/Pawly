@@ -1469,5 +1469,32 @@ describe('PlanningService', () => {
       });
       expect(res.hardViolations).toHaveLength(0);
     });
+
+    it('detects a 7th+ consecutive-day run straddling INTO the published month', async () => {
+      // aped-review M1 — emp works Dec 24 → Jan 2 (10 consecutive days), then rests. The run's
+      // 7th day is Dec 30 (out of range) but Jan 1 / Jan 2 are illegal worked days IN the
+      // January publish. Before the fix, findStatutoryViolations flagged ONLY the first breach
+      // day (Dec 30); violationInPublishedRange then dropped it as out-of-range → zero statutory
+      // violations reported, silently bypassing the HARD consecutive-day block at the frontier.
+      // 09:00-15:00 = 6h (< 10h daily) so only the consecutive-day breach can arise, and the
+      // genuine rest after Jan 2 keeps WEEKLY_REST from backstopping it.
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict-month validShifts
+      const run: ReturnType<typeof mkStatShift>[] = [];
+      for (let d = 24; d <= 31; d++)
+        run.push(mkStatShift('e1', `2025-12-${d}`, '09:00', '15:00'));
+      for (let d = 1; d <= 2; d++)
+        run.push(mkStatShift('e1', `2026-01-0${d}`, '09:00', '15:00'));
+      mockPrismaService.shift.findMany.mockResolvedValueOnce(run); // ±8-day statutory set
+
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(
+        res.hardViolations.some(
+          (h) => h.ruleId === 'statutory:consecutive_days',
+        ),
+      ).toBe(true);
+    });
   });
 });
