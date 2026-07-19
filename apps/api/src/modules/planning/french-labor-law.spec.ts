@@ -141,3 +141,64 @@ describe('wouldExceedStatutory (incremental)', () => {
     expect(wouldExceedStatutory(window, candidate)).toEqual([]);
   });
 });
+
+describe('Story 13-2 — window-bounded weekly rest', () => {
+  // ISO week Mon 2026-08-03 .. Sun 2026-08-09. Dense Wed–Sun, worked 09:00-18:00.
+  const denseWedToSun = ['05', '06', '07', '08', '09'].map((d) =>
+    shift(`2026-08-${d}`, '09:00', '18:00', 0),
+  );
+
+  it('does NOT credit phantom rest when the data window is exactly the loaded range', () => {
+    // Window = the loaded days only. The head sentinel cannot be proven as 35h rest,
+    // so the week is (conservatively) flagged — no phantom credit at the edge.
+    const v = findStatutoryViolations(denseWedToSun, {
+      start: '2026-08-05',
+      end: '2026-08-09',
+    });
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'WEEKLY_REST', date: '2026-08-03' }),
+    );
+  });
+
+  it('DOES credit a genuine >=8-day rest proven inside a wide window (no false positive)', () => {
+    // Same dense Wed–Sun work, but the window spans 8 real days on each side and no shift
+    // exists before Wed — the proven long rest before the first shift is credited.
+    const v = findStatutoryViolations(denseWedToSun, {
+      start: '2026-07-28',
+      end: '2026-08-16',
+    });
+    expect(v.filter((x) => x.kind === 'WEEKLY_REST')).toHaveLength(0);
+  });
+
+  it('flags a 35h weekly-rest deficit on the ISO week straddling Dec→Jan', () => {
+    // Three dense weeks 09:00-18:00 across the year boundary: no 35h rest overlaps the
+    // middle ISO week (Mon 2025-12-29 .. Sun 2026-01-04).
+    const days: string[] = [];
+    for (let d = 22; d <= 31; d++)
+      days.push(`2025-12-${String(d).padStart(2, '0')}`);
+    for (let d = 1; d <= 11; d++)
+      days.push(`2026-01-${String(d).padStart(2, '0')}`);
+    const dense = days.map((d) => shift(d, '09:00', '18:00', 0));
+    const v = findStatutoryViolations(dense, {
+      start: '2025-12-15',
+      end: '2026-01-18',
+    });
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'WEEKLY_REST', date: '2025-12-29' }),
+    );
+  });
+
+  it('flags the 7th consecutive worked day straddling Dec→Jan (incremental)', () => {
+    const priorRun = [
+      '2025-12-27',
+      '2025-12-28',
+      '2025-12-29',
+      '2025-12-30',
+      '2025-12-31',
+      '2026-01-01',
+    ].map((d) => shift(d, '09:00', '15:00', 0));
+    expect(
+      wouldExceedStatutory(priorRun, shift('2026-01-02', '09:00', '15:00', 0)),
+    ).toContain('CONSECUTIVE_DAYS');
+  });
+});
