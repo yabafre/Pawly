@@ -38,6 +38,7 @@ import {
   computeLoads,
   deriveEquityWeights,
   equityObjective,
+  mergeEquityLoads,
   findEjectionChain,
   selectImprovingSwap,
   type RepairSlot,
@@ -4501,39 +4502,23 @@ export class PlanningGenerationService {
         employeeId: s.employeeId,
       }));
     // Story 13-5 (T7) — the gate judges TOTAL fairness (survivors + generated),
-    // matching the survivor-aware spread the model now optimizes. Each employee's
-    // immovable survivor load is added to BOTH plans, so the comparison stays a
-    // strict apples-to-apples improvement test while "fairer" means fairer in
-    // reality, not just across the shifts the pass can move.
-    const withSurvivors = (
-      generated: Map<string, EmployeeLoad>,
-    ): Map<string, EmployeeLoad> => {
-      const merged = new Map<string, EmployeeLoad>();
-      for (const [empId, l] of ctx.baseline.equityLoads) {
-        merged.set(empId, { ...l });
-      }
-      for (const [empId, l] of generated) {
-        const cur = merged.get(empId) ?? {
-          saturdayCount: 0,
-          weekendCount: 0,
-          shiftCount: 0,
-        };
-        merged.set(empId, {
-          saturdayCount: cur.saturdayCount + l.saturdayCount,
-          weekendCount: cur.weekendCount + l.weekendCount,
-          shiftCount: cur.shiftCount + l.shiftCount,
-        });
-      }
-      return merged;
-    };
+    // matching the survivor-aware spread the model now optimizes. mergeEquityLoads
+    // adds each employee's immovable survivor load to BOTH plans, so the comparison
+    // stays a strict apples-to-apples improvement test while "fairer" means fairer in
+    // reality, not just across the shifts the pass can move. Extracted to a pure,
+    // unit-tested helper (aped-review): the merge is load-bearing — because
+    // equityObjective is mean-normalized it can flip which equal-fill plan wins — so
+    // it must be provable in isolation, not only reachable through the fill branch.
     const greedyEquity = equityObjective(
-      withSurvivors(
+      mergeEquityLoads(
+        ctx.baseline.equityLoads,
         computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
       ),
       equityWeights,
     );
     const candidateEquity = equityObjective(
-      withSurvivors(
+      mergeEquityLoads(
+        ctx.baseline.equityLoads,
         computeLoads(toRepairAssignments(candidate), repairSlotById),
       ),
       equityWeights,
