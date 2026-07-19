@@ -59,6 +59,8 @@ export interface SolverInput {
   unavailable: Map<string, Set<string>>;
   /** `${employeeId}|${isoWeekMonday}` -> fixed net minutes (border + survivors + school). */
   fixedWeeklyMinutes: Map<string, number>;
+  /** employeeId -> fixed net minutes already worked THIS month (survivors) — deducted from the monthly cap, the exact mirror of fixedWeeklyMinutes (Story 13-5, T5). */
+  fixedMonthlyMinutes: Map<string, number>;
   /** `${employeeId}|${date}` -> fixed net minutes that day (survivors). */
   fixedDailyMinutes: Map<string, number>;
   /** employeeId -> Set<'YYYY-MM-DD'> of days already worked (survivors/border) — feeds consecutive-days. */
@@ -278,8 +280,14 @@ export function buildSolverModel(input: SolverInput): SolverModel {
       });
     }
 
-    // Monthly cap when configured.
+    // Monthly cap when configured. The fixed survivor baseline is deducted from
+    // the bound — the exact mirror of the weekly cap above (Story 13-5, T5).
+    // Without it the model searched the full cap while survivors already consumed
+    // part of it, so its optimum tripped the real cap on replay and the whole
+    // candidate was discarded — "always serve greedy" for every survivor-bearing
+    // capped clinic (same bug class as the weekly regression, service :4277-4284).
     if (e.monthlyCapMinutes !== null) {
+      const fixed = input.fixedMonthlyMinutes.get(e.id) ?? 0;
       constraints.push({
         kind: 'linearLe',
         tag: `monthly:${e.id}`,
@@ -287,7 +295,7 @@ export function buildSolverModel(input: SolverInput): SolverModel {
           varName: v.name,
           coeff: netMinutes(s),
         })),
-        bound: e.monthlyCapMinutes,
+        bound: Math.max(0, e.monthlyCapMinutes - fixed),
       });
     }
 
