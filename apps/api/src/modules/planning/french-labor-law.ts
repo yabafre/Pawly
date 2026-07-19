@@ -192,23 +192,40 @@ function runLengthThrough(workedDates: Set<string>, date: string): number {
 
 /**
  * Length of a rest gap that counts toward the week [lo, hi). A gap bounded by real
- * shifts on both sides is credited in FULL — so a Saturday-evening -> Monday-morning rest
- * that straddles the week boundary satisfies the week it overlaps (no false positive). But
- * an OPEN end (the -BIG lead / +BIG trail sentinel, i.e. no shift before the first / after
- * the last in the provided window) is clipped to the week boundary: unknown rest beyond the
- * data window is NOT credited, so a week worked dense to its last day is flagged.
+ * shifts on both sides is credited in FULL. An OPEN end — the -BIG lead / +BIG trail
+ * sentinel from restGaps (no shift loaded before the first / after the last in the
+ * provided set) — is clipped to the REAL data-window edge `win` when the caller loaded
+ * one, NOT to the ISO-week boundary [lo, hi].
+ *
+ * Story 13-2 (KON-134): clipping a sentinel to the week credited "phantom" rest the
+ * window never proved — a Sat-evening→Mon-morning gap looked like 35h only because the
+ * offending prior shift sat outside the strict-month set (audit T4). Clipping to the
+ * loaded +/-8-real-day window instead means a genuinely >=35h rest is still credited
+ * (the window spans >35h each side) while unknown rest beyond the window is not, so a
+ * month-frontier deficit surfaces. `win` bounds are absolute minutes since EPOCH.
  */
-function clampGapLen(gs: number, ge: number, lo: number, hi: number): number {
-  const start = gs <= -BIG ? lo : gs;
-  const end = ge >= BIG ? hi : ge;
+function clampGapLen(
+  gs: number,
+  ge: number,
+  lo: number,
+  hi: number,
+  win?: { lo: number; hi: number },
+): number {
+  const loEdge = win ? win.lo : lo;
+  const hiEdge = win ? win.hi : hi;
+  const start = gs <= -BIG ? loEdge : gs;
+  const end = ge >= BIG ? hiEdge : ge;
   return end - start;
 }
 
 /** True if the ISO week starting `weekStart` has NO >=35h rest gap overlapping it.
- *  `allShifts` may span beyond the week — neighbours are needed for boundary straddle. */
+ *  `allShifts` may span beyond the week — neighbours are needed for boundary straddle.
+ *  Story 13-2 — `win` (absolute-minute data-window bounds) clips open-ended sentinels to
+ *  the real loaded window instead of the ISO week, killing phantom rest at a frontier. */
 function weekHasRestDeficit(
   allShifts: StatutoryShift[],
   weekStart: string,
+  win?: { lo: number; hi: number },
 ): boolean {
   const worked = allShifts.some((s) => isoWeekStart(s.date) === weekStart);
   if (!worked) return false;
@@ -219,18 +236,28 @@ function weekHasRestDeficit(
     ([gs, ge]) => gs < hi && ge > lo,
   );
   return !overlapping.some(
-    ([gs, ge]) => clampGapLen(gs, ge, lo, hi) >= restMin,
+    ([gs, ge]) => clampGapLen(gs, ge, lo, hi, win) >= restMin,
   );
 }
 
 /**
  * POST-HOC scan — every statutory breach in one employee's shift set.
  * `shifts` MUST all belong to the same employee. Pure.
+ * Story 13-2 (KON-134): pass `window` (the ISO `YYYY-MM-DD` bounds of the loaded data
+ * window, e.g. the +/-8-real-day publish window) so weekly-rest credit is bounded to what
+ * the window proves, not to the ISO-week edge. Omit it to keep the legacy week-clip.
  */
 export function findStatutoryViolations(
   shifts: StatutoryShift[],
+  window?: { start: string; end: string },
 ): StatutoryViolation[] {
   const out: StatutoryViolation[] = [];
+  const win = window
+    ? {
+        lo: shiftEpoch(window.start),
+        hi: shiftEpoch(window.end) + MIN_PER_DAY,
+      }
+    : undefined;
 
   const byDay = new Map<string, StatutoryShift[]>();
   for (const s of shifts) {
@@ -286,10 +313,12 @@ export function findStatutoryViolations(
     const hi = lo + 7 * MIN_PER_DAY;
     const overlapping = gaps.filter(([gs, ge]) => gs < hi && ge > lo);
     if (
-      !overlapping.some(([gs, ge]) => clampGapLen(gs, ge, lo, hi) >= restMin)
+      !overlapping.some(
+        ([gs, ge]) => clampGapLen(gs, ge, lo, hi, win) >= restMin,
+      )
     ) {
       const best = overlapping.reduce(
-        (m, [gs, ge]) => Math.max(m, clampGapLen(gs, ge, lo, hi)),
+        (m, [gs, ge]) => Math.max(m, clampGapLen(gs, ge, lo, hi, win)),
         0,
       );
       out.push({
@@ -309,9 +338,10 @@ export function findStatutoryViolations(
  * employee who already holds `windowShifts` (same employee). Only breaches INTRODUCED by
  * the candidate are returned (a pre-existing breach in `windowShifts` is not re-flagged),
  * so it never blocks an assignment that cannot make things worse. Used to reject a single
- * generation candidate / manual create / manual move before it is written. `windowShifts`
- * SHOULD span at least the candidate's ISO week +/- 1 day so weekly-rest and consecutive-day
- * runs that straddle a week boundary are seen.
+ * generation candidate / manual create / manual move before it is written.
+ * Story 13-2 (KON-134): the weekly-rest window is candidate.date +/- 8 real days — the
+ * exact window every caller loads (createManualShift, loadMoveValidationInputs, generation
+ * eligibility) — so a sentinel is clipped to it, not to the ISO week (no phantom rest).
  */
 export function wouldExceedStatutory(
   windowShifts: StatutoryShift[],
@@ -319,6 +349,10 @@ export function wouldExceedStatutory(
 ): StatutoryViolationKind[] {
   const kinds: StatutoryViolationKind[] = [];
   const withCandidate = [...windowShifts, candidate];
+  const win = {
+    lo: shiftEpoch(addDays(candidate.date, -8)),
+    hi: shiftEpoch(addDays(candidate.date, 8)) + MIN_PER_DAY,
+  };
 
   // Daily — candidate's day only, introduced-by-candidate
   const dayBefore = windowShifts.filter((s) => s.date === candidate.date);
@@ -352,8 +386,8 @@ export function wouldExceedStatutory(
   // Weekly rest — candidate's ISO week, introduced-by-candidate
   const wk = isoWeekStart(candidate.date);
   if (
-    weekHasRestDeficit(withCandidate, wk) &&
-    !weekHasRestDeficit(windowShifts, wk)
+    weekHasRestDeficit(withCandidate, wk, win) &&
+    !weekHasRestDeficit(windowShifts, wk, win)
   ) {
     kinds.push('WEEKLY_REST');
   }
