@@ -37,6 +37,7 @@ const baseInput = (over: Partial<SolverInput> = {}): SolverInput => ({
   slots: [slot('s1', '2026-08-03')],
   unavailable: new Map(),
   fixedWeeklyMinutes: new Map(),
+  fixedMonthlyMinutes: new Map(),
   fixedDailyMinutes: new Map(),
   fixedWorkedDates: new Map(),
   fixedRotationCounts: new Map(),
@@ -160,6 +161,23 @@ describe('buildSolverModel — hard constraint parity (AC6)', () => {
     );
     expect(weekly).toBeDefined();
     expect(weekly!.kind === 'linearLe' && weekly!.bound).toBe(480 - 60);
+  });
+
+  it('deducts the fixed monthly baseline from the monthly cap (T5, mirror of weekly)', () => {
+    const input = baseInput({
+      employees: [{ ...emp('a'), monthlyCapMinutes: 480 }], // 8h/month cap
+      slots: [
+        slot('s1', '2026-08-03', '09:00', '17:00'), // 480 net
+        slot('s2', '2026-08-10', '09:00', '17:00'),
+      ],
+      fixedMonthlyMinutes: new Map([['a', 240]]), // 4h of survivors already worked this month
+    });
+    const model = buildSolverModel(input);
+    const monthly = model.constraints.find(
+      (c) => c.kind === 'linearLe' && c.tag === 'monthly:a',
+    );
+    expect(monthly).toBeDefined();
+    expect(monthly!.kind === 'linearLe' && monthly!.bound).toBe(480 - 240);
   });
 
   it('enforces statutory daily 10h as a per-date cap', () => {
