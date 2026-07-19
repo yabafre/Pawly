@@ -193,6 +193,32 @@ describe('evaluateMoveViolations', () => {
     );
   });
 
+  it('Story 13-2 — flags a 7th consecutive worked day straddling the month frontier', () => {
+    // emp-2 already worked Dec 26–31 2025 (6 consecutive days) in the ±8-real-day window;
+    // moving a shift onto Thursday Jan 1 2026 is the 7th consecutive day.
+    const priorRun = [
+      '2025-12-26',
+      '2025-12-27',
+      '2025-12-28',
+      '2025-12-29',
+      '2025-12-30',
+      '2025-12-31',
+    ].map((d) => shiftAt(d, '09:00', '15:00'));
+    const result = evaluateMoveViolations(
+      baseCtx({
+        shift: shiftAt('2026-01-01', '09:00', '15:00', {
+          id: 'moved',
+          employeeId: 'emp-1',
+        }),
+        target: { employeeId: 'emp-2', date: '2026-01-01' },
+        statutoryWindowShifts: priorRun,
+      }),
+    );
+    expect(
+      result.hard.some((h) => h.message.includes('CONSECUTIVE_DAYS')),
+    ).toBe(true);
+  });
+
   it('routes a SOFT contract rule to soft and a HARD one to hard', () => {
     const week = [
       shiftAt('2026-03-03', '08:00', '18:00'),
