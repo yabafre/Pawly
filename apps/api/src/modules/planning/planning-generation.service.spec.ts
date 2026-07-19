@@ -9104,14 +9104,26 @@ describe('PlanningGenerationService', () => {
             daysOfWeek: [],
           },
         ]);
-        // The survivor query carries the OR predicate (source/isConfirmed/variance);
-        // border-week loads do not. Key on it so the survivor never leaks into a
-        // border findMany (Epic 11 shared-mock lesson). emp-4's survivor is a 2h
-        // SURGERY on a Tuesday — off-template, so it consumes cap + equity load
-        // without covering any Monday demand.
+        // Route ONLY the survivor query here. Its OR carries source/isConfirmed/
+        // varianceEvents predicates; the border-week load has no OR. The quarterly-
+        // rotation historical load (service.ts ~:1206) ALSO uses `where.OR`, but with
+        // `date`-range predicates only — so keying on bare `where.OR` truthiness would
+        // silently misroute a future quarterly fixture into the survivor branch
+        // (aped-review MINOR). Match the survivor OR shape explicitly instead; any
+        // other query (border, quarterly) falls through to the empty branch. emp-4's
+        // survivor is a 2h SURGERY on a Tuesday — off-template, so it consumes cap +
+        // equity load without covering any Monday demand.
+        const isSurvivorQuery = (where?: { OR?: unknown }): boolean =>
+          Array.isArray(where?.OR) &&
+          (where.OR as Array<Record<string, unknown>>).some(
+            (clause) =>
+              'source' in clause ||
+              'isConfirmed' in clause ||
+              'varianceEvents' in clause,
+          );
         mockPrismaService.shift.findMany.mockImplementation(
           ({ where }: { where?: { OR?: unknown } }) =>
-            where?.OR
+            isSurvivorQuery(where)
               ? Promise.resolve([
                   {
                     employeeId: 'emp-4',
