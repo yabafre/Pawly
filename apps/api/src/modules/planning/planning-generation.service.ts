@@ -565,7 +565,15 @@ export class PlanningGenerationService {
             weeklyMinutes: new Map(weeklyMinutesCounter),
             fixedShiftsByEmployee: (() => {
               const byEmp = new Map<string, AssignedShift[]>();
-              for (const bucket of assignmentIndex.values()) {
+              for (const [key, bucket] of assignmentIndex.entries()) {
+                // Story 13-2 (KON-134) aped-review — purely-statutory cross-month days live in
+                // assignmentIndex only for the greedy eligibility window (evaluateEligibility
+                // step 5); they carry no in-month decision variable. Keep them out of the
+                // solver's fixed baseline too, so 13-2 stays a greedy-scope change and does not
+                // silently widen the cpsat model (the cpsat mirror of the M2 scoring fix). A
+                // cross-frontier statutory breach in a served cpsat plan is still caught by the
+                // eligibility replay, which reads assignmentIndex directly.
+                if (statutoryOnlyKeys.has(key)) continue;
                 for (const s of bucket) {
                   if (!byEmp.has(s.employeeId)) byEmp.set(s.employeeId, []);
                   byEmp.get(s.employeeId)!.push(s);

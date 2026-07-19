@@ -19,6 +19,9 @@ import {
 } from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
 import { SolverEngineService } from './solver-engine.service';
+// Story 13-2 (KON-134) aped-review n1 — spied to capture the SolverInput and assert the
+// cpsat fixed baseline excludes purely-statutory cross-month days.
+import * as solverModel from './solver-model';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
@@ -8635,6 +8638,104 @@ describe('PlanningGenerationService', () => {
           result.assignments.map((a) => [a.date, a.employeeId]),
         );
         expect(byDate.size).toBe(3); // all three Mondays filled, no double-book
+      });
+
+      it('Story 13-2 n1 — statutory-only cross-month days stay out of the cpsat solver baseline', async () => {
+        // The Task-5 seed widens assignmentIndex for the greedy eligibility window. On the cpsat
+        // path, fixedShiftsByEmployee (the solver's frozen baseline) is built from assignmentIndex,
+        // so purely-statutory out-of-month days must NOT leak into fixedWorkedDates/fixedDailyMinutes
+        // either — 13-2 stays a greedy-scope change (aped-review n1). Border days (Dec 29-31) are a
+        // legitimate fixed baseline; statutory-only days (Dec 24-28) are not. A cross-frontier breach
+        // in a served cpsat plan is still caught by the eligibility replay, which reads assignmentIndex.
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-1',
+          name: 'Thursday Only',
+          data: {
+            days: [
+              {
+                dayOfWeek: 4,
+                slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+              },
+            ],
+          },
+          clinicId,
+        });
+        // Dec 29/30/31 are returned by the border load (date.in) → legitimate fixed baseline.
+        // Dec 24-31 by the statutory gte/lte load → after border dedup, Dec 24-28 are statutory-only.
+        const borderRun = ['29', '30', '31'].map((d) => ({
+          employeeId: 'emp-1',
+          date: new Date(`2025-12-${d}T00:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        }));
+        const statutoryRun = [
+          '24',
+          '25',
+          '26',
+          '27',
+          '28',
+          '29',
+          '30',
+          '31',
+        ].map((d) => ({
+          employeeId: 'emp-1',
+          date: new Date(`2025-12-${d}T00:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        }));
+        mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+          if (args?.where?.OR) return Promise.resolve([]); // survivors
+          if (args?.where?.date?.gte && args?.where?.date?.lte)
+            return Promise.resolve(statutoryRun); // 13-2 statutory context (gte/lte)
+          return Promise.resolve(borderRun); // border (date.in)
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 60,
+          },
+        ]);
+        mockPlanningService.listRules.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) => {
+            const tx = {
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                findMany: jest.fn().mockResolvedValue([]),
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest.fn().mockResolvedValue([]),
+              },
+            };
+            return fn(tx);
+          },
+        );
+
+        const buildSpy = jest.spyOn(solverModel, 'buildSolverModel');
+        // Don't run the real or-tools solver — force a non-served status so greedy is served. The
+        // solver INPUT is still built (and captured) before solve is called.
+        jest
+          .spyOn(solverEngine, 'solve')
+          .mockResolvedValue({ status: 'UNKNOWN', chosenVarNames: new Set() });
+
+        await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-1', {
+          engine: 'cpsat',
+        });
+
+        expect(buildSpy).toHaveBeenCalled();
+        const input = buildSpy.mock.calls[0][0] as solverModel.SolverInput;
+        const worked = input.fixedWorkedDates.get('emp-1') ?? new Set<string>();
+        // Border days remain in the fixed baseline; statutory-only days are excluded.
+        expect(worked.has('2025-12-31')).toBe(true); // border, kept
+        expect(worked.has('2025-12-30')).toBe(true); // border, kept
+        expect(worked.has('2025-12-27')).toBe(false); // statutory-only, excluded
+        expect(worked.has('2025-12-24')).toBe(false); // statutory-only, excluded
       });
 
       // AC2 (verbatim): "Given a generation request without engine (or engine:
