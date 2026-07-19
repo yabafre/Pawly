@@ -385,6 +385,24 @@ export class PlanningGenerationService {
       this.incrementDayOfWeekCount(dayOfWeekCounts, bs.employeeId, bs.date);
     }
 
+    // Story 13-2 (KON-134) — widen the cross-month context the statutory eligibility window
+    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex ONLY:
+    // deliberately NOT into dayOfWeekCounts / weeklyMinutesCounter / allShiftsForScoring, so
+    // rotation/equity/fill decisions stay byte-identical (invariant 11-10). Border days
+    // (ISO-straddle + D±1) are already seeded above — skip them to avoid double-counting.
+    const borderDateSet = new Set(borderShifts.map((bs) => bs.date));
+    const statutoryBorderShifts = await this.loadStatutoryBorderShifts(
+      clinicId,
+      month,
+    );
+    for (const sbs of statutoryBorderShifts) {
+      if (borderDateSet.has(sbs.date)) continue;
+      const key = `${sbs.employeeId}|${sbs.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(sbs);
+      assignmentIndex.set(key, existing);
+    }
+
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
     const allShiftsForScoring: AssignedShift[] = [...borderShifts];
 
@@ -4890,6 +4908,58 @@ export class PlanningGenerationService {
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
     }));
+  }
+
+  /**
+   * Story 13-2 (KON-134) — the out-of-month shifts the +/-8-real-day statutory window in
+   * evaluateEligibility (:1347-1372) needs to see a consecutive-day run or a 35h-rest
+   * deficit that straddles the month frontier. loadBorderWeekShifts only reaches the
+   * ISO-straddle days + immediate D-1/D+1 (13-3), so days 2..8 across the frontier are
+   * invisible and a 7th consecutive day hides. These rows feed `assignmentIndex` ONLY —
+   * never the weekly / monthly / rotation counters — so fill and equity stay byte-identical
+   * (invariant 11-10 / epic-13 context §3.6). A single `date: { gte, lte }` query (month +/- 8
+   * days) is filtered to out-of-month here; the in-month days are seeded with full fidelity
+   * by survivors / freshly-assigned shifts.
+   */
+  private async loadStatutoryBorderShifts(
+    clinicId: string,
+    month: string,
+  ): Promise<AssignedShift[]> {
+    const [year, monthNum] = month.split('-').map(Number);
+    const firstDayStr = new Date(Date.UTC(year, monthNum - 1, 1))
+      .toISOString()
+      .split('T')[0];
+    const lastDayStr = new Date(Date.UTC(year, monthNum, 0))
+      .toISOString()
+      .split('T')[0];
+
+    const windowStart = new Date(`${firstDayStr}T00:00:00.000Z`);
+    windowStart.setUTCDate(windowStart.getUTCDate() - 8);
+    const windowEnd = new Date(`${lastDayStr}T00:00:00.000Z`);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 8);
+
+    const shifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: windowStart, lte: windowEnd } },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+      },
+    });
+
+    return shifts
+      .map((s) => ({
+        employeeId: s.employeeId,
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        shiftTypeCode: s.shiftTypeCode,
+        breakMinutes: s.breakMinutes,
+      }))
+      .filter((s) => s.date < firstDayStr || s.date > lastDayStr);
   }
 
   // Story 11-2 — load the shifts INSIDE the target month that SURVIVE a
