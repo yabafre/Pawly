@@ -23,7 +23,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — RED: monthly-baseline deduction spec** [AC: 1]
+- [x] **Task 1 — RED: monthly-baseline deduction spec** [AC: 1]
 
   In `apps/api/src/modules/planning/solver-model.spec.ts`, extend the `baseInput` factory (lines 35-46) so it provides the new required field, then add the deduction test. First, replace the `baseInput` body:
 
@@ -68,7 +68,7 @@
   Expected: RED — the new test fails with `Expected: 240, Received: 480` (the raw cap is not yet deducted). The existing solver-model tests stay green.
   Commit: `git add apps/api/src/modules/planning/solver-model.spec.ts && git commit -m "test(KON-135): RED — monthly baseline deducted from the solver cap"`
 
-- [ ] **Task 2 — GREEN: deduct the fixed monthly baseline** [AC: 1]
+- [x] **Task 2 — GREEN: deduct the fixed monthly baseline** [AC: 1]
 
   In `apps/api/src/modules/planning/solver-model.ts`, add the `fixedMonthlyMinutes` field to `SolverInput`. Replace the `fixedWeeklyMinutes` line (currently at :60-61):
 
@@ -106,7 +106,7 @@
   Expected: GREEN — `Tests: <n> passed` (the monthly test now reads 240), no regressions.
   Commit: `git add apps/api/src/modules/planning/solver-model.ts && git commit -m "feat(KON-135): deduct survivor monthly baseline from the solver cap (T5)"`
 
-- [ ] **Task 3 — RED: shift-spread + survivor fixed + fill-dominance spec** [AC: 2, 3]
+- [x] **Task 3 — RED: shift-spread + survivor fixed + fill-dominance spec** [AC: 2, 3]
 
   In `apps/api/src/modules/planning/solver-model.spec.ts`, add the `EmployeeLoad` type to the import (lines 1-7):
 
@@ -205,7 +205,7 @@
   Expected: RED — `spread:shift` does not exist yet (first two tests fail), and the survivor `fixed` inflates the spread past the `slots.length` dominance bound (third test fails: `minFill` is not greater).
   Commit: `git add apps/api/src/modules/planning/solver-model.spec.ts && git commit -m "test(KON-135): RED — shift spread, survivor fixed, fill dominance"`
 
-- [ ] **Task 4 — GREEN: model the third spread, survivor baseline, and dominance bound** [AC: 2, 3]
+- [x] **Task 4 — GREEN: model the third spread, survivor baseline, and dominance bound** [AC: 2, 3]
 
   In `apps/api/src/modules/planning/solver-model.ts`, add `EmployeeLoad` to the `local-repair` import (currently at :23):
 
@@ -317,7 +317,7 @@
   Expected: GREEN — all solver-model tests pass, including the three from Task 3. No adapter change needed (`solver-engine.service.ts:133-147` already reads `p.fixed`).
   Commit: `git add apps/api/src/modules/planning/solver-model.ts && git commit -m "feat(KON-135): model shift spread + survivor baseline, keep fill dominant (T7)"`
 
-- [ ] **Task 5 — GREEN: wire the baseline + survivor-aware gate in the service** [AC: 1, 2]
+- [x] **Task 5 — GREEN: wire the baseline + survivor-aware gate in the service** [AC: 1, 2]
 
   All edits in `apps/api/src/modules/planning/planning-generation.service.ts`.
 
@@ -452,7 +452,7 @@
   Expected: GREEN — the existing `cp-sat improve pass (KON-129)` suite stays green (its fixtures carry no survivors, so `equityLoads`/`monthlyMinutes` are empty → behaviour is unchanged there).
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-135): wire monthly + survivor equity baseline, survivor-aware gate"`
 
-- [ ] **Task 6 — RED→GREEN: survivors + monthly cap serve cpsat (AC-4)** [AC: 4]
+- [x] **Task 6 — RED→GREEN: survivors + monthly cap serve cpsat (AC-4)** [AC: 4]
 
   In `apps/api/src/modules/planning/planning-generation.service.spec.ts`, add a dedicated fixture + tests inside the `describe('cp-sat improve pass (KON-129)', ...)` block, after the existing AC6 tests. The fixture gives `emp-1` one in-month MANUAL survivor SURGERY (08:00→12:00 = 240 net) on Monday 2026-03-02 under an 8h/month cap; the survivor query is keyed on its `where.OR` shape so it never bleeds into the border-week `findMany` (Epic 11 mock lesson).
 
@@ -605,7 +605,7 @@
   Expected: the model-inspection test is the reliable GREEN (it asserts the built model directly). If the end-to-end `serves a cpsat plan` test does not flip on the first run, tune the fixture numerics (survivor minutes / cap / slot count) against the real solver at GREEN — see Dev Notes § "AC-4 end-to-end". The full command below must end green before Task 7.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-135): survivors + monthly cap serve cpsat (AC-4)"`
 
-- [ ] **Task 7 — Full suite + type check + final commit** [AC: 1, 2, 3, 4]
+- [x] **Task 7 — Full suite + type check + final commit** [AC: 1, 2, 3, 4]
 
   Run the full API suite and a type check (the service now provides the two new required `SolverInput` fields — `tsc` is the gate that proves the contract is wired, since Jest transpiles per-file without cross-file type-checking):
 
@@ -796,17 +796,80 @@ Story 13-5 is Wave 2, cut on top of Wave 1 (13-3 merged). It shares `planning-ge
 - `apps/api/src/modules/planning/solver-model.spec.ts` (modify)
 - `apps/api/src/modules/planning/planning-generation.service.ts` (modify)
 - `apps/api/src/modules/planning/planning-generation.service.spec.ts` (modify)
+- `apps/api/src/modules/planning/solver-engine.service.spec.ts` (modify — not in the original plan; its SolverInput fixtures needed the two new required fields)
 
 ## Dev Agent Record
 
-- **Model:** {{model used}}
-- **Started:** {{timestamp}}
-- **Completed:** {{timestamp}}
+- **Model:** claude-opus-4-8[1m] (Opus 4.8, 1M context)
+- **Started:** 2026-07-19T10:37:33Z
+- **Completed:** 2026-07-19T11:10:14Z
 
 ### Summary
 
+The cpsat model is now survivor-aware on both sides of the improve pass. `solver-model.ts`
+deducts each employee's in-month survivor minutes from the monthly bound (T5, the exact mirror
+of the weekly cap) and models a third `spread:shift` equity metric whose per-employee count
+carries the survivor's immovable load (T7a/T7b), with the fill-dominance bound grown to track
+the largest achievable spread so a survivor imbalance can never let the optimizer trade a
+filled position for fairness (AC-3). The service freezes the pre-greedy monthly-minute +
+survivor-equity baseline (cpsat path only) and makes the acceptance gate score fairness over
+survivors + generated shifts, so the model proxy and the gate judge the same objective. With no
+in-month survivors every change is byte-identical to before except the always-on `spread:shift`
+term, and the default greedy engine runs zero solver code (invariant 6 preserved).
+
 ### Files changed
+
+- `apps/api/src/modules/planning/solver-model.ts`
+- `apps/api/src/modules/planning/solver-model.spec.ts`
+- `apps/api/src/modules/planning/planning-generation.service.ts`
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts`
+- `apps/api/src/modules/planning/solver-engine.service.spec.ts`
 
 ### Deviations
 
+- **Extra file — `solver-engine.service.spec.ts`.** Adding `fixedMonthlyMinutes` and
+  `fixedEquityLoads` as required `SolverInput` fields broke the adapter spec's own inline
+  `SolverInput` fixture at runtime (`input.fixedEquityLoads.get` on `undefined`; Jest transpiles
+  per file, so `tsc` never gated it). Added both empty maps to its one base `input` literal
+  (the two other fixtures spread `...input`). Not in the story's File List — a real gap.
+- **AC-4 serves-cpsat fixture redesigned (sanctioned tuning).** The story's draft fixture (2 VETs,
+  8h cap, 5 open Mondays, survivor on 03-02) cannot reach `holeCount 0` — generated capacity is
+  3 for 4 generated slots, so greedy is never beaten and the plan is served greedy. Per the story's
+  own Dev-Notes ("tune the fixture, not the assertion; the model-inspection test is the reliable
+  GREEN"), the fixture was rebuilt as the proven depth-3 crossed-availability trap (emp-1/2/3, 4h
+  single-use cap ⇒ greedy strands one Monday, the solver fills all three and is served) plus a
+  bystander emp-4 carrying a **2h** survivor SURGERY against the 4h cap. emp-4's deducted bound is
+  `240 − 120 = 120`, shorter than one 240-min slot, so the solver can never place emp-4 — it is the
+  pure T5/T7 model probe (deducted monthly bound + survivor shift-spread baseline) and does not
+  perturb the fill flip. The model-inspection assertion therefore reads `monthly:emp-4 = 240 − 120`
+  (a partial deduction) instead of the draft's `480 − 240`; same intent, fixture-derived numbers.
+- **A single fixture serves all three AC-4 tests** (model inspection, served-cpsat, determinism),
+  as AC-4 intends.
+
 ### Test output
+
+```
+# Targeted (RED→GREEN witnesses captured inline in the dev session)
+$ pnpm --filter @pawly/api exec jest src/modules/planning/solver-model.spec.ts
+Test Suites: 1 passed, 1 total   Tests: 18 passed, 18 total
+
+$ pnpm --filter @pawly/api exec jest ... -t "AC-4"
+Tests: 223 skipped, 3 passed, 226 total   (model-inspection, serves-cpsat, determinism)
+
+# Full API suite (contended-runner budget — see note)
+$ TURBO_HASH=1 pnpm --filter @pawly/api test
+Test Suites: 42 passed, 42 total
+Tests:       1135 passed, 1135 total
+
+# tsc — no new errors in any touched file; the 24 remaining errors live in four
+# untouched specs (clinic/employee/planning.service/variance) and are identical on
+# the base commit 0c2831d (pre-existing spec-only strictness, per Story 13-3).
+$ pnpm --filter @pawly/api exec tsc --noEmit -p tsconfig.json  # touched files: clean
+```
+
+> Note: at the default local budget the perf pin `meets NFR2 when the ejection scan runs against
+> many real holes` is environmentally flaky on this contended worktree machine (measured 1564–3443
+> ms against a 2000 ms local / 6000 ms CI budget). It runs the greedy+repair path — this story's
+> code is cpsat-gated and never executes there; it failed identically before any service edit
+> (2441 ms at the first RED commit). Under the intended contended-runner budget the full suite is
+> green.
