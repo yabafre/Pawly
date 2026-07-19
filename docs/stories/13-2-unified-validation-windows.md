@@ -33,7 +33,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
 
 ## Tasks
 
-- [ ] **Task 1: Bound weekly-rest credit to the real data window in `french-labor-law.ts`** [AC: 2, 3]
+- [x] **Task 1: Bound weekly-rest credit to the real data window in `french-labor-law.ts`** [AC: 2, 3]
   In `apps/api/src/modules/planning/french-labor-law.ts`, replace the four symbols below **verbatim**. `clampGapLen` gains an optional `win` (absolute-minute data-window bounds); `weekHasRestDeficit` and `findStatutoryViolations` thread it; `wouldExceedStatutory` derives it from `candidate ± 8 days` (the exact window every incremental caller loads). When `win` is absent the legacy week-clip is kept, so any caller that does not pass a window is unchanged.
 
   Replace `clampGapLen` (currently `:201-205`):
@@ -253,7 +253,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: `Test Suites: 1 passed`, all existing `french-labor-law` tests still green (the `window`-less calls keep legacy behaviour), exit 0.
   Commit: `git add apps/api/src/modules/planning/french-labor-law.ts && git commit -m "feat(KON-134): bound weekly-rest credit to the loaded data window (T4 phantom rest)"`
 
-- [ ] **Task 2: Prove the window-bounded weekly-rest fix in `french-labor-law.spec.ts`** [AC: 2, 3]
+- [x] **Task 2: Prove the window-bounded weekly-rest fix in `french-labor-law.spec.ts`** [AC: 2, 3]
   Append this describe block to `apps/api/src/modules/planning/french-labor-law.spec.ts` (it reuses the file's existing `shift` helper). All times `09:00-18:00` = 9h net (under the 10h daily cap) so only weekly-rest / consecutive-day violations arise.
   ```ts
   describe('Story 13-2 — window-bounded weekly rest', () => {
@@ -321,7 +321,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: `Tests:` count rises by 4, all passing; the two straddle cases and `does NOT credit phantom rest` would fail against the pre-Task-1 `clampGapLen`. exit 0.
   Commit: `git add apps/api/src/modules/planning/french-labor-law.spec.ts && git commit -m "test(KON-134): window-bounded weekly rest + Dec→Jan straddle"`
 
-- [ ] **Task 3: Widen the publish/health-bar statutory window in `planning.service.ts`** [AC: 1, 3]
+- [x] **Task 3: Widen the publish/health-bar statutory window in `planning.service.ts`** [AC: 1, 3]
   In `apps/api/src/modules/planning/planning.service.ts`:
 
   **(a)** Update the `french-labor-law` import (currently `:28-34`) to add `StatutoryViolation` (already imported as a type — confirm it is present; it is used by `statutoryToHardViolation`).
@@ -414,7 +414,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: existing `PlanningService` tests still green (the statutory `shift.findMany` now runs a second query; the default mock `shift.findMany.mockResolvedValue([])` covers it → no statutory violations, unchanged). exit 0.
   Commit: `git add apps/api/src/modules/planning/planning.service.ts && git commit -m "feat(KON-134): publish/health-bar statutory checks span a ±8-day cross-month window"`
 
-- [ ] **Task 4: Prove the publish window + range filter in `planning.service.spec.ts`** [AC: 1, 3]
+- [x] **Task 4: Prove the publish window + range filter in `planning.service.spec.ts`** [AC: 1, 3]
   Append this describe block to `apps/api/src/modules/planning/planning.service.spec.ts`. It uses the file's existing `mockPrismaService` / `service` / `clinicId`. The two `shift.findMany` calls in `validateShiftsAgainstRules` resolve in order: first the strict-month `validShifts`, then the ±8-day statutory set — so `mockResolvedValueOnce` twice keys them.
   ```ts
   describe('Story 13-2 — cross-month statutory window (validateShiftsAgainstRules)', () => {
@@ -474,7 +474,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: `Tests:` count rises by 2, both passing. exit 0.
   Commit: `git add apps/api/src/modules/planning/planning.service.spec.ts && git commit -m "test(KON-134): publish detects straddling deficit, ignores adjacent-month breach"`
 
-- [ ] **Task 5: Feed the generation eligibility window with cross-month context in `planning-generation.service.ts`** [AC: 1, 3]
+- [x] **Task 5: Feed the generation eligibility window with cross-month context in `planning-generation.service.ts`** [AC: 1, 3]
   In `apps/api/src/modules/planning/planning-generation.service.ts`:
 
   **(a)** Add the loader method next to `loadBorderWeekShifts` (currently `:4807`). It uses a `date: { gte, lte }` predicate (distinct from border's `date.in` and survivors' `OR`) and returns ONLY the out-of-month rows:
@@ -556,7 +556,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: existing generation tests still green — the new `date: { gte, lte }` query returns `[]` under the default `shift.findMany.mockResolvedValue([])` and never touches the fill/equity counters. exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.ts && git commit -m "feat(KON-134): generation eligibility sees ±8 real days across the month frontier"`
 
-- [ ] **Task 6: Prove the generation straddle rejection in `planning-generation.service.spec.ts`** [AC: 1, 3]
+- [x] **Task 6: Prove the generation straddle rejection in `planning-generation.service.spec.ts`** [AC: 1, 3]
   Add this test inside the existing `describe('generateMonthlyPlan', ...)` block (mirror the border test at `:1772`). One employee with a 6-day run ending 2025-12-31 (loaded via the statutory `gte/lte` query); the Jan-1 slot would be their 7th consecutive day and must NOT be assigned to them.
   ```ts
     it('Story 13-2 — rejects a 7th consecutive day straddling the month frontier', async () => {
@@ -618,7 +618,7 @@ _These map 1:1 onto ticket KON-134's AC-1…AC-3, which remain the authority._
   Expected: the new test passes; it would fail (Jan 1 assigned) against the pre-Task-5 code. exit 0. **If `a.date` is a `Date` rather than an ISO string in `result.assignments`, normalise with `new Date(a.date).toISOString().split('T')[0]` — verify the shape while wiring RED.**
   Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-134): generation rejects a 7th consecutive day across the frontier"`
 
-- [ ] **Task 7: Guard the move path with a straddle test in `move-validation.spec.ts`** [AC: 3]
+- [x] **Task 7: Guard the move path with a straddle test in `move-validation.spec.ts`** [AC: 3]
   The move path already loads the ±8-real-day `statutoryWindowShifts` (13-1) and Task 1's fix flows through `wouldExceedStatutory` — no move code changes. This test locks AC3 for the move path. Append inside the existing `describe('evaluateMoveViolations', ...)` block (reuses `baseCtx` / `shiftAt`):
   ```ts
     it('Story 13-2 — flags a 7th consecutive worked day straddling the month frontier', () => {
@@ -824,16 +824,50 @@ _Files this story modifies (final list confirmed by aped-dev at completion):_
 
 ### Summary
 
-_Populated by aped-dev at completion._
+All three validation paths now see the same ±8-real-day cross-month window, and `clampGapLen`
+no longer credits phantom weekly-rest at a data-window edge. `french-labor-law.ts` gains an
+optional `win` bound threaded through `weekHasRestDeficit` / `findStatutoryViolations` /
+`wouldExceedStatutory` (window-less callers keep legacy behaviour); publish loads a separate
+±8-day statutory set filtered to the published range; generation seeds a statutory-only
+cross-month context into `assignmentIndex` alone (fill/equity counters untouched). AC3 is
+proven per path (french-labor-law, publish, generation, move). Scope held — the move arm was
+already shipped by 13-1 and is only guarded here, no new move code.
 
 ### Files changed
 
-_Populated by aped-dev at completion._
+- `apps/api/src/modules/planning/french-labor-law.ts`
+- `apps/api/src/modules/planning/french-labor-law.spec.ts`
+- `apps/api/src/modules/planning/planning.service.ts`
+- `apps/api/src/modules/planning/planning.service.spec.ts`
+- `apps/api/src/modules/planning/planning-generation.service.ts`
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts`
+- `apps/api/src/modules/planning/move-validation.spec.ts`
 
 ### Deviations
 
-_Populated by aped-dev at completion._
+- **Task 6 test fix (createManyAndReturn echo).** The story's Task-6 mock set
+  `createManyAndReturn: mockResolvedValue([])`. `buildResult` derives `result.assignments`
+  from that return value, so `assignments` would always be empty — making `jan1Assigned`
+  vacuously `false` (a false-green that never proves Jan 1 is rejected) and
+  `assignments.length > 0` impossible. Replaced it with an implementation that echoes the
+  persisted `data` (with synthetic ids) so `result.assignments` reflects the plan the
+  generator actually wrote. With the fix the test goes genuinely RED pre-Task-5 (Jan 1
+  assigned) and GREEN post-Task-5. No production-code deviation.
+- Environment: the worktree was missing `apps/api/node_modules` (aped-sprint only symlinks the
+  root); symlinked it to the main checkout per project memory (never `pnpm install`).
 
 ### Test output
 
-_Populated by aped-dev at completion._
+Story-scoped suite (french-labor-law, planning.service, planning-generation.service,
+move-validation), fresh run from repo root:
+
+```
+$ pnpm --filter @pawly/api test -- french-labor-law planning.service.spec planning-generation.service.spec move-validation
+Test Suites: 4 passed, 4 total
+Tests:       298 passed, 298 total
+```
+
+Full `@pawly/api` suite: 1135 passed, 1 failed — the single failure is the pre-existing
+timing-flaky perf test `meets NFR2 when the ejection scan runs against many real holes`
+(wall-clock budget under full-suite contention; the test's own comment documents this). It
+passes in isolation (1505 ms < 2000 ms budget) and is untouched by this story.
