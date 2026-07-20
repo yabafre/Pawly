@@ -727,6 +727,11 @@ describe('ClinicService', () => {
           ruleType: 'HARD',
           category: 'CONTRACT_COMPLIANCE',
           isActive: true,
+          config: expect.objectContaining({
+            minDailyRestHours: 11,
+            maxWeeklyStatutoryHours: 48,
+            minBreakMinutesOver6h: 20,
+          }),
         }),
       });
     });
