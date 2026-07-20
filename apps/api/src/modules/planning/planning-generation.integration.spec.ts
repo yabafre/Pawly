@@ -83,16 +83,21 @@ describe('generatePlan integration — real router→service→solver (Story 13-
       engine: 'cpsat',
     });
 
-    // Real solver was invoked (cpsat path), transaction ran, served plan is clean,
-    // and a valid solver outcome is reported (cpsat request → outcome present).
+    // Real solver was invoked AND actually ran — the cpsat request drove the whole
+    // router→service→solver→replay→transaction path, and a valid solver outcome is reported.
     expect(solveSpy).toHaveBeenCalled();
     expect(harness.prisma.$transaction).toHaveBeenCalled();
     expect(result.violations.hard).toEqual([]);
     expect(
-      result.stats.engine === 'greedy' || result.stats.engine === 'cpsat',
-    ).toBe(true);
-    expect(
       solverOutcomeSchema.safeParse(result.stats.solverOutcome).success,
     ).toBe(true);
+    // F1/F3 — the old `engine === 'greedy' || 'cpsat'` check was a tautology (2-value enum,
+    // always true). Assert instead that the solver genuinely ran and did NOT silently degrade
+    // to ENGINE_UNAVAILABLE (what happens if or-tools can't load, e.g. Node < 22.12), which
+    // would make `solveSpy.toHaveBeenCalled()` pass while the solver never actually solved.
+    // On buildServedCpsatFixture greedy is already optimal, so the served engine is greedy
+    // with outcome 'no-improvement'; AC-2's job is the end-to-end wiring, while the positive
+    // served-cpsat path is proven in planning-invariants.property.spec.ts.
+    expect(result.stats.solverOutcome).not.toBe('engine-unavailable');
   }, 60000);
 });

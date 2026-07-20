@@ -18,6 +18,7 @@ import {
   createGenerationHarness,
   configureFixture,
   planningFixtureArb,
+  buildImprovableCpsatFixture,
   HARNESS_CLINIC_ID,
   type GenerationHarness,
 } from './planning-harness.testutil';
@@ -156,4 +157,64 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
       { numRuns: NUM_RUNS_CPSAT, endOnFailure: true },
     );
   }, 180000);
+
+  // AC-1 P2 — POSITIVE arm + solver canary (review F1).
+  //
+  // The bounded `planningFixtureArb` never forces cpsat to be served: greedy(+repair)
+  // already fills every slot, so P2/P3 above only ever exercise the trivial never-degrade
+  // side (cpsat silently falls back to greedy → the assertions become greedy-vs-greedy).
+  // This deterministic fixture is the ONE place the harness proves the exact engine
+  // genuinely SOLVES, strictly WINS, survives replay-revalidation, and is SERVED. Run with
+  // `enableRepair: false` so the solver's baseline is the raw (hole-bearing) greedy plan.
+  //
+  // It also acts as the SOLVER CANARY: if or-tools is unavailable (e.g. Node < 22.12) the
+  // served engine stays greedy and this fails LOUDLY, instead of the cpsat coverage above
+  // going silently vacuous with a green suite.
+  it('cpsat is genuinely served and strictly improves a greedy-suboptimal fixture', async () => {
+    const f = buildImprovableCpsatFixture();
+
+    configureFixture(harness, f);
+    const greedy = await harness.service.generateMonthlyPlan(
+      HARNESS_CLINIC_ID,
+      f.month,
+      f.templateId,
+      { engine: 'greedy', enableRepair: false },
+    );
+    configureFixture(harness, f);
+    const cpsat = await harness.service.generateMonthlyPlan(
+      HARNESS_CLINIC_ID,
+      f.month,
+      f.templateId,
+      { engine: 'cpsat', enableRepair: false },
+    );
+
+    // Greedy-only is genuinely suboptimal (strands ≥1 hole)…
+    expect(greedy.stats.holeCount).toBeGreaterThan(0);
+    // …the exact engine's plan was actually SERVED (not a silent greedy fallback)…
+    expect(cpsat.stats.engine).toBe('cpsat');
+    expect(cpsat.stats.solverOutcome).toBe('served');
+    // …strictly improving fill and holes…
+    expect(cpsat.stats.filledSlots).toBeGreaterThan(greedy.stats.filledSlots);
+    expect(cpsat.stats.holeCount).toBeLessThan(greedy.stats.holeCount);
+
+    // …and the served cpsat plan is statutory-clean by INDEPENDENT re-evaluation (P1
+    // method). This is the only place P1's re-eval runs over a plan the exact engine
+    // actually served — never trusting result.violations.hard (mocked on the cpsat path).
+    const isoDate = (d: unknown): string =>
+      d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+    const byEmployee = new Map<string, StatutoryShift[]>();
+    for (const a of cpsat.assignments) {
+      const list = byEmployee.get(a.employeeId) ?? [];
+      list.push({
+        date: isoDate(a.date),
+        startTime: a.startTime,
+        endTime: a.endTime,
+        breakMinutes: 0,
+      });
+      byEmployee.set(a.employeeId, list);
+    }
+    for (const [, shifts] of byEmployee) {
+      expect(findStatutoryViolations(shifts)).toEqual([]);
+    }
+  }, 60000);
 });

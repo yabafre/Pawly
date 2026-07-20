@@ -1,6 +1,9 @@
 // Shared property/integration harness for the planning engine (Story 13-8, KON-138).
-// NOT a *.spec.ts — Jest never runs it as a suite; excluded from the SWC build
-// (tsconfig.build.json) so its dev-only imports never reach dist/.
+// NOT a *.spec.ts — Jest never runs it as a suite. Its dev-only imports (fast-check,
+// @nestjs/testing) are kept out of the production bundle by the `exclude` globs in BOTH
+// `.swcrc` (the real build filter — nest-cli.json uses the SWC builder, which does NOT
+// honour tsconfig's `exclude`) and `tsconfig.build.json` (belt-and-suspenders for any
+// tsc-based consumer). See docs/reference/planning-invariant-harness.md § Build safety.
 import { Test, TestingModule } from '@nestjs/testing';
 import fc from 'fast-check';
 import { PlanningGenerationService } from './planning-generation.service';
@@ -100,6 +103,11 @@ export type PlanningFixture = {
     isConfirmed: boolean;
     planningTemplateId: string | null;
     varianceEvents: unknown[];
+    // `loadSurvivingShiftsInMonth` selects `employee: { select: { jobType } }` and reads
+    // `s.employee?.jobType` to gate coverage credit against `slot.requiredJobTypes`
+    // (F4). Carry the relation so the mock row shape matches the real Prisma projection
+    // before anyone extends the arbitrary with job-type-gated slots.
+    employee: { jobType: string };
   }>;
 };
 
@@ -178,6 +186,8 @@ export const planningFixtureArb: fc.Arbitrary<PlanningFixture> = fc
           isConfirmed: true,
           planningTemplateId: null,
           varianceEvents: [] as unknown[],
+          // Match the real `loadSurvivingShiftsInMonth` projection (F4).
+          employee: { jobType: e.jobType },
         }));
         return {
           month: HARNESS_MONTH,
@@ -320,6 +330,15 @@ export function configureFixture(
   h.prisma.unavailability.findMany.mockResolvedValue(f.unavailabilities);
   // shift.findMany is shared: survivors (where.OR), statutory context (where.date.gte/lte),
   // border-week (where.date.in). Only survivors return rows here.
+  //
+  // F5 — P1 soundness COUPLING: P1 re-evaluates "generated + f.survivors" per employee and
+  // stays clean only because survivor context reaches the generation loop through THIS
+  // outer OR query (so the engine's eligibility gate can reject a same-day conflict), while
+  // the in-transaction `tx.shift.findMany` below returns []. If a future engine refactor
+  // moved survivor loading INTO the write transaction, this mock would silently supply zero
+  // survivors — the generator could then place a conflicting same-day shift and P1 would
+  // emit a false MANDATORY_BREAK, or worse, mask a real one. Keep both reads in sync if that
+  // loading path ever changes.
   h.prisma.shift.findMany.mockImplementation((args: any) => {
     if (args?.where?.OR) return Promise.resolve(f.survivors);
     return Promise.resolve([]);
@@ -404,6 +423,128 @@ export function buildServedCpsatFixture(): PlanningFixture {
     employees,
     rules: [],
     unavailabilities: [],
+    survivors: [],
+  };
+}
+
+// A deterministic fixture where the single greedy pass is provably SUBOPTIMAL, so the
+// exact engine strictly improves it and is genuinely SERVED (engine='cpsat',
+// solverOutcome='served'). Ported from the KON-128 depth-3 counter-example: 3 VETs each
+// capped at ONE 4h SURGERY/month, 3 open Mondays (rest closed), crossed availabilities so
+// greedy strands Mon3.
+//
+// Why it matters (F1): over the bounded `planningFixtureArb`, greedy(+repair) already fills
+// every slot, so cpsat is never served — every cpsat property/AC-2 assertion collapses to a
+// trivial greedy-vs-greedy check. This fixture is the ONE place the harness proves the
+// exact engine actually solves, wins, survives replay-revalidation, and is served. Run it
+// with `enableRepair: false` so the solver's baseline is the raw (hole-bearing) greedy plan
+// rather than the repaired one — `enableRepair` is the engine's documented internal test
+// seam (defaults ON; never forwarded by the tRPC route), so this isolates the solver's gain.
+// This test also DOUBLES AS THE SOLVER CANARY: if or-tools fails to load (e.g. Node < 22.12),
+// solve() degrades to ENGINE_UNAVAILABLE, the plan stays greedy, and the `engine==='cpsat'`
+// assertion fails LOUDLY instead of the cpsat coverage silently going vacuous.
+export function buildImprovableCpsatFixture(): PlanningFixture {
+  const employees = [
+    {
+      id: 'emp-1',
+      firstName: 'Alice',
+      lastName: 'M',
+      jobType: 'VET',
+      contractHours: 35,
+    },
+    {
+      id: 'emp-2',
+      firstName: 'Bob',
+      lastName: 'D',
+      jobType: 'VET',
+      contractHours: 35,
+    },
+    {
+      id: 'emp-3',
+      firstName: 'Carol',
+      lastName: 'B',
+      jobType: 'VET',
+      contractHours: 35,
+    },
+  ];
+  return {
+    month: HARNESS_MONTH,
+    templateId: HARNESS_TEMPLATE_ID,
+    operationalConfig: {
+      workDays: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
+      defaultStartTime: '08:00',
+      defaultEndTime: '18:00',
+      // Close Mon4 (03-23) + Mon5 (03-30): exactly three open Mondays remain (02, 09, 16).
+      closedDays: [
+        { id: 'c1', date: '2026-03-23', reason: null },
+        { id: 'c2', date: '2026-03-30', reason: null },
+      ],
+      specialDays: [],
+    },
+    // Single SURGERY slot per Monday, VET-only.
+    shiftTypes: [SHIFT_TYPE_MENU[0]],
+    template: {
+      days: [
+        {
+          dayOfWeek: 1,
+          slots: [
+            {
+              shiftTypeCode: 'SURGERY',
+              requiredStaff: 1,
+              requiredJobTypes: ['VET'],
+            },
+          ],
+        },
+      ],
+    } as TemplateData,
+    employees,
+    // HARD cap: 4h/month ⇒ each VET can take at most ONE 4h SURGERY.
+    rules: [
+      {
+        id: '33333333-3333-3333-3333-333333333333',
+        name: 'Max 4h/month',
+        category: 'CONTRACT_COMPLIANCE',
+        ruleType: 'HARD',
+        config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+        priority: 10,
+      },
+    ],
+    // Crossed leaves: Alice free Mon1+Mon3, Bob free Mon1+Mon2, Carol free Mon2 only.
+    // Greedy strands Mon3 (03-16); only a multi-relocation chain (or the exact solver) fills it.
+    unavailabilities: [
+      {
+        id: 'ua-a',
+        employeeId: 'emp-1',
+        type: 'VACATION',
+        startDate: new Date('2026-03-09'),
+        endDate: new Date('2026-03-09'),
+        daysOfWeek: [],
+      },
+      {
+        id: 'ua-b',
+        employeeId: 'emp-2',
+        type: 'VACATION',
+        startDate: new Date('2026-03-16'),
+        endDate: new Date('2026-03-16'),
+        daysOfWeek: [],
+      },
+      {
+        id: 'ua-c1',
+        employeeId: 'emp-3',
+        type: 'VACATION',
+        startDate: new Date('2026-03-02'),
+        endDate: new Date('2026-03-02'),
+        daysOfWeek: [],
+      },
+      {
+        id: 'ua-c2',
+        employeeId: 'emp-3',
+        type: 'VACATION',
+        startDate: new Date('2026-03-16'),
+        endDate: new Date('2026-03-16'),
+        daysOfWeek: [],
+      },
+    ],
     survivors: [],
   };
 }
