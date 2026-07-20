@@ -298,3 +298,20 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   waived (React Grab MCP unavailable — static Aria review + DOM tests). Worktree-only artefact noted: web
   `tsc` shows stale `@pawly/api` dist from the main checkout shadowing the fresh validators types
   (TS2339, not a narrowing error) — resolves on a clean/CI build; web verified via Vitest.
+
+### Story 13-8-invariant-test-harness — done 2026-07-20T21:38:19Z
+
+- **Decisions:** Test-only harness locking Epic 13's engine guarantees over the randomized
+  input space (P1 statutory safety via independent `findStatutoryViolations` re-eval, P2
+  improve-never-degrade, P3 determinism) + one real tRPC→service→solver→replay→transaction
+  integration test. **Key review finding:** over the bounded arbitrary, greedy(+repair)
+  fills every slot so the exact engine is never served — the cpsat arms of P2/P3/AC-2 were
+  vacuous (0/60 served). Fixed by a dedicated deterministic `buildImprovableCpsatFixture`
+  (KON-128 depth-3 counter-example, run with the `enableRepair:false` test seam) that
+  proves the solver genuinely serves (`engine=cpsat`, `solverOutcome=served`, strict
+  improvement) and doubles as a solver canary. Any future cpsat invariant that asserts the
+  exact engine WINS (not just never-degrades) MUST model it on that fixture, else it passes
+  vacuously against a served greedy plan.
+- **Files:** `apps/api/src/modules/planning/planning-harness.testutil.ts` (+`planning-invariants.property.spec.ts`, `planning-generation.integration.spec.ts` new), `apps/api/package.json`, `apps/api/tsconfig.build.json`, `apps/api/.swcrc`, `.nvmrc`, root `package.json` (engines), `docs/reference/planning-invariant-harness.md`.
+- **Contracts:** no production contract change (test-only). New test-only exports from the harness: `planningFixtureArb`, `createGenerationHarness`, `configureFixture`, `buildServedCpsatFixture`, `buildImprovableCpsatFixture`.
+- **Deviations from plan:** aped-review fixed 5 findings the story shipped with — the vacuous cpsat coverage (MAJOR), an inert `tsconfig.build.json` exclude (SWC ignores it; real exclude moved to `.swcrc`, verified 0 test files in `dist/`), a tautological engine assertion, a survivor mock missing `employee.jobType`, and an undocumented P1 survivor-loading coupling. `.nvmrc`(20→22) + root `engines`(≥22.12) aligned with the solver's real Node floor. No engine code was touched — the load-bearing rule never fired (no property surfaced a genuine engine bug).

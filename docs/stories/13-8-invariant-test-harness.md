@@ -771,3 +771,51 @@ Test Suites: 20 passed, 20 total   Tests: 592 passed, 592 total
 pnpm --filter @pawly/validators test
 Test Files: 27 passed (27)   Tests: 793 passed (793)
 ```
+
+## Review Record
+
+**Date:** 2026-07-20
+**Auditors:** Spec, Code, Edge & Hallucination (parallel) + Lead execution audit + adversarial fix-verification
+**Verdict:** done — CHANGES_REQUESTED at first pass; all findings resolved in `7a8978c`.
+
+The invariant harness is technically sound (Edge auditor: every production identifier
+exists, DI is exact, dates/locale correct, no hallucination). The central weakness was
+that the **exact-engine (cpsat) coverage was vacuous**: over the bounded arbitrary,
+greedy(+repair) already fills every slot, so cpsat is never actually served — the Lead
+probe measured **0/60 sampled fixtures served** (outcomes `no-improvement`×58,
+`rejected-revalidation`×2), and nothing in P2/P3/AC-2 asserted a real solve, so the suite
+would go green having only ever exercised greedy.
+
+### Findings
+
+#### Resolved
+
+- **[MAJOR] cpsat arms of P2/P3/AC-2 were vacuous — the exact engine is never served over the bounded arbitrary, and no assertion required a real solve** [planning-invariants.property.spec.ts, planning-generation.integration.spec.ts]
+  - Source: Spec + Code auditors + Lead empirical probe (`cpsatServed 0/60`)
+  - Resolution: `7a8978c` — added `buildImprovableCpsatFixture` (a faithful port of the proven KON-128 depth-3 counter-example) + a deterministic test running it with `enableRepair: false` so the solver's baseline is the raw hole-bearing greedy plan; asserts `engine === 'cpsat'`, `solverOutcome === 'served'`, strict fill/hole improvement (`3>2`, `0<1`), and an independent statutory re-eval of the served plan. It doubles as a **solver canary** (fails loudly if or-tools is unavailable instead of degrading silently). Aligned `.nvmrc` (20→22) and root `engines` (`>=22.3.0`→`>=22.12.0`) with the solver's real Node floor.
+- **[MINOR] `**/*.testutil.ts` exclude in `tsconfig.build.json` was inert — the SWC builder ignores tsconfig `exclude` (44 `*.spec.js` were already emitted into `dist/`), so the helper's dev-only imports leaked into the production bundle** [apps/api/.swcrc, apps/api/tsconfig.build.json]
+  - Source: Lead build audit (SWC vs tsconfig; verified against `nest-cli.json`)
+  - Resolution: `7a8978c` — added a real `exclude` to `apps/api/.swcrc` (`.*\.spec\.ts$`, `.*\.testutil\.ts$`); verified a clean `nest build` now emits **0** `testutil.js` + **0** `spec.js` into `dist/` while keeping `service.js`/`main.js`. Corrected the "never transpiled into dist" claim in the helper header comment and the reference doc's new § Build safety.
+- **[MINOR] Tautological assertion `engine === 'greedy' || engine === 'cpsat'` (always true for a 2-value enum)** [planning-generation.integration.spec.ts]
+  - Source: Spec + Edge auditors
+  - Resolution: `7a8978c` — replaced with the falsifiable `expect(result.stats.solverOutcome).not.toBe('engine-unavailable')`, which fails if the solver never actually runs.
+- **[MINOR] Survivor mock rows omitted the `employee.jobType` relation the real `loadSurvivingShiftsInMonth` selects** [planning-harness.testutil.ts]
+  - Source: Spec auditor
+  - Resolution: `7a8978c` — added `employee: { jobType }` to the survivor type + rows so the mock matches the real Prisma projection before the arbitrary is extended with job-type-gated slots.
+- **[MINOR] P1 soundness silently coupled to the survivor-loading path (outer `where.OR` returns survivors while the in-tx read returns `[]`)** [planning-harness.testutil.ts]
+  - Source: Edge auditor
+  - Resolution: `7a8978c` — strengthened the coupling comment in `configureFixture` so a future refactor moving survivor loading into the transaction updates both reads.
+
+#### Dismissed
+
+- (none)
+
+### Verification
+
+- Test command: `pnpm --filter @pawly/api test src/modules/planning`
+- Test output (final pass): **Test Suites: 20 passed; Tests: 593 passed** (592 + the new served-cpsat test). Story specs: **5 passed** (P1/P2/P3 + served-cpsat + integration). Validators (unchanged): 27 files / 793 passed. New served-cpsat test is deterministic (solver seed 129, `numWorkers 1`), ~4 ms, stable across repeated runs.
+- Build safety: clean `nest build` (SWC) emits **0** `*.testutil.js` + **0** `*.spec.js` into `dist/` (was 44 spec + 1 testutil); `planning-generation.service.js`/`main.js` still present.
+- Solver reality: Lead probe confirmed or-tools loads under Node 22.22 (outcomes `no-improvement`/`rejected-revalidation`, never `engine-unavailable`); the new served-cpsat test forces `engine=cpsat`/`served` on a greedy-suboptimal fixture.
+- Fix verification: independent adversarial re-audit — **ALL-RESOLVED, no regressions introduced** (HIGH confidence).
+- Visual verification: N/A — backend, test-only story (no Aria).
+- git-audit: only expected noise (`state.yaml`, the story file, `pnpm-lock.yaml` — never self-listed); no real discrepancy.
