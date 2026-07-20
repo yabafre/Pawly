@@ -777,10 +777,13 @@ export class PlanningGenerationService {
     // the solver plan is served ONLY when strictly better (fill, then the exact
     // weighted equity objective) AND fully re-validated by replaying it through
     // evaluateEligibility on the live counters. Never degrades, never silent (NFR3).
+    // Story 13-6 (KON-137, T11) — capture WHY the pass did/didn't serve so stats +
+    // telemetry can report it (undefined ⇒ greedy request ⇒ no solver internals).
+    let solverOutcome: SolverOutcome | undefined;
     if (options.engine === 'cpsat' && solverBaseline) {
       const solverStart = Date.now();
       try {
-        const improvedHoles = await this.runSolverImprovePass({
+        const passResult = await this.runSolverImprovePass({
           employees,
           slots,
           constraints,
@@ -797,15 +800,22 @@ export class PlanningGenerationService {
           priorHoles: holes,
           baseline: solverBaseline,
         });
-        if (improvedHoles) {
+        if (passResult.served) {
           holes.length = 0;
-          holes.push(...improvedHoles);
+          holes.push(...passResult.holes);
           servedEngine = 'cpsat';
+          solverOutcome = 'served';
+        } else {
+          solverOutcome = passResult.outcome;
         }
       } catch (error) {
         this.logger.warn(
           `KON-129 solver pass failed after ${Date.now() - solverStart}ms — serving the greedy plan: ${String(error)}`,
         );
+        // Story 13-6 (KON-137) — an unexpected throw in the pass means the solver
+        // could not be used; surface it as engine-unavailable so the fleet metric
+        // still alerts (AC-2/AC-3), the same bucket as an adapter load failure.
+        solverOutcome = 'engine-unavailable';
       }
     }
 
@@ -983,6 +993,11 @@ export class PlanningGenerationService {
     planningGenerationDuration.record(Date.now() - generationStart, {
       clinic_id: clinicId,
       shift_count: String(createdShifts.length),
+      // Story 13-6 (KON-137, T11) — engine/outcome attributes make a fleet-wide
+      // cpsat→greedy degradation (e.g. a Node < 22.12 deploy) alertable in SigNoz.
+      requested_engine: options.engine ?? 'greedy',
+      served_engine: servedEngine,
+      solver_status: solverOutcome ?? 'not-requested',
     });
 
     return this.buildResult(
