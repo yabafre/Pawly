@@ -192,7 +192,7 @@
       const fifty = () =>
         // Mon–Sat 2026-03-02..07, 10h gross - 1h break = 9h net = 54h/week
         ['02', '03', '04', '05', '06', '07'].map((d) =>
-          day(`2026-03-${d}`, '08:00', '19:00', 60),
+          day(`2026-03-${d}`, '08:00', '18:00', 60),
         );
 
       it('findStatutoryViolations flags an ISO week over 48h net', () => {
@@ -206,10 +206,10 @@
 
       it('wouldExceedStatutory flags the candidate that crosses 48h net', () => {
         const windowShifts = ['02', '03', '04', '05', '06'].map((d) =>
-          day(`2026-03-${d}`, '08:00', '19:00', 60),
+          day(`2026-03-${d}`, '08:00', '18:00', 60),
         ); // 5 * 9h = 45h
         expect(
-          wouldExceedStatutory(windowShifts, day('2026-03-07', '08:00', '19:00', 60)),
+          wouldExceedStatutory(windowShifts, day('2026-03-07', '08:00', '18:00', 60)),
         ).toContain('WEEKLY_CEILING'); // 54h
       });
     });
@@ -960,6 +960,8 @@ export const createShiftTypeSchema = shiftTypeFieldsSchema.refine(
 - Under-18 regime (no age field) — `.aped/.out-of-scope/2026-07-16-mineurs-droit-travail.md`.
 - Settings `ShiftTypeFormSheet` client-side error surface (server zod still rejects) — consistent with 13-3's UX deferral.
 - Property-based invariants over the extended statutory set — Story 13-8 (KON-138, blocked-by this story).
+- **Backfill/rollout for legacy shift types (aped-review F8).** Clinics onboarded before this ships may hold `ClinicShiftType` rows with net > 6h and `breakMinutes < 20` — legal to create before 13-4, now silently ungeneratable (`wouldExceedStatutory`/`findStatutoryViolations` reject every candidate) with no admin-facing signal until generation fails. A one-off report / admin banner / backfill script is a follow-up ticket, not this story (the legalisation itself is intentional, Scope decision 2).
+- **Data-window frontier under-report of WEEKLY_CEILING / DAILY_REST (aped-review F9).** On publish, `findStatutoryViolations` sums over the ±8-real-day window; an ISO week only partially covered by that window can sum ≤ 48h and not flag. This is an *under*-report (never a false positive) and mirrors the accepted window semantics already documented for `WEEKLY_REST` / `clampGapLen` (Story 13-2). Any future widening of the statutory window closes it uniformly across kinds.
 
 ## File List
 
@@ -1058,3 +1060,69 @@ Tests  136 passed (136)
 
 # validators dist rebuilt before the API pass — tsc EXIT 0
 ```
+
+## Review Record
+
+**Date:** 2026-07-20
+**Auditors:** Spec, Code, Edge & Hallucination (+ inline git-audit)
+**Verdict:** done
+
+Three method-driven auditors ran in parallel. Two returned CHANGES_REQUESTED, one APPROVED. Ten
+findings after dedup (4 MAJOR / 2 MINOR / 4 NIT). The load-bearing MAJOR (F1) was a real correctness
+defect, reproduced by the Lead with a throwaway test before any fix (candidate-introduced daily-rest
+deficit returned `["MANDATORY_BREAK"]` — DAILY_REST masked). All findings were fixed inline and
+re-verified by the originating auditor (Spec + Code both hand-traced the arithmetic and re-ran the
+targeted suites).
+
+### Findings
+
+#### Resolved
+
+- [MAJOR] AC-1 — `wouldExceedStatutory`'s DAILY_REST check used a whole-window boolean (`hasDailyRestDeficit`), so a pre-existing <11h gap anywhere in the ±8-day window masked a fresh deficit the candidate introduced, defeating AC-1's write-block on generation/manual/move. [`french-labor-law.ts:417-426,508-518`]
+  - Source: Code (HIGH), Spec (MAJOR)
+  - Resolution: `fbf3bb0` — replaced with a monotonic `countDailyRestDeficits` before/after (insertion is overlap-free upstream, so the count rises iff the candidate adds a deficit); regression test in `french-labor-law.spec.ts`. Code auditor verified monotonicity by case analysis; Spec hand-verified counts 1→2.
+- [MAJOR] AC-2 — "statutory 48h ceiling wins over a looser configured `maxWeeklyHours`" was untested (all fixtures used caps < 48h). [`french-labor-law.ts:511-519`]
+  - Source: Spec (MAJOR)
+  - Resolution: `1319072` — publish test with `maxWeeklyHours: 60` + a 54h-net week asserts the statutory `WEEKLY_CEILING` fires while the configured rule stays silent.
+- [MAJOR] AC-2 — WEEKLY_CEILING publish wiring (`MINUTE_KINDS` minutes→hours + `messageKey`) had zero coverage below "read the code". [`planning.service.ts:341-349,265-275`]
+  - Source: Spec (MAJOR)
+  - Resolution: `1319072` — same test asserts `messageKey === 'violations.statutory.weeklyCeiling'` and `messageParams {actual:54, limit:48}` (hours).
+- [MAJOR] AC-5 — the onboarding localized break error was asserted by inspection only; the visual GREEN gate was deferred and no test existed. [`StepShiftTypes.tsx:51-62`]
+  - Source: Spec (MAJOR)
+  - Resolution: `5e934c6` — extracted the `onChange` validator to a pure `validateOnboardingShiftTypes` and unit-tested it (`shift-types-validation.spec.ts`) → a >6h/0-break type surfaces `breakRequiredOver6h`. (Live-DOM render + full react-grab journey remain deferred — same pre-existing `<FieldError>` path already used by `incompleteShiftType`; low-risk pattern reuse.)
+- [MINOR] F5 — `updateSingleShiftType` did a blind `updateMany`, so a partial PATCH (`{endTime}` widening past 6h, or `{breakMinutes:0}` stripping a break) bypassed the break refine and persisted an ungeneratable type. [`clinic.service.ts:357-397`]
+  - Source: Code (MEDIUM), Spec (NIT), Edge (MINOR)
+  - Resolution: `b0ac4f1` — re-reads the row and validates the MERGED result via `shiftBreakRuleOk` when the patch touches the workload; name/color-only patches untouched. Four tests in `clinic.service.spec.ts`.
+- [MINOR] AC-4 — only DAILY_REST had a generation-level test; MANDATORY_BREAK/WEEKLY_CEILING did not.
+  - Source: Spec (MINOR)
+  - Resolution: `18b4483` — added a MANDATORY_BREAK generation-eligibility exclusion + a compliant-break control.
+- [NIT] F7 — the client break validator duplicated `shiftBreakRuleOk`'s arithmetic inline (drift risk).
+  - Source: Code (LOW)
+  - Resolution: `5e934c6` — arithmetic centralised in the extracted, unit-tested validator; a full dedup-import from `@pawly/validators` is not viable in-worktree (the web app resolves the package to the built main-checkout copy, so the new export is invisible pre-merge), documented at `shift-types-validation.ts:9-13`.
+- [NIT] F10 — the story's Task 2 WEEKLY_CEILING fixture snippet said `19:00` (11h gross), contradicting its own "9h net" comment; the committed code uses `18:00`.
+  - Source: Edge (NIT)
+  - Resolution: this commit — story snippet aligned to `18:00`.
+
+#### Dismissed (documented)
+
+- [NIT] F8 — no backfill/rollout for legacy shift types that become ungeneratable under the new break rule. Rationale: the legalisation is intentional (Scope decision 2); a report/banner/backfill is a follow-up ticket, not this story. Recorded under "Out of scope".
+- [NIT] F9 — WEEKLY_CEILING/DAILY_REST can under-report at a data-window frontier (never over-report), consistent with the accepted `WEEKLY_REST`/`clampGapLen` window semantics (Story 13-2). Recorded under "Out of scope".
+
+#### Known residuals (non-blocking)
+
+- `updateSingleShiftType` is read-then-write with no transaction/optimistic lock — a rare concurrent double-PATCH could still merge inconsistently. Blast radius is unchanged from the original F5 gap (downstream write guards still block any actual shift from an inconsistent type), admin-settings path, not a hot path (Code auditor NIT). Consistent with 13-1's documented sub-ms intra-tx residual; candidate for 13-8.
+
+### Verification
+
+- Test commands (re-run fresh this review):
+  - `pnpm --filter @pawly/validators build` → EXIT 0; `pnpm --filter @pawly/validators test -- planning-rule shift-type onboarding.schema` → **168 passed**
+  - `pnpm --filter @pawly/api test -- french-labor-law planning.service planning-generation.service move-validation clinic.service` → **352 passed** (5 suites; +7 vs the 345 dev baseline)
+  - `pnpm --filter @pawly/web test -- publish schedule-view shift-types-validation` → **141 passed** (+5)
+- F1 reproduced RED before fix, GREEN after (regression test retained).
+- Both originating auditors independently re-ran their targeted suites and returned RESOLVED.
+- Visual verification: deferred — onboarding break error proven by the extracted-validator unit test; live react-grab journey disproportionate in a headless sprint worktree (same `<FieldError>` render path as existing onboarding errors).
+
+### Ticket sync
+
+- Ticket comment posted: Linear KON-136
+- PR opened/updated: draft → `sprint/epic-13` (worktree sprint; Story Leader merges)
