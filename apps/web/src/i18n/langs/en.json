@@ -343,7 +343,10 @@
             "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
             "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
             "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
-            "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
+            "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}",
+            "dailyRest": "{date}: {actual}h rest before this shift, below the statutory minimum of {limit}h",
+            "weeklyCeiling": "Week of {date}: {actual}h worked, exceeds the absolute statutory ceiling of {limit}h/week",
+            "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min"
           }
         }
       }
@@ -727,7 +730,10 @@
         "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
         "dailyAmplitude": "{date}: {actual}h amplitude, exceeds the statutory limit of {limit}h",
         "weeklyRest": "Week of {date}: {actual}h continuous rest, below the statutory minimum of {limit}h",
-        "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}"
+        "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}",
+        "dailyRest": "{date}: {actual}h rest before this shift, below the statutory minimum of {limit}h",
+        "weeklyCeiling": "Week of {date}: {actual}h worked, exceeds the absolute statutory ceiling of {limit}h/week",
+        "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min"
       }
     },
     "settings": {
