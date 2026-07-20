@@ -182,7 +182,7 @@ sprint:
     13-5-solver-model-fidelity: {status: done, depends_on: [13-3-cross-midnight-overlap], ticket: "KON-135", merged_into_umbrella: true, completed_at: "2026-07-20T10:45:30Z"}
     13-6-served-plan-truth-observability: {status: done, depends_on: [13-5-solver-model-fidelity], ticket: "KON-137", merged_into_umbrella: true, completed_at: "2026-07-20T19:17:26Z"}
     13-7-equity-counters-utc: {status: done, depends_on: [], ticket: "KON-133", merged_into_umbrella: true, completed_at: "2026-07-17T18:01:56Z"}
-    13-8-invariant-test-harness: {status: pending, depends_on: [13-3-cross-midnight-overlap, 13-4-statutory-extensions, 13-6-served-plan-truth-observability], ticket: "KON-138", worktree: null}
+    13-8-invariant-test-harness: {status: ready-for-dev, depends_on: [13-3-cross-midnight-overlap, 13-4-statutory-extensions, 13-6-served-plan-truth-observability], ticket: "KON-138", worktree: null}
   umbrella_branch: sprint/epic-13
 # Optional top-level blocks (Tier 6, 3.12.0). Skills populate these as
 # needed — they are NOT scaffolded with an empty value to keep greenfield
