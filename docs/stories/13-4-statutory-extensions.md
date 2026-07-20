@@ -34,7 +34,7 @@
 
 ---
 
-- [ ] **Task 1 — Constants, kinds, seeded config, header** (`french-labor-law.ts`) [AC: 1, 2, 3, 4]
+- [x] **Task 1 — Constants, kinds, seeded config, header** (`french-labor-law.ts`) [AC: 1, 2, 3, 4]
 
   In `apps/api/src/modules/planning/french-labor-law.ts`, replace the module header (lines 1–19) legal-refs block and the `FRENCH_LABOR_LAW` / `STATUTORY_RULE_CONFIG` / `StatutoryViolationKind` declarations with the versions below.
 
@@ -132,7 +132,7 @@
 
 ---
 
-- [ ] **Task 2 — RED: unit specs for the three new limits** (`french-labor-law.spec.ts`) [AC: 1, 2, 3]
+- [x] **Task 2 — RED: unit specs for the three new limits** (`french-labor-law.spec.ts`) [AC: 1, 2, 3]
 
   Append the block below to `apps/api/src/modules/planning/french-labor-law.spec.ts` (inside the top-level `describe`, after the existing tests). It fails now because the evaluators do not yet emit the new kinds — that IS the RED.
 
@@ -255,7 +255,7 @@
 
 ---
 
-- [ ] **Task 3 — GREEN: post-hoc evaluator** (`findStatutoryViolations`) [AC: 1, 2, 3]
+- [x] **Task 3 — GREEN: post-hoc evaluator** (`findStatutoryViolations`) [AC: 1, 2, 3]
 
   In `french-labor-law.ts`, add the `epochMinuteToDate` helper right after `shiftEpoch` (around line 84):
   ```ts
@@ -327,7 +327,7 @@
 
 ---
 
-- [ ] **Task 4 — GREEN: incremental evaluator** (`wouldExceedStatutory`) [AC: 1, 2, 3]
+- [x] **Task 4 — GREEN: incremental evaluator** (`wouldExceedStatutory`) [AC: 1, 2, 3]
 
   In `french-labor-law.ts`, add the two helpers just above `wouldExceedStatutory` (before line 354):
   ```ts
@@ -387,7 +387,7 @@
 
 ---
 
-- [ ] **Task 5 — Message keys, unit conversion, publish range** (`planning.service.ts`) [AC: 1, 2, 3, 4]
+- [x] **Task 5 — Message keys, unit conversion, publish range** (`planning.service.ts`) [AC: 1, 2, 3, 4]
 
   In `apps/api/src/modules/planning/planning.service.ts`, replace the `STATUTORY_MESSAGE_KEY` record (lines 265–273) — the `Record<StatutoryViolationKind, string>` type forces all seven kinds or the file will not compile:
   ```ts
@@ -434,7 +434,7 @@
 
 ---
 
-- [ ] **Task 6 — Publish/Health-Bar coverage for the new kinds** (`planning.service.spec.ts`) [AC: 1, 3, 4]
+- [x] **Task 6 — Publish/Health-Bar coverage for the new kinds** (`planning.service.spec.ts`) [AC: 1, 3, 4]
 
   `validateShiftsAgainstRules(clinicId, input)` is public; the file's top-level harness already provides `service`, `clinicId = 'clinic-123'`, and `mockPrismaService` with `planningRule.findMany` + `shift.findMany`. It calls `shift.findMany` twice (the month range, then the ±8-day statutory window) — a single `mockResolvedValue` covers both. Append this `describe` inside the top-level `describe('PlanningService', …)` (e.g. after the `getRuleById` block):
 
@@ -486,7 +486,7 @@
 
 ---
 
-- [ ] **Task 7 — Seeded-rule visibility: config schema + description** (`planning-rule.schema.ts`, `clinic.service.ts`) [AC: 4]
+- [x] **Task 7 — Seeded-rule visibility: config schema + description** (`planning-rule.schema.ts`, `clinic.service.ts`) [AC: 4]
 
   In `packages/validators/src/planning/planning-rule.schema.ts`, add the three visibility-only optional keys to `contractComplianceConfigSchema` (after line 62, inside the object literal that precedes the `.refine`):
   ```ts
@@ -525,7 +525,7 @@
 
 ---
 
-- [ ] **Task 8 — Assert the seeded config carries the new keys** (`clinic.service.spec.ts`) [AC: 4]
+- [x] **Task 8 — Assert the seeded config carries the new keys** (`clinic.service.spec.ts`) [AC: 4]
 
   In `apps/api/src/modules/clinic/clinic.service.spec.ts`, extend the existing test `seeds the visible French labor-law statutory rule as a HARD rule` (around line 717) to assert the created rule's `config` includes the three new keys. Add these assertions to that test's `planningRule.create` expectation (match the object it already asserts):
   ```ts
@@ -546,7 +546,7 @@
 
 ---
 
-- [ ] **Task 9 — Shift-type garde-fou: shared break rule** (`onboarding.schema.ts`, `shift-type.schema.ts`) [AC: 5]
+- [x] **Task 9 — Shift-type garde-fou: shared break rule** (`onboarding.schema.ts`, `shift-type.schema.ts`) [AC: 5]
 
   In `packages/validators/src/clinic/onboarding.schema.ts`, add the shared predicate and constants just above `shiftTypeSchema` (before line 67):
   ```ts
@@ -672,7 +672,7 @@
 
 ---
 
-- [ ] **Task 10 — Onboarding UX surface + safe default** (`StepShiftTypes.tsx`, i18n) [AC: 5]
+- [x] **Task 10 — Onboarding UX surface + safe default** (`StepShiftTypes.tsx`, i18n) [AC: 5]
 
   In `apps/web/src/app/[locale]/admin/onboarding/_components/steps/StepShiftTypes.tsx`, extend the `shiftTypes` field `onChange` validator (after the existing `if (hasIncomplete) return t('incompleteShiftType');`, line 50) to surface the break rule client-side, and bump the "add shift type" default break so the default 08:30–18:30 (10h) block is legal by default:
 
@@ -705,7 +705,7 @@
 
 ---
 
-- [ ] **Task 11 — Statutory i18n strings for the three new kinds** (`fr.json`, `en.json`) [AC: 1, 2, 3, 4]
+- [x] **Task 11 — Statutory i18n strings for the three new kinds** (`fr.json`, `en.json`) [AC: 1, 2, 3, 4]
 
   Both locale files carry the `violations.statutory` block **twice** (nested under the planning namespace ~line 342, and top-level `violations` ~line 726). Add the three keys to **all four** blocks, after `consecutiveDays`.
 
@@ -731,7 +731,7 @@
 
 ---
 
-- [ ] **Task 12 — Generation-level proof (AC-4)** (`planning-generation.service.spec.ts`) [AC: 1, 4]
+- [x] **Task 12 — Generation-level proof (AC-4)** (`planning-generation.service.spec.ts`) [AC: 1, 4]
 
   This file's `describe('scoreAndAssign', …)` block drives eligibility directly through the `callScore(slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)` helper. Generation's statutory guard (`evaluateEligibility` step 5) builds its ±8-day window from `assignmentIndex.get('${emp.id}|${date}')` and calls `wouldExceedStatutory`. So seeding `assignmentIndex` with a prior-day shift that leaves < 11h rest excludes the employee — with **zero** hard rules (invariant 4: enforcement is hard-coded, not the seeded rule). Add this test inside that `describe('scoreAndAssign', …)`, mirroring the `mkIdxShift` / `idx` pattern the neighbouring "Story 13-2 M2" test uses:
 
@@ -779,7 +779,7 @@
 
 ---
 
-- [ ] **Task 13 — Full-suite regression gate** [AC: 1, 2, 3, 4, 5]
+- [x] **Task 13 — Full-suite regression gate** [AC: 1, 2, 3, 4, 5]
 
   Rebuild the validators dist, then run the affected suites end to end to prove no regression (byte-identical greedy default, invariant 6; existing statutory tests, publish, move-validation, generation).
 
@@ -981,22 +981,80 @@ export const createShiftTypeSchema = shiftTypeFieldsSchema.refine(
 
 ## Dev Agent Record
 
-- **Model:** _(set by aped-dev at implementation)_
-- **Started:** _(set by aped-dev)_
-- **Completed:** _(set by aped-dev)_
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-20T12:27:10Z
+- **Completed:** 2026-07-20
 
 ### Summary
 
-_(aped-dev fills at completion.)_
+The three statutory limits (11h daily rest L.3131-1, 48h absolute weekly ceiling L.3121-20, 20-min
+break over 6h L.3121-16) now flow through the two pure evaluators (`findStatutoryViolations`,
+`wouldExceedStatutory`), so every write surface — generation eligibility, manual create/move,
+publish/Health-Bar — enforces them by default with zero configured rules (invariant 4). A shared
+`shiftBreakRuleOk` zod refine makes a >6h-no-break shift type ungeneratable at creation time
+(onboarding + settings), with an onboarding client-side error and a safe 30-min default. `rule-engine.ts`
+was left untouched (the 48h ceiling is statutory, not a config cap). Scope held to the four locked
+decisions; the main surprise was fixture fallout in the generation and validator suites where
+pre-13-4 tests assigned >6h shifts with no break — expected under AC-1/AC-3 and Scope decision 2.
 
 ### Files changed
 
-_(aped-dev fills at completion.)_
+- `apps/api/src/modules/planning/french-labor-law.ts`
+- `apps/api/src/modules/planning/french-labor-law.spec.ts`
+- `apps/api/src/modules/planning/planning.service.ts`
+- `apps/api/src/modules/planning/planning.service.spec.ts`
+- `apps/api/src/modules/planning/planning-generation.service.spec.ts`
+- `apps/api/src/modules/clinic/clinic.service.ts`
+- `apps/api/src/modules/clinic/clinic.service.spec.ts`
+- `packages/validators/src/planning/planning-rule.schema.ts`
+- `packages/validators/src/clinic/onboarding.schema.ts`
+- `packages/validators/src/clinic/onboarding.schema.test.ts`
+- `packages/validators/src/clinic/shift-type.schema.ts`
+- `packages/validators/src/clinic/shift-type.schema.test.ts`
+- `apps/web/src/app/[locale]/admin/onboarding/_components/steps/StepShiftTypes.tsx`
+- `apps/web/src/app/[locale]/admin/onboarding/_components/OnboardingWizard.tsx`
+- `apps/web/src/i18n/langs/fr.json`
+- `apps/web/src/i18n/langs/en.json`
 
 ### Deviations
 
-_(aped-dev fills at completion.)_
+- **`move-validation.ts` not modified** (File List marked it verify/modify). The two pure evaluators
+  are the only enforcement points; move already routes through `wouldExceedStatutory`, so the new
+  limits are inherited with no wiring change. Its suite stays green.
+- **WEEKLY_CEILING RED fixture arithmetic (Task 2/3).** The story fixture used `08:00-19:00` (11h gross
+  → 10h net), contradicting its own `9h net / 45h / 54h` comments and leaving the incremental arm
+  unsatisfiable (window already 50h > 48h). Corrected to `08:00-18:00` (10h gross − 1h = 9h net).
+- **Task 8 assertion shape.** The existing `clinic.service.spec` test uses an inline
+  `toHaveBeenCalledWith({ data: objectContaining(...) })` with no `createArg` variable; added
+  `config: expect.objectContaining({...})` inside that object rather than introducing a new spy.
+- **Fixture legalisation under the new rules (expected, AC-1/AC-3).** Pre-13-4 fixtures that assigned
+  >6h shifts with a 0-min break or an <11h inter-day gap now trip MANDATORY_BREAK / DAILY_REST:
+  - `planning.service.spec` SOFT monthly-overage: gave the 9h-net slot a 20-min break (kept the 45h overage).
+  - `onboarding.schema.test` + `shift-type.schema.test`: 4 overnight/boundary fixtures got a 20-min break.
+  - `planning-generation.service.spec`: 4 tests fixed — 10h/8h slots got a 30-min break, and the
+    "unconfigured minRest" test's gap widened to 12h so it isolates the opt-in rule above the 11h floor.
+- **Task 10 visual verification deferred to review.** The onboarding break error only renders at the end
+  of the full L2 login/onboarding journey — disproportionate to drive in an autonomous sprint worktree.
+  Compilation proven (`tsc --noEmit` EXIT 0); the rejection itself is proven server-side (zod, Task 9);
+  the client validator mirrors it and reuses the existing error-render path. Aria (aped-review) to confirm.
 
 ### Test output
 
-_(aped-dev fills at completion.)_
+```
+# API (Jest)
+pnpm --filter @pawly/api test -- french-labor-law planning.service planning-generation.service move-validation clinic.service
+Test Suites: 5 passed, 5 total
+Tests:       345 passed, 345 total
+
+# validators (Vitest)
+pnpm --filter @pawly/validators test -- planning-rule shift-type onboarding.schema
+Test Files  3 passed (3)
+Tests  168 passed (168)
+
+# web (Vitest)
+pnpm --filter @pawly/web test -- publish schedule-view
+Test Files  3 passed (3)
+Tests  136 passed (136)
+
+# validators dist rebuilt before the API pass — tsc EXIT 0
+```
