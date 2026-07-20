@@ -260,6 +260,13 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   masking (F1, real correctness bug), two untested AC-2 arms (looser-cap independence + WEEKLY_CEILING
   publish wiring), the untested onboarding error (extracted+unit-tested validator), and the
   partial-PATCH break bypass in `updateSingleShiftType` (server-side merged re-validation) — plus a
-  MANDATORY_BREAK generation test. F8 (legacy shift-type backfill) and F9 (window-frontier under-report)
-  documented as Out-of-scope; one known residual: `updateSingleShiftType` read-then-write is unlocked
-  (blast radius unchanged, candidate for 13-8).
+  MANDATORY_BREAK generation test. A headed onboarding walkthrough (next-browser) then found F11:
+  the shared `FieldError` (`components/ui/field.tsx`) rendered only `error.message`, silently
+  dropping plain-string errors (what a TanStack Form validator returns), so AC-5's break message —
+  and `StepWorkHours`' errors — never rendered despite the validator running; fixed to normalise
+  string | `{message}` (regression spec added). Lesson: a passing validator unit test does NOT prove
+  the error reaches the DOM — the visual GREEN gate is load-bearing. F8 (legacy shift-type backfill)
+  and F9 (window-frontier under-report) documented as Out-of-scope; one known residual:
+  `updateSingleShiftType` read-then-write is unlocked (blast radius unchanged, candidate for 13-8).
+  Worktree note: Turbopack rejects the out-of-root `node_modules` symlink — a real `pnpm install`
+  (de-symlinked) is required to run the web app headed in a sprint worktree.
