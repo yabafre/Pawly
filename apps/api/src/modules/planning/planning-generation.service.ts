@@ -1000,15 +1000,47 @@ export class PlanningGenerationService {
       solver_status: solverOutcome ?? 'not-requested',
     });
 
+    // Story 13-6 (KON-137, T6) — "System Never Lies" on the solver path. The improve
+    // pass mutated `assignedShifts`/holes in place, but the greedy `hardViolations`/
+    // `softViolations` arrays still describe the PRE-solver plan. When cpsat is served,
+    // recompute violations from the persisted schedule via the same whole-plan evaluator
+    // the publish gate uses — so what generation reports == what publish will check. The
+    // greedy path keeps its per-slot arrays (byte-identical greedy default, invariant #6).
+    let servedHard = hardViolations;
+    let servedSoft = softViolations;
+    if (servedEngine === 'cpsat') {
+      const equityCounters = await this.equityCounterService
+        .getCountersForPeriod(clinicId, year, [monthNum])
+        .catch(() => [] as CounterWithEmployee[]);
+      const revalidated = await this.planningService
+        .validateShiftsAgainstRules(
+          clinicId,
+          {
+            startDate: monthStart.toISOString(),
+            endDate: monthEnd.toISOString(),
+          },
+          {
+            equityCounters:
+              equityCounters.length > 0 ? equityCounters : undefined,
+          },
+        )
+        .catch(() => null);
+      if (revalidated) {
+        servedHard = revalidated.hardViolations;
+        servedSoft = revalidated.softViolations;
+      }
+    }
+
     return this.buildResult(
       createdShifts,
       employees,
       holes,
-      hardViolations,
-      softViolations,
+      servedHard,
+      servedSoft,
       totalPositions,
       survivorCoveredPositions,
       servedEngine,
+      solverOutcome,
     );
   }
 
@@ -3664,6 +3696,7 @@ export class PlanningGenerationService {
     totalPositions: number,
     survivorCoveredPositions = 0,
     engine: 'greedy' | 'cpsat' = 'greedy',
+    solverOutcome?: SolverOutcome,
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -3697,6 +3730,9 @@ export class PlanningGenerationService {
         softWarningCount: softViolations.length,
         // Story 12-1 — which engine produced the served assignments.
         engine,
+        // Story 13-6 (KON-137) — the fallback reason, present only when cpsat was
+        // requested (undefined ⇒ greedy request ⇒ key omitted, no Pro leak, #7).
+        ...(solverOutcome ? { solverOutcome } : {}),
       },
     };
   }
