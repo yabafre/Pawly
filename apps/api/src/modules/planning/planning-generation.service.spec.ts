@@ -876,6 +876,48 @@ describe('PlanningGenerationService', () => {
       expect(guarded.assigned[0].employeeId).toBe('emp-1');
     });
 
+    it('Story 13-4 (KON-136) — excludes an employee whose 11h daily rest would break, zero rules', () => {
+      const slot = {
+        date: '2026-03-02',
+        shiftTypeCode: 'DAY',
+        startTime: '06:00',
+        endTime: '14:00',
+        requiredStaff: 1,
+      };
+      const employees = [
+        {
+          id: 'emp-rest',
+          firstName: 'R',
+          lastName: 'R',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const mkIdxShift = (employeeId: string, date: string) => ({
+        employeeId,
+        date,
+        startTime: '14:00',
+        endTime: '22:00',
+        shiftTypeCode: 'DAY',
+        breakMinutes: 0,
+      });
+      // emp-rest worked the previous day 14:00-22:00; the 06:00 slot leaves only 8h rest.
+      const idx = new Map<string, ReturnType<typeof mkIdxShift>[]>([
+        ['emp-rest|2026-03-01', [mkIdxShift('emp-rest', '2026-03-01')]],
+      ]);
+      const result: ScoreAndAssignResult = callScore(
+        slot,
+        employees,
+        baseConstraints,
+        [],
+        idx,
+        new Map(),
+      );
+      expect(result.assigned.map((a) => a.employeeId)).not.toContain(
+        'emp-rest',
+      );
+    });
+
     it('filters out unavailable employees', () => {
       const unavailableMap = new Map([
         ['emp-1', new Set(['2026-03-02'])],
@@ -913,6 +955,7 @@ describe('PlanningGenerationService', () => {
         shiftTypeCode: 'RECEPTION',
         startTime: '08:00',
         endTime: '18:00',
+        breakMinutes: 30, // 10h shift needs a break (13-4) so the fill employee stays eligible
         requiredStaff: 1,
       };
 
@@ -1665,6 +1708,7 @@ describe('PlanningGenerationService', () => {
         shiftTypeCode: 'VET',
         startTime: '08:00',
         endTime: '18:00', // 10h
+        breakMinutes: 30, // 10h shift needs a break (13-4) to keep both candidates eligible
         requiredStaff: 1,
       };
 
@@ -4991,13 +5035,15 @@ describe('PlanningGenerationService', () => {
       const slot = {
         date: '2026-03-03',
         shiftTypeCode: 'SURGERY',
-        startTime: '07:00',
-        endTime: '12:00',
+        startTime: '11:00',
+        endTime: '16:00',
         breakMinutes: 0,
         requiredStaff: 1,
       };
 
-      // Previous day: emp-1 worked until 23:00 → only 8h rest, but no minRest rule
+      // Previous day ends 23:00; the 11:00 slot leaves 12h rest — above the 11h statutory
+      // floor (DAILY_REST, KON-136), so this isolates the CONFIGURABLE minRest rule, which
+      // adds nothing when unconfigured. (The <11h statutory block is proven separately.)
       const prevShift = {
         employeeId: 'emp-1',
         date: '2026-03-02',
@@ -8884,7 +8930,7 @@ describe('PlanningGenerationService', () => {
             name: 'Night',
             startTime: '22:00',
             endTime: '06:00',
-            breakMinutes: 0,
+            breakMinutes: 30, // 8h night shift needs a break (13-4); rejection must come from the overlap, not the break
             color: '#111111',
             clinicId,
           },
