@@ -183,6 +183,29 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   `createManualShift`'s in-tx overlap and the stale-plan check adopted `shiftsOverlap` + the
   adjacent-day window too. `move-validation.ts`'s obsolete `timesOverlap`/`toMinutes` were removed.
 
+### Story 13-2-unified-validation-windows — done 2026-07-19T00:00:00Z
+
+- **Decisions:** All three validation paths now share the ±8-real-day cross-month window; `clampGapLen`
+  clips open sentinels to the loaded data window (`win`), not the ISO week, killing phantom weekly-rest
+  at a frontier. Two invariants were made explicit in review: (1) **`findStatutoryViolations` flags EVERY
+  worked day beyond the 6-day max**, not just the first — attributing each excess day to its own in-grid
+  date is what lets the publish range-filter catch a run whose 7th day sits in an adjacent month but
+  continues into the published month (a HARD-block bypass otherwise). (2) **Purely-statutory cross-month
+  days are seeded into `assignmentIndex` for the eligibility window but excluded from greedy scoring AND
+  from the cpsat `fixedShiftsByEmployee` baseline** via a `statutoryOnlyKeys` set — byte-identical greedy
+  (invariant 11-10) is preserved. A future story recomputing statutory violations or touching
+  `scoreAndAssign`/the solver baseline MUST keep both invariants.
+- **Files:** `french-labor-law.ts` (+spec), `planning.service.ts` (+spec), `planning-generation.service.ts`
+  (+spec), `move-validation.spec.ts`. No schema / tRPC / package / web change.
+- **Contracts:** `findStatutoryViolations(shifts, window?)` and `wouldExceedStatutory` gained the optional
+  data-window bound (window-less callers keep legacy behaviour); `PlanningService.violationInPublishedRange`
+  is the publish range filter (`DAILY_*`/`CONSECUTIVE_DAYS` per-day, `WEEKLY_REST` per ISO-week intersection).
+  `scoreAndAssign` gained a `statutoryOnlyKeys: Set<string>` param.
+- **Deviations from plan:** none in dev. aped-review fixed two MAJORs the story shipped with — the publish
+  consecutive-day straddle bypass (M1) and a greedy-scoring perturbation from the seed leaking into
+  `scoreAndAssign` (M2) — plus a NIT (n1) extending the same exclusion to the cpsat solver baseline. The
+  original "byte-identical fill/equity" seed comment was true only after the M2/n1 fixes.
+
 ### Story 13-5-solver-model-fidelity — done 2026-07-19T16:15:00Z
 
 - **Decisions:** The cpsat improve pass is now survivor-aware on BOTH sides (Option A, locked with

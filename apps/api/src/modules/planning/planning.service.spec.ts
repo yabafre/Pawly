@@ -1412,4 +1412,89 @@ describe('PlanningService', () => {
       expect(soft?.equityContext?.clinicAverage).toBe(0);
     });
   });
+
+  describe('Story 13-2 — cross-month statutory window (validateShiftsAgainstRules)', () => {
+    const mkStatShift = (
+      employeeId: string,
+      date: string,
+      startTime: string,
+      endTime: string,
+    ) => ({
+      employeeId,
+      date: new Date(`${date}T00:00:00.000Z`),
+      startTime,
+      endTime,
+      breakMinutes: 0,
+      shiftTypeCode: 'SURGERY',
+      employee: { id: employeeId },
+    });
+
+    beforeEach(() => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // no configured rules
+    });
+
+    it('detects a 35h weekly-rest deficit straddling the month frontier', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict-month validShifts
+      const dense: ReturnType<typeof mkStatShift>[] = [];
+      for (let d = 22; d <= 31; d++)
+        dense.push(mkStatShift('e1', `2025-12-${d}`, '09:00', '18:00'));
+      for (let d = 1; d <= 11; d++)
+        dense.push(
+          mkStatShift(
+            'e1',
+            `2026-01-${String(d).padStart(2, '0')}`,
+            '09:00',
+            '18:00',
+          ),
+        );
+      mockPrismaService.shift.findMany.mockResolvedValueOnce(dense); // ±8-day statutory set
+
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(
+        res.hardViolations.some((h) => h.ruleId === 'statutory:weekly_rest'),
+      ).toBe(true);
+    });
+
+    it('does NOT report a breach living purely in an adjacent month', async () => {
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict January: empty
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([
+        mkStatShift('e1', '2026-02-03', '06:00', '20:00'), // 14h net > 10h, but Feb (out of range)
+      ]);
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(res.hardViolations).toHaveLength(0);
+    });
+
+    it('detects a 7th+ consecutive-day run straddling INTO the published month', async () => {
+      // aped-review M1 — emp works Dec 24 → Jan 2 (10 consecutive days), then rests. The run's
+      // 7th day is Dec 30 (out of range) but Jan 1 / Jan 2 are illegal worked days IN the
+      // January publish. Before the fix, findStatutoryViolations flagged ONLY the first breach
+      // day (Dec 30); violationInPublishedRange then dropped it as out-of-range → zero statutory
+      // violations reported, silently bypassing the HARD consecutive-day block at the frontier.
+      // 09:00-15:00 = 6h (< 10h daily) so only the consecutive-day breach can arise, and the
+      // genuine rest after Jan 2 keeps WEEKLY_REST from backstopping it.
+      mockPrismaService.shift.findMany.mockResolvedValueOnce([]); // strict-month validShifts
+      const run: ReturnType<typeof mkStatShift>[] = [];
+      for (let d = 24; d <= 31; d++)
+        run.push(mkStatShift('e1', `2025-12-${d}`, '09:00', '15:00'));
+      for (let d = 1; d <= 2; d++)
+        run.push(mkStatShift('e1', `2026-01-0${d}`, '09:00', '15:00'));
+      mockPrismaService.shift.findMany.mockResolvedValueOnce(run); // ±8-day statutory set
+
+      const res = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-01-31T23:59:59.999Z',
+      });
+      expect(
+        res.hardViolations.some(
+          (h) => h.ruleId === 'statutory:consecutive_days',
+        ),
+      ).toBe(true);
+    });
+  });
 });

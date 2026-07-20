@@ -387,6 +387,35 @@ export class PlanningGenerationService {
       this.incrementDayOfWeekCount(dayOfWeekCounts, bs.employeeId, bs.date);
     }
 
+    // Story 13-2 (KON-134) — widen the cross-month context the statutory eligibility window
+    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex so the
+    // eligibility predicate — main loop + repair + replay, which all share this one map — sees
+    // the frontier context. Deliberately NOT seeded into dayOfWeekCounts / weeklyMinutesCounter
+    // / allShiftsForScoring, so rotation/equity/fill stay byte-identical (invariant 11-10).
+    // Border days (ISO-straddle + D±1) are already seeded above — skip them to avoid
+    // double-counting.
+    // aped-review M2: scoreAndAssign's "Consecutive days penalty" SCORING scan reads this same
+    // map directly, walking up to 6 days back — so these purely-statutory out-of-month days
+    // would extend that scan for near-frontier slots and change which eligible employee wins,
+    // silently breaking the byte-identical claim above. Their keys are recorded in
+    // `statutoryOnlyKeys`; that one scoring scan stops at them (they were invisible to it
+    // pre-13-2), restoring exact pre-13-2 greedy selection while the eligibility window
+    // (step 5) still reads them from assignmentIndex.
+    const borderDateSet = new Set(borderShifts.map((bs) => bs.date));
+    const statutoryOnlyKeys = new Set<string>();
+    const statutoryBorderShifts = await this.loadStatutoryBorderShifts(
+      clinicId,
+      month,
+    );
+    for (const sbs of statutoryBorderShifts) {
+      if (borderDateSet.has(sbs.date)) continue;
+      const key = `${sbs.employeeId}|${sbs.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(sbs);
+      assignmentIndex.set(key, existing);
+      statutoryOnlyKeys.add(key);
+    }
+
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
     const allShiftsForScoring: AssignedShift[] = [...borderShifts];
 
@@ -560,7 +589,15 @@ export class PlanningGenerationService {
             })(),
             fixedShiftsByEmployee: (() => {
               const byEmp = new Map<string, AssignedShift[]>();
-              for (const bucket of assignmentIndex.values()) {
+              for (const [key, bucket] of assignmentIndex.entries()) {
+                // Story 13-2 (KON-134) aped-review — purely-statutory cross-month days live in
+                // assignmentIndex only for the greedy eligibility window (evaluateEligibility
+                // step 5); they carry no in-month decision variable. Keep them out of the
+                // solver's fixed baseline too, so 13-2 stays a greedy-scope change and does not
+                // silently widen the cpsat model (the cpsat mirror of the M2 scoring fix). A
+                // cross-frontier statutory breach in a served cpsat plan is still caught by the
+                // eligibility replay, which reads assignmentIndex directly.
+                if (statutoryOnlyKeys.has(key)) continue;
                 for (const s of bucket) {
                   if (!byEmp.has(s.employeeId)) byEmp.set(s.employeeId, []);
                   byEmp.get(s.employeeId)!.push(s);
@@ -636,6 +673,7 @@ export class PlanningGenerationService {
         constraints,
         allShiftsForScoring,
         assignmentIndex,
+        statutoryOnlyKeys,
         employeeMinutes,
         weeksInMonth,
         weeklyMinutesCounter,
@@ -1421,6 +1459,11 @@ export class PlanningGenerationService {
     constraints: ConstraintMap,
     alreadyAssigned: AssignedShift[],
     assignmentIndex: Map<string, AssignedShift[]>,
+    // Story 13-2 (KON-134) aped-review M2 — keys of the purely-statutory out-of-month days
+    // seeded into assignmentIndex for the eligibility window. The consecutive-days scoring scan
+    // below must NOT count them (they were invisible to scoring pre-13-2), or greedy selection
+    // shifts near a month frontier.
+    statutoryOnlyKeys: Set<string>,
     employeeMinutes: Map<string, number>,
     weeksInMonth: number,
     weeklyMinutesCounter: Map<string, number>,
@@ -1688,11 +1731,17 @@ export class PlanningGenerationService {
         score += 15; // moderate headroom
       }
 
-      // Consecutive days penalty
+      // Consecutive days penalty.
+      // Story 13-2 (KON-134) aped-review M2 — stop at a purely-statutory out-of-month day: it
+      // lives in assignmentIndex only for the eligibility window (evaluateEligibility step 5)
+      // and was invisible to this scoring scan before 13-2. Counting it would extend the run
+      // near a month frontier and change which eligible employee wins (breaking the
+      // byte-identical greedy invariant 11-10). Excluding it restores exact pre-13-2 scoring.
       let consecutiveDays = 0;
       let checkDate = this.getPreviousDate(slot.date);
       while (
         consecutiveDays < 6 &&
+        !statutoryOnlyKeys.has(`${emp.id}|${checkDate}`) &&
         (assignmentIndex.get(`${emp.id}|${checkDate}`) || []).length > 0
       ) {
         consecutiveDays++;
@@ -4932,6 +4981,58 @@ export class PlanningGenerationService {
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
     }));
+  }
+
+  /**
+   * Story 13-2 (KON-134) — the out-of-month shifts the +/-8-real-day statutory window in
+   * evaluateEligibility (:1347-1372) needs to see a consecutive-day run or a 35h-rest
+   * deficit that straddles the month frontier. loadBorderWeekShifts only reaches the
+   * ISO-straddle days + immediate D-1/D+1 (13-3), so days 2..8 across the frontier are
+   * invisible and a 7th consecutive day hides. These rows feed `assignmentIndex` ONLY —
+   * never the weekly / monthly / rotation counters — so fill and equity stay byte-identical
+   * (invariant 11-10 / epic-13 context §3.6). A single `date: { gte, lte }` query (month +/- 8
+   * days) is filtered to out-of-month here; the in-month days are seeded with full fidelity
+   * by survivors / freshly-assigned shifts.
+   */
+  private async loadStatutoryBorderShifts(
+    clinicId: string,
+    month: string,
+  ): Promise<AssignedShift[]> {
+    const [year, monthNum] = month.split('-').map(Number);
+    const firstDayStr = new Date(Date.UTC(year, monthNum - 1, 1))
+      .toISOString()
+      .split('T')[0];
+    const lastDayStr = new Date(Date.UTC(year, monthNum, 0))
+      .toISOString()
+      .split('T')[0];
+
+    const windowStart = new Date(`${firstDayStr}T00:00:00.000Z`);
+    windowStart.setUTCDate(windowStart.getUTCDate() - 8);
+    const windowEnd = new Date(`${lastDayStr}T00:00:00.000Z`);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 8);
+
+    const shifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: windowStart, lte: windowEnd } },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+      },
+    });
+
+    return shifts
+      .map((s) => ({
+        employeeId: s.employeeId,
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        shiftTypeCode: s.shiftTypeCode,
+        breakMinutes: s.breakMinutes,
+      }))
+      .filter((s) => s.date < firstDayStr || s.date > lastDayStr);
   }
 
   // Story 11-2 — load the shifts INSIDE the target month that SURVIVE a

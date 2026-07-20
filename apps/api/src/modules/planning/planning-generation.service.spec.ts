@@ -19,6 +19,9 @@ import {
 } from '@nestjs/common';
 import { PlanningGenerationService } from './planning-generation.service';
 import { SolverEngineService } from './solver-engine.service';
+// Story 13-2 (KON-134) aped-review n1 — spied to capture the SolverInput and assert the
+// cpsat fixed baseline excludes purely-statutory cross-month days.
+import * as solverModel from './solver-model';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
@@ -668,6 +671,15 @@ describe('PlanningGenerationService', () => {
   // Accepts 6 args (slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)
   // or 7 args (same + weeksInMonth). Appends the 3 new counter params automatically.
   const callScore = (...args: unknown[]) => {
+    // Story 13-2 (KON-134) aped-review M2 — scoreAndAssign gained a `statutoryOnlyKeys` param
+    // between assignmentIndex (arg 4) and employeeMinutes (arg 5). A test may pass its own Set
+    // as a trailing arg to exercise the exclusion; otherwise it defaults to empty. No existing
+    // caller passes a Set (the last real arg is employeeMinutes:Map or weeksInMonth:number).
+    let statutoryOnlyKeys = new Set<string>();
+    if (args.length > 0 && args[args.length - 1] instanceof Set) {
+      statutoryOnlyKeys = args.pop() as Set<string>;
+    }
+
     const alreadyAssigned = (args[3] || []) as Array<{
       employeeId: string;
       date: string;
@@ -679,7 +691,13 @@ describe('PlanningGenerationService', () => {
 
     // Determine weeksInMonth: if 7th arg exists and is a number, it's weeksInMonth
     const hasWeeksInMonth = args.length >= 7 && typeof args[6] === 'number';
-    const baseArgs = hasWeeksInMonth ? args : [...args, 4.43];
+    const baseArgsRaw = hasWeeksInMonth ? args : [...args, 4.43];
+    // statutoryOnlyKeys slots in between assignmentIndex (arg 4) and employeeMinutes (arg 5).
+    const baseArgs = [
+      ...baseArgsRaw.slice(0, 5),
+      statutoryOnlyKeys,
+      ...baseArgsRaw.slice(5),
+    ];
 
     const toMin = (t: string) => {
       const [h, m] = t.split(':').map(Number);
@@ -774,6 +792,88 @@ describe('PlanningGenerationService', () => {
 
       expect(result.assigned.length).toBe(2);
       expect(result.holeInfo).toBeUndefined();
+    });
+
+    it('Story 13-2 M2 — statutory-only days do not perturb the consecutive-days scoring', () => {
+      // A Jan-1 slot, two otherwise-identical eligible employees. BOTH worked the border days
+      // Dec 29-31 (symmetric → all rotation/weekly coupling cancels). emp-1 ALSO worked the
+      // purely-statutory days Dec 27-28 — seeded into assignmentIndex only for the eligibility
+      // window (evaluateEligibility step 5). If those leak into the "Consecutive days penalty"
+      // SCORING scan, emp-1's penalty rises (5 days back vs emp-2's 3) and flips the winner.
+      // The statutoryOnlyKeys guard must exclude them so the two stay tied → byte-identical
+      // greedy selection (invariant 11-10). This test is the differential: same inputs, only
+      // the guard set differs.
+      const slot = {
+        date: '2026-01-01',
+        shiftTypeCode: 'SURGERY',
+        startTime: '09:00',
+        endTime: '12:00',
+        requiredStaff: 1,
+      };
+      const employees = [
+        {
+          id: 'emp-1',
+          firstName: 'A',
+          lastName: 'A',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+        {
+          id: 'emp-2',
+          firstName: 'B',
+          lastName: 'B',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      const mkIdxShift = (employeeId: string, date: string) => ({
+        employeeId,
+        date,
+        startTime: '09:00',
+        endTime: '12:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      });
+      const idx = new Map<string, ReturnType<typeof mkIdxShift>[]>();
+      const add = (e: string, d: string) =>
+        idx.set(`${e}|${d}`, [
+          ...(idx.get(`${e}|${d}`) || []),
+          mkIdxShift(e, d),
+        ]);
+      // Symmetric border history for BOTH employees.
+      for (const e of ['emp-1', 'emp-2'])
+        for (const d of ['2025-12-29', '2025-12-30', '2025-12-31']) add(e, d);
+      // Purely-statutory extra days — emp-1 only.
+      const statutoryDays = ['2025-12-27', '2025-12-28'];
+      for (const d of statutoryDays) add('emp-1', d);
+      const statutoryKeys = new Set(statutoryDays.map((d) => `emp-1|${d}`));
+
+      // Guard ON (production): statutory days excluded → tie → deterministic winner (emp-1).
+      const guarded: ScoreAndAssignResult = callScore(
+        slot,
+        employees,
+        baseConstraints,
+        [],
+        idx,
+        new Map(),
+        statutoryKeys,
+      );
+      // Guard OFF (empty set = pre-fix behaviour): emp-1's penalty counts Dec 27-28 → emp-2 wins.
+      const unguarded: ScoreAndAssignResult = callScore(
+        slot,
+        employees,
+        baseConstraints,
+        [],
+        idx,
+        new Map(),
+        new Set<string>(),
+      );
+
+      expect(guarded.assigned).toHaveLength(1);
+      expect(unguarded.assigned).toHaveLength(1);
+      // The guard flips the winner: proof the statutory-only days are neutralised in scoring.
+      expect(unguarded.assigned[0].employeeId).toBe('emp-2');
+      expect(guarded.assigned[0].employeeId).toBe('emp-1');
     });
 
     it('filters out unavailable employees', () => {
@@ -1910,6 +2010,91 @@ describe('PlanningGenerationService', () => {
 
       // Verify that shift.findMany was called (for border shifts)
       expect(mockPrismaService.shift.findMany).toHaveBeenCalled();
+    });
+
+    it('Story 13-2 — rejects a 7th consecutive day straddling the month frontier', async () => {
+      // Template: Thursday-only SURGERY slot (2026-01-01 is a Thursday).
+      mockTemplateService.getTemplateById.mockResolvedValue({
+        id: 'tpl-1',
+        name: 'Thursday Only',
+        data: {
+          days: [
+            {
+              dayOfWeek: 4,
+              slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+            },
+          ],
+        },
+        clinicId,
+      });
+
+      // emp-1 worked Dec 26–31 2025 (6 consecutive days), 09:00-15:00. Dec 29/30/31 land in
+      // the border ISO week; Dec 26/27/28 come ONLY from the statutory gte/lte load — without
+      // Task 5 emp-1 would show <=6 consecutive days and Jan 1 would be assignable.
+      const priorRun = ['26', '27', '28', '29', '30', '31'].map((d) => ({
+        employeeId: 'emp-1',
+        date: new Date(`2025-12-${d}T00:00:00.000Z`),
+        startTime: '09:00',
+        endTime: '15:00',
+        shiftTypeCode: 'SURGERY',
+        breakMinutes: 0,
+      }));
+      mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+        if (args?.where?.OR) return Promise.resolve([]); // survivors
+        if (args?.where?.date?.gte && args?.where?.date?.lte)
+          return Promise.resolve(priorRun); // 13-2 statutory context
+        return Promise.resolve([]); // border (date.in)
+      });
+
+      mockPrismaService.employee.findMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          firstName: 'Alice',
+          lastName: 'Martin',
+          jobType: 'VET',
+          contractHours: 60,
+        },
+      ]);
+      mockPlanningService.listRules.mockResolvedValue([]); // statutory limits are non-disableable
+
+      mockPrismaService.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            $executeRaw: jest.fn().mockResolvedValue(0),
+            shift: {
+              findMany: jest.fn().mockResolvedValue([]),
+              deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+              // Echo the persisted plan back so result.assignments reflects the
+              // shifts the generator actually decided to write (buildResult maps
+              // createManyAndReturn's rows). A flat mockResolvedValue([]) would make
+              // `assignments` always empty — masking whether Jan 1 was truly rejected.
+              createManyAndReturn: jest.fn().mockImplementation((args: any) =>
+                Promise.resolve(
+                  (args?.data ?? []).map((d: any, i: number) => ({
+                    ...d,
+                    id: `gen-${i}`,
+                  })),
+                ),
+              ),
+            },
+          };
+          return fn(tx);
+        },
+      );
+
+      const result = await service.generateMonthlyPlan(
+        clinicId,
+        '2026-01',
+        'tpl-1',
+      );
+
+      // Jan 1 must be a hole for emp-1 (7th consecutive day), not an assignment.
+      const jan1Assigned = result.assignments.some(
+        (a) => a.date === '2026-01-01',
+      );
+      expect(jan1Assigned).toBe(false);
+      // Later Thursdays (Jan 8/15/22/29) are non-consecutive and still assignable.
+      expect(result.assignments.length).toBeGreaterThan(0);
     });
 
     // AC3 (verbatim from story 11-10-generation-performance-under-load:21):
@@ -8453,6 +8638,104 @@ describe('PlanningGenerationService', () => {
           result.assignments.map((a) => [a.date, a.employeeId]),
         );
         expect(byDate.size).toBe(3); // all three Mondays filled, no double-book
+      });
+
+      it('Story 13-2 n1 — statutory-only cross-month days stay out of the cpsat solver baseline', async () => {
+        // The Task-5 seed widens assignmentIndex for the greedy eligibility window. On the cpsat
+        // path, fixedShiftsByEmployee (the solver's frozen baseline) is built from assignmentIndex,
+        // so purely-statutory out-of-month days must NOT leak into fixedWorkedDates/fixedDailyMinutes
+        // either — 13-2 stays a greedy-scope change (aped-review n1). Border days (Dec 29-31) are a
+        // legitimate fixed baseline; statutory-only days (Dec 24-28) are not. A cross-frontier breach
+        // in a served cpsat plan is still caught by the eligibility replay, which reads assignmentIndex.
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-1',
+          name: 'Thursday Only',
+          data: {
+            days: [
+              {
+                dayOfWeek: 4,
+                slots: [{ shiftTypeCode: 'SURGERY', requiredStaff: 1 }],
+              },
+            ],
+          },
+          clinicId,
+        });
+        // Dec 29/30/31 are returned by the border load (date.in) → legitimate fixed baseline.
+        // Dec 24-31 by the statutory gte/lte load → after border dedup, Dec 24-28 are statutory-only.
+        const borderRun = ['29', '30', '31'].map((d) => ({
+          employeeId: 'emp-1',
+          date: new Date(`2025-12-${d}T00:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        }));
+        const statutoryRun = [
+          '24',
+          '25',
+          '26',
+          '27',
+          '28',
+          '29',
+          '30',
+          '31',
+        ].map((d) => ({
+          employeeId: 'emp-1',
+          date: new Date(`2025-12-${d}T00:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '12:00',
+          shiftTypeCode: 'SURGERY',
+          breakMinutes: 0,
+        }));
+        mockPrismaService.shift.findMany.mockImplementation((args: any) => {
+          if (args?.where?.OR) return Promise.resolve([]); // survivors
+          if (args?.where?.date?.gte && args?.where?.date?.lte)
+            return Promise.resolve(statutoryRun); // 13-2 statutory context (gte/lte)
+          return Promise.resolve(borderRun); // border (date.in)
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 60,
+          },
+        ]);
+        mockPlanningService.listRules.mockResolvedValue([]);
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) => {
+            const tx = {
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                findMany: jest.fn().mockResolvedValue([]),
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest.fn().mockResolvedValue([]),
+              },
+            };
+            return fn(tx);
+          },
+        );
+
+        const buildSpy = jest.spyOn(solverModel, 'buildSolverModel');
+        // Don't run the real or-tools solver — force a non-served status so greedy is served. The
+        // solver INPUT is still built (and captured) before solve is called.
+        jest
+          .spyOn(solverEngine, 'solve')
+          .mockResolvedValue({ status: 'UNKNOWN', chosenVarNames: new Set() });
+
+        await service.generateMonthlyPlan(clinicId, '2026-01', 'tpl-1', {
+          engine: 'cpsat',
+        });
+
+        expect(buildSpy).toHaveBeenCalled();
+        const input = buildSpy.mock.calls[0][0] as solverModel.SolverInput;
+        const worked = input.fixedWorkedDates.get('emp-1') ?? new Set<string>();
+        // Border days remain in the fixed baseline; statutory-only days are excluded.
+        expect(worked.has('2025-12-31')).toBe(true); // border, kept
+        expect(worked.has('2025-12-30')).toBe(true); // border, kept
+        expect(worked.has('2025-12-27')).toBe(false); // statutory-only, excluded
+        expect(worked.has('2025-12-24')).toBe(false); // statutory-only, excluded
       });
 
       // AC2 (verbatim): "Given a generation request without engine (or engine:
