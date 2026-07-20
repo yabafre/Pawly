@@ -22,16 +22,23 @@ const shift = (
 });
 
 describe('french-labor-law constants', () => {
-  it('exposes the four statutory limits', () => {
+  it('exposes the seven statutory limits', () => {
     expect(FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES).toBe(600);
     expect(FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES).toBe(780);
+    expect(FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES).toBe(660);
+    expect(FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES).toBe(2880);
+    expect(FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H).toBe(20);
+    expect(FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES).toBe(360);
     expect(FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS).toBe(35);
     expect(FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS).toBe(6);
   });
-  it('STATUTORY_RULE_CONFIG mirrors the constants in hours', () => {
+  it('STATUTORY_RULE_CONFIG mirrors the constants', () => {
     expect(STATUTORY_RULE_CONFIG).toEqual({
       maxDailyHours: 10,
       maxDailyAmplitudeHours: 13,
+      minDailyRestHours: 11,
+      maxWeeklyStatutoryHours: 48,
+      minBreakMinutesOver6h: 20,
       minWeeklyRestHours: 35,
       maxConsecutiveWorkDays: 6,
     });

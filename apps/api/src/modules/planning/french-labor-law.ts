@@ -8,9 +8,14 @@
  *
  * Legal refs:
  *  - L.3121-18 : 10h maximum daily working time            -> MAX_DAILY_WORK_MINUTES
- *  - L.3131-1  : 11h minimum daily rest (=> 13h amplitude)  -> MAX_DAILY_AMPLITUDE_MINUTES
+ *  - L.3121-16 : 20-min break once > 6h worked in a day     -> MIN_BREAK_MINUTES_OVER_6H
+ *  - L.3121-20 : 48h absolute weekly ceiling (net worked)   -> MAX_WEEKLY_WORK_MINUTES
+ *  - L.3131-1  : 11h minimum daily rest between work blocks -> MIN_DAILY_REST_MINUTES
  *  - L.3132-2  : 35h minimum consecutive weekly rest        -> MIN_WEEKLY_REST_HOURS
  *  - L.3132-1  : one rest day per 7 (max 6 worked in a row) -> MAX_CONSECUTIVE_WORK_DAYS
+ *
+ * 13h amplitude (MAX_DAILY_AMPLITUDE_MINUTES) is a SAME-DAY span cap; Story 13-4 adds the
+ * 11h BETWEEN-block daily rest (L.3131-1) that 11-3 had used amplitude as a proxy for.
  *
  * Times are `HH:MM` 24h strings; dates are `YYYY-MM-DD` calendar days interpreted in UTC
  * (matches the generation service's getWeekBounds / getPreviousDate conventions). Overnight
@@ -25,6 +30,14 @@ export const FRENCH_LABOR_LAW = {
   MAX_DAILY_WORK_MINUTES: 600,
   /** 13h max amplitude (first start -> last end) per employee per day; breaks included. */
   MAX_DAILY_AMPLITUDE_MINUTES: 780,
+  /** L.3131-1 — >= 11h rest between two consecutive worked blocks (merged busy intervals). */
+  MIN_DAILY_REST_MINUTES: 660,
+  /** L.3121-20 — absolute 48h net worked per ISO week; wins over any configured cap. */
+  MAX_WEEKLY_WORK_MINUTES: 2880,
+  /** L.3121-16 — a 20-min break is mandatory once net worked exceeds 6h in a day. */
+  MIN_BREAK_MINUTES_OVER_6H: 20,
+  /** Net-worked threshold (minutes) above which MIN_BREAK_MINUTES_OVER_6H applies. */
+  BREAK_REQUIRED_AFTER_MINUTES: 360,
   /** L.3132-2 — >= 35h continuous rest per ISO week. */
   MIN_WEEKLY_REST_HOURS: 35,
   /** L.3132-1 — <= 6 consecutive worked calendar days. */
@@ -36,6 +49,9 @@ export const STATUTORY_RULE_NAME = 'French labor-law limits';
 export const STATUTORY_RULE_CONFIG = {
   maxDailyHours: FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES / 60,
   maxDailyAmplitudeHours: FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES / 60,
+  minDailyRestHours: FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES / 60,
+  maxWeeklyStatutoryHours: FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES / 60,
+  minBreakMinutesOver6h: FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H,
   minWeeklyRestHours: FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS,
   maxConsecutiveWorkDays: FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS,
 } as const;
@@ -43,6 +59,9 @@ export const STATUTORY_RULE_CONFIG = {
 export type StatutoryViolationKind =
   | 'DAILY_WORK'
   | 'DAILY_AMPLITUDE'
+  | 'DAILY_REST'
+  | 'WEEKLY_CEILING'
+  | 'MANDATORY_BREAK'
   | 'WEEKLY_REST'
   | 'CONSECUTIVE_DAYS';
 
