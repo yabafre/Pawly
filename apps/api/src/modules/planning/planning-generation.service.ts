@@ -58,6 +58,7 @@ import type {
   HardViolation,
   SoftViolation,
   EquitySummaryEntry,
+  SolverOutcome,
 } from '@pawly/validators';
 import type {
   ScheduleViewData,
@@ -70,6 +71,13 @@ import type {
 } from '@pawly/validators';
 import { planningGenerationDuration } from '@/common/metrics';
 import type { CounterWithEmployee } from './equity-counter.service';
+
+// Story 13-6 (KON-137) — the improve pass reports WHY it did/didn't serve so the
+// caller can populate stats.solverOutcome and the metric. `served: true` carries the
+// recomputed holes exactly as before; `served: false` carries the fallback reason.
+type SolverPassResult =
+  | { served: true; holes: GenerationResult['holes'] }
+  | { served: false; outcome: Exclude<SolverOutcome, 'served'> };
 
 type SlotRequirement = {
   date: string;
@@ -769,10 +777,13 @@ export class PlanningGenerationService {
     // the solver plan is served ONLY when strictly better (fill, then the exact
     // weighted equity objective) AND fully re-validated by replaying it through
     // evaluateEligibility on the live counters. Never degrades, never silent (NFR3).
+    // Story 13-6 (KON-137, T11) — capture WHY the pass did/didn't serve so stats +
+    // telemetry can report it (undefined ⇒ greedy request ⇒ no solver internals).
+    let solverOutcome: SolverOutcome | undefined;
     if (options.engine === 'cpsat' && solverBaseline) {
       const solverStart = Date.now();
       try {
-        const improvedHoles = await this.runSolverImprovePass({
+        const passResult = await this.runSolverImprovePass({
           employees,
           slots,
           constraints,
@@ -789,15 +800,22 @@ export class PlanningGenerationService {
           priorHoles: holes,
           baseline: solverBaseline,
         });
-        if (improvedHoles) {
+        if (passResult.served) {
           holes.length = 0;
-          holes.push(...improvedHoles);
+          holes.push(...passResult.holes);
           servedEngine = 'cpsat';
+          solverOutcome = 'served';
+        } else {
+          solverOutcome = passResult.outcome;
         }
       } catch (error) {
         this.logger.warn(
           `KON-129 solver pass failed after ${Date.now() - solverStart}ms — serving the greedy plan: ${String(error)}`,
         );
+        // Story 13-6 (KON-137) — an unexpected throw in the pass means the solver
+        // could not be used; surface it as engine-unavailable so the fleet metric
+        // still alerts (AC-2/AC-3), the same bucket as an adapter load failure.
+        solverOutcome = 'engine-unavailable';
       }
     }
 
@@ -975,17 +993,71 @@ export class PlanningGenerationService {
     planningGenerationDuration.record(Date.now() - generationStart, {
       clinic_id: clinicId,
       shift_count: String(createdShifts.length),
+      // Story 13-6 (KON-137, T11) — engine/outcome attributes make a fleet-wide
+      // cpsat→greedy degradation (e.g. a Node < 22.12 deploy) alertable in SigNoz.
+      requested_engine: options.engine ?? 'greedy',
+      served_engine: servedEngine,
+      solver_status: solverOutcome ?? 'not-requested',
     });
+
+    // Story 13-6 (KON-137, T6) — "System Never Lies" on the solver path. The improve
+    // pass mutated `assignedShifts`/holes in place, but the greedy `hardViolations`/
+    // `softViolations` arrays still describe the PRE-solver plan. When cpsat is served,
+    // recompute violations from the persisted schedule via the same whole-plan evaluator
+    // the publish gate uses — so what generation reports == what publish will check. The
+    // greedy path keeps its per-slot arrays (byte-identical greedy default, invariant #6).
+    let servedHard = hardViolations;
+    let servedSoft = softViolations;
+    if (servedEngine === 'cpsat') {
+      const equityCounters = await this.equityCounterService
+        .getCountersForPeriod(clinicId, year, [monthNum])
+        .catch(() => {
+          // Story 13-6 (KON-137) — log so a recompute-input failure is visible; the
+          // recompute degrades to equity-blind rules rather than crashing generation.
+          this.logger.warn(
+            'KON-137 served-plan recompute: failed to fetch equity counters',
+          );
+          return [] as CounterWithEmployee[];
+        });
+      const revalidated = await this.planningService
+        .validateShiftsAgainstRules(
+          clinicId,
+          {
+            startDate: monthStart.toISOString(),
+            endDate: monthEnd.toISOString(),
+          },
+          {
+            equityCounters:
+              equityCounters.length > 0 ? equityCounters : undefined,
+          },
+        )
+        .catch(() => null);
+      if (revalidated) {
+        servedHard = revalidated.hardViolations;
+        servedSoft = revalidated.softViolations;
+      } else {
+        // Story 13-6 (KON-137, T6) — the recompute is the served plan's truth source. If
+        // it fails, we keep the greedy arrays as a best-effort estimate (do NOT crash the
+        // whole generation), but this is an OBSERVABILITY story: a silent revert to the
+        // pre-solver arrays would re-introduce the exact T6 lie unseen. Warn so a persistent
+        // recompute failure is alertable alongside solver_status (aped-review F1).
+        this.logger.warn(
+          'KON-137 served-plan recompute: validateShiftsAgainstRules failed — ' +
+            'reporting pre-solver (greedy) violations for the served cpsat plan',
+        );
+      }
+    }
 
     return this.buildResult(
       createdShifts,
       employees,
       holes,
-      hardViolations,
-      softViolations,
+      servedHard,
+      servedSoft,
       totalPositions,
       survivorCoveredPositions,
       servedEngine,
+      solverOutcome,
     );
   }
 
@@ -3641,6 +3713,7 @@ export class PlanningGenerationService {
     totalPositions: number,
     survivorCoveredPositions = 0,
     engine: 'greedy' | 'cpsat' = 'greedy',
+    solverOutcome?: SolverOutcome,
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -3674,6 +3747,9 @@ export class PlanningGenerationService {
         softWarningCount: softViolations.length,
         // Story 12-1 — which engine produced the served assignments.
         engine,
+        // Story 13-6 (KON-137) — the fallback reason, present only when cpsat was
+        // requested (undefined ⇒ greedy request ⇒ key omitted, no Pro leak, #7).
+        ...(solverOutcome ? { solverOutcome } : {}),
       },
     };
   }
@@ -4328,7 +4404,7 @@ export class PlanningGenerationService {
       fixedShiftsByEmployee: Map<string, AssignedShift[]>;
       rotationCounts: Map<string, Map<number, number>>;
     };
-  }): Promise<GenerationResult['holes'] | null> {
+  }): Promise<SolverPassResult> {
     // ── 1) Solver input from the generation context ────────────────────────────
     // Contract caps lift the SAME semantics as the CONTRACT_COMPLIANCE eligibility
     // branch (rule-engine): weekly = min(contractHours, maxWeeklyHours) with the
@@ -4517,7 +4593,15 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver status ${result.status} — serving the greedy plan`,
       );
-      return null;
+      // Story 13-6 (KON-137) — distinguish engine-down from infeasible from
+      // budget-exhausted so `solver_status` is actionable in monitoring.
+      const outcome: Exclude<SolverOutcome, 'served'> =
+        result.status === 'ENGINE_UNAVAILABLE'
+          ? 'engine-unavailable'
+          : result.status === 'INFEASIBLE'
+            ? 'infeasible'
+            : 'budget-exhausted';
+      return { served: false, outcome };
     }
 
     const candidate = decodeSolution(model, result.chosenVarNames, input);
@@ -4584,7 +4668,7 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver ${result.status}: filled ${candidate.length}/${greedyFilled}, equity ${candidateEquity.toFixed(4)} vs ${greedyEquity.toFixed(4)} — greedy plan kept`,
       );
-      return null;
+      return { served: false, outcome: 'no-improvement' };
     }
 
     // ── 4) Re-validation REPLAY through the live counters ──────────────────────
@@ -4653,18 +4737,21 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver plan rejected by re-validation (${rejection}) — serving the greedy plan`,
       );
-      return null;
+      return { served: false, outcome: 'rejected-revalidation' };
     }
 
     this.logger.log(
       `KON-129 solver plan SERVED: ${result.status}, filled ${candidate.length} (greedy ${greedyFilled}), equity ${candidateEquity.toFixed(4)} (greedy ${greedyEquity.toFixed(4)})`,
     );
-    return this.recomputeHoles(
-      ctx.slots,
-      ctx.assignedShifts,
-      ctx.preExistingSlotCoverage,
-      ctx.priorHoles,
-    );
+    return {
+      served: true,
+      holes: this.recomputeHoles(
+        ctx.slots,
+        ctx.assignedShifts,
+        ctx.preExistingSlotCoverage,
+        ctx.priorHoles,
+      ),
+    };
   }
 
   /** Story 11-9 — add a GENERATED assignment and increment EVERY live counter in lockstep. */

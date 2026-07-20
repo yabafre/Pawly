@@ -227,4 +227,22 @@ describe('SolverEngineService (KON-129)', () => {
     });
     expect(['OPTIMAL', 'FEASIBLE', 'UNKNOWN']).toContain(result.status);
   });
+
+  it('surfaces ENGINE_UNAVAILABLE instead of throwing when the engine fails to load (Story 13-6)', async () => {
+    const service = new SolverEngineService();
+    jest
+      .spyOn(
+        service as unknown as {
+          solveUnsafe: (...args: unknown[]) => Promise<unknown>;
+        },
+        'solveUnsafe',
+      )
+      .mockRejectedValue(new Error('ERR_REQUIRE_ESM'));
+    const result = await service.solve(
+      { vars: [], constraints: [], objective: [] },
+      { deterministicTimeBudget: 0.05 },
+    );
+    expect(result.status).toBe('ENGINE_UNAVAILABLE');
+    expect(result.chosenVarNames.size).toBe(0);
+  });
 });
