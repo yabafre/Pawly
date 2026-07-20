@@ -176,10 +176,10 @@ sprint:
     12-2-engine-toggle-tier-gate: {status: done, depends_on: [12-1-cp-sat-optimal-solver], ticket: "KON-130", completed_at: "2026-07-14T02:37:43Z"}
     # Epic 13 — Planning Integrity & Solver Fidelity (from 2026-07-14 audit, triage 2026-07-16)
     13-1-manual-write-guards-locks: {status: done, depends_on: [], ticket: "KON-131", merged_into_umbrella: true, completed_at: "2026-07-17T18:08:05Z"}
-    13-2-unified-validation-windows: {status: done, depends_on: [13-1-manual-write-guards-locks], ticket: "KON-134", worktree: null}
+    13-2-unified-validation-windows: {status: done, depends_on: [13-1-manual-write-guards-locks], ticket: "KON-134", merged_into_umbrella: true, completed_at: "2026-07-20T10:49:47Z"}
     13-3-cross-midnight-overlap: {status: done, depends_on: [], ticket: "KON-132", merged_into_umbrella: true, completed_at: "2026-07-17T18:58:56Z"}
     13-4-statutory-extensions: {status: pending, depends_on: [13-2-unified-validation-windows], ticket: "KON-136", worktree: null}
-    13-5-solver-model-fidelity: {status: done, depends_on: [13-3-cross-midnight-overlap], ticket: "KON-135", worktree: "/Users/fredyaba/Documents/web-dev/Pawly__worktrees/feature-kon-135-13-5-solver-model-fidelity", started_at: "2026-07-19T10:37:33Z"}
+    13-5-solver-model-fidelity: {status: done, depends_on: [13-3-cross-midnight-overlap], ticket: "KON-135", merged_into_umbrella: true, completed_at: "2026-07-20T10:45:30Z"}
     13-6-served-plan-truth-observability: {status: pending, depends_on: [13-5-solver-model-fidelity], ticket: "KON-137", worktree: null}
     13-7-equity-counters-utc: {status: done, depends_on: [], ticket: "KON-133", merged_into_umbrella: true, completed_at: "2026-07-17T18:01:56Z"}
     13-8-invariant-test-harness: {status: pending, depends_on: [13-3-cross-midnight-overlap, 13-4-statutory-extensions, 13-6-served-plan-truth-observability], ticket: "KON-138", worktree: null}
