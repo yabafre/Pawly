@@ -1336,7 +1336,8 @@
         "removeShiftType": "Supprimer",
         "help": "Définissez les postes de travail de votre clinique",
         "minRequired": "Au moins un type de poste est requis",
-        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste"
+        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste",
+        "breakRequiredOver6h": "Un poste de plus de 6h travaillées nécessite une pause d'au moins 20 minutes."
       }
     },
     "navigation": {

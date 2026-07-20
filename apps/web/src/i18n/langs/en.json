@@ -1336,7 +1336,8 @@
         "removeShiftType": "Remove",
         "help": "Define the shifts worked at your clinic",
         "minRequired": "At least one shift type is required",
-        "incompleteShiftType": "Please fill in every shift type's name and hours"
+        "incompleteShiftType": "Please fill in every shift type's name and hours",
+        "breakRequiredOver6h": "A shift over 6h worked requires at least a 20-minute break."
       }
     },
     "navigation": {
