@@ -118,4 +118,38 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
       { numRuns: NUM_RUNS_SAFETY, endOnFailure: true },
     );
   }, 180000);
+
+  const NUM_RUNS_CPSAT = process.env.CI ? 8 : 20;
+
+  // AC-1 P2 (verbatim from story 13-8-invariant-test-harness:31):
+  //   P2 (improve-never-degrade) — the exact engine never fills fewer slots, nor
+  //   leaves more holes, than greedy for the same input.
+  it('P2 — cpsat never degrades greedy (fill dominates, holes non-increasing)', async () => {
+    await fc.assert(
+      fc.asyncProperty(planningFixtureArb, async (f) => {
+        configureFixture(harness, f);
+        const greedy = await harness.service.generateMonthlyPlan(
+          HARNESS_CLINIC_ID,
+          f.month,
+          f.templateId,
+          { engine: 'greedy' },
+        );
+        configureFixture(harness, f);
+        const cpsat = await harness.service.generateMonthlyPlan(
+          HARNESS_CLINIC_ID,
+          f.month,
+          f.templateId,
+          { engine: 'cpsat' },
+        );
+
+        expect(cpsat.stats.filledSlots).toBeGreaterThanOrEqual(
+          greedy.stats.filledSlots,
+        );
+        expect(cpsat.stats.holeCount).toBeLessThanOrEqual(
+          greedy.stats.holeCount,
+        );
+      }),
+      { numRuns: NUM_RUNS_CPSAT, endOnFailure: true },
+    );
+  }, 180000);
 });
