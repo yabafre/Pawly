@@ -561,7 +561,14 @@
         "proHint": "Available with the Professional plan.",
         "proBadge": "Pro",
         "servedCpsat": "Solver-optimized",
-        "servedGreedy": "Standard engine"
+        "servedGreedy": "Standard engine",
+        "solverOutcome": {
+          "engineUnavailable": "The solver engine is unavailable — standard plan served.",
+          "infeasible": "The solver found no valid schedule — standard plan served.",
+          "budgetExhausted": "The solver ran out of time budget — standard plan served.",
+          "noImprovement": "The solver found no improvement — standard plan served (already optimal).",
+          "rejectedRevalidation": "The solver's plan failed re-validation — standard plan served."
+        }
       },
       "toast": {
         "generated": "Planning generated successfully",
