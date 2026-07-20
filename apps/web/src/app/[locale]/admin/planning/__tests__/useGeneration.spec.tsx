@@ -105,18 +105,33 @@ describe('useGeneration — served-engine toasts (story 12-2)', () => {
     expect(toast.success).toHaveBeenCalledWith('generatedCpsat');
   });
 
-  // AC4 (verbatim from story 12-2): "Given a cpsat generation whose solver found no
-  // strict improvement (stats.engine === 'greedy' served), Then the admin is informed
-  // the standard plan was served — informational, never styled as an error."
-  it('toasts the informational message when cpsat was requested but greedy served', () => {
+  // Story 13-6 (KON-137, AC-3) — when cpsat was requested but greedy served, the
+  // informational toast now names the REASON (System Never Lies), never an error.
+  it('toasts the specific fallback reason when cpsat was requested but greedy served', () => {
     renderHook(() => useGeneration('2026-07'), { wrapper });
-    captured.generate?.onSuccess?.({ stats: { engine: 'greedy' } }, { engine: 'cpsat' });
-    expect(toast.info).toHaveBeenCalledWith('cpsatNoImprovement');
+    captured.generate?.onSuccess?.(
+      { stats: { engine: 'greedy', solverOutcome: 'no-improvement' } },
+      { engine: 'cpsat' }
+    );
+    // next-intl is globally mocked to echo the key; the outcome maps to noImprovement.
+    expect(toast.info).toHaveBeenCalledWith('noImprovement');
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // AC5 (verbatim): "Given the switch off (its default), Then requests and results
-  // are byte-identical to today" — the default toast stays.
+  // Story 13-6 (KON-137, AC-3) — a Node < 22.12-class engine failure surfaces the
+  // engineUnavailable reason on the toast, the load-bearing observability case.
+  it('toasts the engine-unavailable reason when the solver could not load', () => {
+    renderHook(() => useGeneration('2026-07'), { wrapper });
+    captured.generate?.onSuccess?.(
+      { stats: { engine: 'greedy', solverOutcome: 'engine-unavailable' } },
+      { engine: 'cpsat' }
+    );
+    expect(toast.info).toHaveBeenCalledWith('engineUnavailable');
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // AC5 (verbatim from story 12-2): "Given the switch off (its default), Then requests
+  // and results are byte-identical to today" — the default toast stays.
   it('keeps the standard toast for a default greedy generation', () => {
     renderHook(() => useGeneration('2026-07'), { wrapper });
     captured.generate?.onSuccess?.({ stats: { engine: 'greedy' } }, { engine: 'greedy' });
