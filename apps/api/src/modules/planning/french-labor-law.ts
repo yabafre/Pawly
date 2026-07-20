@@ -414,14 +414,15 @@ export function findStatutoryViolations(
   return out;
 }
 
-/** True if any gap between consecutive merged busy intervals is under 11h. */
-function hasDailyRestDeficit(shifts: StatutoryShift[]): boolean {
+/** Count of gaps between consecutive merged busy intervals that are under 11h. */
+function countDailyRestDeficits(shifts: StatutoryShift[]): number {
   const busy = mergedBusyIntervals(shifts);
+  let count = 0;
   for (let i = 0; i < busy.length - 1; i++) {
     if (busy[i + 1][0] - busy[i][1] < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES)
-      return true;
+      count++;
   }
-  return false;
+  return count;
 }
 
 /** Net worked minutes of the ISO week containing `date`, across `shifts`. */
@@ -504,8 +505,15 @@ export function wouldExceedStatutory(
     kinds.push('WEEKLY_REST');
   }
 
-  // Daily rest (L.3131-1) — introduced-by-candidate over the merged busy set.
-  if (hasDailyRestDeficit(withCandidate) && !hasDailyRestDeficit(windowShifts))
+  // Daily rest (L.3131-1) — a NEW deficit gap introduced by the candidate. Count-based, not a
+  // whole-window boolean: a pre-existing <11h gap elsewhere in the loaded window (plausible on
+  // rollout — this rule post-dates the shift data it retrofits) must not mask a fresh deficit the
+  // candidate creates next to itself (aped-review F1). Insertion here is overlap-free (overlaps are
+  // rejected upstream), so the deficit count is monotonic under insertion and rises iff the
+  // candidate adds a gap < 11h.
+  if (
+    countDailyRestDeficits(withCandidate) > countDailyRestDeficits(windowShifts)
+  )
     kinds.push('DAILY_REST');
 
   // Absolute weekly ceiling (L.3121-20) — candidate's ISO week net minutes over 48h.

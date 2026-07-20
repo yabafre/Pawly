@@ -259,6 +259,21 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         wouldExceedStatutory(windowShifts, day('2026-03-03', '10:00', '18:00')),
       ).not.toContain('DAILY_REST');
     });
+
+    it('flags a candidate-introduced deficit even when the window already holds an unrelated one (aped-review F1)', () => {
+      // A pre-existing intra-day split on Mar-01 is itself a <11h gap. A whole-window boolean
+      // "does a deficit exist" would already be true for windowShifts and mask the fresh deficit
+      // the candidate introduces days later — the masking regression F1 closes.
+      const windowShifts = [
+        day('2026-03-01', '09:00', '12:00'),
+        day('2026-03-01', '14:00', '18:00'), // pre-existing 2h split gap
+        day('2026-03-04', '20:00', '23:00'),
+      ];
+      const candidate = day('2026-03-05', '06:00', '14:00'); // 23:00 -> 06:00 = 7h < 11h
+      expect(wouldExceedStatutory(windowShifts, candidate)).toContain(
+        'DAILY_REST',
+      );
+    });
   });
 
   describe('WEEKLY_CEILING (48h net, L.3121-20)', () => {
