@@ -209,3 +209,124 @@ describe('Story 13-2 — window-bounded weekly rest', () => {
     ).toContain('CONSECUTIVE_DAYS');
   });
 });
+
+describe('Story 13-4 (KON-136) — statutory extensions', () => {
+  const day = (
+    date: string,
+    startTime: string,
+    endTime: string,
+    breakMinutes = 0,
+  ): StatutoryShift => ({ date, startTime, endTime, breakMinutes });
+
+  describe('DAILY_REST (11h, L.3131-1)', () => {
+    it('findStatutoryViolations flags a cross-midnight gap under 11h', () => {
+      const shifts = [
+        day('2026-03-02', '14:00', '22:00'), // ends Mon 22:00
+        day('2026-03-03', '06:00', '14:00'), // starts Tue 06:00 -> 8h rest
+      ];
+      const kinds = findStatutoryViolations(shifts).map((v) => v.kind);
+      expect(kinds).toContain('DAILY_REST');
+    });
+
+    it('flags an intra-day split under 11h (Alex: stricter reading)', () => {
+      const shifts = [
+        day('2026-03-02', '09:00', '12:00'),
+        day('2026-03-02', '14:00', '18:00'), // 2h gap
+      ];
+      expect(
+        findStatutoryViolations(shifts).some((v) => v.kind === 'DAILY_REST'),
+      ).toBe(true);
+    });
+
+    it('does not flag a gap of exactly 11h', () => {
+      const shifts = [
+        day('2026-03-02', '10:00', '19:00'), // ends 19:00
+        day('2026-03-03', '06:00', '10:00'), // starts +11h
+      ];
+      expect(
+        findStatutoryViolations(shifts).some((v) => v.kind === 'DAILY_REST'),
+      ).toBe(false);
+    });
+
+    it('wouldExceedStatutory returns DAILY_REST only when the candidate introduces it', () => {
+      const windowShifts = [day('2026-03-02', '14:00', '22:00')];
+      const candidate = day('2026-03-03', '06:00', '14:00');
+      expect(wouldExceedStatutory(windowShifts, candidate)).toContain(
+        'DAILY_REST',
+      );
+      // A candidate 12h later introduces nothing.
+      expect(
+        wouldExceedStatutory(windowShifts, day('2026-03-03', '10:00', '18:00')),
+      ).not.toContain('DAILY_REST');
+    });
+  });
+
+  describe('WEEKLY_CEILING (48h net, L.3121-20)', () => {
+    const fifty = () =>
+      // Mon–Sat 2026-03-02..07, 10h gross - 1h break = 9h net = 54h/week
+      ['02', '03', '04', '05', '06', '07'].map((d) =>
+        day(`2026-03-${d}`, '08:00', '19:00', 60),
+      );
+
+    it('findStatutoryViolations flags an ISO week over 48h net', () => {
+      const v = findStatutoryViolations(fifty()).find(
+        (x) => x.kind === 'WEEKLY_CEILING',
+      );
+      expect(v).toBeDefined();
+      expect(v!.date).toBe('2026-03-02'); // ISO-week Monday
+      expect(v!.actual).toBe(6 * 9 * 60); // 3240 net minutes
+    });
+
+    it('wouldExceedStatutory flags the candidate that crosses 48h net', () => {
+      const windowShifts = ['02', '03', '04', '05', '06'].map((d) =>
+        day(`2026-03-${d}`, '08:00', '19:00', 60),
+      ); // 5 * 9h = 45h
+      expect(
+        wouldExceedStatutory(
+          windowShifts,
+          day('2026-03-07', '08:00', '19:00', 60),
+        ),
+      ).toContain('WEEKLY_CEILING'); // 54h
+    });
+  });
+
+  describe('MANDATORY_BREAK (20min over 6h, L.3121-16)', () => {
+    it('flags a > 6h net day with under 20min break', () => {
+      const shifts = [day('2026-03-02', '08:00', '15:00', 0)]; // 7h net, 0 break
+      const v = findStatutoryViolations(shifts).find(
+        (x) => x.kind === 'MANDATORY_BREAK',
+      );
+      expect(v).toBeDefined();
+      expect(v!.actual).toBe(0);
+      expect(v!.limit).toBe(20);
+    });
+
+    it('does not flag a > 6h day with a 20min break', () => {
+      const shifts = [day('2026-03-02', '08:00', '15:20', 20)]; // ~7h net, 20 break
+      expect(
+        findStatutoryViolations(shifts).some(
+          (v) => v.kind === 'MANDATORY_BREAK',
+        ),
+      ).toBe(false);
+    });
+
+    it('does not flag a <= 6h day', () => {
+      const shifts = [day('2026-03-02', '08:00', '14:00', 0)]; // 6h net exactly
+      expect(
+        findStatutoryViolations(shifts).some(
+          (v) => v.kind === 'MANDATORY_BREAK',
+        ),
+      ).toBe(false);
+    });
+
+    it('wouldExceedStatutory flags the candidate that tips the day over 6h without a break', () => {
+      const windowShifts = [day('2026-03-02', '08:00', '12:00', 0)]; // 4h
+      expect(
+        wouldExceedStatutory(
+          windowShifts,
+          day('2026-03-02', '13:00', '16:30', 0),
+        ),
+      ).toEqual(expect.arrayContaining(['MANDATORY_BREAK'])); // day now 7h30 net, 0 break
+    });
+  });
+});
