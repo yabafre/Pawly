@@ -1187,17 +1187,20 @@ two test-completeness gaps. All 5 retained findings were fixed inline and re-ver
   It hits the dev's pre-existing `useGeneration.ts:17` import equally, and the error code is TS2339 (stale
   type), not TS2345 (narrowing) — so F4's typing is sound. Resolves on a clean/CI build where api+validators
   rebuild together. Web is verified via Vitest (green), matching the story's Task 10 web-verification choice.
-- Visual verification: **performed live (headed)** — React Grab MCP was unavailable, so the check was run via
-  `next-browser` (Vercel) in a real Chromium against the worktree build (web `next dev --webpack` on :3020 —
-  Turbopack panics on the worktree's root `node_modules` symlink escaping the FS root; API on :3001). Logged in
-  as an admin, reached `/admin/planning`, and injected a fallback `generationResult` into the `GenerationPanel`
-  React state (no template seeded → no live generation). Confirmed **in the real browser with the real fr.json
-  bundle** (not the Vitest key-echo): the served-engine badge renders "Moteur standard" with the reason line
-  below it — `infeasible` → "Le solveur n'a trouvé aucun planning valide — plan standard servi." and
-  `engine-unavailable` → "Le moteur de solveur est indisponible — plan standard servi." (correct accents/em
-  dash, `OUTCOME_MESSAGE_KEY` resolves live). Computed style confirms F5: reason line `font-size: 12px`
-  (`text-xs`), `max-width: 220px`, right-aligned, stacked under the badge — no layout regression. Page mounted
-  with zero runtime errors. Aria's prior static review (JSX guards, i18n parity, toast branch order) stands.
+- Visual verification: **performed live (headed), end-to-end** — React Grab MCP was unavailable, so the check
+  ran via `next-browser` (Vercel) in a real Chromium against the worktree build (web `next dev --webpack` on
+  :3020 — Turbopack panics on the worktree's root `node_modules` symlink escaping the FS root; worktree API on
+  :3001, so the API returns the story's new fields). Logged in as admin, repointed to the Professional
+  "Clinique Simulation E2E" clinic, and ran a **real cpsat generation** through the UI (select template → enable
+  CP-SAT → Générer → confirm regenerate + published-change). The worktree API's real or-tools solver ran and
+  logged `KON-129 solver OPTIMAL: filled 0/0, equity 4.0000 vs 4.0000 — greedy plan kept` → a genuine
+  `no-improvement` fallback. Confirmed **in the real browser with the real fr.json bundle** (not the Vitest
+  key-echo): the served-engine badge shows "Moteur standard", the reason line shows "Le solveur n'a pas trouvé
+  mieux — plan standard servi (déjà optimal)." (real `noImprovement` string, correct accents/em dash), and the
+  `toast.info` fired live with the same string. Computed style confirms F5: reason line `font-size: 12px`
+  (`text-xs`), `max-width: 220px`, right-aligned, stacked under the badge — no layout regression, zero runtime
+  errors. Additionally exercised `infeasible` / `engine-unavailable` reason strings via React-state injection
+  before the live run. Aria's prior static review (JSX guards, i18n parity, toast branch order) stands.
 
 ### Ticket sync
 - Ticket comment posted: YES (Linear KON-137)
