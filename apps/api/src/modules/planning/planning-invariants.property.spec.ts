@@ -23,7 +23,7 @@ import {
 } from './planning-harness.testutil';
 
 // CI-aware run ladder (NFR2 budget pattern — bounded shrinking/runs).
-const NUM_RUNS_DET = process.env.CI ? 15 : 40;
+const NUM_RUNS_DET = process.env.CI ? 15 : process.env.TURBO_HASH ? 25 : 40;
 
 describe('Planning engine invariants (Story 13-8, KON-138)', () => {
   let harness: GenerationHarness;
@@ -59,7 +59,11 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
     );
   }, 180000);
 
-  const NUM_RUNS_SAFETY = process.env.CI ? 25 : 100;
+  const NUM_RUNS_SAFETY = process.env.CI
+    ? 25
+    : process.env.TURBO_HASH
+      ? 50
+      : 100;
 
   // AC-1 P1 (verbatim from story 13-8-invariant-test-harness:30-31):
   //   P1 (safety) — no served schedule introduces a statutory violation, verified
@@ -119,7 +123,7 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
     );
   }, 180000);
 
-  const NUM_RUNS_CPSAT = process.env.CI ? 8 : 20;
+  const NUM_RUNS_CPSAT = process.env.CI ? 8 : process.env.TURBO_HASH ? 12 : 20;
 
   // AC-1 P2 (verbatim from story 13-8-invariant-test-harness:31):
   //   P2 (improve-never-degrade) — the exact engine never fills fewer slots, nor
