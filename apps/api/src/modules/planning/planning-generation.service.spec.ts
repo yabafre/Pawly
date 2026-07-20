@@ -918,6 +918,52 @@ describe('PlanningGenerationService', () => {
       );
     });
 
+    it('Story 13-4 (KON-136) — excludes a >6h slot lacking a 20-min break, zero rules (aped-review F6)', () => {
+      const employees = [
+        {
+          id: 'emp-brk',
+          firstName: 'B',
+          lastName: 'B',
+          jobType: 'VET',
+          contractHours: 35,
+        },
+      ];
+      // 08:00-15:00 = 7h net; with a 0-min break this is a MANDATORY_BREAK breach (L.3121-16).
+      // The assignment index is empty, so daily-rest cannot fire — the exclusion isolates the
+      // mandatory-break rule, proving generation enforces it kind-agnostically with zero rules.
+      const noBreakSlot = {
+        date: '2026-03-02',
+        shiftTypeCode: 'DAY',
+        startTime: '08:00',
+        endTime: '15:00',
+        breakMinutes: 0,
+        requiredStaff: 1,
+      };
+      const excluded: ScoreAndAssignResult = callScore(
+        noBreakSlot,
+        employees,
+        baseConstraints,
+        [],
+        new Map(),
+        new Map(),
+      );
+      expect(excluded.assigned.map((a) => a.employeeId)).not.toContain(
+        'emp-brk',
+      );
+
+      // CONTROL: the same slot with a compliant 20-min break (6h40 net) is assignable.
+      const withBreakSlot = { ...noBreakSlot, breakMinutes: 20 };
+      const ok: ScoreAndAssignResult = callScore(
+        withBreakSlot,
+        employees,
+        baseConstraints,
+        [],
+        new Map(),
+        new Map(),
+      );
+      expect(ok.assigned.map((a) => a.employeeId)).toContain('emp-brk');
+    });
+
     it('filters out unavailable employees', () => {
       const unavailableMap = new Map([
         ['emp-1', new Set(['2026-03-02'])],
