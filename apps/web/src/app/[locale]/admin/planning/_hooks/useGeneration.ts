@@ -14,10 +14,21 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import type { SolverOutcome } from '@pawly/validators';
+
+// Story 13-6 (KON-137) — map the served-plan solver outcome to its i18n key.
+const OUTCOME_MESSAGE_KEY: Record<Exclude<SolverOutcome, 'served'>, string> = {
+  'engine-unavailable': 'engineUnavailable',
+  infeasible: 'infeasible',
+  'budget-exhausted': 'budgetExhausted',
+  'no-improvement': 'noImprovement',
+  'rejected-revalidation': 'rejectedRevalidation',
+};
 
 export const useGeneration = (month?: string) => {
   const queryClient = useQueryClient();
   const t = useTranslations('admin.planningGeneration.toast');
+  const tOutcome = useTranslations('admin.planningGeneration.engine.solverOutcome');
   const shiftsQueryKey = QueryKeyFactory.planningShifts(month);
 
   const invalidateAll = useCallback(() => {
@@ -56,16 +67,19 @@ export const useGeneration = (month?: string) => {
     generatePlanAction,
     {
       onSuccess: (
-        result: { stats?: { engine?: 'greedy' | 'cpsat' } } | undefined,
+        result:
+          | { stats?: { engine?: 'greedy' | 'cpsat'; solverOutcome?: SolverOutcome } }
+          | undefined,
         variables: { engine?: 'greedy' | 'cpsat' }
       ) => {
         invalidateAll();
-        // Story 12-2 — served-engine transparency: the solver legitimately serves
-        // the greedy plan when it finds no strict improvement (System Never Lies).
-        if (variables?.engine === 'cpsat' && result?.stats?.engine === 'greedy') {
-          toast.info(t('cpsatNoImprovement'));
-        } else if (result?.stats?.engine === 'cpsat') {
+        // Story 13-6 (KON-137) — served-engine transparency WITH the reason. When the
+        // admin requested cpsat but greedy was served, surface WHY (System Never Lies).
+        const outcome = result?.stats?.solverOutcome;
+        if (result?.stats?.engine === 'cpsat') {
           toast.success(t('generatedCpsat'));
+        } else if (variables?.engine === 'cpsat' && outcome && outcome !== 'served') {
+          toast.info(tOutcome(OUTCOME_MESSAGE_KEY[outcome]));
         } else {
           toast.success(t('generated'));
         }

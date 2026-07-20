@@ -561,7 +561,14 @@
         "proHint": "Disponible avec l'abonnement Professional.",
         "proBadge": "Pro",
         "servedCpsat": "Optimisé par le solveur",
-        "servedGreedy": "Moteur standard"
+        "servedGreedy": "Moteur standard",
+        "solverOutcome": {
+          "engineUnavailable": "Le moteur de solveur est indisponible — plan standard servi.",
+          "infeasible": "Le solveur n'a trouvé aucun planning valide — plan standard servi.",
+          "budgetExhausted": "Le solveur a épuisé son budget de temps — plan standard servi.",
+          "noImprovement": "Le solveur n'a pas trouvé mieux — plan standard servi (déjà optimal).",
+          "rejectedRevalidation": "Le plan du solveur a échoué à la re-validation — plan standard servi."
+        }
       },
       "toast": {
         "generated": "Planning généré avec succès",

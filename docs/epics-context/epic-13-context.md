@@ -231,3 +231,31 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   extracted the inline gate merge into the pure `mergeEquityLoads` + added a load-bearing unit test
   (the merge was correct but only reachable through the fill branch, so untested), and hardened the
   AC-4 mock's `where.OR` discriminator against a latent quarterly-query collision.
+
+### Story 13-6-served-plan-truth-observability — done 2026-07-20T14:10:33Z
+
+- **Decisions:** Served-plan truth on the **cpsat path only** is a recompute via
+  `planningService.validateShiftsAgainstRules` (publish-gate parity: what generation reports == what
+  publish checks), run AFTER the transaction commits; it now WARNS on failure instead of silently
+  reverting to the pre-solver greedy arrays. The greedy path stays byte-identical (invariant 6) — no
+  second evaluator runs on greedy. `ENGINE_UNAVAILABLE` at the solver adapter catch is the load-bearing
+  observability primitive (engine-down ≠ infeasible ≠ budget-exhausted). `stats.solverOutcome` is
+  optional + conditionally spread (absent for greedy → no Pro leak, invariant 7). **13-8's invariant
+  harness may now assume a served cpsat plan's reported violations equal the persisted-schedule
+  evaluation.**
+- **Files:** `packages/validators/src/planning/{planning-generation.schema.ts,index.ts,planning-generation.schema.test.ts}`;
+  `apps/api/src/modules/planning/{solver-engine.service.ts,solver-engine.service.spec.ts,planning-generation.service.ts,planning-generation.service.spec.ts}`;
+  `apps/web/src/i18n/langs/{en,fr}.json`; `apps/web/.../planning/_hooks/useGeneration.ts` (+spec);
+  `apps/web/.../planning/_components/GenerationPanel.tsx` (+`__tests__/generation.spec.tsx`).
+- **Contracts:** new `@pawly/validators` exports `solverOutcomeSchema` + type `SolverOutcome` (6-value
+  enum: served / engine-unavailable / infeasible / budget-exhausted / no-improvement /
+  rejected-revalidation); `GenerationStats`/`GenerationResult` gain optional `solverOutcome`. `SolveStatus`
+  widened with `ENGINE_UNAVAILABLE`. Metric `pawly.planning.generation.duration` now carries
+  `requested_engine`/`served_engine`/`solver_status` attributes. No tRPC/Prisma/dependency change.
+- **Deviations from plan:** aped-review fixed 5 findings — F1 (recompute failure was silent; added the
+  `logger.warn` on both `.catch` + a failure-path test), F2 (asserted `stats.solverOutcome` for `served`
+  + `rejected-revalidation`, previously proven only via engine/warn), F3 (tested the `generatePlan` catch
+  → `engine-unavailable`), F4 (exhaustive panel outcome-map typing), F5 (`text-xs`). Live visual check
+  waived (React Grab MCP unavailable — static Aria review + DOM tests). Worktree-only artefact noted: web
+  `tsc` shows stale `@pawly/api` dist from the main checkout shadowing the fresh validators types
+  (TS2339, not a narrowing error) — resolves on a clean/CI build; web verified via Vitest.

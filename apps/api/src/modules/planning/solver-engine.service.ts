@@ -22,7 +22,12 @@ import { createRequire } from 'node:module';
 import type { BoolVar, IntVar } from 'or-tools-wasm/cp-sat';
 import type { SolverModel } from './solver-model';
 
-export type SolveStatus = 'OPTIMAL' | 'FEASIBLE' | 'INFEASIBLE' | 'UNKNOWN';
+export type SolveStatus =
+  | 'OPTIMAL'
+  | 'FEASIBLE'
+  | 'INFEASIBLE'
+  | 'UNKNOWN'
+  | 'ENGINE_UNAVAILABLE';
 
 export interface SolveResult {
   status: SolveStatus;
@@ -70,8 +75,12 @@ export class SolverEngineService {
     try {
       return await this.solveUnsafe(model, options);
     } catch (error) {
+      // Story 13-6 (KON-137, T11) — a throw here means the ENGINE ITSELF failed
+      // (e.g. or-tools-wasm cannot load on Node < 22.12), not that the solver ran
+      // and found nothing. Surface a distinct status so `solver_status` can tell an
+      // ops team "the engine is down" (alertable) from "the model was infeasible".
       this.logger.warn(`CP-SAT solve threw: ${String(error)}`);
-      return { status: 'UNKNOWN', chosenVarNames: new Set() };
+      return { status: 'ENGINE_UNAVAILABLE', chosenVarNames: new Set() };
     }
   }
 
