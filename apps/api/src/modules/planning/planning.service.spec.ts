@@ -1497,4 +1497,42 @@ describe('PlanningService', () => {
       ).toBe(true);
     });
   });
+
+  describe('Story 13-4 (KON-136) — statutory extensions surface on publish', () => {
+    it('emits dailyRest + mandatoryBreak hard violations with messageKeys, zero rules', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // zero configured rules
+      // emp-1: Mon 14:00-22:00 then Tue 06:00-15:00 -> 8h rest (DAILY_REST on Tue);
+      // Tue is 9h net / 0 break (MANDATORY_BREAK). Both fall inside the published month.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '14:00',
+          endTime: '22:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+        {
+          date: new Date('2026-03-03T00:00:00.000Z'),
+          startTime: '06:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const { hardViolations } = await service.validateShiftsAgainstRules(
+        clinicId,
+        {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T00:00:00.000Z',
+        },
+      );
+
+      const keys = hardViolations.map((v) => v.messageKey);
+      expect(keys).toContain('violations.statutory.dailyRest');
+      expect(keys).toContain('violations.statutory.mandatoryBreak');
+    });
+  });
 });
