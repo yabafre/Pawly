@@ -204,7 +204,7 @@ export class ClinicService {
               clinicId,
               name: STATUTORY_RULE_NAME,
               description:
-                'Statutory French labor-law limits (10h/day, 13h amplitude, 35h weekly rest, max 6 consecutive days). Enforced by default and cannot be disabled.',
+                'Statutory French labor-law limits (10h/day, 13h amplitude, 11h daily rest, 48h weekly ceiling, 20min break over 6h, 35h weekly rest, max 6 consecutive days). Enforced by default and cannot be disabled.',
               ruleType: 'HARD',
               category: 'CONTRACT_COMPLIANCE',
               isActive: true,

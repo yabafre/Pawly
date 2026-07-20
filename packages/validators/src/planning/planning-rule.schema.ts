@@ -60,6 +60,9 @@ export const contractComplianceConfigSchema = z
     maxDailyAmplitudeHours: z.number().min(1).max(24).optional(),
     minWeeklyRestHours: z.number().min(24).max(168).optional(),
     maxConsecutiveWorkDays: z.number().int().min(1).max(7).optional(),
+    minDailyRestHours: z.number().min(1).max(24).optional(),
+    maxWeeklyStatutoryHours: z.number().min(1).max(168).optional(),
+    minBreakMinutesOver6h: z.number().int().min(0).max(120).optional(),
   })
   .refine(
     (data) =>
@@ -69,7 +72,10 @@ export const contractComplianceConfigSchema = z
       data.maxDailyHours !== undefined ||
       data.maxDailyAmplitudeHours !== undefined ||
       data.minWeeklyRestHours !== undefined ||
-      data.maxConsecutiveWorkDays !== undefined,
+      data.maxConsecutiveWorkDays !== undefined ||
+      data.minDailyRestHours !== undefined ||
+      data.maxWeeklyStatutoryHours !== undefined ||
+      data.minBreakMinutesOver6h !== undefined,
     'At least one constraint (hour limit, rest hours, or statutory limit) must be defined'
   );
 export type ContractComplianceConfig = z.infer<typeof contractComplianceConfigSchema>;
