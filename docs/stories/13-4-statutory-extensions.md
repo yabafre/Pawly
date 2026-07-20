@@ -1067,12 +1067,14 @@ Tests  136 passed (136)
 **Auditors:** Spec, Code, Edge & Hallucination (+ inline git-audit)
 **Verdict:** done
 
-Three method-driven auditors ran in parallel. Two returned CHANGES_REQUESTED, one APPROVED. Ten
-findings after dedup (4 MAJOR / 2 MINOR / 4 NIT). The load-bearing MAJOR (F1) was a real correctness
-defect, reproduced by the Lead with a throwaway test before any fix (candidate-introduced daily-rest
-deficit returned `["MANDATORY_BREAK"]` — DAILY_REST masked). All findings were fixed inline and
-re-verified by the originating auditor (Spec + Code both hand-traced the arithmetic and re-ran the
-targeted suites).
+Three method-driven auditors ran in parallel, plus a Lead-driven headed visual pass. Two auditors
+returned CHANGES_REQUESTED, one APPROVED. Eleven findings after dedup (5 MAJOR / 2 MINOR / 4 NIT).
+The load-bearing MAJOR (F1) was a real correctness defect, reproduced by the Lead with a throwaway
+test before any fix (candidate-introduced daily-rest deficit returned `["MANDATORY_BREAK"]` —
+DAILY_REST masked). F11 — the shared `FieldError` dropping string errors, so AC-5's onboarding break
+message never rendered — was found only by driving the live UI (next-browser), not by the unit suite
+or static audit. All findings were fixed inline and re-verified (Spec + Code hand-traced the
+arithmetic and re-ran their suites; F11 confirmed live in the browser).
 
 ### Findings
 
@@ -1089,7 +1091,7 @@ targeted suites).
   - Resolution: `1319072` — same test asserts `messageKey === 'violations.statutory.weeklyCeiling'` and `messageParams {actual:54, limit:48}` (hours).
 - [MAJOR] AC-5 — the onboarding localized break error was asserted by inspection only; the visual GREEN gate was deferred and no test existed. [`StepShiftTypes.tsx:51-62`]
   - Source: Spec (MAJOR)
-  - Resolution: `5e934c6` — extracted the `onChange` validator to a pure `validateOnboardingShiftTypes` and unit-tested it (`shift-types-validation.spec.ts`) → a >6h/0-break type surfaces `breakRequiredOver6h`. (Live-DOM render + full react-grab journey remain deferred — same pre-existing `<FieldError>` path already used by `incompleteShiftType`; low-risk pattern reuse.)
+  - Resolution: `5e934c6` — extracted the `onChange` validator to a pure `validateOnboardingShiftTypes` and unit-tested it (`shift-types-validation.spec.ts`) → a >6h/0-break type surfaces `breakRequiredOver6h`. Live-DOM render subsequently verified in the headed walkthrough, which uncovered F11 (the shared `<FieldError>` was dropping the string error — the assumed "same working path" was itself broken).
 - [MINOR] F5 — `updateSingleShiftType` did a blind `updateMany`, so a partial PATCH (`{endTime}` widening past 6h, or `{breakMinutes:0}` stripping a break) bypassed the break refine and persisted an ungeneratable type. [`clinic.service.ts:357-397`]
   - Source: Code (MEDIUM), Spec (NIT), Edge (MINOR)
   - Resolution: `b0ac4f1` — re-reads the row and validates the MERGED result via `shiftBreakRuleOk` when the patch touches the workload; name/color-only patches untouched. Four tests in `clinic.service.spec.ts`.
@@ -1102,6 +1104,9 @@ targeted suites).
 - [NIT] F10 — the story's Task 2 WEEKLY_CEILING fixture snippet said `19:00` (11h gross), contradicting its own "9h net" comment; the committed code uses `18:00`.
   - Source: Edge (NIT)
   - Resolution: this commit — story snippet aligned to `18:00`.
+- [MAJOR] F11 — AC-5's onboarding break error never rendered in the real UI. `FieldError` (`components/ui/field.tsx`) read only `error.message`, so a plain-string error — what a TanStack Form `onChange` validator returns — was silently dropped; every StepShiftTypes error (`breakRequiredOver6h`, `incompleteShiftType`, `minRequired`) and `StepWorkHours`' errors were invisible despite the validator running. [`components/ui/field.tsx:186-234`]
+  - Source: Lead — headed onboarding walkthrough via next-browser (the visual GREEN gate the story deferred; the earlier "same render path as existing errors" reasoning was wrong — that shared path was itself broken).
+  - Resolution: `f0e8ff2` — normalise both string and `{ message }` error shapes in `FieldError` + a regression spec (`field.spec.tsx`). **Verified live**: driving the wizard to the shift-types step and setting a 08:30–18:30 type to a 0-min break surfaces "Un poste de plus de 6h travaillées nécessite une pause d'au moins 20 minutes."
 
 #### Dismissed (documented)
 
@@ -1117,10 +1122,10 @@ targeted suites).
 - Test commands (re-run fresh this review):
   - `pnpm --filter @pawly/validators build` → EXIT 0; `pnpm --filter @pawly/validators test -- planning-rule shift-type onboarding.schema` → **168 passed**
   - `pnpm --filter @pawly/api test -- french-labor-law planning.service planning-generation.service move-validation clinic.service` → **352 passed** (5 suites; +7 vs the 345 dev baseline)
-  - `pnpm --filter @pawly/web test -- publish schedule-view shift-types-validation` → **141 passed** (+5)
+  - `pnpm --filter @pawly/web test -- publish schedule-view field.spec shift-types-validation StepShiftTypes` → **145 passed** (+9; incl. the F11 `FieldError` regression spec)
 - F1 reproduced RED before fix, GREEN after (regression test retained).
 - Both originating auditors independently re-ran their targeted suites and returned RESOLVED.
-- Visual verification: deferred — onboarding break error proven by the extracted-validator unit test; live react-grab journey disproportionate in a headless sprint worktree (same `<FieldError>` render path as existing onboarding errors).
+- **Visual verification: DONE (live, not deferred).** Drove the onboarding wizard to the shift-types step under a real Turbopack dev server via next-browser (headed), authenticated as the seeded admin. Confirmed the localized 20-min break error renders on a >6h/0-break shift type — which surfaced F11 (the shared `FieldError` was dropping the string error) and validated the fix end-to-end. Prereq: the worktree's out-of-root `node_modules` symlinks were replaced with a real self-contained `pnpm install` so Turbopack (which rejects out-of-root symlinks) could boot.
 
 ### Ticket sync
 
