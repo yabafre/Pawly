@@ -1187,9 +1187,17 @@ two test-completeness gaps. All 5 retained findings were fixed inline and re-ver
   It hits the dev's pre-existing `useGeneration.ts:17` import equally, and the error code is TS2339 (stale
   type), not TS2345 (narrowing) — so F4's typing is sound. Resolves on a clean/CI build where api+validators
   rebuild together. Web is verified via Vitest (green), matching the story's Task 10 web-verification choice.
-- Visual verification: **deferred/waived** — React Grab MCP unavailable at 2026-07-20T14:10Z; Aria ran a full
-  static review (JSX guards, i18n FR/EN parity + accents, toast branch order, testids) and APPROVED; the
-  reason line is covered by DOM-level Vitest assertions. Waived by Alex.
+- Visual verification: **performed live (headed)** — React Grab MCP was unavailable, so the check was run via
+  `next-browser` (Vercel) in a real Chromium against the worktree build (web `next dev --webpack` on :3020 —
+  Turbopack panics on the worktree's root `node_modules` symlink escaping the FS root; API on :3001). Logged in
+  as an admin, reached `/admin/planning`, and injected a fallback `generationResult` into the `GenerationPanel`
+  React state (no template seeded → no live generation). Confirmed **in the real browser with the real fr.json
+  bundle** (not the Vitest key-echo): the served-engine badge renders "Moteur standard" with the reason line
+  below it — `infeasible` → "Le solveur n'a trouvé aucun planning valide — plan standard servi." and
+  `engine-unavailable` → "Le moteur de solveur est indisponible — plan standard servi." (correct accents/em
+  dash, `OUTCOME_MESSAGE_KEY` resolves live). Computed style confirms F5: reason line `font-size: 12px`
+  (`text-xs`), `max-width: 220px`, right-aligned, stacked under the badge — no layout regression. Page mounted
+  with zero runtime errors. Aria's prior static review (JSX guards, i18n parity, toast branch order) stands.
 
 ### Ticket sync
 - Ticket comment posted: YES (Linear KON-137)
