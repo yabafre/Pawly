@@ -414,6 +414,24 @@ export function findStatutoryViolations(
   return out;
 }
 
+/** True if any gap between consecutive merged busy intervals is under 11h. */
+function hasDailyRestDeficit(shifts: StatutoryShift[]): boolean {
+  const busy = mergedBusyIntervals(shifts);
+  for (let i = 0; i < busy.length - 1; i++) {
+    if (busy[i + 1][0] - busy[i][1] < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES)
+      return true;
+  }
+  return false;
+}
+
+/** Net worked minutes of the ISO week containing `date`, across `shifts`. */
+function weekWorkedMinutes(shifts: StatutoryShift[], date: string): number {
+  const wk = isoWeekStart(date);
+  return shifts
+    .filter((s) => isoWeekStart(s.date) === wk)
+    .reduce((sum, s) => sum + shiftNetMinutes(s), 0);
+}
+
 /**
  * INCREMENTAL check — which statutory limits adding `candidate` would breach for an
  * employee who already holds `windowShifts` (same employee). Only breaches INTRODUCED by
@@ -453,6 +471,19 @@ export function wouldExceedStatutory(
     kinds.push('DAILY_AMPLITUDE');
   }
 
+  // Mandatory break (L.3121-16) — candidate's day: > 6h net worked with < 20min break.
+  const breakBefore = dayBefore.reduce((s, x) => s + (x.breakMinutes ?? 0), 0);
+  const breakAfter = dayAfter.reduce((s, x) => s + (x.breakMinutes ?? 0), 0);
+  const breachAfter =
+    dayWorkedMinutes(dayAfter) >
+      FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+    breakAfter < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+  const breachBefore =
+    dayWorkedMinutes(dayBefore) >
+      FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+    breakBefore < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+  if (breachAfter && !breachBefore) kinds.push('MANDATORY_BREAK');
+
   // Consecutive days — only when the candidate adds a NEW worked day
   const datesBefore = new Set(windowShifts.map((s) => s.date));
   if (!datesBefore.has(candidate.date)) {
@@ -471,6 +502,20 @@ export function wouldExceedStatutory(
     !weekHasRestDeficit(windowShifts, wk, win)
   ) {
     kinds.push('WEEKLY_REST');
+  }
+
+  // Daily rest (L.3131-1) — introduced-by-candidate over the merged busy set.
+  if (hasDailyRestDeficit(withCandidate) && !hasDailyRestDeficit(windowShifts))
+    kinds.push('DAILY_REST');
+
+  // Absolute weekly ceiling (L.3121-20) — candidate's ISO week net minutes over 48h.
+  if (
+    weekWorkedMinutes(withCandidate, candidate.date) >
+      FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES &&
+    weekWorkedMinutes(windowShifts, candidate.date) <=
+      FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES
+  ) {
+    kinds.push('WEEKLY_CEILING');
   }
 
   return kinds;
