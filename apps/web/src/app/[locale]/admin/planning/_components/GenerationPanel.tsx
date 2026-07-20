@@ -43,6 +43,15 @@ import { useSubscription } from '@/lib/contexts/subscription-context';
 import type { GenerationResult } from '@pawly/validators';
 import type { ShiftData } from '@pawly/types';
 
+// Story 13-6 (KON-137) — map the solver outcome to its i18n key for the badge reason.
+const OUTCOME_MESSAGE_KEY: Record<string, string> = {
+  'engine-unavailable': 'engineUnavailable',
+  infeasible: 'infeasible',
+  'budget-exhausted': 'budgetExhausted',
+  'no-improvement': 'noImprovement',
+  'rejected-revalidation': 'rejectedRevalidation',
+};
+
 function getMonthOptions(locale: string) {
   const options: { value: string; label: string }[] = [];
   const now = new Date();
@@ -81,6 +90,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
   // engine resolves to greedy whenever the tier lock is on, so a stale checked
   // state can never leak cpsat into the request.
   const tEngine = useTranslations('admin.planningGeneration.engine');
+  const tOutcome = useTranslations('admin.planningGeneration.engine.solverOutcome');
   const { canAccessFeature } = useSubscription();
   const canUseCpsat = canAccessFeature('professional');
   const [exactEngine, setExactEngine] = useState(false);
@@ -349,17 +359,30 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
             </div>
           </div>
           {generationResult && (
-            <Badge
-              variant="outline"
-              data-testid="served-engine"
-              className={
-                generationResult.stats.engine === 'cpsat'
-                  ? 'text-xs font-medium px-2 py-0.5 border-primary/30 text-primary'
-                  : 'text-xs font-medium px-2 py-0.5'
-              }
-            >
-              {tEngine(generationResult.stats.engine === 'cpsat' ? 'servedCpsat' : 'servedGreedy')}
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge
+                variant="outline"
+                data-testid="served-engine"
+                className={
+                  generationResult.stats.engine === 'cpsat'
+                    ? 'text-xs font-medium px-2 py-0.5 border-primary/30 text-primary'
+                    : 'text-xs font-medium px-2 py-0.5'
+                }
+              >
+                {tEngine(
+                  generationResult.stats.engine === 'cpsat' ? 'servedCpsat' : 'servedGreedy'
+                )}
+              </Badge>
+              {generationResult.stats.solverOutcome &&
+                generationResult.stats.solverOutcome !== 'served' && (
+                  <span
+                    data-testid="solver-outcome-reason"
+                    className="text-[11px] text-muted-foreground text-right max-w-[220px]"
+                  >
+                    {tOutcome(OUTCOME_MESSAGE_KEY[generationResult.stats.solverOutcome])}
+                  </span>
+                )}
+            </div>
           )}
         </div>
 
