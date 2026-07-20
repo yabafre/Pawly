@@ -1,7 +1,7 @@
 # Story: 13-6-served-plan-truth-observability — Served-Plan Truthfulness & Solver Observability
 
 **Epic:** Epic 13 — Planning Integrity & Solver Fidelity
-**Status:** review
+**Status:** done
 **Branch:** feature/KON-137-13-6-served-plan-truth-observability
 **Ticket:** KON-137 (Linear · project Pawly · blocked by KON-135 [done], blocks KON-138)
 **Origin:** Audit findings T6 + T11 (2026-07-14) — `docs/triage-decision.md`. T6 = a served cpsat plan exposes the GREEDY plan's violation arrays; T11 = engine/status not metric'd, so a silent cpsat→greedy degradation is invisible in monitoring.
@@ -1125,3 +1125,72 @@ Note: one greedy-only NFR2 perf test (Story 11-9, `enableRepair:false`) intermit
 its 2000ms local budget under full-suite CPU contention but passes in isolation and under the
 documented 6000ms parallel (TURBO_HASH) budget — a pre-existing flake on the greedy path, which
 this cpsat-gated story cannot affect (invariant 6).
+
+## Review Record
+
+**Date:** 2026-07-20
+**Auditors:** Spec, Code, Edge & Hallucination, Aria (static — React Grab MCP unavailable)
+**Verdict:** done
+
+Adversarial review found the code correct on all three ACs (identifier hunt clean, invariants 6/7/2
+preserved, no `SolverInput` fixture churn) but surfaced one thematically-central observability gap and
+two test-completeness gaps. All 5 retained findings were fixed inline and re-verified RESOLVED (HIGH).
+
+### Findings
+
+#### Resolved
+- [MAJOR] Served-cpsat violation recompute failed silently — both `.catch` handlers swallowed the
+  error with no log, reverting to the pre-solver greedy arrays (the exact T6 lie) unseen, in an
+  observability story. [`planning-generation.service.ts:1011-1049`]
+  - Source: Code (MAJOR), Edge (MINOR, convergent)
+  - Resolution: `74fb2f9` — `logger.warn` on both catches (mirrors `getScheduleView`); an `else`
+    branch warns the served plan is reporting pre-solver violations; new failure-path test proves
+    warn fires, engine stays cpsat, no crash, no recomputed-value leak. Greedy-array fallback kept
+    (best-effort, avoids zeroing counts) but now observable.
+- [MAJOR] AC-3 contract field `stats.solverOutcome` unasserted for 2 of its 6 enumerated values
+  (`served`, `rejected-revalidation`) — a regression dropping either would pass every test.
+  [`planning-generation.service.spec.ts`]
+  - Source: Spec
+  - Resolution: `74fb2f9` — `toBe('served')` added to the real served-cpsat test (:8667);
+    `toBe('rejected-revalidation')` added to the AC6 replay-rejection test (:9128).
+- [MAJOR] `generatePlan`-level catch (unexpected `runSolverImprovePass` throw → `engine-unavailable`)
+  had zero coverage — distinct code path from the `ENGINE_UNAVAILABLE` status-mapping test.
+  [`planning-generation.service.ts:811-819`]
+  - Source: Spec
+  - Resolution: `74fb2f9` — new test spies `runSolverImprovePass` to reject, asserts
+    `solverOutcome==='engine-unavailable'` + the "solver pass failed" warn + no recompute (:8848-8879).
+- [NIT] `GenerationPanel.OUTCOME_MESSAGE_KEY` typed `Record<string,string>` (loose) vs the hook's
+  exhaustive typing → future enum growth would pass `undefined` to `tOutcome`. [`GenerationPanel.tsx:47`]
+  - Source: Spec, Edge, Aria (convergent)
+  - Resolution: `fda6669` — retyped `Record<Exclude<SolverOutcome,'served'>, string>` (mirrors the hook).
+- [NIT] Reason line `text-[11px]` off the design scale vs the adjacent `text-xs` hint. [`GenerationPanel.tsx:382`]
+  - Source: Aria
+  - Resolution: `fda6669` — `text-xs`.
+
+#### Dismissed
+- [NIT] Recompute latency excluded from the `duration` histogram but on the response critical path.
+  - Source: Edge
+  - Rationale: intentional — `duration` measures generation, not the post-transaction observability read.
+- [MINOR] Dev Agent Record's "all three ACs covered" slightly overstated AC-3 coverage.
+  - Source: Spec
+  - Rationale: mechanically resolved by F2; this Review Record is the correction of record.
+
+### Verification
+- Test commands (fresh, this review):
+  - `pnpm --filter @pawly/validators test planning-generation.schema` → **38 passed**
+  - `pnpm --filter @pawly/api test solver-engine.service planning-generation.service` (isolation) → **246 passed** (2 suites; +2 from F1/F3 tests)
+  - `pnpm --filter @pawly/web test generation useGeneration` → **40 passed** (3 files)
+  - `pnpm --filter @pawly/api exec tsc --noEmit` → clean (no `SolverOutcome`/service errors)
+- Known env artefact (not a code defect): `pnpm --filter @pawly/web exec tsc` reports `SolverOutcome`/
+  `solverOutcome` "does not exist" (TS2339) — this worktree resolves `@pawly/api` to the **main checkout**,
+  whose validators `dist` predates 13-6 and shadows the fresh worktree types (same Package ID `@0.0.0`).
+  It hits the dev's pre-existing `useGeneration.ts:17` import equally, and the error code is TS2339 (stale
+  type), not TS2345 (narrowing) — so F4's typing is sound. Resolves on a clean/CI build where api+validators
+  rebuild together. Web is verified via Vitest (green), matching the story's Task 10 web-verification choice.
+- Visual verification: **deferred/waived** — React Grab MCP unavailable at 2026-07-20T14:10Z; Aria ran a full
+  static review (JSX guards, i18n FR/EN parity + accents, toast branch order, testids) and APPROVED; the
+  reason line is covered by DOM-level Vitest assertions. Waived by Alex.
+
+### Ticket sync
+- Ticket comment posted: YES (Linear KON-137)
+- PR opened: https://github.com/yabafre/Pawly/pull/118 (draft, base `sprint/epic-13`)
