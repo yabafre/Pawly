@@ -9258,6 +9258,260 @@ describe('PlanningGenerationService', () => {
         expect(byDate.size).toBe(4);
         expect(new Set(byDate.values()).size).toBe(4);
       });
+
+      // ─── Story 13-5 (KON-135) — solver model fidelity (T5 + T7) ────────────────
+      // The depth-3 crossed-availability trap (emp-1/2/3 at a 4h/month cap ⇒ one
+      // SURGERY each) strands one Monday under greedy-alone, while a full feasible
+      // matching exists — so the solver's plan strictly beats greedy and is served.
+      // On top of it emp-4 carries a 2h survivor SURGERY (Tue 2026-03-03) against the
+      // same 4h cap: its monthly bound is deducted to 4h − 2h = 120, SHORTER than one
+      // 240-min slot, so the solver can never place emp-4. That makes emp-4 the pure
+      // model-fidelity probe (T5 deducted bound + T7 survivor shift-spread baseline)
+      // without perturbing the fill flip; emp-4 is confined to 03-02 so its capped
+      // presence never relaxes the critical 03-16 constraint.
+      const buildSurvivorMonthlyCapExample = () => {
+        mockTemplateService.getTemplateById.mockResolvedValue({
+          id: 'tpl-kon-135',
+          name: 'Monday VET surgery',
+          clinicId,
+          data: {
+            days: [
+              {
+                dayOfWeek: 1,
+                slots: [
+                  {
+                    shiftTypeCode: 'SURGERY',
+                    requiredStaff: 1,
+                    requiredJobTypes: ['VET'],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        mockClinicService.getOperationalConfig.mockResolvedValue({
+          ...mockOperationalConfig,
+          closedDays: [
+            { id: 'c1', date: '2026-03-23', reason: null },
+            { id: 'c2', date: '2026-03-30', reason: null },
+          ],
+        });
+        mockPrismaService.employee.findMany.mockResolvedValue([
+          {
+            id: 'emp-1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-2',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-3',
+            firstName: 'Carol',
+            lastName: 'Bernard',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+          {
+            id: 'emp-4',
+            firstName: 'Dan',
+            lastName: 'Robert',
+            jobType: 'VET',
+            contractHours: 35,
+          },
+        ]);
+        mockPlanningService.listRules.mockResolvedValue([
+          {
+            id: '44444444-4444-4444-4444-444444444444',
+            name: 'Max 4h/month',
+            category: 'CONTRACT_COMPLIANCE',
+            ruleType: 'HARD',
+            config: { maxMonthlyHours: 4, overtimeThresholdPercent: 0 },
+            priority: 10,
+          },
+        ]);
+        // Depth-3 crossed availabilities (emp-1/2/3) + emp-4 confined to 03-02.
+        mockPrismaService.unavailability.findMany.mockResolvedValue([
+          {
+            id: 'ua-1-mon2',
+            employeeId: 'emp-1',
+            type: 'VACATION',
+            startDate: new Date('2026-03-09'),
+            endDate: new Date('2026-03-09'),
+            daysOfWeek: [],
+          },
+          {
+            id: 'ua-2-mon3',
+            employeeId: 'emp-2',
+            type: 'VACATION',
+            startDate: new Date('2026-03-16'),
+            endDate: new Date('2026-03-16'),
+            daysOfWeek: [],
+          },
+          {
+            id: 'ua-3-mon1',
+            employeeId: 'emp-3',
+            type: 'VACATION',
+            startDate: new Date('2026-03-02'),
+            endDate: new Date('2026-03-02'),
+            daysOfWeek: [],
+          },
+          {
+            id: 'ua-3-mon3',
+            employeeId: 'emp-3',
+            type: 'VACATION',
+            startDate: new Date('2026-03-16'),
+            endDate: new Date('2026-03-16'),
+            daysOfWeek: [],
+          },
+          {
+            id: 'ua-4-mon2',
+            employeeId: 'emp-4',
+            type: 'VACATION',
+            startDate: new Date('2026-03-09'),
+            endDate: new Date('2026-03-09'),
+            daysOfWeek: [],
+          },
+          {
+            id: 'ua-4-mon3',
+            employeeId: 'emp-4',
+            type: 'VACATION',
+            startDate: new Date('2026-03-16'),
+            endDate: new Date('2026-03-16'),
+            daysOfWeek: [],
+          },
+        ]);
+        // Route ONLY the survivor query here. Its OR carries source/isConfirmed/
+        // varianceEvents predicates; the border-week load has no OR. The quarterly-
+        // rotation historical load (service.ts ~:1206) ALSO uses `where.OR`, but with
+        // `date`-range predicates only — so keying on bare `where.OR` truthiness would
+        // silently misroute a future quarterly fixture into the survivor branch
+        // (aped-review MINOR). Match the survivor OR shape explicitly instead; any
+        // other query (border, quarterly) falls through to the empty branch. emp-4's
+        // survivor is a 2h SURGERY on a Tuesday — off-template, so it consumes cap +
+        // equity load without covering any Monday demand.
+        const isSurvivorQuery = (where?: { OR?: unknown }): boolean =>
+          Array.isArray(where?.OR) &&
+          (where.OR as Array<Record<string, unknown>>).some(
+            (clause) =>
+              'source' in clause ||
+              'isConfirmed' in clause ||
+              'varianceEvents' in clause,
+          );
+        mockPrismaService.shift.findMany.mockImplementation(
+          ({ where }: { where?: { OR?: unknown } }) =>
+            isSurvivorQuery(where)
+              ? Promise.resolve([
+                  {
+                    employeeId: 'emp-4',
+                    date: new Date('2026-03-03'),
+                    startTime: '08:00',
+                    endTime: '10:00',
+                    shiftTypeCode: 'SURGERY',
+                    breakMinutes: 0,
+                    isConfirmed: true,
+                    source: 'MANUAL',
+                    employee: { jobType: 'VET' },
+                  },
+                ])
+              : Promise.resolve([]),
+        );
+        mockPrismaService.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) =>
+            fn({
+              $executeRaw: jest.fn().mockResolvedValue(0),
+              shift: {
+                findMany: jest.fn().mockResolvedValue([]),
+                deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+                createManyAndReturn: jest
+                  .fn()
+                  .mockImplementation(({ data }: { data: any[] }) =>
+                    data.map((d, i) => ({ id: `gen-${i}`, ...d })),
+                  ),
+              },
+            }),
+        );
+      };
+
+      it('AC-4 — the survivor baseline + shift spread reach the model the solver receives', async () => {
+        const solveSpy = jest.spyOn(solverEngine, 'solve');
+        buildSurvivorMonthlyCapExample();
+        await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-kon-135', {
+          engine: 'cpsat',
+        });
+
+        expect(solveSpy).toHaveBeenCalled();
+        const model = solveSpy.mock.calls[0][0];
+
+        // T5 — Dan's monthly bound is the 4h cap (240) minus his 2h survivor (120).
+        // Without the deduction it would sit at the raw 240 and let the solver place
+        // a full 240-min slot on him — tripping the real cap on replay.
+        const monthly = model.constraints.find(
+          (c) => c.kind === 'linearLe' && c.tag === 'monthly:emp-4',
+        );
+        expect(monthly).toBeDefined();
+        expect(monthly!.kind === 'linearLe' && monthly!.bound).toBe(240 - 120);
+
+        // T7a — the objective now carries a shift-spread term.
+        expect(model.objective.some((t) => t.tag === 'spread:shift')).toBe(
+          true,
+        );
+
+        // T7b — his survivor SURGERY is one shift, so the shift-spread fixed
+        // baseline is 1, not 0.
+        const shiftSpread = model.constraints.find(
+          (c) => c.kind === 'spread' && c.tag === 'spread:shift',
+        );
+        const dan =
+          shiftSpread?.kind === 'spread'
+            ? shiftSpread.perEmployee.find((p) => p.employeeId === 'emp-4')
+            : undefined;
+        expect(dan?.fixed).toBe(1);
+      });
+
+      it('AC-4 — serves a cpsat plan on the survivor + monthly-cap fixture', async () => {
+        buildSurvivorMonthlyCapExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-135',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        // With the deducted bound the solver's optimum survives replay and is served.
+        expect(result.stats.engine).toBe('cpsat');
+        expect(result.stats.holeCount).toBe(0);
+      });
+
+      it('AC-4 — two cpsat runs on the survivor fixture are deep-equal (determinism)', async () => {
+        buildSurvivorMonthlyCapExample();
+        const a = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-135',
+          {
+            enableRepair: false,
+            engine: 'cpsat',
+          },
+        );
+        buildSurvivorMonthlyCapExample();
+        const b = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-135',
+          {
+            enableRepair: false,
+            engine: 'cpsat',
+          },
+        );
+        expect(a.assignments).toEqual(b.assignments);
+        expect(a.stats).toEqual(b.stats);
+      });
     });
   });
 

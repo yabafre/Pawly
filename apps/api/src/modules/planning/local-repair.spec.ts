@@ -1,10 +1,12 @@
 import {
   equityObjective,
   computeLoads,
+  mergeEquityLoads,
   deriveEquityWeights,
   findEjectionChain,
   selectImprovingSwap,
   DEFAULT_EQUITY_WEIGHTS,
+  type EmployeeLoad,
   type RepairSlot,
   type RepairAssignment,
 } from './local-repair';
@@ -497,5 +499,83 @@ describe('selectImprovingSwap — equity hill-climb (AC2)', () => {
         employeeB: 'e2',
       });
     });
+  });
+});
+
+describe('mergeEquityLoads — survivor-aware acceptance gate (Story 13-5, T7/AC-2)', () => {
+  const load = (
+    shiftCount: number,
+    saturdayCount = 0,
+    weekendCount = 0,
+  ): EmployeeLoad => ({
+    saturdayCount,
+    weekendCount,
+    shiftCount,
+  });
+
+  it('an empty baseline is the identity — the gate reduces to survivor-blind', () => {
+    const generated = new Map<string, EmployeeLoad>([
+      ['a', load(3, 1, 2)],
+      ['b', load(1)],
+    ]);
+    const merged = mergeEquityLoads(new Map(), generated);
+    expect(merged).toEqual(generated);
+    // A fresh map with fresh entries — never the same references (no aliasing).
+    expect(merged).not.toBe(generated);
+    expect(merged.get('a')).not.toBe(generated.get('a'));
+  });
+
+  it('deep-copies baseline entries and mutates neither input', () => {
+    const baseline = new Map<string, EmployeeLoad>([['a', load(1, 1, 1)]]);
+    const generated = new Map<string, EmployeeLoad>([['a', load(5, 5, 5)]]);
+    const merged = mergeEquityLoads(baseline, generated);
+    expect(merged.get('a')).toEqual(load(6, 6, 6));
+    // Inputs are untouched — the helper is pure.
+    expect(baseline.get('a')).toEqual(load(1, 1, 1));
+    expect(generated.get('a')).toEqual(load(5, 5, 5));
+  });
+
+  it('sums survivor + generated per employee, seeding absent employees from zero', () => {
+    const baseline = new Map<string, EmployeeLoad>([['a', load(2, 1, 1)]]);
+    const generated = new Map<string, EmployeeLoad>([
+      ['a', load(1)],
+      ['b', load(3, 0, 1)], // 'b' has no survivor baseline
+    ]);
+    const merged = mergeEquityLoads(baseline, generated);
+    expect(merged.get('a')).toEqual(load(3, 1, 1));
+    expect(merged.get('b')).toEqual(load(3, 0, 1));
+  });
+
+  it('is LOAD-BEARING: a skewed survivor baseline flips which equal-fill plan the gate judges fairer (AC-2)', () => {
+    const weights = { saturday: 1, weekend: 1, shift: 1 };
+    // Two generated plans, SAME fill (2 shifts each) — so the gate decides on equity
+    // alone (candidate.length === greedyFilled). Distribution differs only.
+    const planA = new Map<string, EmployeeLoad>([
+      ['a', load(2)],
+      ['b', load(0)],
+    ]);
+    const planB = new Map<string, EmployeeLoad>([
+      ['a', load(1)],
+      ['b', load(1)],
+    ]);
+
+    // Survivor-blind (empty baseline): B is perfectly balanced, strictly fairer than A.
+    expect(equityObjective(planB, weights)).toBeLessThan(
+      equityObjective(planA, weights),
+    );
+
+    // But 'b' already carries 3 immovable survivor shifts. TOTAL load then makes A the
+    // fairer generated plan — A totals (a:2, b:3) vs B's (a:1, b:4). If the gate merged
+    // survivors wrongly (or not at all), it would still prefer B and REGRESS real
+    // fairness. The survivor-aware merge must reverse the verdict.
+    const survivors = new Map<string, EmployeeLoad>([['b', load(3)]]);
+    const totalA = equityObjective(mergeEquityLoads(survivors, planA), weights);
+    const totalB = equityObjective(mergeEquityLoads(survivors, planB), weights);
+    expect(totalA).toBeLessThan(totalB); // decision flipped: A now wins
+
+    // Determinism: same inputs → identical scalar, twice.
+    expect(equityObjective(mergeEquityLoads(survivors, planA), weights)).toBe(
+      totalA,
+    );
   });
 });
