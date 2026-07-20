@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { generateSlug } from '@/common/utils/slug';
@@ -10,6 +11,7 @@ import {
   STATUTORY_RULE_NAME,
   STATUTORY_RULE_CONFIG,
 } from '@/modules/planning/french-labor-law';
+import { shiftBreakRuleOk } from '@pawly/validators';
 import type {
   UpdateClinicNameInput,
   UpdateWorkDaysInput,
@@ -359,6 +361,35 @@ export class ClinicService {
     id: string,
     data: Omit<UpdateShiftTypeInput, 'id'>,
   ) {
+    // L.3121-16 (Story 13-4, aped-review F5) — a partial PATCH cannot be validated by the pure
+    // zod schema against the persisted row it does not carry. When the patch touches the workload
+    // (hours or break), re-read the row and validate the MERGED result so an edit can never leave a
+    // >6h-net / <20min-break type that generation and manual writes would then always reject.
+    if (
+      data.startTime !== undefined ||
+      data.endTime !== undefined ||
+      data.breakMinutes !== undefined
+    ) {
+      const existing = await this.prisma.clinicShiftType.findFirst({
+        where: { id, clinicId },
+      });
+      if (!existing) {
+        throw new NotFoundException(
+          `Shift type ${id} not found for this clinic`,
+        );
+      }
+      const merged = {
+        startTime: data.startTime ?? existing.startTime,
+        endTime: data.endTime ?? existing.endTime,
+        breakMinutes: data.breakMinutes ?? existing.breakMinutes,
+      };
+      if (!shiftBreakRuleOk(merged)) {
+        throw new BadRequestException(
+          'A shift over 6h worked requires at least a 20-minute break',
+        );
+      }
+    }
+
     try {
       const result = await this.prisma.clinicShiftType.updateMany({
         where: { id, clinicId },

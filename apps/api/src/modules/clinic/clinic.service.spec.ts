@@ -28,6 +28,9 @@ describe('ClinicService', () => {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
       create: jest.fn(),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     clinicClosedDay: {
       deleteMany: jest.fn(),
@@ -475,6 +478,82 @@ describe('ClinicService', () => {
           color: '#123456',
         },
       });
+    });
+  });
+
+  // Story 13-4 (KON-136), aped-review F5 — a partial PATCH cannot be validated by the pure zod
+  // schema against the persisted row, so updateSingleShiftType re-reads the row and validates the
+  // MERGED result. Two adversarially-reachable bypasses (widen hours w/o break; strip break) must
+  // be rejected server-side; a patch that does not touch the workload must not be blocked.
+  describe('updateSingleShiftType break garde-fou (aped-review F5)', () => {
+    const clinicId = 'clinic-upd';
+
+    it('rejects a patch that widens hours past 6h without supplying a break', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        clinicId,
+        startTime: '08:00',
+        endTime: '14:00', // legal now (6h net, 0 break)
+        breakMinutes: 0,
+      });
+      await expect(
+        service.updateSingleShiftType(clinicId, 'st-1', { endTime: '17:00' }),
+      ).rejects.toThrow(/20-minute break/);
+      expect(
+        mockPrismaService.clinicShiftType.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('rejects a patch that strips the break from an already >6h type', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-2',
+        clinicId,
+        startTime: '08:00',
+        endTime: '15:20', // 7h20 gross
+        breakMinutes: 20, // legal now (net 7h, 20 break)
+      });
+      await expect(
+        service.updateSingleShiftType(clinicId, 'st-2', { breakMinutes: 0 }),
+      ).rejects.toThrow(/20-minute break/);
+      expect(
+        mockPrismaService.clinicShiftType.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('accepts a name-only patch without re-reading or blocking (workload untouched)', async () => {
+      mockPrismaService.clinicShiftType.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaService.clinicShiftType.findUnique.mockResolvedValue({
+        id: 'st-3',
+      });
+      await service.updateSingleShiftType(clinicId, 'st-3', {
+        name: 'Renamed',
+      });
+      expect(
+        mockPrismaService.clinicShiftType.findFirst,
+      ).not.toHaveBeenCalled();
+      expect(mockPrismaService.clinicShiftType.updateMany).toHaveBeenCalled();
+    });
+
+    it('accepts a workload patch whose merged result is legal', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-4',
+        clinicId,
+        startTime: '08:00',
+        endTime: '15:00', // 7h gross
+        breakMinutes: 0,
+      });
+      mockPrismaService.clinicShiftType.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaService.clinicShiftType.findUnique.mockResolvedValue({
+        id: 'st-4',
+      });
+      await service.updateSingleShiftType(clinicId, 'st-4', {
+        breakMinutes: 20,
+      });
+      expect(mockPrismaService.clinicShiftType.updateMany).toHaveBeenCalled();
     });
   });
 
