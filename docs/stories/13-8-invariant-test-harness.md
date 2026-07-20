@@ -1,7 +1,7 @@
 # Story: 13-8-invariant-test-harness — Invariant Test Harness (Property-Based + End-to-End)
 
 **Epic:** Epic 13 — Planning Integrity & Solver Fidelity
-**Status:** ready-for-dev
+**Status:** review
 **Branch:** feature/KON-138-13-8-invariant-test-harness
 **Ticket:** KON-138 (Linear · project Pawly · blocked by KON-132 [13-3, done], KON-136 [13-4, done], KON-137 [13-6, done]) — Wave 4, the final Epic 13 story.
 **Origin:** Audit finding T12 (2026-07-14) — `docs/triage-decision.md`. The three fix waves added per-guard unit tests with their stories; T12 asks for the *systemic* net: property-based invariants over randomized inputs + one true router→service→solver→replay→transaction integration test, closing the router/service mock split.
@@ -35,7 +35,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — Add `fast-check` dev dependency + exclude the harness helper from the build** [AC: 3]
+- [x] **Task 1 — Add `fast-check` dev dependency + exclude the harness helper from the build** [AC: 3]
 
   `fast-check@3.23.2` is already resolved transitively in `pnpm-lock.yaml`; make it a direct devDependency of `@pawly/api`. In `apps/api/package.json`, inside the `devDependencies` block, add the line (keep alphabetical order — it sits between `eslint-plugin-prettier` and `globals`):
 
@@ -64,7 +64,7 @@
   Expected: prints a path ending in `…/node_modules/fast-check/lib/fast-check.js` (or similar), exit 0.
   Commit: `git add apps/api/package.json apps/api/tsconfig.build.json pnpm-lock.yaml && git commit -m "chore(KON-138): add fast-check devDep + exclude harness testutil from build"`
 
-- [ ] **Task 2 — Shared harness (`planning-harness.testutil.ts`) + property spec with P3 (determinism)** [AC: 1, 3]
+- [x] **Task 2 — Shared harness (`planning-harness.testutil.ts`) + property spec with P3 (determinism)** [AC: 1, 3]
 
   This is the foundational task: the harness must run the **real** `generateMonthlyPlan` (real `SolverEngineService`) end-to-end against a randomized fixture. It mirrors the proven mock scaffold in `planning-generation.service.spec.ts:165-293` (verbatim below in Dev Notes) and adds fast-check arbitraries + a fixture→mock mapper.
 
@@ -401,7 +401,7 @@
   Expected: `✓ P3 — same input twice yields deep-equal output (greedy & cpsat)`, `Tests: 1 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-harness.testutil.ts apps/api/src/modules/planning/planning-invariants.property.spec.ts && git commit -m "test(KON-138): property harness + determinism invariant (P3)"`
 
-- [ ] **Task 3 — Add P1 (statutory safety) to the property spec** [AC: 1]
+- [x] **Task 3 — Add P1 (statutory safety) to the property spec** [AC: 1]
 
   Add this `it` inside the same `describe` in `planning-invariants.property.spec.ts` (after P3). It independently re-evaluates the served plan — generated assignments are ≤6h with no break (menu is 4h), so `breakMinutes: 0` is exact:
 
@@ -452,7 +452,7 @@
   Expected: `✓ P1 — no served plan introduces a statutory violation (greedy & cpsat)`, `Tests: 2 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-invariants.property.spec.ts && git commit -m "test(KON-138): statutory-safety invariant (P1)"`
 
-- [ ] **Task 4 — Add P2 (improve-never-degrade) to the property spec** [AC: 1]
+- [x] **Task 4 — Add P2 (improve-never-degrade) to the property spec** [AC: 1]
 
   Add this `it` inside the same `describe` (after P1). cpsat is served only when strictly better, else greedy is served — so cpsat fill can never drop below greedy, and holes never increase:
 
@@ -479,7 +479,7 @@
   Expected: `✓ P2 — cpsat never degrades greedy (fill dominates, holes non-increasing)`, `Tests: 3 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-invariants.property.spec.ts && git commit -m "test(KON-138): improve-never-degrade invariant (P2)"`
 
-- [ ] **Task 5 — Integration test: real tRPC caller → real service → real solver → replay → transaction** [AC: 2]
+- [x] **Task 5 — Integration test: real tRPC caller → real service → real solver → replay → transaction** [AC: 2]
 
   Create `apps/api/src/modules/planning/planning-generation.integration.spec.ts`. It mounts the real `planningRouter` via `createCallerFactory`, injects the **real** `PlanningGenerationService` (built by the harness, with the **real** `SolverEngineService`) into the caller context, and drives `generatePlan({ engine: 'cpsat' })` through the whole path:
 
@@ -554,7 +554,7 @@
   Expected: `✓ drives cpsat generation through the tRPC caller into the transaction path`, `Tests: 1 passed`, exit 0.
   Commit: `git add apps/api/src/modules/planning/planning-generation.integration.spec.ts && git commit -m "test(KON-138): end-to-end tRPC→service→solver integration (AC-2)"`
 
-- [ ] **Task 6 — Reference doc for future engine work** [AC: 3]
+- [x] **Task 6 — Reference doc for future engine work** [AC: 3]
 
   Create `docs/reference/planning-invariant-harness.md` with this content:
 
@@ -613,7 +613,7 @@
   Expected: `OK`, exit 0.
   Commit: `git add docs/reference/planning-invariant-harness.md && git commit -m "docs(KON-138): planning invariant harness reference"`
 
-- [ ] **Task 7 — Regression: full planning suite + validators stay green** [AC: 1, 2, 3]
+- [x] **Task 7 — Regression: full planning suite + validators stay green** [AC: 1, 2, 3]
 
   Confirm nothing existing broke and the new specs pass alongside the suite.
 
@@ -701,16 +701,73 @@ _Expected files (created/modified by this story):_
 
 ## Dev Agent Record
 
-- **Model:**
-- **Started:**
-- **Completed:**
+- **Model:** claude-opus-4-8[1m]
+- **Started:** 2026-07-20T19:26:00Z
+- **Completed:** 2026-07-20T20:34:38Z
 
 ### Summary
 
-_(filled by aped-dev at completion)_
+Test-only harness that locks Epic 13's engine guarantees over the randomized input
+space. Three fast-check properties — P1 (statutory safety, via independent
+re-evaluation with `findStatutoryViolations`, never the SUT's self-report), P2
+(improve-never-degrade), P3 (determinism) — plus one true tRPC→service→solver→replay→
+transaction integration test that closes the router/service mock split. Zero production
+code changed. **The load-bearing rule was never triggered: no property surfaced a
+genuine engine violation** — every RED was a harness-wiring or fixture-arbitrary defect,
+fixed in the harness, never in the engine.
 
 ### Files changed
 
+- apps/api/package.json
+- apps/api/tsconfig.build.json
+- apps/api/src/modules/planning/planning-harness.testutil.ts
+- apps/api/src/modules/planning/planning-invariants.property.spec.ts
+- apps/api/src/modules/planning/planning-generation.integration.spec.ts
+- docs/reference/planning-invariant-harness.md
+- pnpm-lock.yaml
+
 ### Deviations
 
+- **`getTemplateById` mock shape** — the engine reads `template.data` (validated by
+  `templateDataSchema`), so `configureFixture` returns `{ id, name, data: f.template }`,
+  not the bare `TemplateData`. This is exactly the story's "CONFIRM SHAPES at first RED"
+  adjustment.
+- **`planningFixtureArb` per-day slot bound** — the verbatim `fc.subarray(codes, { …,
+  maxLength: 2 })` throws when a single-type menu is sampled (max length exceeds source
+  size). Capped `maxLength` at `base.shiftTypes.length`. Fixture-arbitrary defect, not an
+  engine violation.
+- **Integration spec superjson mock** — the real tRPC layer (`@/trpc/trpc`) pulls in
+  ESM-only `superjson`, which ts-jest won't transpile under `node_modules`. Added
+  `jest.mock('superjson', …)`, mirroring `planning.router.spec.ts`. The story's Dev Notes
+  only prescribed the trigger mock (copied from the service spec, which never imports the
+  tRPC layer).
+- **`HARNESS_TEMPLATE_ID` is now a valid UUID** — the real router's `generatePlanSchema`
+  requires `templateId` to be a UUID; the property specs bypass router validation so the
+  change is inert for them.
+- **Run-count ladder upgraded to 3 tiers** (`CI ? … : TURBO_HASH ? … : …`) to match the
+  established NFR2 budget pattern in `planning-generation.service.spec.ts` and the story's
+  own Dev Notes/reference doc; the verbatim task code shipped a 2-tier ladder.
+- **Worktree environment (non-code, ephemeral):** the fresh sprint worktree had no
+  `apps/*/node_modules` and an un-generated Prisma client, so setup required a de-symlinked
+  `pnpm install` + `prisma generate`, plus a manually re-linked `@esbuild/darwin-arm64@0.27.3`
+  binary (the install left esbuild resolving a mismatched 0.23.1 native binary → Vitest
+  "service was stopped"). None of this touches committed code.
+
 ### Test output
+
+```
+# Story specs (fresh, this session):
+pnpm --filter @pawly/api test src/modules/planning/planning-invariants.property.spec.ts src/modules/planning/planning-generation.integration.spec.ts
+  ✓ P3 — same input twice yields deep-equal output (greedy & cpsat)
+  ✓ P1 — no served plan introduces a statutory violation (greedy & cpsat)
+  ✓ P2 — cpsat never degrades greedy (fill dominates, holes non-increasing)
+  ✓ drives cpsat generation through the tRPC caller into the transaction path
+Test Suites: 2 passed, 2 total   Tests: 4 passed, 4 total
+
+# Full regression:
+pnpm --filter @pawly/api test src/modules/planning
+Test Suites: 20 passed, 20 total   Tests: 592 passed, 592 total
+
+pnpm --filter @pawly/validators test
+Test Files: 27 passed (27)   Tests: 793 passed (793)
+```
