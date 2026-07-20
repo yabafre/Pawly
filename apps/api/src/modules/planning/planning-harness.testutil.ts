@@ -17,7 +17,9 @@ import type { TemplateData } from '@pawly/validators';
 
 export const HARNESS_CLINIC_ID = 'clinic-123';
 export const HARNESS_MONTH = '2026-03';
-export const HARNESS_TEMPLATE_ID = 'tpl-harness';
+// Valid UUID so the tRPC generatePlanSchema (templateId: z.string().uuid()) accepts
+// it on the real router path (AC-2). The property specs bypass router validation.
+export const HARNESS_TEMPLATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 // Non-overlapping 4h shift-type menu: an employee may hold both on one day (8h < 10h,
 // no overlap) without ever tripping a statutory limit. Kept ≤6h so MANDATORY_BREAK
