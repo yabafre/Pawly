@@ -6,6 +6,7 @@ import { Field, FieldLabel, FieldError } from '@/components/ui/field';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { OnboardingForm } from '../OnboardingWizard';
+import { validateOnboardingShiftTypes } from './shift-types-validation';
 
 interface StepShiftTypesProps {
   form: OnboardingForm;
@@ -37,30 +38,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
       <form.Field
         name="shiftTypes"
         validators={{
-          onChange: ({ value }: { value: any[] }) => {
-            if (!value || value.length === 0) return t('minRequired');
-            const hasIncomplete = value.some(
-              (st) =>
-                !st.name?.trim() ||
-                !st.code?.trim() ||
-                !/^\d{2}:\d{2}$/.test(st.startTime) ||
-                !/^\d{2}:\d{2}$/.test(st.endTime) ||
-                st.endTime === st.startTime
-            );
-            if (hasIncomplete) return t('incompleteShiftType');
-            const hasBreakViolation = value.some((st) => {
-              const [sh, sm] = String(st.startTime).split(':').map(Number);
-              const [eh, em] = String(st.endTime).split(':').map(Number);
-              if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return false;
-              const start = sh * 60 + sm;
-              const end = eh * 60 + em;
-              const gross = end >= start ? end - start : 1440 - start + end;
-              const net = gross - (st.breakMinutes ?? 0);
-              return net > 360 && (st.breakMinutes ?? 0) < 20;
-            });
-            if (hasBreakViolation) return t('breakRequiredOver6h');
-            return undefined;
-          },
+          onChange: ({ value }: { value: any[] }) => validateOnboardingShiftTypes(value, t),
         }}
       >
         {(field: any) => (
