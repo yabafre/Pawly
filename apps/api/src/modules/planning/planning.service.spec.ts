@@ -1260,8 +1260,8 @@ describe('PlanningService', () => {
       ]);
       mockPrismaService.shift.findMany.mockResolvedValue(
         ['03', '04', '05', '06', '07'].map((d, i) =>
-          empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '17:00', 0),
-        ), // 5 x 9h = 45h > 40h (Mon-Fri, statutory-quiet — see note above)
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '17:20', 20),
+        ), // 5 x 9h net = 45h > 40h; the 20-min break keeps it statutory-clean under 13-4 (L.3121-16)
       );
       const res = await service.validateShiftsAgainstRules(clinicId, input);
       const monthly = res.softViolations.find(
