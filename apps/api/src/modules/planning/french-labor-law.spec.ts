@@ -265,7 +265,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
     const fifty = () =>
       // Mon–Sat 2026-03-02..07, 10h gross - 1h break = 9h net = 54h/week
       ['02', '03', '04', '05', '06', '07'].map((d) =>
-        day(`2026-03-${d}`, '08:00', '19:00', 60),
+        day(`2026-03-${d}`, '08:00', '18:00', 60),
       );
 
     it('findStatutoryViolations flags an ISO week over 48h net', () => {
@@ -279,12 +279,12 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
 
     it('wouldExceedStatutory flags the candidate that crosses 48h net', () => {
       const windowShifts = ['02', '03', '04', '05', '06'].map((d) =>
-        day(`2026-03-${d}`, '08:00', '19:00', 60),
+        day(`2026-03-${d}`, '08:00', '18:00', 60),
       ); // 5 * 9h = 45h
       expect(
         wouldExceedStatutory(
           windowShifts,
-          day('2026-03-07', '08:00', '19:00', 60),
+          day('2026-03-07', '08:00', '18:00', 60),
         ),
       ).toContain('WEEKLY_CEILING'); // 54h
     });

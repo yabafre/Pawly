@@ -102,6 +102,10 @@ function shiftEpoch(dateStr: string): number {
   return dayDiff(dateStr, EPOCH) * MIN_PER_DAY;
 }
 
+function epochMinuteToDate(absMinutes: number): string {
+  return addDays(EPOCH, Math.floor(absMinutes / MIN_PER_DAY));
+}
+
 function addDays(dateStr: string, delta: number): string {
   const date = new Date(`${dateStr}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + delta);
@@ -304,6 +308,21 @@ export function findStatutoryViolations(
         limit: FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES,
       });
     }
+    const totalBreak = dayShifts.reduce(
+      (sum, s) => sum + (s.breakMinutes ?? 0),
+      0,
+    );
+    if (
+      worked > FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+      totalBreak < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H
+    ) {
+      out.push({
+        kind: 'MANDATORY_BREAK',
+        date,
+        actual: totalBreak,
+        limit: FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H,
+      });
+    }
   }
 
   // Consecutive days — EVERY worked day beyond the max is itself a breach (the 7th, 8th, …),
@@ -353,6 +372,41 @@ export function findStatutoryViolations(
         date: wk,
         actual: Math.floor(best / 60),
         limit: FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS,
+      });
+    }
+  }
+
+  // Daily rest (L.3131-1) — every gap between consecutive merged busy intervals must be
+  // >= 11h. A shorter gap (cross-midnight OR intra-day split) is a deficit attributed to
+  // the day work RESUMED (the later interval's start). Cross-midnight aware via the merged
+  // absolute-minute intervals (Story 13-3's toAbsoluteInterval).
+  const busy = mergedBusyIntervals(shifts);
+  for (let i = 0; i < busy.length - 1; i++) {
+    const gap = busy[i + 1][0] - busy[i][1];
+    if (gap < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES) {
+      out.push({
+        kind: 'DAILY_REST',
+        date: epochMinuteToDate(busy[i + 1][0]),
+        actual: gap,
+        limit: FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES,
+      });
+    }
+  }
+
+  // Absolute weekly ceiling (L.3121-20) — net minutes per ISO week must not exceed 48h.
+  // Statutory: independent of any configured maxWeeklyHours. Attributed to ISO-week Monday.
+  const weekWorked = new Map<string, number>();
+  for (const s of shifts) {
+    const wk = isoWeekStart(s.date);
+    weekWorked.set(wk, (weekWorked.get(wk) ?? 0) + shiftNetMinutes(s));
+  }
+  for (const [wk, mins] of weekWorked) {
+    if (mins > FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES) {
+      out.push({
+        kind: 'WEEKLY_CEILING',
+        date: wk,
+        actual: mins,
+        limit: FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES,
       });
     }
   }
