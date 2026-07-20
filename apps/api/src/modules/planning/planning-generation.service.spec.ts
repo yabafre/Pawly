@@ -23,6 +23,7 @@ import { SolverEngineService } from './solver-engine.service';
 // cpsat fixed baseline excludes purely-statutory cross-month days.
 import * as solverModel from './solver-model';
 import { PrismaService } from '@/prisma/prisma.service';
+import { planningGenerationDuration } from '@/common/metrics';
 import { ClinicService } from '@/modules/clinic/clinic.service';
 import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
@@ -8619,6 +8620,190 @@ describe('PlanningGenerationService', () => {
     // availabilities. Greedy ALONE (enableRepair: false) strands the third Monday;
     // a full feasible assignment exists — exactly what the solver must find.
     describe('cp-sat improve pass (KON-129)', () => {
+      // Story 13-6 (KON-137) — the served cpsat path recomputes violations via
+      // validateShiftsAgainstRules; give it a benign default so the KON-129 tests
+      // (which don't assert violations) stay green. getCountersForPeriod already
+      // defaults to [] in the outer beforeEach (line 269).
+      beforeEach(() => {
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue({
+          hardViolations: [],
+          softViolations: [],
+          rules: [],
+        });
+      });
+
+      it('AC-1 — recomputes served violations from validateShiftsAgainstRules, not the greedy arrays (T6)', async () => {
+        buildDepth3CounterExample();
+        const recomputed = {
+          hardViolations: [] as never[],
+          softViolations: [
+            {
+              ruleId: '11111111-1111-1111-1111-111111111111',
+              ruleName: 'Recomputed for served plan',
+              category: 'ROTATION_EQUITY',
+              message: 'served-plan soft violation',
+              affectedEmployeeId: undefined,
+              affectedDate: undefined,
+              severity: 'warning' as const,
+            },
+          ],
+          rules: [],
+        };
+        mockPlanningService.validateShiftsAgainstRules.mockResolvedValue(
+          recomputed,
+        );
+
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+
+        expect(result.stats.engine).toBe('cpsat');
+        // The served plan carries the RECOMPUTED soft violation, evaluated over the
+        // persisted schedule for the generated month.
+        expect(
+          mockPlanningService.validateShiftsAgainstRules,
+        ).toHaveBeenCalledWith(
+          clinicId,
+          expect.objectContaining({
+            startDate: expect.stringContaining('2026-03-01'),
+            endDate: expect.stringContaining('2026-03-31'),
+          }),
+          expect.any(Object),
+        );
+        expect(result.violations.soft).toHaveLength(1);
+        expect(result.violations.soft[0].ruleName).toBe(
+          'Recomputed for served plan',
+        );
+        expect(result.stats.softWarningCount).toBe(1);
+      });
+
+      it('AC-1 — greedy path does NOT recompute (byte-identical default, invariant 6)', async () => {
+        buildDepth3CounterExample();
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false }, // no engine → greedy
+        );
+        expect(result.stats.engine).toBe('greedy');
+        // generateMonthlyPlan never calls validateShiftsAgainstRules on the greedy path.
+        expect(
+          mockPlanningService.validateShiftsAgainstRules,
+        ).not.toHaveBeenCalled();
+        expect(result.stats.solverOutcome).toBeUndefined();
+      });
+
+      it('AC-2 — records requested_engine / served_engine / solver_status on the metric (T11)', async () => {
+        buildDepth3CounterExample();
+        const recordSpy = jest.spyOn(planningGenerationDuration, 'record');
+
+        await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-kon-128', {
+          enableRepair: false,
+          engine: 'cpsat',
+        });
+
+        expect(recordSpy).toHaveBeenCalledWith(
+          expect.any(Number),
+          expect.objectContaining({
+            requested_engine: 'cpsat',
+            served_engine: 'cpsat',
+            solver_status: 'served',
+          }),
+        );
+        recordSpy.mockRestore();
+      });
+
+      it('AC-2 — greedy request records solver_status not-requested (T11)', async () => {
+        buildDepth3CounterExample();
+        const recordSpy = jest.spyOn(planningGenerationDuration, 'record');
+
+        await service.generateMonthlyPlan(clinicId, '2026-03', 'tpl-kon-128', {
+          enableRepair: false,
+        });
+
+        expect(recordSpy).toHaveBeenCalledWith(
+          expect.any(Number),
+          expect.objectContaining({
+            requested_engine: 'greedy',
+            served_engine: 'greedy',
+            solver_status: 'not-requested',
+          }),
+        );
+        recordSpy.mockRestore();
+      });
+
+      it('AC-3 — solverOutcome "no-improvement" when the solver does not beat greedy', async () => {
+        buildDepth3CounterExample();
+        // A FEASIBLE result identical to greedy → not strictly better → greedy served.
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'FEASIBLE',
+          chosenVarNames: new Set(),
+        });
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.solverOutcome).toBe('no-improvement');
+      });
+
+      it('AC-3 — solverOutcome "infeasible" when the solver proves no schedule', async () => {
+        buildDepth3CounterExample();
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'INFEASIBLE',
+          chosenVarNames: new Set(),
+        });
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.solverOutcome).toBe('infeasible');
+      });
+
+      it('AC-3 — solverOutcome "budget-exhausted" on UNKNOWN', async () => {
+        buildDepth3CounterExample();
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'UNKNOWN',
+          chosenVarNames: new Set(),
+        });
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.solverOutcome).toBe('budget-exhausted');
+      });
+
+      it('AC-3 — solverOutcome "engine-unavailable" when the engine cannot load (Node < 22.12 class)', async () => {
+        buildDepth3CounterExample();
+        jest.spyOn(solverEngine, 'solve').mockResolvedValueOnce({
+          status: 'ENGINE_UNAVAILABLE',
+          chosenVarNames: new Set(),
+        });
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.solverOutcome).toBe('engine-unavailable');
+        // No recompute when greedy is served.
+        expect(
+          mockPlanningService.validateShiftsAgainstRules,
+        ).not.toHaveBeenCalled();
+      });
+
       // AC1 (verbatim from story 12-1): "Given engine: 'cpsat' on a month where
       // greedy+repair strands >= 1 hole while a fuller feasible assignment exists,
       // When generation runs, Then the served plan has strictly fewer holes,
