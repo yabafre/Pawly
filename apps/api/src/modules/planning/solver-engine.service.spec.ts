@@ -43,6 +43,8 @@ describe('SolverEngineService (KON-129)', () => {
     ],
     unavailable: new Map([['b', new Set(['2026-08-05'])]]),
     fixedWeeklyMinutes: new Map(),
+    fixedMonthlyMinutes: new Map(),
+    fixedEquityLoads: new Map(),
     fixedDailyMinutes: new Map(),
     fixedWorkedDates: new Map(),
     fixedRotationCounts: new Map(),
