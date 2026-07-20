@@ -22,11 +22,11 @@
 
 ## Acceptance Criteria
 
-1. **Given** an employee whose merged busy intervals leave a gap under 11 consecutive hours between two work blocks (L.3131-1) — across midnight or within a day — **When** the engine evaluates a generation candidate, a manual create, or a manual move, or the publish gate re-validates the month, **Then** a `DAILY_REST` statutory HARD violation is raised (incremental paths block the write; publish surfaces it on the Health Bar), computed on `mergedBusyIntervals` and cross-midnight aware.
-2. **Given** an employee whose ISO week would exceed 48h **net** worked (L.3121-20), **When** any of the same paths evaluate it, **Then** a `WEEKLY_CEILING` HARD violation is raised **regardless of admin configuration** — the statutory ceiling wins over `maxWeeklyHours` × tolerance, and `rule-engine.ts` is unchanged.
-3. **Given** a day with more than 6h **net** worked and a cumulative `breakMinutes` under 20 (L.3121-16), **When** generation, a manual edit, or publish evaluates it, **Then** a `MANDATORY_BREAK` HARD (blocking) violation is raised.
-4. **Given** a clinic with zero configured planning rules, **When** any statutory path runs, **Then** the three new limits still apply (hard-coded in `french-labor-law.ts`, non-disableable); **and** the onboarding-seeded "French labor-law limits" rule lists them for visibility (`STATUTORY_RULE_CONFIG` + description + editable schema keys); **and** they are covered by unit + generation tests.
-5. **Given** an admin defining a shift type in onboarding or in settings whose net worked time (`end − start` with overnight wrap, minus break) exceeds 6h with a break under 20 min, **When** they submit, **Then** the shift type is rejected by the shared zod schema (both paths); **and** the onboarding step surfaces a localized error; **and** an in-bounds shift type (≤ 6h net, or ≥ 20 min break) is still accepted.
+1. **Given** an employee left with under 11 consecutive hours of rest between two worked periods (L.3131-1) — the gap falling across midnight or within a day — **When** the roster is generated, a shift is created or moved manually, or the month is re-validated for publication, **Then** the write is blocked (generation / manual paths) or the deficit is reported as a statutory HARD violation on the Planning Health Bar (publish).
+2. **Given** an employee whose ISO week would exceed 48 hours of effective (break-deducted) work (L.3121-20), **When** any of those same paths evaluate it, **Then** it is blocked as a statutory HARD violation regardless of how the clinic's weekly-hours rule or overtime tolerance is configured — the legal ceiling always wins.
+3. **Given** a day with more than 6 hours of effective work and less than a 20-minute total break (L.3121-16), **When** generation, a manual edit, or publication evaluates it, **Then** it is reported as a blocking statutory HARD violation.
+4. **Given** a clinic with no configured planning rules, **When** any statutory path runs, **Then** all three new limits still apply and cannot be disabled; **and** the admin sees them listed on the default "French labor-law limits" rule seeded at onboarding; **and** they are covered by unit and generation tests.
+5. **Given** an admin defining a shift type (in onboarding or in settings) whose effective worked time exceeds 6 hours with under a 20-minute break, **When** they submit, **Then** the shift type is rejected; **and** the onboarding step shows a localized error explaining the break requirement; **and** a shift type within the limit (≤ 6h effective, or ≥ 20-minute break) is still accepted.
 
 ## Tasks
 
@@ -99,9 +99,36 @@
     | 'CONSECUTIVE_DAYS';
   ```
 
+  **This breaks two existing constant tests** (`french-labor-law.spec.ts:24-38` asserts `STATUTORY_RULE_CONFIG` by exact `toEqual` and the constant count). Replace that `describe('french-labor-law constants', …)` block with:
+  ```ts
+  describe('french-labor-law constants', () => {
+    it('exposes the seven statutory limits', () => {
+      expect(FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES).toBe(600);
+      expect(FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES).toBe(780);
+      expect(FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES).toBe(660);
+      expect(FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES).toBe(2880);
+      expect(FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H).toBe(20);
+      expect(FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES).toBe(360);
+      expect(FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS).toBe(35);
+      expect(FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS).toBe(6);
+    });
+    it('STATUTORY_RULE_CONFIG mirrors the constants', () => {
+      expect(STATUTORY_RULE_CONFIG).toEqual({
+        maxDailyHours: 10,
+        maxDailyAmplitudeHours: 13,
+        minDailyRestHours: 11,
+        maxWeeklyStatutoryHours: 48,
+        minBreakMinutesOver6h: 20,
+        minWeeklyRestHours: 35,
+        maxConsecutiveWorkDays: 6,
+      });
+    });
+  });
+  ```
+
   Run: `pnpm --filter @pawly/api test -- french-labor-law`
-  Expected: still green (no behavioural change yet); this is a compile-safe scaffold step. `Tests: N passed`, exit 0.
-  Commit: `git add apps/api/src/modules/planning/french-labor-law.ts && git commit -m "feat(KON-136): add 11h rest / 48h ceiling / 20min break statutory constants"`
+  Expected: the updated `french-labor-law constants` block is green; the rest of the file is unaffected (no behavioural change yet). `Tests: N passed`, exit 0.
+  Commit: `git add apps/api/src/modules/planning/french-labor-law.ts apps/api/src/modules/planning/french-labor-law.spec.ts && git commit -m "feat(KON-136): add 11h rest / 48h ceiling / 20min break statutory constants"`
 
 ---
 
@@ -223,7 +250,7 @@
   ```
 
   Run: `pnpm --filter @pawly/api test -- french-labor-law`
-  Expected: RED — new `describe('Story 13-4 …')` assertions fail (`DAILY_REST`/`WEEKLY_CEILING`/`MANDATORY_BREAK` not emitted). Existing tests stay green.
+  Expected: RED — the new `describe('Story 13-4 (KON-136) — statutory extensions')` assertions fail (`DAILY_REST`/`WEEKLY_CEILING`/`MANDATORY_BREAK` not emitted). Existing tests stay green. (The module already exports a `shift(date, startTime, endTime, breakMinutes)` helper at file top; the local `day()` above is scoped to this describe and does not collide.)
   Commit: `git add apps/api/src/modules/planning/french-labor-law.spec.ts && git commit -m "test(KON-136): RED specs for 11h rest / 48h ceiling / 20min break"`
 
 ---
@@ -407,38 +434,61 @@
 
 ---
 
-- [ ] **Task 6 — Publish/Health-Bar coverage for the new kinds** (`planning.service.spec.ts`) [AC: 1, 2, 3]
+- [ ] **Task 6 — Publish/Health-Bar coverage for the new kinds** (`planning.service.spec.ts`) [AC: 1, 3, 4]
 
-  Append to `apps/api/src/modules/planning/planning.service.spec.ts` a test that drives `validateShiftsAgainstRules` (or the existing statutory harness in that file — reuse the same setup the existing `violations.statutory.dailyWork` test uses) with an employee whose loaded month shows: (a) a Sat→Mon 8h gap → `DAILY_REST`; (b) a 54h ISO week → `WEEKLY_CEILING`; (c) a 7h/0-break day → `MANDATORY_BREAK`. Assert each produces a `hardViolations` entry with the right `messageKey` and that a `WEEKLY_CEILING` whose week only intersects the published range at the boundary is kept.
+  `validateShiftsAgainstRules(clinicId, input)` is public; the file's top-level harness already provides `service`, `clinicId = 'clinic-123'`, and `mockPrismaService` with `planningRule.findMany` + `shift.findMany`. It calls `shift.findMany` twice (the month range, then the ±8-day statutory window) — a single `mockResolvedValue` covers both. Append this `describe` inside the top-level `describe('PlanningService', …)` (e.g. after the `getRuleById` block):
 
   ```ts
   describe('Story 13-4 (KON-136) — statutory extensions surface on publish', () => {
-    it('emits dailyRest / weeklyCeiling / mandatoryBreak hard violations with messageKeys', async () => {
-      // Reuse the file's existing statutory fixture builder; the exact harness name
-      // is in the neighbouring 'violations.statutory.dailyWork' test above.
-      const { hardViolations } = await runStatutoryFixture([
-        // Sat 22:00 -> Mon 06:00 is a > 24h gap (rest OK); use a Mon->Tue 8h gap instead:
-        { date: '2026-03-02', startTime: '14:00', endTime: '22:00', breakMinutes: 0 },
-        { date: '2026-03-03', startTime: '06:00', endTime: '15:00', breakMinutes: 0 },
+    it('emits dailyRest + mandatoryBreak hard violations with messageKeys, zero rules', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // zero configured rules
+      // emp-1: Mon 14:00-22:00 then Tue 06:00-15:00 -> 8h rest (DAILY_REST on Tue);
+      // Tue is 9h net / 0 break (MANDATORY_BREAK). Both fall inside the published month.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '14:00',
+          endTime: '22:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+        {
+          date: new Date('2026-03-03T00:00:00.000Z'),
+          startTime: '06:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
       ]);
+
+      const { hardViolations } = await service.validateShiftsAgainstRules(
+        clinicId,
+        {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T00:00:00.000Z',
+        },
+      );
+
       const keys = hardViolations.map((v) => v.messageKey);
-      expect(keys).toContain('violations.statutory.dailyRest'); // 8h gap
-      expect(keys).toContain('violations.statutory.mandatoryBreak'); // Tue 9h/0-break
+      expect(keys).toContain('violations.statutory.dailyRest');
+      expect(keys).toContain('violations.statutory.mandatoryBreak');
     });
   });
   ```
 
-  > **Dev note for this task:** open the file first and reuse its existing statutory-fixture helper and Prisma mock shape (the placeholder `runStatutoryFixture` above stands in for it). Match the `reportRange` so the violations fall inside it. If the file has no reusable helper, mirror the setup of the nearest existing `evaluateStatutoryLimits`/`validateShiftsAgainstRules` test verbatim.
+  > **Note:** `WEEKLY_CEILING` shares the exact same publish path (`findStatutoryViolations` → `violationInPublishedRange` → `statutoryToHardViolation`); its per-week logic and the ISO-week range filter are proven by the unit test (Task 2) — a 6-day fixture here would only re-prove the shared wiring.
 
   Run: `pnpm --filter @pawly/api test -- planning.service`
   Expected: `Tests: N passed`, exit 0.
-  Commit: `git add apps/api/src/modules/planning/planning.service.spec.ts && git commit -m "test(KON-136): publish surfaces daily-rest / weekly-ceiling / mandatory-break"`
+  Commit: `git add apps/api/src/modules/planning/planning.service.spec.ts && git commit -m "test(KON-136): publish surfaces daily-rest + mandatory-break"`
 
 ---
 
 - [ ] **Task 7 — Seeded-rule visibility: config schema + description** (`planning-rule.schema.ts`, `clinic.service.ts`) [AC: 4]
 
-  In `packages/validators/src/planning/planning-rule.schema.ts`, add the three visibility-only optional keys to `contractComplianceConfigSchema` (after line 62, inside the `.object({...})`):
+  In `packages/validators/src/planning/planning-rule.schema.ts`, add the three visibility-only optional keys to `contractComplianceConfigSchema` (after line 62, inside the object literal that precedes the `.refine`):
   ```ts
       minDailyRestHours: z.number().min(1).max(24).optional(),
       maxWeeklyStatutoryHours: z.number().min(1).max(168).optional(),
@@ -681,29 +731,51 @@
 
 ---
 
-- [ ] **Task 12 — Generation-level proof (AC-4)** (`planning-generation.service.spec.ts`) [AC: 1, 2, 3, 4]
+- [ ] **Task 12 — Generation-level proof (AC-4)** (`planning-generation.service.spec.ts`) [AC: 1, 4]
 
-  Append a test to `apps/api/src/modules/planning/planning-generation.service.spec.ts` proving a generation candidate that would breach a NEW statutory limit is excluded, with **zero** configured planning rules (invariant 4 — the seeded rule is visibility-only; enforcement is hard-coded). Reuse the file's existing generation harness; key the `shift.findMany` mock on the `where` predicate shape (`date.gte`+`date.lte` = the ±8-day statutory window, `date.in` = border, `OR` = survivors — memory `generation-test-assignments-mock`, and 13-2's Dev Notes). Assert the employee holding an adjacent shift that leaves < 11h rest is NOT assigned the conflicting slot.
+  This file's `describe('scoreAndAssign', …)` block drives eligibility directly through the `callScore(slot, employees, constraints, alreadyAssigned, assignmentIndex, employeeMinutes)` helper. Generation's statutory guard (`evaluateEligibility` step 5) builds its ±8-day window from `assignmentIndex.get('${emp.id}|${date}')` and calls `wouldExceedStatutory`. So seeding `assignmentIndex` with a prior-day shift that leaves < 11h rest excludes the employee — with **zero** hard rules (invariant 4: enforcement is hard-coded, not the seeded rule). Add this test inside that `describe('scoreAndAssign', …)`, mirroring the `mkIdxShift` / `idx` pattern the neighbouring "Story 13-2 M2" test uses:
 
   ```ts
-  it('Story 13-4 (KON-136): excludes a candidate that would break 11h daily rest, zero rules', async () => {
-    // Employee already worked 2026-03-02 14:00–22:00; the 2026-03-03 06:00 slot leaves 8h rest.
-    // With NO planning rules configured, the hard-coded statutory net must still exclude it.
-    // (Wire the statutory-window findMany load to return the 2026-03-02 shift; assert the
-    // generated assignments do not contain emp on the 2026-03-03 early slot.)
-    const result = await generateForFixture(/* … reuse harness; see neighbouring tests */);
-    const early = result.assignments.find(
-      (a) => a.date === '2026-03-03' && a.employeeId === 'emp-rest' && a.startTime === '06:00',
+  it('Story 13-4 (KON-136) — excludes an employee whose 11h daily rest would break, zero rules', () => {
+    const slot = {
+      date: '2026-03-02',
+      shiftTypeCode: 'DAY',
+      startTime: '06:00',
+      endTime: '14:00',
+      requiredStaff: 1,
+    };
+    const employees = [
+      { id: 'emp-rest', firstName: 'R', lastName: 'R', jobType: 'VET', contractHours: 35 },
+    ];
+    const mkIdxShift = (employeeId: string, date: string) => ({
+      employeeId,
+      date,
+      startTime: '14:00',
+      endTime: '22:00',
+      shiftTypeCode: 'DAY',
+      breakMinutes: 0,
+    });
+    // emp-rest worked the previous day 14:00-22:00; the 06:00 slot leaves only 8h rest.
+    const idx = new Map<string, ReturnType<typeof mkIdxShift>[]>([
+      ['emp-rest|2026-03-01', [mkIdxShift('emp-rest', '2026-03-01')]],
+    ]);
+    const result: ScoreAndAssignResult = callScore(
+      slot,
+      employees,
+      baseConstraints,
+      [],
+      idx,
+      new Map(),
     );
-    expect(early).toBeUndefined();
+    expect(result.assigned.map((a) => a.employeeId)).not.toContain('emp-rest');
   });
   ```
 
-  > **Dev note:** the placeholder `generateForFixture` stands in for the file's real harness — open the file, copy the nearest `generatePlan`/eligibility test's setup verbatim, and use the predicate-routed `shift.findMany` mock (never call-order). `result.assignments` derives from `createManyAndReturn` — echo the persisted `data`, do not `mockResolvedValue([])` (memory `generation-test-assignments-mock`). Run the FULL generation suite, not just the new case.
+  > **Note:** `baseConstraints`, `callScore`, and `ScoreAndAssignResult` already exist in this file (the scoreAndAssign helper block ~line 647). Run the FULL generation suite — the byte-identical greedy default (invariant 6) must stay green.
 
   Run: `pnpm --filter @pawly/api test -- planning-generation.service`
   Expected: `Tests: N passed`, exit 0.
-  Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-136): generation excludes candidates breaching new statutory limits"`
+  Commit: `git add apps/api/src/modules/planning/planning-generation.service.spec.ts && git commit -m "test(KON-136): generation excludes a candidate breaching 11h daily rest"`
 
 ---
 
