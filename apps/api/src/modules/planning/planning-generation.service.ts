@@ -1011,7 +1011,14 @@ export class PlanningGenerationService {
     if (servedEngine === 'cpsat') {
       const equityCounters = await this.equityCounterService
         .getCountersForPeriod(clinicId, year, [monthNum])
-        .catch(() => [] as CounterWithEmployee[]);
+        .catch(() => {
+          // Story 13-6 (KON-137) — log so a recompute-input failure is visible; the
+          // recompute degrades to equity-blind rules rather than crashing generation.
+          this.logger.warn(
+            'KON-137 served-plan recompute: failed to fetch equity counters',
+          );
+          return [] as CounterWithEmployee[];
+        });
       const revalidated = await this.planningService
         .validateShiftsAgainstRules(
           clinicId,
@@ -1028,6 +1035,16 @@ export class PlanningGenerationService {
       if (revalidated) {
         servedHard = revalidated.hardViolations;
         servedSoft = revalidated.softViolations;
+      } else {
+        // Story 13-6 (KON-137, T6) — the recompute is the served plan's truth source. If
+        // it fails, we keep the greedy arrays as a best-effort estimate (do NOT crash the
+        // whole generation), but this is an OBSERVABILITY story: a silent revert to the
+        // pre-solver arrays would re-introduce the exact T6 lie unseen. Warn so a persistent
+        // recompute failure is alertable alongside solver_status (aped-review F1).
+        this.logger.warn(
+          'KON-137 served-plan recompute: validateShiftsAgainstRules failed — ' +
+            'reporting pre-solver (greedy) violations for the served cpsat plan',
+        );
       }
     }
 

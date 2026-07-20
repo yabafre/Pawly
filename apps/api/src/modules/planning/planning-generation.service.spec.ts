@@ -8661,6 +8661,10 @@ describe('PlanningGenerationService', () => {
         );
 
         expect(result.stats.engine).toBe('cpsat');
+        // aped-review F2 — assert the CONTRACT field, not only the metric attribute: a
+        // served cpsat plan carries solverOutcome === 'served'. A regression dropping this
+        // (setting only servedEngine) would otherwise pass every test.
+        expect(result.stats.solverOutcome).toBe('served');
         // The served plan carries the RECOMPUTED soft violation, evaluated over the
         // persisted schedule for the generated month.
         expect(
@@ -8694,6 +8698,43 @@ describe('PlanningGenerationService', () => {
           mockPlanningService.validateShiftsAgainstRules,
         ).not.toHaveBeenCalled();
         expect(result.stats.solverOutcome).toBeUndefined();
+      });
+
+      it('AC-1 — a recompute failure keeps greedy violations but logs a warn (observable, aped-review F1)', async () => {
+        buildDepth3CounterExample();
+        // The served-plan truth source (validateShiftsAgainstRules) fails at recompute
+        // time — e.g. a transient DB error. In an OBSERVABILITY story this must NOT be a
+        // silent revert to the pre-solver (greedy) arrays; it must warn.
+        mockPlanningService.validateShiftsAgainstRules.mockRejectedValueOnce(
+          new Error('DB unavailable'),
+        );
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
+
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+
+        // Still served by cpsat; generation does NOT crash on a recompute failure.
+        expect(result.stats.engine).toBe('cpsat');
+        // The recompute was attempted...
+        expect(
+          mockPlanningService.validateShiftsAgainstRules,
+        ).toHaveBeenCalled();
+        // ...and its failure is now visible, not silent.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('validateShiftsAgainstRules failed'),
+        );
+        // Falls back to the pre-solver (greedy) arrays — the never-returned recomputed
+        // 'Recomputed for served plan' entry must not leak in.
+        expect(
+          result.violations.soft.every(
+            (v) => v.ruleName !== 'Recomputed for served plan',
+          ),
+        ).toBe(true);
+        warnSpy.mockRestore();
       });
 
       it('AC-2 — records requested_engine / served_engine / solver_status on the metric (T11)', async () => {
@@ -8802,6 +8843,40 @@ describe('PlanningGenerationService', () => {
         expect(
           mockPlanningService.validateShiftsAgainstRules,
         ).not.toHaveBeenCalled();
+      });
+
+      it('AC-3 — an unexpected throw in the improve pass surfaces as engine-unavailable (generatePlan catch, aped-review F3)', async () => {
+        buildDepth3CounterExample();
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
+        // A throw here means the pass could not be used at all (distinct from solve()
+        // returning ENGINE_UNAVAILABLE). The generatePlan-level catch must still bucket it
+        // as engine-unavailable so the fleet metric alerts, not leave solverOutcome unset.
+        jest
+          .spyOn(
+            service as unknown as {
+              runSolverImprovePass: (...args: unknown[]) => Promise<unknown>;
+            },
+            'runSolverImprovePass',
+          )
+          .mockRejectedValue(new Error('unexpected pass failure'));
+
+        const result = await service.generateMonthlyPlan(
+          clinicId,
+          '2026-03',
+          'tpl-kon-128',
+          { enableRepair: false, engine: 'cpsat' },
+        );
+
+        expect(result.stats.engine).toBe('greedy');
+        expect(result.stats.solverOutcome).toBe('engine-unavailable');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('solver pass failed'),
+        );
+        // greedy served → no recompute runs.
+        expect(
+          mockPlanningService.validateShiftsAgainstRules,
+        ).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
       });
 
       // AC1 (verbatim from story 12-1): "Given engine: 'cpsat' on a month where
@@ -9047,6 +9122,10 @@ describe('PlanningGenerationService', () => {
         );
         expect(result.stats.engine).toBe('greedy');
         expect(result.stats.holeCount).toBe(1); // greedy-alone baseline kept
+        // aped-review F2 — the fifth AC-3 fallback reason. This replay-rejection path is the
+        // only live exercise of runSolverImprovePass's `rejected-revalidation` return; assert
+        // the contract field so the outcome mapping can't silently regress.
+        expect(result.stats.solverOutcome).toBe('rejected-revalidation');
         // NFR3 — the rejection must surface through the shared re-validation replay,
         // visibly, in a structured warn (the same path the 35h weekly-rest breach
         // would take, since both go through evaluateEligibility).
