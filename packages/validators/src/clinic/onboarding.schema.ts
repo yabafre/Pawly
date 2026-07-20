@@ -60,14 +60,42 @@ export const shiftTypeFieldsSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color'),
 });
 
+// L.3121-16 (Story 13-4) — a shift with > 6h NET worked (gross - break, overnight-wrap
+// aware) requires at least a 20-min break. Shared by every shift-type create path so an
+// admin cannot persist a type that generation/manual writes would then always reject.
+export const MANDATORY_BREAK_MINUTES = 20;
+export const BREAK_REQUIRED_AFTER_NET_MINUTES = 360;
+
+export function shiftBreakRuleOk(data: {
+  startTime: string;
+  endTime: string;
+  breakMinutes?: number;
+}): boolean {
+  const [sh, sm] = data.startTime.split(':').map(Number);
+  const [eh, em] = data.endTime.split(':').map(Number);
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return true; // let the regex guard report format errors
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  const gross = end >= start ? end - start : 1440 - start + end;
+  const net = gross - (data.breakMinutes ?? 0);
+  return (
+    net <= BREAK_REQUIRED_AFTER_NET_MINUTES || (data.breakMinutes ?? 0) >= MANDATORY_BREAK_MINUTES
+  );
+}
+
 // Story 13-3 (KON-132) — a shift type may cross midnight (22:00 -> 06:00); the
 // engine reads endTime < startTime as an overnight wrap (see shift-interval.ts).
 // Only a zero-length slot is meaningless, so equality is what we reject. Clinic
 // opening hours and special days keep their end > start rule below.
-export const shiftTypeSchema = shiftTypeFieldsSchema.refine(
-  (data) => data.endTime !== data.startTime,
-  { message: 'Start and end times must differ', path: ['endTime'] }
-);
+export const shiftTypeSchema = shiftTypeFieldsSchema
+  .refine((data) => data.endTime !== data.startTime, {
+    message: 'Start and end times must differ',
+    path: ['endTime'],
+  })
+  .refine(shiftBreakRuleOk, {
+    message: 'A shift over 6h worked requires at least a 20-minute break',
+    path: ['breakMinutes'],
+  });
 
 export const createShiftTypesSchema = z.object({
   shiftTypes: z.array(shiftTypeSchema).min(1, 'At least one shift type is required'),

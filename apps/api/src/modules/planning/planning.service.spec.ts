@@ -1260,8 +1260,8 @@ describe('PlanningService', () => {
       ]);
       mockPrismaService.shift.findMany.mockResolvedValue(
         ['03', '04', '05', '06', '07'].map((d, i) =>
-          empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '17:00', 0),
-        ), // 5 x 9h = 45h > 40h (Mon-Fri, statutory-quiet — see note above)
+          empShift(`s${i}`, 'e1', `2026-08-${d}`, '08:00', '17:20', 20),
+        ), // 5 x 9h net = 45h > 40h; the 20-min break keeps it statutory-clean under 13-4 (L.3121-16)
       );
       const res = await service.validateShiftsAgainstRules(clinicId, input);
       const monthly = res.softViolations.find(
@@ -1495,6 +1495,97 @@ describe('PlanningService', () => {
           (h) => h.ruleId === 'statutory:consecutive_days',
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('Story 13-4 (KON-136) — statutory extensions surface on publish', () => {
+    it('emits dailyRest + mandatoryBreak hard violations with messageKeys, zero rules', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([]); // zero configured rules
+      // emp-1: Mon 14:00-22:00 then Tue 06:00-15:00 -> 8h rest (DAILY_REST on Tue);
+      // Tue is 9h net / 0 break (MANDATORY_BREAK). Both fall inside the published month.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          date: new Date('2026-03-02T00:00:00.000Z'),
+          startTime: '14:00',
+          endTime: '22:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+        {
+          date: new Date('2026-03-03T00:00:00.000Z'),
+          startTime: '06:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
+        },
+      ]);
+
+      const { hardViolations } = await service.validateShiftsAgainstRules(
+        clinicId,
+        {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T00:00:00.000Z',
+        },
+      );
+
+      const keys = hardViolations.map((v) => v.messageKey);
+      expect(keys).toContain('violations.statutory.dailyRest');
+      expect(keys).toContain('violations.statutory.mandatoryBreak');
+    });
+
+    it('emits WEEKLY_CEILING in hours and wins over a looser configured cap (AC-2)', async () => {
+      // A HARD weekly cap of 60h is LOOSER than the 48h statutory ceiling, and the employee's
+      // contractHours is 60 too, so the configured rule (effective limit = min(60, 60)) is
+      // satisfied by a 54h week and stays silent. The statutory ceiling must still fire — proving
+      // it is independent of, and wins over, any configured cap (aped-review F2). The message-key
+      // + minutes->hours conversion for WEEKLY_CEILING is exercised end-to-end here (aped-review F3).
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'rule-cc',
+          name: 'Contract cap',
+          ruleType: 'HARD',
+          category: 'CONTRACT_COMPLIANCE',
+          isActive: true,
+          config: { maxWeeklyHours: 60 },
+          priority: 0,
+          clinicId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+      // Mon–Sat 2026-03-02..07 (one ISO week), 09:00-18:20 with a 20-min break = 9h net/day = 54h.
+      // The 20-min break keeps MANDATORY_BREAK quiet; 6 consecutive days = the max (not > max) so
+      // no CONSECUTIVE_DAYS; ~14h nightly gaps keep DAILY_REST quiet; Sun-off keeps WEEKLY_REST quiet.
+      mockPrismaService.shift.findMany.mockResolvedValue(
+        ['02', '03', '04', '05', '06', '07'].map((d) => ({
+          date: new Date(`2026-03-${d}T00:00:00.000Z`),
+          startTime: '09:00',
+          endTime: '18:20',
+          breakMinutes: 20,
+          shiftTypeCode: 'DAY',
+          employee: { id: 'emp-w', jobType: 'VET', contractHours: 60 },
+        })),
+      );
+
+      const { hardViolations } = await service.validateShiftsAgainstRules(
+        clinicId,
+        {
+          startDate: '2026-03-01T00:00:00.000Z',
+          endDate: '2026-03-31T00:00:00.000Z',
+        },
+      );
+
+      const ceiling = hardViolations.find(
+        (v) => v.ruleId === 'statutory:weekly_ceiling',
+      );
+      expect(ceiling).toBeDefined();
+      expect(ceiling!.messageKey).toBe('violations.statutory.weeklyCeiling');
+      // stored in minutes (3240), surfaced in hours via MINUTE_KINDS conversion
+      expect(ceiling!.messageParams).toMatchObject({ actual: 54, limit: 48 });
+      // the LOOSER configured cap (60h) is satisfied by 54h -> it must NOT fire, proving independence
+      expect(hardViolations.some((v) => v.ruleId === 'rule-cc')).toBe(false);
     });
   });
 });

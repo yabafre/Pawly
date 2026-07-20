@@ -343,7 +343,10 @@
             "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
             "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
             "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
-            "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
+            "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}",
+            "dailyRest": "Le {date} : {actual}h de repos avant ce poste, sous le minimum légal de {limit}h",
+            "weeklyCeiling": "Semaine du {date} : {actual}h travaillées, dépasse le plafond légal absolu de {limit}h/semaine",
+            "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min"
           }
         }
       }
@@ -734,7 +737,10 @@
         "dailyWork": "Le {date} : {actual}h travaillées, dépasse la limite légale de {limit}h/jour",
         "dailyAmplitude": "Le {date} : amplitude de {actual}h, dépasse la limite légale de {limit}h",
         "weeklyRest": "Semaine du {date} : repos continu de {actual}h, sous le minimum légal de {limit}h",
-        "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}"
+        "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}",
+        "dailyRest": "Le {date} : {actual}h de repos avant ce poste, sous le minimum légal de {limit}h",
+        "weeklyCeiling": "Semaine du {date} : {actual}h travaillées, dépasse le plafond légal absolu de {limit}h/semaine",
+        "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min"
       }
     },
     "settings": {
@@ -1343,7 +1349,8 @@
         "removeShiftType": "Supprimer",
         "help": "Définissez les postes de travail de votre clinique",
         "minRequired": "Au moins un type de poste est requis",
-        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste"
+        "incompleteShiftType": "Veuillez renseigner le nom et les horaires de chaque poste",
+        "breakRequiredOver6h": "Un poste de plus de 6h travaillées nécessite une pause d'au moins 20 minutes."
       }
     },
     "navigation": {

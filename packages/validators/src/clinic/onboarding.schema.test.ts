@@ -220,7 +220,7 @@ describe('shiftTypeSchema', () => {
       code: 'NIGHT',
       startTime: '22:00',
       endTime: '06:00',
-      breakMinutes: 0,
+      breakMinutes: 20, // 8h overnight -> needs a break under 13-4
       color: '#123456',
     });
     expect(result.success).toBe(true);
@@ -370,7 +370,14 @@ describe('createShiftTypesSchema', () => {
   // Story 13-3 (KON-132) — AC5: an overnight shift type in the array is accepted.
   it('accepts a shift type where endTime is before startTime (overnight)', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, startTime: '18:00', endTime: '08:00' }],
+      shiftTypes: [
+        {
+          ...validShiftType,
+          startTime: '18:00',
+          endTime: '08:00',
+          breakMinutes: 20, // 14h overnight -> needs a break under 13-4
+        },
+      ],
     });
     expect(result.success).toBe(true);
   });

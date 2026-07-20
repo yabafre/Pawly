@@ -232,6 +232,45 @@ Synced to Linear project **Pawly** (team Koni). See the "Epic 13 — Linear Tick
   (the merge was correct but only reachable through the fill branch, so untested), and hardened the
   AC-4 mock's `where.OR` discriminator against a latent quarterly-query collision.
 
+### Story 13-4-statutory-extensions — done 2026-07-20T14:20:42Z
+
+- **Decisions:** The three new statutory limits (11h daily rest L.3131-1, 48h weekly ceiling
+  L.3121-20, 20-min break >6h L.3121-16) flow through the two pure evaluators only — no new call
+  sites, `rule-engine.ts` untouched (the 48h ceiling is statutory, not a config cap). Incremental
+  "introduced-by-candidate" checks MUST be scoped to the candidate (day/week/adjacent-gap), never a
+  whole-window boolean: aped-review found DAILY_REST used a global `hasDailyRestDeficit` that let a
+  pre-existing gap mask a fresh one — now a monotonic `countDailyRestDeficits` delta. A shift-type
+  UPDATE cannot be validated by pure zod against the persisted row, so `updateSingleShiftType`
+  re-reads and validates the MERGED patch server-side; any future partial-patch validation MUST do
+  the same. The web resolves `@pawly/validators` to the built main-checkout copy in a worktree, so
+  new validator runtime exports are invisible to web code pre-merge — keep web validators
+  self-contained (13-3/13-4 both inline the break arithmetic client-side by necessity).
+- **Files:** `french-labor-law.ts` (+spec), `planning.service.ts` (+spec), `planning-generation.service.spec.ts`,
+  `clinic.service.ts` (+spec), `planning-rule.schema.ts`, `onboarding.schema.ts` (+ barrel `clinic/index.ts`),
+  `shift-type.schema.ts` (+test), `StepShiftTypes.tsx` + new `shift-types-validation.ts` (+spec),
+  `OnboardingWizard.tsx`, `fr.json`/`en.json`.
+- **Contracts:** `StatutoryViolationKind` gains `DAILY_REST | WEEKLY_CEILING | MANDATORY_BREAK`
+  (7 total); `STATUTORY_MESSAGE_KEY`/`STATUTORY_RULE_CONFIG` mirror them; `MINUTE_KINDS` now includes
+  `DAILY_REST`+`WEEKLY_CEILING` (minutes→hours), MANDATORY_BREAK stays minutes; `violationInPublishedRange`
+  treats `WEEKLY_CEILING` like `WEEKLY_REST` (ISO-week intersection). `shiftBreakRuleOk`,
+  `MANDATORY_BREAK_MINUTES`, `BREAK_REQUIRED_AFTER_NET_MINUTES`, `timeRegex` now exported from the
+  `@pawly/validators` barrel.
+- **Deviations from plan:** `move-validation.ts` not touched (kind-agnostic loop inherits the new
+  limits). aped-review fixed 4 MAJOR + 1 MINOR the story shipped with — DAILY_REST whole-window
+  masking (F1, real correctness bug), two untested AC-2 arms (looser-cap independence + WEEKLY_CEILING
+  publish wiring), the untested onboarding error (extracted+unit-tested validator), and the
+  partial-PATCH break bypass in `updateSingleShiftType` (server-side merged re-validation) — plus a
+  MANDATORY_BREAK generation test. A headed onboarding walkthrough (next-browser) then found F11:
+  the shared `FieldError` (`components/ui/field.tsx`) rendered only `error.message`, silently
+  dropping plain-string errors (what a TanStack Form validator returns), so AC-5's break message —
+  and `StepWorkHours`' errors — never rendered despite the validator running; fixed to normalise
+  string | `{message}` (regression spec added). Lesson: a passing validator unit test does NOT prove
+  the error reaches the DOM — the visual GREEN gate is load-bearing. F8 (legacy shift-type backfill)
+  and F9 (window-frontier under-report) documented as Out-of-scope; one known residual:
+  `updateSingleShiftType` read-then-write is unlocked (blast radius unchanged, candidate for 13-8).
+  Worktree note: Turbopack rejects the out-of-root `node_modules` symlink — a real `pnpm install`
+  (de-symlinked) is required to run the web app headed in a sprint worktree.
+
 ### Story 13-6-served-plan-truth-observability — done 2026-07-20T14:10:33Z
 
 - **Decisions:** Served-plan truth on the **cpsat path only** is a recompute via

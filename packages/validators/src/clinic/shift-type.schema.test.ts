@@ -43,6 +43,7 @@ describe('createShiftTypeSchema', () => {
         ...validShiftType,
         startTime: '00:00',
         endTime: '23:59',
+        breakMinutes: 20, // > 6h worked -> needs a break under 13-4
       }).success
     ).toBe(true);
   });
@@ -107,6 +108,7 @@ describe('createShiftTypeSchema', () => {
       ...validShiftType,
       startTime: '22:00',
       endTime: '06:00',
+      breakMinutes: 20, // 8h overnight -> needs a break under 13-4
     });
     expect(result.success).toBe(true);
   });
@@ -314,5 +316,43 @@ describe('listShiftTypesSchema', () => {
   it('should accept empty object', () => {
     const result = listShiftTypesSchema.safeParse({});
     expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story 13-4 (KON-136) — > 6h net shift requires a 20-min break
+// ---------------------------------------------------------------------------
+
+describe('createShiftTypeSchema break garde-fou (Story 13-4, KON-136)', () => {
+  const base = { name: 'Day', code: 'DAY', color: '#4F46E5' };
+
+  it('rejects a > 6h net shift with under 20min break', () => {
+    const r = createShiftTypeSchema.safeParse({
+      ...base,
+      startTime: '08:00',
+      endTime: '15:00',
+      breakMinutes: 0,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts a > 6h net shift with a 20min break', () => {
+    const r = createShiftTypeSchema.safeParse({
+      ...base,
+      startTime: '08:00',
+      endTime: '15:20',
+      breakMinutes: 20,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts a <= 6h net shift with no break', () => {
+    const r = createShiftTypeSchema.safeParse({
+      ...base,
+      startTime: '08:00',
+      endTime: '14:00',
+      breakMinutes: 0,
+    });
+    expect(r.success).toBe(true);
   });
 });

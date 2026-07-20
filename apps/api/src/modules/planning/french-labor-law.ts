@@ -8,9 +8,14 @@
  *
  * Legal refs:
  *  - L.3121-18 : 10h maximum daily working time            -> MAX_DAILY_WORK_MINUTES
- *  - L.3131-1  : 11h minimum daily rest (=> 13h amplitude)  -> MAX_DAILY_AMPLITUDE_MINUTES
+ *  - L.3121-16 : 20-min break once > 6h worked in a day     -> MIN_BREAK_MINUTES_OVER_6H
+ *  - L.3121-20 : 48h absolute weekly ceiling (net worked)   -> MAX_WEEKLY_WORK_MINUTES
+ *  - L.3131-1  : 11h minimum daily rest between work blocks -> MIN_DAILY_REST_MINUTES
  *  - L.3132-2  : 35h minimum consecutive weekly rest        -> MIN_WEEKLY_REST_HOURS
  *  - L.3132-1  : one rest day per 7 (max 6 worked in a row) -> MAX_CONSECUTIVE_WORK_DAYS
+ *
+ * 13h amplitude (MAX_DAILY_AMPLITUDE_MINUTES) is a SAME-DAY span cap; Story 13-4 adds the
+ * 11h BETWEEN-block daily rest (L.3131-1) that 11-3 had used amplitude as a proxy for.
  *
  * Times are `HH:MM` 24h strings; dates are `YYYY-MM-DD` calendar days interpreted in UTC
  * (matches the generation service's getWeekBounds / getPreviousDate conventions). Overnight
@@ -25,6 +30,14 @@ export const FRENCH_LABOR_LAW = {
   MAX_DAILY_WORK_MINUTES: 600,
   /** 13h max amplitude (first start -> last end) per employee per day; breaks included. */
   MAX_DAILY_AMPLITUDE_MINUTES: 780,
+  /** L.3131-1 — >= 11h rest between two consecutive worked blocks (merged busy intervals). */
+  MIN_DAILY_REST_MINUTES: 660,
+  /** L.3121-20 — absolute 48h net worked per ISO week; wins over any configured cap. */
+  MAX_WEEKLY_WORK_MINUTES: 2880,
+  /** L.3121-16 — a 20-min break is mandatory once net worked exceeds 6h in a day. */
+  MIN_BREAK_MINUTES_OVER_6H: 20,
+  /** Net-worked threshold (minutes) above which MIN_BREAK_MINUTES_OVER_6H applies. */
+  BREAK_REQUIRED_AFTER_MINUTES: 360,
   /** L.3132-2 — >= 35h continuous rest per ISO week. */
   MIN_WEEKLY_REST_HOURS: 35,
   /** L.3132-1 — <= 6 consecutive worked calendar days. */
@@ -36,6 +49,9 @@ export const STATUTORY_RULE_NAME = 'French labor-law limits';
 export const STATUTORY_RULE_CONFIG = {
   maxDailyHours: FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES / 60,
   maxDailyAmplitudeHours: FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES / 60,
+  minDailyRestHours: FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES / 60,
+  maxWeeklyStatutoryHours: FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES / 60,
+  minBreakMinutesOver6h: FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H,
   minWeeklyRestHours: FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS,
   maxConsecutiveWorkDays: FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS,
 } as const;
@@ -43,6 +59,9 @@ export const STATUTORY_RULE_CONFIG = {
 export type StatutoryViolationKind =
   | 'DAILY_WORK'
   | 'DAILY_AMPLITUDE'
+  | 'DAILY_REST'
+  | 'WEEKLY_CEILING'
+  | 'MANDATORY_BREAK'
   | 'WEEKLY_REST'
   | 'CONSECUTIVE_DAYS';
 
@@ -81,6 +100,10 @@ function dayDiff(aStr: string, bStr: string): number {
 
 function shiftEpoch(dateStr: string): number {
   return dayDiff(dateStr, EPOCH) * MIN_PER_DAY;
+}
+
+function epochMinuteToDate(absMinutes: number): string {
+  return addDays(EPOCH, Math.floor(absMinutes / MIN_PER_DAY));
 }
 
 function addDays(dateStr: string, delta: number): string {
@@ -285,6 +308,21 @@ export function findStatutoryViolations(
         limit: FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES,
       });
     }
+    const totalBreak = dayShifts.reduce(
+      (sum, s) => sum + (s.breakMinutes ?? 0),
+      0,
+    );
+    if (
+      worked > FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+      totalBreak < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H
+    ) {
+      out.push({
+        kind: 'MANDATORY_BREAK',
+        date,
+        actual: totalBreak,
+        limit: FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H,
+      });
+    }
   }
 
   // Consecutive days — EVERY worked day beyond the max is itself a breach (the 7th, 8th, …),
@@ -338,7 +376,61 @@ export function findStatutoryViolations(
     }
   }
 
+  // Daily rest (L.3131-1) — every gap between consecutive merged busy intervals must be
+  // >= 11h. A shorter gap (cross-midnight OR intra-day split) is a deficit attributed to
+  // the day work RESUMED (the later interval's start). Cross-midnight aware via the merged
+  // absolute-minute intervals (Story 13-3's toAbsoluteInterval).
+  const busy = mergedBusyIntervals(shifts);
+  for (let i = 0; i < busy.length - 1; i++) {
+    const gap = busy[i + 1][0] - busy[i][1];
+    if (gap < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES) {
+      out.push({
+        kind: 'DAILY_REST',
+        date: epochMinuteToDate(busy[i + 1][0]),
+        actual: gap,
+        limit: FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES,
+      });
+    }
+  }
+
+  // Absolute weekly ceiling (L.3121-20) — net minutes per ISO week must not exceed 48h.
+  // Statutory: independent of any configured maxWeeklyHours. Attributed to ISO-week Monday.
+  const weekWorked = new Map<string, number>();
+  for (const s of shifts) {
+    const wk = isoWeekStart(s.date);
+    weekWorked.set(wk, (weekWorked.get(wk) ?? 0) + shiftNetMinutes(s));
+  }
+  for (const [wk, mins] of weekWorked) {
+    if (mins > FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES) {
+      out.push({
+        kind: 'WEEKLY_CEILING',
+        date: wk,
+        actual: mins,
+        limit: FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES,
+      });
+    }
+  }
+
   return out;
+}
+
+/** Count of gaps between consecutive merged busy intervals that are under 11h. */
+function countDailyRestDeficits(shifts: StatutoryShift[]): number {
+  const busy = mergedBusyIntervals(shifts);
+  let count = 0;
+  for (let i = 0; i < busy.length - 1; i++) {
+    if (busy[i + 1][0] - busy[i][1] < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES)
+      count++;
+  }
+  return count;
+}
+
+/** Net worked minutes of the ISO week containing `date`, across `shifts`. */
+function weekWorkedMinutes(shifts: StatutoryShift[], date: string): number {
+  const wk = isoWeekStart(date);
+  return shifts
+    .filter((s) => isoWeekStart(s.date) === wk)
+    .reduce((sum, s) => sum + shiftNetMinutes(s), 0);
 }
 
 /**
@@ -380,6 +472,19 @@ export function wouldExceedStatutory(
     kinds.push('DAILY_AMPLITUDE');
   }
 
+  // Mandatory break (L.3121-16) — candidate's day: > 6h net worked with < 20min break.
+  const breakBefore = dayBefore.reduce((s, x) => s + (x.breakMinutes ?? 0), 0);
+  const breakAfter = dayAfter.reduce((s, x) => s + (x.breakMinutes ?? 0), 0);
+  const breachAfter =
+    dayWorkedMinutes(dayAfter) >
+      FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+    breakAfter < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+  const breachBefore =
+    dayWorkedMinutes(dayBefore) >
+      FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+    breakBefore < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+  if (breachAfter && !breachBefore) kinds.push('MANDATORY_BREAK');
+
   // Consecutive days — only when the candidate adds a NEW worked day
   const datesBefore = new Set(windowShifts.map((s) => s.date));
   if (!datesBefore.has(candidate.date)) {
@@ -398,6 +503,27 @@ export function wouldExceedStatutory(
     !weekHasRestDeficit(windowShifts, wk, win)
   ) {
     kinds.push('WEEKLY_REST');
+  }
+
+  // Daily rest (L.3131-1) — a NEW deficit gap introduced by the candidate. Count-based, not a
+  // whole-window boolean: a pre-existing <11h gap elsewhere in the loaded window (plausible on
+  // rollout — this rule post-dates the shift data it retrofits) must not mask a fresh deficit the
+  // candidate creates next to itself (aped-review F1). Insertion here is overlap-free (overlaps are
+  // rejected upstream), so the deficit count is monotonic under insertion and rises iff the
+  // candidate adds a gap < 11h.
+  if (
+    countDailyRestDeficits(withCandidate) > countDailyRestDeficits(windowShifts)
+  )
+    kinds.push('DAILY_REST');
+
+  // Absolute weekly ceiling (L.3121-20) — candidate's ISO week net minutes over 48h.
+  if (
+    weekWorkedMinutes(withCandidate, candidate.date) >
+      FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES &&
+    weekWorkedMinutes(windowShifts, candidate.date) <=
+      FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES
+  ) {
+    kinds.push('WEEKLY_CEILING');
   }
 
   return kinds;

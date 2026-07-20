@@ -268,6 +268,9 @@ export class PlanningService {
   > = {
     DAILY_WORK: 'violations.statutory.dailyWork',
     DAILY_AMPLITUDE: 'violations.statutory.dailyAmplitude',
+    DAILY_REST: 'violations.statutory.dailyRest',
+    WEEKLY_CEILING: 'violations.statutory.weeklyCeiling',
+    MANDATORY_BREAK: 'violations.statutory.mandatoryBreak',
     WEEKLY_REST: 'violations.statutory.weeklyRest',
     CONSECUTIVE_DAYS: 'violations.statutory.consecutiveDays',
   };
@@ -316,7 +319,7 @@ export class PlanningService {
     v: StatutoryViolation,
     range: { start: string; end: string },
   ): boolean {
-    if (v.kind === 'WEEKLY_REST') {
+    if (v.kind === 'WEEKLY_REST' || v.kind === 'WEEKLY_CEILING') {
       const d = new Date(`${v.date}T00:00:00.000Z`);
       d.setUTCDate(d.getUTCDate() + 6);
       const weekEnd = d.toISOString().split('T')[0];
@@ -335,9 +338,15 @@ export class PlanningService {
     v: StatutoryViolation,
     employeeId: string,
   ): HardViolation {
-    const isDaily = v.kind === 'DAILY_WORK' || v.kind === 'DAILY_AMPLITUDE';
-    const actual = isDaily ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
-    const limit = isDaily ? v.limit / 60 : v.limit;
+    const MINUTE_KINDS: ReadonlySet<StatutoryViolationKind> = new Set([
+      'DAILY_WORK',
+      'DAILY_AMPLITUDE',
+      'DAILY_REST',
+      'WEEKLY_CEILING',
+    ]);
+    const inMinutes = MINUTE_KINDS.has(v.kind);
+    const actual = inMinutes ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
+    const limit = inMinutes ? v.limit / 60 : v.limit;
     // Human-facing date is French-formatted; `affectedDate` stays ISO because it
     // keys the grid-cell conflict lookup (`${employeeId}|${day.date}`).
     const displayDate = PlanningService.formatFrDate(v.date);
