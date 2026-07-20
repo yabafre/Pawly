@@ -58,6 +58,7 @@ import type {
   HardViolation,
   SoftViolation,
   EquitySummaryEntry,
+  SolverOutcome,
 } from '@pawly/validators';
 import type {
   ScheduleViewData,
@@ -70,6 +71,13 @@ import type {
 } from '@pawly/validators';
 import { planningGenerationDuration } from '@/common/metrics';
 import type { CounterWithEmployee } from './equity-counter.service';
+
+// Story 13-6 (KON-137) — the improve pass reports WHY it did/didn't serve so the
+// caller can populate stats.solverOutcome and the metric. `served: true` carries the
+// recomputed holes exactly as before; `served: false` carries the fallback reason.
+type SolverPassResult =
+  | { served: true; holes: GenerationResult['holes'] }
+  | { served: false; outcome: Exclude<SolverOutcome, 'served'> };
 
 type SlotRequirement = {
   date: string;
@@ -4328,7 +4336,7 @@ export class PlanningGenerationService {
       fixedShiftsByEmployee: Map<string, AssignedShift[]>;
       rotationCounts: Map<string, Map<number, number>>;
     };
-  }): Promise<GenerationResult['holes'] | null> {
+  }): Promise<SolverPassResult> {
     // ── 1) Solver input from the generation context ────────────────────────────
     // Contract caps lift the SAME semantics as the CONTRACT_COMPLIANCE eligibility
     // branch (rule-engine): weekly = min(contractHours, maxWeeklyHours) with the
@@ -4517,7 +4525,15 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver status ${result.status} — serving the greedy plan`,
       );
-      return null;
+      // Story 13-6 (KON-137) — distinguish engine-down from infeasible from
+      // budget-exhausted so `solver_status` is actionable in monitoring.
+      const outcome: Exclude<SolverOutcome, 'served'> =
+        result.status === 'ENGINE_UNAVAILABLE'
+          ? 'engine-unavailable'
+          : result.status === 'INFEASIBLE'
+            ? 'infeasible'
+            : 'budget-exhausted';
+      return { served: false, outcome };
     }
 
     const candidate = decodeSolution(model, result.chosenVarNames, input);
@@ -4584,7 +4600,7 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver ${result.status}: filled ${candidate.length}/${greedyFilled}, equity ${candidateEquity.toFixed(4)} vs ${greedyEquity.toFixed(4)} — greedy plan kept`,
       );
-      return null;
+      return { served: false, outcome: 'no-improvement' };
     }
 
     // ── 4) Re-validation REPLAY through the live counters ──────────────────────
@@ -4653,18 +4669,21 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver plan rejected by re-validation (${rejection}) — serving the greedy plan`,
       );
-      return null;
+      return { served: false, outcome: 'rejected-revalidation' };
     }
 
     this.logger.log(
       `KON-129 solver plan SERVED: ${result.status}, filled ${candidate.length} (greedy ${greedyFilled}), equity ${candidateEquity.toFixed(4)} (greedy ${greedyEquity.toFixed(4)})`,
     );
-    return this.recomputeHoles(
-      ctx.slots,
-      ctx.assignedShifts,
-      ctx.preExistingSlotCoverage,
-      ctx.priorHoles,
-    );
+    return {
+      served: true,
+      holes: this.recomputeHoles(
+        ctx.slots,
+        ctx.assignedShifts,
+        ctx.preExistingSlotCoverage,
+        ctx.priorHoles,
+      ),
+    };
   }
 
   /** Story 11-9 — add a GENERATED assignment and increment EVERY live counter in lockstep. */
