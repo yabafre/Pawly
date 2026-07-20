@@ -40,11 +40,13 @@ import { PublishedChangeDialog } from './PublishedChangeDialog';
 import { usePublish } from '../_hooks/usePublish';
 import { usePublishedChangeGuard } from '../_hooks/usePublishedChangeGuard';
 import { useSubscription } from '@/lib/contexts/subscription-context';
-import type { GenerationResult } from '@pawly/validators';
+import type { GenerationResult, SolverOutcome } from '@pawly/validators';
 import type { ShiftData } from '@pawly/types';
 
 // Story 13-6 (KON-137) — map the solver outcome to its i18n key for the badge reason.
-const OUTCOME_MESSAGE_KEY: Record<string, string> = {
+// Exhaustively keyed (aped-review F4) so a future SolverOutcome member fails to compile
+// here until it gets a mapping, rather than silently passing undefined to tOutcome.
+const OUTCOME_MESSAGE_KEY: Record<Exclude<SolverOutcome, 'served'>, string> = {
   'engine-unavailable': 'engineUnavailable',
   infeasible: 'infeasible',
   'budget-exhausted': 'budgetExhausted',
@@ -377,7 +379,7 @@ export function GenerationPanel({ month, onMonthChange }: Props) {
                 generationResult.stats.solverOutcome !== 'served' && (
                   <span
                     data-testid="solver-outcome-reason"
-                    className="text-[11px] text-muted-foreground text-right max-w-[220px]"
+                    className="text-xs text-muted-foreground text-right max-w-[220px]"
                   >
                     {tOutcome(OUTCOME_MESSAGE_KEY[generationResult.stats.solverOutcome])}
                   </span>
