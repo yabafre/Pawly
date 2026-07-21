@@ -1,0 +1,41 @@
+{
+  "sync_id": "linear-sync-2026-07-21T00-13-29Z",
+  "started_at": "2026-07-21T00:13:29Z",
+  "provider": "linear",
+  "operator": "fred79272@gmail.com",
+  "directive_version": null,
+  "phases": {
+    "tickets_closed": {
+      "status": "complete",
+      "calls": 8,
+      "tickets": [
+        "KON-131",
+        "KON-132",
+        "KON-133",
+        "KON-134",
+        "KON-135",
+        "KON-136",
+        "KON-137",
+        "KON-138"
+      ]
+    },
+    "comments_posted": {
+      "status": "complete",
+      "calls": 8,
+      "tickets": [
+        "KON-131",
+        "KON-132",
+        "KON-133",
+        "KON-134",
+        "KON-135",
+        "KON-136",
+        "KON-137",
+        "KON-138"
+      ]
+    }
+  },
+  "totals": {
+    "api_calls_total": 16
+  },
+  "ended_at": "2026-07-21T00:14:42Z"
+}
