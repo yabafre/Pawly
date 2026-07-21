@@ -12,6 +12,7 @@ jest.mock('@/trigger/client', () => ({
 import fc from 'fast-check';
 import {
   findStatutoryViolations,
+  regimeForJobType,
   type StatutoryShift,
 } from './french-labor-law';
 import {
@@ -109,8 +110,15 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
               breakMinutes: s.breakMinutes,
             });
           }
-          for (const [, shifts] of byEmployee) {
-            expect(findStatutoryViolations(shifts)).toEqual([]);
+          const jobTypeOf = new Map(
+            f.employees.map((e) => [e.id, e.jobType]),
+          );
+          for (const [empId, shifts] of byEmployee) {
+            expect(
+              findStatutoryViolations(shifts, {
+                regime: regimeForJobType(jobTypeOf.get(empId)),
+              }).filter((v) => !v.soft),
+            ).toEqual([]);
           }
 
           // Belt-and-suspenders: greedy's own accumulated hard array is the real
@@ -214,7 +222,11 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
       byEmployee.set(a.employeeId, list);
     }
     for (const [, shifts] of byEmployee) {
-      expect(findStatutoryViolations(shifts)).toEqual([]);
+      expect(
+        findStatutoryViolations(shifts, { regime: 'SUPPORT_STAFF' }).filter(
+          (v) => !v.soft,
+        ),
+      ).toEqual([]);
     }
   }, 60000);
 });

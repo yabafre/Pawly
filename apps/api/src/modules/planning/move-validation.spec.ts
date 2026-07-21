@@ -46,6 +46,11 @@ const baseCtx = (
   monthShifts: [],
   quarterExtraShifts: [],
   statutoryWindowShifts: [],
+  // KON-139 — empty 12-week context: totals 0 everywhere, horizon at the target week.
+  twelveWeek: {
+    totalsByMonday: new Map<string, number>(),
+    lastWeekMonday: '2026-03-02',
+  },
   rules: [],
   ...overrides,
 });
@@ -153,12 +158,12 @@ describe('evaluateMoveViolations', () => {
     );
   });
 
-  it('flags HARD DAILY_WORK when the move pushes the day past the 10h statutory limit', () => {
-    // 13:00-20:00 (7h) already held + the moved 08:00-12:00 (4h) = 11h > 10h.
-    // Amplitude 08:00->20:00 = 12h stays under the 13h limit, so DAILY_WORK fires alone.
+  it('flags HARD DAILY_WORK when the move pushes the day past the 12h conventional limit (KON-139)', () => {
+    // 12:00-20:30 (8.5h) already held, touching the moved 08:00-12:00 (4h) = 12.5h > 12h.
+    // Touching blocks merge into one continuous day, so no DAILY_REST noise.
     const result = evaluateMoveViolations(
       baseCtx({
-        statutoryWindowShifts: [shiftAt('2026-03-02', '13:00', '20:00')],
+        statutoryWindowShifts: [shiftAt('2026-03-02', '12:00', '20:30')],
       }),
     );
     expect(result.hard).toEqual(

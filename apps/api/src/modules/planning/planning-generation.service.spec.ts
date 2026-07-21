@@ -769,6 +769,14 @@ describe('PlanningGenerationService', () => {
       esc,
       dayOfWeekCounts,
       quarterlyDayOfWeekCounts,
+      // KON-139 — neutral statutory context for direct scoreAndAssign units: empty history
+      // and a lastWeekMonday in the distant past, so the 44h/12-week loop never runs (the
+      // dedicated CCN tests exercise it through the pure module / generateMonthlyPlan).
+      {
+        weeklyHistory: new Map<string, Map<string, number>>(),
+        firstMonthMonday: '2000-01-03',
+        lastWeekMonday: '2000-01-03',
+      },
     ) as ScoreAndAssignResult;
   };
 
@@ -2292,11 +2300,16 @@ describe('PlanningGenerationService', () => {
       // 2-4x longer without indicating a regression — same contention tiers as the
       // other stress pins. Keep the tight 2s bound standalone (catches an O(E×A)
       // regression) while giving loaded runners headroom.
+      // KON-139 widened the statutory data window to +/-14 days and added the CCN
+      // rule set to every eligibility call: the per-call interval sorts scale with the
+      // window, an honest ~1.5-2x on this repair-heavy adversarial fixture (isolated
+      // local run: ~0.8s). Budgets updated to keep contended-runner headroom while
+      // still catching an order-of-magnitude regression.
       const budgetMs = process.env.CI
-        ? 8000
+        ? 15000
         : process.env.TURBO_HASH
-          ? 6000
-          : 2000;
+          ? 9000
+          : 3000;
       expect(elapsedMs).toBeLessThan(budgetMs);
     }, 20000);
 
@@ -9966,11 +9979,16 @@ describe('PlanningGenerationService', () => {
       const elapsedMs = Date.now() - start;
       // Tight 2s bound standalone; CI / turbo-parallel headroom (same tiers as the
       // other stress pins) so runner contention isn't read as a regression.
+      // KON-139 widened the statutory data window to +/-14 days and added the CCN
+      // rule set to every eligibility call: the per-call interval sorts scale with the
+      // window, an honest ~1.5-2x on this repair-heavy adversarial fixture (isolated
+      // local run: ~0.8s). Budgets updated to keep contended-runner headroom while
+      // still catching an order-of-magnitude regression.
       const budgetMs = process.env.CI
-        ? 8000
+        ? 15000
         : process.env.TURBO_HASH
-          ? 6000
-          : 2000;
+          ? 9000
+          : 3000;
       expect(elapsedMs).toBeLessThan(budgetMs);
       expect(result.stats.totalSlots).toBeGreaterThan(0);
     }, 20000);
@@ -9980,7 +9998,9 @@ describe('PlanningGenerationService', () => {
       await generateStressMonth();
       expect(setImmediateSpy).toHaveBeenCalled();
       setImmediateSpy.mockRestore();
-    });
+      // KON-139 — this test asserts YIELDING, not speed; the wrapper timeout keeps a
+      // contended CI runner from failing it on wall time (same pattern as its siblings).
+    }, 20000);
 
     // Phase 1 (ejection chains) worst case: `isMoverEligibleForHole` does a remove/apply round trip
     // for every candidate mover scanned, so a month with MANY real holes AND many assignments is the
@@ -10092,11 +10112,16 @@ describe('PlanningGenerationService', () => {
       // saturating the same cores, TURBO_HASH set) shows the same contention.
       // Keep the tight bound on standalone runs; give loaded runners headroom
       // while still catching an order-of-magnitude regression.
+      // KON-139 widened the statutory data window to +/-14 days and added the CCN
+      // rule set to every eligibility call: the per-call interval sorts scale with the
+      // window, an honest ~1.5-2x on this repair-heavy adversarial fixture (isolated
+      // local run: ~0.8s). Budgets updated to keep contended-runner headroom while
+      // still catching an order-of-magnitude regression.
       const budgetMs = process.env.CI
-        ? 8000
+        ? 15000
         : process.env.TURBO_HASH
-          ? 6000
-          : 2000;
+          ? 9000
+          : 3000;
       expect(elapsedMs).toBeLessThan(budgetMs);
       // This test runs TWO full generations (repaired + greedy-only baseline), so
       // its total wall time can exceed Jest's 5000ms DEFAULT test timeout on a
@@ -10168,9 +10193,9 @@ describe('PlanningGenerationService', () => {
     //   HARD-rule violation, When planning.moveShift is called from any client, Then the
     //   mutation is rejected server-side and no shift.update is persisted.
     it('rejects a move that breaches a statutory limit, with no client pre-check involved', async () => {
-      // emp-2 already holds 13:00-20:00 (7h) on 2026-03-02; the moved 08:00-12:00 (4h)
-      // takes the day to 11h > the 10h L.3121-18 limit. Amplitude 08:00->20:00 = 12h stays
-      // under 13h, so DAILY_WORK is the only statutory breach, and 13:00 does not overlap
+      // emp-2 already holds 12:00-20:30 (8.5h) on 2026-03-02, touching the moved
+      // 08:00-12:00 (4h): one continuous 12.5h day > the conventional 12h cap (KON-139).
+      // Touching blocks merge, so no DAILY_REST noise, and 12:00 does not overlap
       // 08:00-12:00 so OVERLAP stays silent.
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
@@ -10178,8 +10203,8 @@ describe('PlanningGenerationService', () => {
           employeeId: 'emp-2',
           clinicId: 'clinic-123',
           date: new Date('2026-03-02T00:00:00.000Z'),
-          startTime: '13:00',
-          endTime: '20:00',
+          startTime: '12:00',
+          endTime: '20:30',
           breakMinutes: 0,
           shiftTypeCode: 'RECEPTION',
         },
@@ -10228,14 +10253,15 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-03' },
       ]);
+      // KON-139 — touching 12:00-20:30 block: continuous 12.5h day > the 12h cap.
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           id: 'shift-2',
           employeeId: 'emp-2',
           clinicId: 'clinic-123',
           date: new Date('2026-03-02T00:00:00.000Z'),
-          startTime: '13:00',
-          endTime: '20:00',
+          startTime: '12:00',
+          endTime: '20:30',
           breakMinutes: 0,
           shiftTypeCode: 'RECEPTION',
         },

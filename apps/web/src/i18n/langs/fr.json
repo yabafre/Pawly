@@ -321,15 +321,26 @@
         "categoryContract": "Conformité contrat",
         "holesOnDate": "{count, plural, one {# trou} other {# trous}} le {date}",
         "days": {
-          "monday": "lundi", "tuesday": "mardi", "wednesday": "mercredi",
-          "thursday": "jeudi", "friday": "vendredi", "saturday": "samedi", "sunday": "dimanche"
+          "monday": "lundi",
+          "tuesday": "mardi",
+          "wednesday": "mercredi",
+          "thursday": "jeudi",
+          "friday": "vendredi",
+          "saturday": "samedi",
+          "sunday": "dimanche"
         },
         "periods": {
-          "monthly": "mensuel", "quarterly": "trimestriel", "weekly": "hebdomadaire", "period": "période"
+          "monthly": "mensuel",
+          "quarterly": "trimestriel",
+          "weekly": "hebdomadaire",
+          "period": "période"
         },
         "terms": {
-          "shifts": "créneaux", "exceedsMax": "dépasse le maximum de",
-          "employeeTotal": "Total employé", "employeeHas": "L'employé a", "per": "par"
+          "shifts": "créneaux",
+          "exceedsMax": "dépasse le maximum de",
+          "employeeTotal": "Total employé",
+          "employeeHas": "L'employé a",
+          "per": "par"
         },
         "violations": {
           "rotationEquity": {
@@ -346,7 +357,12 @@
             "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}",
             "dailyRest": "Le {date} : {actual}h de repos avant ce poste, sous le minimum légal de {limit}h",
             "weeklyCeiling": "Semaine du {date} : {actual}h travaillées, dépasse le plafond légal absolu de {limit}h/semaine",
-            "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min"
+            "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min",
+            "vacationsCount": "Le {date} : {actual} vacations dans la journée, maximum conventionnel de {limit} (CCN vétérinaire)",
+            "vacationMinDuration": "Le {date} : vacation de {actual}h, sous le minimum conventionnel de {limit}h (CCN vétérinaire)",
+            "restDaysWindow": "Autour du {date} : {actual} jours de repos sur 14 jours avec journée continue ≥10h, minimum conventionnel de {limit} dont 2 consécutifs",
+            "restDaysSunday": "Autour du {date} : les 2 jours de repos consécutifs ne comprennent pas de dimanche (préférence conventionnelle)",
+            "twelveWeekAvg": "Semaine du {date} : {actual}h sur 12 semaines glissantes, dépasse le plafond conventionnel de {limit}h (moyenne 44h)"
           }
         }
       }
@@ -740,7 +756,12 @@
         "consecutiveDays": "Le {date} : {actual} jours travaillés consécutifs, dépasse le maximum légal de {limit}",
         "dailyRest": "Le {date} : {actual}h de repos avant ce poste, sous le minimum légal de {limit}h",
         "weeklyCeiling": "Semaine du {date} : {actual}h travaillées, dépasse le plafond légal absolu de {limit}h/semaine",
-        "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min"
+        "mandatoryBreak": "Le {date} : pause de {actual}min pour plus de 6h travaillées, sous le minimum légal de {limit}min",
+        "vacationsCount": "Le {date} : {actual} vacations dans la journée, maximum conventionnel de {limit} (CCN vétérinaire)",
+        "vacationMinDuration": "Le {date} : vacation de {actual}h, sous le minimum conventionnel de {limit}h (CCN vétérinaire)",
+        "restDaysWindow": "Autour du {date} : {actual} jours de repos sur 14 jours avec journée continue ≥10h, minimum conventionnel de {limit} dont 2 consécutifs",
+        "restDaysSunday": "Autour du {date} : les 2 jours de repos consécutifs ne comprennent pas de dimanche (préférence conventionnelle)",
+        "twelveWeekAvg": "Semaine du {date} : {actual}h sur 12 semaines glissantes, dépasse le plafond conventionnel de {limit}h (moyenne 44h)"
       }
     },
     "settings": {

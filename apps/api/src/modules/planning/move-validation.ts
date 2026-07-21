@@ -13,7 +13,11 @@
  * INDEPENDENTLY of any configured PlanningRule (invariant 11-3 / epic-13 context §3.4).
  */
 import type { MoveValidationResult } from '@pawly/validators';
-import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import {
+  regimeForJobType,
+  wouldExceedStatutory,
+  type StatutoryShift,
+} from './french-labor-law';
 import { shiftsOverlap } from './shift-interval';
 import {
   netMinutes,
@@ -80,8 +84,13 @@ export type MoveEvalContext = {
   monthShifts: MoveEvalShift[];
   /** Quarter-but-not-month shifts, excluding the moved shift. Empty unless a quarterly rotation rule exists. */
   quarterExtraShifts: MoveEvalShift[];
-  /** Target employee's shifts in the +/-8 real-day statutory window, excluding the moved shift. */
+  /** Target employee's shifts in the +/-14 real-day statutory window (STATUTORY_WINDOW_DAYS), excluding the moved shift. */
   statutoryWindowShifts: MoveEvalShift[];
+  /** KON-139 — CCN 44h/12-week average: net minutes per ISO Monday around the target week, moved shift excluded. */
+  twelveWeek: {
+    totalsByMonday: Map<string, number>;
+    lastWeekMonday: string;
+  };
   rules: MoveEvalRule[];
 };
 
@@ -325,8 +334,9 @@ export function evaluateMoveViolations(
     }
   }
 
-  // Statutory (Story 11-3) — non-disableable, evaluated on the +/-8 real-day window.
-  // Story 13-1 widened this from the strict month (audit T4's move arm).
+  // Statutory (Story 11-3) — non-disableable, evaluated on the +/-14 real-day window
+  // (13-1 widened it from the strict month; KON-139 widened it again for the CCN
+  // rest-days rule and made the regime + 44h/12-week context explicit).
   const breaches = wouldExceedStatutory(
     ctx.statutoryWindowShifts.map(toStatutoryShift),
     {
@@ -334,6 +344,13 @@ export function evaluateMoveViolations(
       startTime: ctx.shift.startTime,
       endTime: ctx.shift.endTime,
       breakMinutes: ctx.shift.breakMinutes,
+    },
+    {
+      regime: regimeForJobType(employee.jobType),
+      twelveWeek: {
+        totals: (isoMonday) => ctx.twelveWeek.totalsByMonday.get(isoMonday) ?? 0,
+        lastWeekMonday: ctx.twelveWeek.lastWeekMonday,
+      },
     },
   );
   for (const kind of breaches) {

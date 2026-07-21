@@ -321,15 +321,26 @@
         "categoryContract": "Contract Compliance",
         "holesOnDate": "{count, plural, one {# hole} other {# holes}} on {date}",
         "days": {
-          "monday": "Monday", "tuesday": "Tuesday", "wednesday": "Wednesday",
-          "thursday": "Thursday", "friday": "Friday", "saturday": "Saturday", "sunday": "Sunday"
+          "monday": "Monday",
+          "tuesday": "Tuesday",
+          "wednesday": "Wednesday",
+          "thursday": "Thursday",
+          "friday": "Friday",
+          "saturday": "Saturday",
+          "sunday": "Sunday"
         },
         "periods": {
-          "monthly": "monthly", "quarterly": "quarterly", "weekly": "weekly", "period": "period"
+          "monthly": "monthly",
+          "quarterly": "quarterly",
+          "weekly": "weekly",
+          "period": "period"
         },
         "terms": {
-          "shifts": "shifts", "exceedsMax": "exceeds maximum of",
-          "employeeTotal": "Employee total", "employeeHas": "Employee has", "per": "per"
+          "shifts": "shifts",
+          "exceedsMax": "exceeds maximum of",
+          "employeeTotal": "Employee total",
+          "employeeHas": "Employee has",
+          "per": "per"
         },
         "violations": {
           "rotationEquity": {
@@ -346,7 +357,12 @@
             "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}",
             "dailyRest": "{date}: {actual}h rest before this shift, below the statutory minimum of {limit}h",
             "weeklyCeiling": "Week of {date}: {actual}h worked, exceeds the absolute statutory ceiling of {limit}h/week",
-            "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min"
+            "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min",
+            "vacationsCount": "{date}: {actual} work blocks in one day, conventional maximum of {limit} (veterinary CCN)",
+            "vacationMinDuration": "{date}: work block of {actual}h, under the conventional minimum of {limit}h (veterinary CCN)",
+            "restDaysWindow": "Around {date}: {actual} rest days in a 14-day window holding a >=10h continuous day, conventional minimum of {limit} incl. 2 consecutive",
+            "restDaysSunday": "Around {date}: the 2 consecutive rest days include no Sunday (conventional preference)",
+            "twelveWeekAvg": "Week of {date}: {actual}h over 12 rolling weeks, exceeds the conventional {limit}h cap (44h average)"
           }
         }
       }
@@ -740,7 +756,12 @@
         "consecutiveDays": "{date}: {actual} consecutive worked days, exceeds the statutory maximum of {limit}",
         "dailyRest": "{date}: {actual}h rest before this shift, below the statutory minimum of {limit}h",
         "weeklyCeiling": "Week of {date}: {actual}h worked, exceeds the absolute statutory ceiling of {limit}h/week",
-        "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min"
+        "mandatoryBreak": "{date}: {actual}min break for over 6h worked, below the statutory minimum of {limit}min",
+        "vacationsCount": "{date}: {actual} work blocks in one day, conventional maximum of {limit} (veterinary CCN)",
+        "vacationMinDuration": "{date}: work block of {actual}h, under the conventional minimum of {limit}h (veterinary CCN)",
+        "restDaysWindow": "Around {date}: {actual} rest days in a 14-day window holding a >=10h continuous day, conventional minimum of {limit} incl. 2 consecutive",
+        "restDaysSunday": "Around {date}: the 2 consecutive rest days include no Sunday (conventional preference)",
+        "twelveWeekAvg": "Week of {date}: {actual}h over 12 rolling weeks, exceeds the conventional {limit}h cap (44h average)"
       }
     },
     "settings": {

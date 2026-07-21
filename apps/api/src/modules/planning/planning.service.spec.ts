@@ -472,7 +472,7 @@ describe('PlanningService', () => {
     // When the admin views the schedule, Then each breach appears as a blocking (hard)
     // violation in the Planning Health Bar detail popover, localized ...". Enforced even
     // with zero configured rules (AC4).
-    it('emits a statutory HARD violation for an 11h-net day with zero configured rules', async () => {
+    it('emits a statutory HARD violation for a 12.5h-net day with zero configured rules (KON-139: 12h cap)', async () => {
       mockPrismaService.planningRule.findMany.mockResolvedValue([]); // zero rules
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
@@ -480,8 +480,8 @@ describe('PlanningService', () => {
           date: new Date('2026-08-03'),
           shiftTypeCode: 'SURGERY',
           startTime: '08:00',
-          endTime: '19:00', // 11h net (no break) > 10h
-          breakMinutes: 0,
+          endTime: '21:00', // 13h gross - 30 break = 12.5h net > 12h
+          breakMinutes: 30,
           employeeId: 'emp-1',
           employee: { id: 'emp-1', jobType: 'VET', contractHours: 35 },
         },
