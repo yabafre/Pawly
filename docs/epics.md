@@ -8,8 +8,10 @@ workflowType: epics-stories
 lastStep: 4
 status: updated
 completedAt: '2026-02-02'
-lastEdited: '2026-04-04'
+lastEdited: '2026-07-16'
 editHistory:
+  - date: '2026-07-16'
+    changes: 'Added Epic 13: Planning Integrity & Solver Fidelity (8 stories) — from the 2026-07-14 multi-agent audit (35 findings) and the 2026-07-16 triage (T1-T12). Backfilled Story key lines on legacy epics 1-10 for APED oracle compliance.'
   - date: '2026-07-08'
     changes: 'Added Epic 11: Planning Engine Hardening & Compliance (10 stories) — from the 2026-07-08 multi-agent audit (28 confirmed findings). Remediates the 7-6 bulk-regeneration guard gap, manual-shift blindness, missing French labor-law hard rules, notification reliability, generation idempotency/concurrency, equity plumbing, rule-engine unification, and a GRASP local-repair pass. No new FRs — extends FR7 (Hard Rules) to French labor law.'
   - date: '2026-07-08'
@@ -146,7 +148,11 @@ _PRD → Epic/Story traceability._
 
 _Epic 11 (Planning Engine Hardening & Compliance) re-covers FR3/FR5/FR6/FR7/FR8/FR10 at a higher safety and reliability bar — see stories 11-1 through 11-10. It extends FR7 (Hard Rules) to French labor-law constraints (max 10h/day, 35h weekly rest, max 6 consecutive days) rather than introducing a new FR._
 
+_Epic 13 (Planning Integrity & Solver Fidelity) re-covers FR3/FR5/FR6/FR7/FR8 at a higher integrity bar — see stories 13-1 through 13-8. It extends the FR7 statutory set with daily rest (11h, L.3131-1), the 48h absolute weekly ceiling (L.3121-20), and the mandatory 20-minute break (L.3121-16), rather than introducing a new FR._
+
 ## Epic List
+
+_Story keys follow `{epic}-{story}-{slug}` (e.g. `1-1-initialisation-du-monorepo-schema-prisma-modulaire`); the canonical per-story key list lives in each epic section below and in `state.yaml.sprint.stories`._
 
 ### Epic 1: Technical Foundation ✅ DONE (Stories 1.1–1.3) + NEW (1.4, 1.5)
 Monorepo setup, modular Prisma schema, hybrid auth (JWT + Magic Link), unified login interface. **Extended** with Clinic/Subscription/StripeEvent models and auth refactor to remove clinicId from login flow.
@@ -205,6 +211,7 @@ Epic 5–8 (Operational) — staff, planning, admin arbitration, employee portal
 ## Epic 1: Technical Foundation
 
 ### Story 1.1: [TECHNICAL PREREQUISITE] Monorepo Initialization & Modular Prisma Schema — ✅ DONE
+**Story key:** `1-1-initialisation-du-monorepo-schema-prisma-modulaire`
 
 > **Status:** DONE. Monorepo scaffolded, Prisma Schema Folders configured.
 
@@ -220,6 +227,7 @@ So that the project has a solid and scalable technical foundation for subsequent
 **And** all core models include a mandatory `clinicId` field for multi-tenancy.
 
 ### Story 1.2: Authentication Backend (JWT + Magic Link Logic) — ✅ DONE (needs refactor in 1.5)
+**Story key:** `1-2-backend-dauthentification-jwt-magic-link-logic`
 
 > **Status:** DONE. JWT + Magic Link backend implemented. Needs refactoring in Story 1.5 to remove clinicId from login flow.
 
@@ -234,6 +242,7 @@ So that I can log in without a password.
 **And** an email is sent via Resend containing the single-use login link.
 
 ### Story 1.3: Unified Login Interface — ✅ DONE (needs refactor in 1.5)
+**Story key:** `1-3-interface-de-connexion-flux-zsatrpc`
 
 > **Status:** DONE. Login UI implemented. Needs refactoring in Story 1.5 to remove clinicId input field.
 
@@ -251,6 +260,7 @@ So that I can access my dashboard based on my role.
 > **Implementation Note:** Follow the architectural data flow pattern: `Client Component -> Hook -> Zsa -> Server Action -> tRPC -> NestJS API`. See Architecture document for details.
 
 ### Story 1.4: [NEW] Clinic, Subscription & StripeEvent Prisma Models
+**Story key:** `1-4-clinic-subscription-stripe-event-prisma-models`
 
 As a developer,
 I need to create the Clinic, Subscription, and StripeEvent Prisma models with proper foreign key relationships,
@@ -269,6 +279,7 @@ So that multi-tenancy is enforced via proper FK constraints and the subscription
 > **Implementation Note:** This story creates the data foundation for Epic 3 (Stripe) but does NOT implement any Stripe logic. It is a pure schema change.
 
 ### Story 1.5: [NEW] Auth Refactor — Remove clinicId from Login, Resolve from DB
+**Story key:** `1-5-auth-refactor-remove-clinic-id-from-login`
 
 As a developer,
 I need to refactor the auth flow so that clinicId is resolved from the database (not provided by the client),
@@ -293,6 +304,7 @@ So that login is simplified to email-only and the `NEXT_PUBLIC_CLINIC_ID` enviro
 > **Cross-Cutting Dependency:** i18n proxy must be configured before any page routing works correctly. This epic should be implemented immediately after Epic 1.
 
 ### Story 2.1: [TECHNICAL] i18n Foundation (next-intl Routing & Proxy)
+**Story key:** `2-1-i18n-foundation-next-intl-routing-proxy`
 As a developer,
 I need to set up next-intl with locale-based routing and a proxy for locale detection,
 So that all application pages support FR/EN navigation with clean URLs.
@@ -311,6 +323,7 @@ So that all application pages support FR/EN navigation with clean URLs.
 > **Architecture Note:** This is a foundational story. All subsequent page development depends on the `[locale]` routing being operational.
 
 ### Story 2.2: Application Translation & Language Switching
+**Story key:** `2-2-application-translation-language-switching`
 As a user (Admin or Employee),
 I want to use Pawly in French or English and switch language instantly,
 So that I can work in my preferred language.
@@ -331,6 +344,7 @@ So that I can work in my preferred language.
 > **Cross-Cutting Dependency:** Subscription gating depends on Stripe webhooks being operational before admin routes are protected. This epic depends on Epic 1 (auth + models) and Epic 2 (i18n routing).
 
 ### Story 3.1: [TECHNICAL] Stripe Module Foundation & Webhook Security
+**Story key:** `3-1-stripe-module-foundation-webhook-security`
 As a developer,
 I need to set up the NestJS Stripe module with secure webhook handling and subscription data models,
 So that the application can safely process Stripe events and track subscription state.
@@ -348,6 +362,7 @@ So that the application can safely process Stripe events and track subscription 
 > **Dependency:** Requires Story 1.4 (StripeEvent model).
 
 ### Story 3.2: Stripe Checkout & Clinic Registration (ENHANCED)
+**Story key:** `3-2-stripe-checkout-clinic-registration`
 As a clinic owner,
 I want to subscribe to Pawly via a Stripe Checkout page,
 So that my clinic account is created upon successful payment.
@@ -376,6 +391,7 @@ So that my clinic account is created upon successful payment.
 > ```
 
 ### Story 3.3: [NEW] Post-Checkout Onboarding & First Login
+**Story key:** `3-3-post-checkout-onboarding-first-login`
 As a new clinic admin,
 I want to be guided through an onboarding wizard after my first login,
 So that my clinic is properly configured before I start using the application.
@@ -397,6 +413,7 @@ So that my clinic is properly configured before I start using the application.
 > **Dependency:** Requires Story 3.2 (Clinic + Admin must exist via webhook). Requires Story 2.1 (i18n routing for `[locale]`).
 
 ### Story 3.4: Subscription Management (Billing Portal)
+**Story key:** `3-4-subscription-management-billing-portal`
 As an admin,
 I want to manage my subscription (upgrade, downgrade, cancel) via a self-service portal,
 So that I can control my billing without contacting support.
@@ -413,6 +430,7 @@ So that I can control my billing without contacting support.
 **And** all webhook handlers check `StripeEvent` idempotency before processing.
 
 ### Story 3.5: Promotion Codes (100% Discount Support)
+**Story key:** `3-5-promotion-codes-100-discount-support`
 As a partner or promotional user,
 I want to apply a promotion code during checkout that can cover up to 100% of the subscription cost,
 So that I can access Pawly at a discounted or zero price.
@@ -430,6 +448,7 @@ So that I can access Pawly at a discounted or zero price.
 > **Promo 100% Flow:** Pricing Page -> Enter promo code -> Checkout with coupon -> Webhook confirms $0 sub -> Clinic created with entitlementTier matching plan -> Full access at $0 -> Promo tracked via Stripe metadata.
 
 ### Story 3.6: Subscription-Based Access Control
+**Story key:** `3-6-subscription-based-access-control`
 As the system,
 I need to restrict access to application features based on active subscription status,
 So that only paying (or validly promoted) clinics can use the application.
@@ -449,6 +468,7 @@ So that only paying (or validly promoted) clinics can use the application.
 > **Cross-Cutting Dependency:** Landing page depends on Epic 2 (i18n routing) for locale-aware SSG and on Epic 3 (Stripe) for pricing plan display and subscription CTA.
 
 ### Story 4.1: Public Landing Page (SSG, SEO, Acquisition)
+**Story key:** `4-1-public-landing-page-ssg-seo-acquisition`
 As a non-authenticated visitor,
 I want to view a public landing page presenting Pawly's value proposition and pricing,
 So that I can understand the product and start a subscription or free trial.
@@ -469,6 +489,7 @@ So that I can understand the product and start a subscription or free trial.
 **And** the landing page is functionally decoupled from the application (no clinical data exposed).
 
 ### Story 4.2: Pricing Page with Pre-Checkout Form (ENHANCED)
+**Story key:** `4-2-pricing-page-with-pre-checkout-form`
 As a non-authenticated visitor,
 I want to view detailed pricing plans and start the subscription process directly from the pricing page,
 So that I can compare options and seamlessly begin my clinic registration.
@@ -488,6 +509,7 @@ So that I can compare options and seamlessly begin my clinic registration.
 ## Epic 5: Staff Management & Clinic Configuration
 
 ### Story 5.1: Employee & Contract Management (CRUD)
+**Story key:** `5-1-employee-contract-management-crud`
 As an admin,
 I want to manage employee profiles and their contract types,
 So that the staff list is always up to date for scheduling.
@@ -499,6 +521,7 @@ So that the staff list is always up to date for scheduling.
 **And** every query is strictly filtered by the authenticated user's `clinicId`.
 
 ### Story 5.2: Declarative Constraints Configuration
+**Story key:** `5-2-declarative-constraints-configuration`
 As an admin,
 I want to define recurring unavailabilities for employees,
 So that the planning engine doesn't assign shifts during those times.
@@ -510,6 +533,7 @@ So that the planning engine doesn't assign shifts during those times.
 **And** these constraints are flagged as "Hard Rules" for the planning algorithm.
 
 ### Story 5.3: Clinic Configuration (Hours & Days)
+**Story key:** `5-3-clinic-configuration-hours-days`
 As an admin,
 I want to configure my clinic's operational settings,
 So that the planning engine respects our specific schedule.
@@ -526,6 +550,7 @@ So that the planning engine respects our specific schedule.
 **And** the planning engine uses these settings as base constraints.
 
 ### Story 5.4: Monthly School Day Declaration (Apprentices)
+**Story key:** `5-4-monthly-school-day-declaration-apprentices`
 As an apprentice,
 I want to declare my school days before the end of each month,
 So that the planning engine knows when I am unavailable for the upcoming month.
@@ -541,6 +566,7 @@ So that the planning engine knows when I am unavailable for the upcoming month.
 > **UX Note:** "One-Tap Compliance" - declaring school days is a simple calendar tap interaction, not a form filling exercise.
 
 ### Story 5.5: Planning Assistance Rules (Admin Configurable)
+**Story key:** `5-5-planning-assistance-rules-configurable`
 As an admin,
 I want to configure custom planning assistance rules,
 So that the algorithm helps generate fair and compliant schedules.
@@ -560,6 +586,7 @@ So that the algorithm helps generate fair and compliant schedules.
 > **Note:** These are NOT hardcoded business rules. Each admin configures their own rules to assist the planning algorithm based on their clinic's specific needs.
 
 ### Story 5.6: Equity Counters Management
+**Story key:** `5-6-equity-counters-management`
 As an admin,
 I want to track equity counters for fair shift distribution,
 So that I can ensure workload is distributed fairly among employees.
@@ -578,6 +605,7 @@ So that I can ensure workload is distributed fairly among employees.
 ## Epic 6: Intelligent Planning Engine (Template + Greedy)
 
 ### Story 6.1: Planning Template Definition (Admin)
+**Story key:** `6-1-planning-template-definition-admin`
 As an admin,
 I want to create week templates with shift types,
 So that I have a baseline structure for monthly planning generation.
@@ -589,6 +617,7 @@ So that I have a baseline structure for monthly planning generation.
 **And** it is uniquely associated with the current `clinicId`.
 
 ### Story 6.2: Greedy Generation Algorithm & Blocking Rules
+**Story key:** `6-2-greedy-generation-algorithm-blocking-rules`
 As an admin,
 I want to trigger the automatic planning generation that fills template gaps while respecting constraints,
 So that I get a valid planning proposal with minimal manual effort.
@@ -605,6 +634,7 @@ So that I get a valid planning proposal with minimal manual effort.
 **Reference:** See `docs/implementation-artifacts/planning-algorithm-reference.md` for the complete algorithm specification.
 
 ### Story 6.3: Schedule Visualization & Conflict Indicators
+**Story key:** `6-3-schedule-visualization-conflict-indicators`
 As an admin,
 I want to visualize the generated planning in an interactive grid,
 So that I can immediately identify coverage issues or rule violations.
@@ -620,6 +650,7 @@ So that I can immediately identify coverage issues or rule violations.
 ## Epic 7: Admin Arbitration & Final Validation
 
 ### Story 7.1: Manual Schedule Adjustment (Drag & Drop)
+**Story key:** `7-1-manual-schedule-adjustment-drag-drop`
 As an admin,
 I want to manually move shift assignments using drag and drop,
 So that I can resolve coverage gaps.
@@ -630,6 +661,7 @@ So that I can resolve coverage gaps.
 **Then** the change is saved optimistically and synced via a Server Action.
 
 ### Story 7.2: Equity Alerts Management (Soft Rules)
+**Story key:** `7-2-equity-alerts-management-soft-rules`
 As an admin,
 I want to receive visual warnings when equity counters indicate unfair distribution,
 So that I can act fairly and balance workload across my team.
@@ -649,6 +681,7 @@ So that I can act fairly and balance workload across my team.
 > **Note:** Soft rules are admin-configurable (Story 5.5). The system does not enforce hardcoded equity rules - each clinic defines what "fair" means for their context.
 
 ### Story 7.3: Absence Request and Validation Workflow
+**Story key:** `7-3-absence-request-validation-workflow`
 As an employee or admin,
 I want to submit or validate absence requests,
 So that these periods are automatically blocked in the planning.
@@ -659,6 +692,7 @@ So that these periods are automatically blocked in the planning.
 **Then** it creates a blocking "Hard Rule" entry in the planning for that `clinicId`.
 
 ### Story 7.4: Planning Health Bar
+**Story key:** `7-4-planning-health-bar`
 As an admin,
 I want to see a real-time summary of the planning health,
 So that I know if the schedule is ready to be published.
@@ -670,6 +704,7 @@ So that I know if the schedule is ready to be published.
 **And** the "Publish" button is disabled if any "Hard Conflicts" (Vital Orange) remain.
 
 ### Story 7.5: Admin Variance View (Time & Discrepancies Module)
+**Story key:** `7-5-admin-variance-view`
 As an admin,
 I want to compare planned shifts vs. actual confirmed attendance,
 So that I can track deviations, manage exceptions, and prepare accurate data for payroll.
@@ -690,6 +725,7 @@ So that I can track deviations, manage exceptions, and prepare accurate data for
 > **Note:** This module bridges the gap between scheduling and payroll/HR systems. It provides the audit trail needed for labor compliance and fair compensation.
 
 ### Story 7.6: Post-Publication Change Management
+**Story key:** `7-6-post-publication-change-management`
 As an admin,
 I want schedule changes made after publication to be explicit, notified, and consistency-preserving,
 So that employees never show up on a stale schedule and the "System Never Lies" promise holds after publication.
@@ -708,6 +744,7 @@ So that employees never show up on a stale schedule and the "System Never Lies" 
 ## Epic 8: Employee PWA Portal & Time Tracking
 
 ### Story 8.1: Personal Schedule Consultation (Graceful Offline)
+**Story key:** `8-1-personal-schedule-consultation-graceful-offline`
 As an employee,
 I want to consult my schedule on my phone even without internet connection,
 So that I know my work hours at any time.
@@ -719,6 +756,7 @@ So that I know my work hours at any time.
 **And** the UI clearly indicates "Offline Mode - Showing cached data".
 
 ### Story 8.2: Declarative Time Tracking (VarianceEvent Tracking)
+**Story key:** `8-2-declarative-time-tracking-variance-event`
 As an employee,
 I want to confirm my presence for each slot,
 So that I can declare my worked hours.
@@ -729,6 +767,7 @@ So that I can declare my worked hours.
 **Then** a `VarianceEvent` is created, comparing the original planned shift with the confirmation timestamp.
 
 ### Story 8.3: Installation PWA & Email Notifications
+**Story key:** `8-3-pwa-installation-email-notifications`
 As an employee,
 I want to install the application and receive email alerts when a schedule is published,
 So that I stay informed.
@@ -745,6 +784,7 @@ So that I stay informed.
 ## Epic 9: Production Readiness — Observability & Job Durability
 
 ### Quick-Spec: SigNoz + Trigger.dev Integration
+**Story key:** `9-1-signoz-triggerdev-integration` _(quick-spec — tracked in `state.yaml` as `signoz-triggerdev-integration-quick-spec`; spec: `docs/reference/tech-spec-signoz-triggerdev-integration.md`)_
 As an ops team,
 I want distributed tracing, metrics, and durable background jobs,
 So that I can monitor and debug the application in production.
@@ -760,6 +800,7 @@ So that I can monitor and debug the application in production.
 ## Epic 10: Polish & UX Hardening
 
 ### Story 10.1: Admin Password Reset Workflow
+**Story key:** `10-1-admin-password-reset-workflow`
 As an admin user,
 I want to reset my password when I forget it,
 So that I can regain access to my clinic management dashboard without contacting support.
@@ -772,6 +813,7 @@ So that I can regain access to my clinic management dashboard without contacting
 **And** previous unused tokens are invalidated when a new one is requested.
 
 ### Story 10.2: Admin Settings — Clinic & Profile Management
+**Story key:** `10-2-admin-settings-clinic-profile-management`
 As an admin user,
 I want to manage my clinic information and personal account settings from the settings page,
 So that I can update my clinic name, change my password, and configure my preferences without contacting support.
@@ -785,6 +827,7 @@ So that I can update my clinic name, change my password, and configure my prefer
 **And** I can switch my language preference (FR/EN).
 
 ### Story 10.3: Onboarding Flow Revamp — Account-First Registration
+**Story key:** `10-3-onboarding-flow-revamp`
 As a veterinary clinic admin,
 I want to register my account before being asked for payment,
 So that I can explore the platform as a Starter user immediately and upgrade to Professional only when I'm ready.
@@ -1056,3 +1099,180 @@ So that I get CP-SAT optimization without hidden magic — and as a Starter admi
 |-----------|--------|------|----------|
 | 12-1-cp-sat-optimal-solver | KON-129 | L | Low |
 | 12-2-engine-toggle-tier-gate | KON-130 | L | Low |
+
+---
+
+## Epic 13: Planning Integrity & Solver Fidelity
+
+> **Shared context (read first):** [`docs/epics-context/epic-13-context.md`](epics-context/epic-13-context.md) — the 2026-07-14 audit synthesis, file:line anchors per story, and the cross-cutting invariants every Epic 13 story must preserve. `aped-dev` / `aped-review` load it automatically.
+
+Remediation epic derived from the multi-agent audit of 2026-07-14 (6 exclusive-scope auditors, 35 retained findings, top findings hand-verified) and its triage of 2026-07-16 (`docs/triage-decision.md`: T1–T8 HIGH bugs, T9–T12 MEDIUM). It introduces **no new FRs** — it re-covers FR3/FR5/FR6/FR7/FR8 at a higher integrity bar and **extends the FR7 statutory set** (Epic 11) with daily rest, the absolute weekly ceiling, and the mandatory break. Thesis: *whatever generation guarantees, no manual gesture and no solver pass may bypass — and whatever is served must be true (violations, engine, metrics).*
+
+**FRs covered:** FR3, FR5, FR6, FR7 (extended), FR8.
+**NFRs covered:** NFR2, NFR3, NFR10.
+
+### Story 13.1: Manual-Write Guards & Shared Locks
+**Story key:** `13-1-manual-write-guards-locks`
+As an admin user,
+I want manual shift moves and creations to enforce the same statutory and HARD rules as generation, atomically and under the same lock,
+So that no manual gesture or concurrent write can ever persist an illegal or double-booked roster.
+
+**Acceptance Criteria:**
+**Given** a move that would introduce a statutory or HARD-rule violation
+**When** `planning.moveShift` is called — from the grid or from any client hitting the API directly
+**Then** the mutation is rejected server-side by replaying `wouldExceedStatutory` + the unified rule engine inside the mutation transaction (the `preValidateMove` query becomes advisory UX, no longer the only line of defense).
+**And** on a PUBLISHED month, an amendment that would violate statutory limits is rejected before any employee notification is sent.
+**And** `moveShift`, `createManualShift`, and generation all serialize on the same `pg_advisory_xact_lock(clinicId, month)`.
+**And** `generateMonthlyPlan` re-validates its computed plan against current DB state inside the write transaction (overlap + survivor re-check), so a plan computed on a stale snapshot cannot persist a double-booking (audit T2 TOCTOU scenario).
+**And** regression tests cover: direct-API illegal move rejected; a move racing a regeneration never yields overlapping shifts.
+
+**FRs covered:** FR6, FR7. **NFRs:** NFR3, NFR10.
+**Complexity:** L.
+**Depends on:** none.
+
+### Story 13.2: Unified Cross-Month Validation Windows
+**Story key:** `13-2-unified-validation-windows`
+As a clinic operating under French labor law,
+I want every validation path to see the same cross-month data window,
+So that consecutive-day runs and 35h weekly-rest deficits cannot hide at a month frontier.
+
+**Acceptance Criteria:**
+**Given** shifts spanning a month boundary
+**When** move validation, publish validation (`validateShiftsAgainstRules`), or generation/replay eligibility runs
+**Then** each path loads the ±8-real-days cross-month window (all shift sources) that `createManualShift` already uses — no path validates on the strict month anymore.
+**And** `clampGapLen` no longer credits phantom rest at window edges (clipped head/tail sentinels are excluded from weekly-rest credit).
+**And** a 7th consecutive worked day or a missing 35h rest straddling a month frontier is detected on every path (unit-tested per path), including the Dec→Jan ISO-week boundary.
+
+**FRs covered:** FR5, FR7. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** 13-1-manual-write-guards-locks.
+
+### Story 13.3: Cross-Midnight Overlap Correctness
+**Story key:** `13-3-cross-midnight-overlap`
+As an admin running night shifts,
+I want overlapping shifts detected across midnight,
+So that no engine — greedy, manual edit, or CP-SAT — can double-book an employee whose shift crosses midnight.
+
+**Acceptance Criteria:**
+**Given** a shift ending after midnight (e.g. 22:00→06:00 on day D) and a shift on day D+1 overlapping it in real time
+**When** any eligibility or overlap check runs
+**Then** the overlap is detected: `timesOverlap` is wrap-aware and the per-day bucket scan includes adjacent days.
+**And** the CP-SAT model emits mutex constraints for cross-midnight pairs on adjacent dates, and the replay re-validation rejects such double-bookings (closing the only audited path where an invalid plan could be SERVED).
+**And** same-date behaviour is unchanged (existing overlap regression suite stays green).
+
+**FRs covered:** FR5, FR7. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** none.
+
+### Story 13.4: Statutory Extensions — Daily Rest, Weekly Ceiling, Mandatory Break
+**Story key:** `13-4-statutory-extensions`
+As a clinic operating under French labor law,
+I want daily rest, the absolute weekly ceiling, and the mandatory break enforced by default,
+So that a legal roster is guaranteed beyond the four Epic 11 statutory limits.
+
+**Acceptance Criteria:**
+**Given** two consecutive worked days
+**When** the rest gap between them is under 11 consecutive hours (L.3131-1)
+**Then** the assignment or edit is blocked as a statutory HARD violation, computed on `mergedBusyIntervals`, cross-midnight aware (this was explicitly descoped by story 11-3; it now becomes the 5th statutory limit).
+**And** a week exceeding 48h worked (L.3121-20) is blocked regardless of admin configuration — the statutory floor wins over `maxWeeklyHours` × tolerance.
+**And** a day with more than 6h worked and `breakMinutes < 20` (L.3121-16) surfaces as a blocking violation in generation, manual edits, and publish (Health Bar).
+**And** the three new limits are non-disableable (hard-coded like the Epic 11 set), seeded for visibility at onboarding, and covered by unit + generation tests.
+
+**FRs covered:** FR3, FR7 (extended). **NFRs:** NFR3.
+**Complexity:** L.
+**Depends on:** 13-2-unified-validation-windows.
+
+### Story 13.5: Solver Model Fidelity — Monthly Baseline & Equity Objective Coherence
+**Story key:** `13-5-solver-model-fidelity`
+As a Professional admin using the exact engine,
+I want the solver model to deduct survivor loads and optimize the same equity objective the acceptance gate judges,
+So that the cpsat pass delivers improvements instead of systematically falling back to greedy.
+
+**Acceptance Criteria:**
+**Given** a clinic with a HARD `maxMonthlyHours` rule and survivor shifts in the target month
+**When** the solver input is built
+**Then** a `fixedMonthlyMinutes` baseline is deducted from the monthly bound (exact mirror of the weekly baseline), and the improve pass no longer auto-falls-back for this class of clinics.
+**And** the model objective gains a `spread:shift` term (weight `shift`) alongside saturday/weekend, and `perEmployee.fixed` carries the survivors' saturday/weekend/shift counts instead of 0 — the optimizer now optimizes every metric the `equityObjective` gate judges.
+**And** fill still lexicographically dominates equity, and determinism is preserved (same seed/budget → deep-equal results).
+**And** a fixture combining survivors + monthly cap now serves a cpsat plan where it previously fell back, asserted in tests.
+
+**FRs covered:** FR5, FR8. **NFRs:** NFR2.
+**Complexity:** M.
+**Depends on:** 13-3-cross-midnight-overlap.
+
+### Story 13.6: Served-Plan Truthfulness & Solver Observability
+**Story key:** `13-6-served-plan-truth-observability`
+As an admin — and as the ops team,
+I want the served plan's violations, engine, and outcome to be truthful and monitorable,
+So that "System Never Lies" holds on the solver path and a silent cpsat degradation is visible in SigNoz.
+
+**Acceptance Criteria:**
+**Given** a served cpsat plan
+**When** the generation result is built
+**Then** `hardViolations` / `softViolations` are recomputed for the served assignments — never the greedy plan's arrays (audit T6).
+**And** the generation telemetry carries `requested_engine`, `served_engine`, and `solver_status` attributes (histogram attributes or a dedicated counter), so a fleet-wide cpsat→greedy degradation is alertable.
+**And** when a Pro admin requests cpsat and greedy is served, `stats.solverOutcome` distinguishes the reason (engine unavailable / infeasible / budget exhausted / no improvement found / re-validation rejected) and the generation panel surfaces it (badge + toast, FR and EN strings).
+
+**FRs covered:** FR5, FR8. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** 13-5-solver-model-fidelity.
+
+### Story 13.7: Equity Counters — UTC & Single Source
+**Story key:** `13-7-equity-counters-utc`
+As an admin,
+I want persisted equity counters computed in UTC by a single shared implementation,
+So that counters match the engine's day classification on any deployment timezone and cannot drift between the Nest and Trigger runners.
+
+**Acceptance Criteria:**
+**Given** shifts stored at UTC midnight
+**When** counters are recomputed — by `EquityCounterService` or by the `equity-recalc` Trigger task
+**Then** day-of-week classification and month bounds use UTC (`getUTCDay`, UTC month bounds): a Saturday shift increments `SATURDAY_WORKED` even under `TZ=UTC`.
+**And** the counting core is extracted into one pure shared function consumed by both runners (the hand-maintained duplication in `trigger/tasks/equity-recalc.ts` is removed).
+**And** tests construct dates the way production stores them (UTC midnight) and cover the `TZ=UTC` case explicitly — the current local-date test blind spot is closed.
+
+**FRs covered:** FR8. **NFRs:** NFR3.
+**Complexity:** M.
+**Depends on:** none.
+
+### Story 13.8: Invariant Test Harness (Property-Based + End-to-End)
+**Story key:** `13-8-invariant-test-harness`
+As a maintainer,
+I want property-based invariants and one true end-to-end integration test,
+So that the engine's safety guarantees hold across the input space instead of on hand-picked fixtures.
+
+**Acceptance Criteria:**
+**Given** randomized fixtures (fast-check: employees, slots, rules, unavailabilities, survivors)
+**When** the invariant suite runs
+**Then** three properties hold: (1) no served plan — greedy or cpsat — violates a HARD or statutory rule; (2) improve-never-degrade holds for every (greedy, solver) pair; (3) the same input twice yields deep-equal output (determinism).
+**And** one integration test mounts the real planning router + the real `SolverEngineService` + a transactional Prisma mock and exercises tRPC `generatePlan { engine: 'cpsat' }` → generation → real solve → replay → `$transaction` in a single path (closing the split where router specs mock the service and service specs mock the router).
+**And** the harness is CI-aware (bounded runs/shrinking within the NFR2 budget pattern) and documented for future engine work.
+
+**FRs covered:** FR5, FR7, FR8. **NFRs:** NFR2.
+**Complexity:** M.
+**Depends on:** 13-3-cross-midnight-overlap, 13-4-statutory-extensions, 13-6-served-plan-truth-observability.
+
+### Epic 13 — Implementation Sequence (DAG)
+
+```
+Wave 1 (no deps, parallel): 13-1 · 13-3 · 13-7
+Wave 2: 13-2 (<-13-1) · 13-5 (<-13-3)
+Wave 3: 13-4 (<-13-2) · 13-6 (<-13-5)
+Wave 4: 13-8 (<-13-3,13-4,13-6)
+```
+
+Safety criticals first (13-1, 13-2, 13-3); legal extensions and solver value next; the invariant harness locks the guarantees last. Deferred audit findings live in `.aped/.out-of-scope/2026-07-16-*.md` (minors under-18 regime, IDCC 1875 scope, equity horizon redesign, solver worker-thread hardening, low-severity batch).
+
+### Epic 13 — Linear Tickets
+
+Synced to Linear project **Pawly**, milestone *Epic 13 — Planning Integrity & Solver Fidelity* (2026-07-16). Dependencies wired as blocked-by relations (7 links).
+
+| Story key | Ticket | Size | Priority |
+|-----------|--------|------|----------|
+| 13-1-manual-write-guards-locks | KON-131 | L | Urgent |
+| 13-2-unified-validation-windows | KON-134 | M | High |
+| 13-3-cross-midnight-overlap | KON-132 | M | High |
+| 13-4-statutory-extensions | KON-136 | L | High |
+| 13-5-solver-model-fidelity | KON-135 | M | Medium |
+| 13-6-served-plan-truth-observability | KON-137 | M | Medium |
+| 13-7-equity-counters-utc | KON-133 | M | Medium |
+| 13-8-invariant-test-harness | KON-138 | M | Low |

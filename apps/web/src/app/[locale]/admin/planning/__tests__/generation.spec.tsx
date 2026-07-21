@@ -464,6 +464,63 @@ describe('GenerationPanel', () => {
       rerender(<GenerationPanel month="2026-05" onMonthChange={vi.fn()} />);
       expect(screen.queryByTestId('served-engine')).not.toBeInTheDocument();
     });
+
+    // Story 13-6 (KON-137, AC-3): when a cpsat request served greedy, the badge
+    // carries the REASON below it so the admin sees WHY (System Never Lies).
+    it('shows the solver fallback reason under the badge when greedy is served with an outcome', async () => {
+      const generatePlan = vi.fn((_input: unknown, opts: { onSuccess?: (r: unknown) => void }) =>
+        opts?.onSuccess?.({
+          stats: { engine: 'greedy', solverOutcome: 'infeasible' },
+          violations: { hard: [], soft: [] },
+        })
+      );
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByText('generateButton'));
+      // next-intl is globally mocked to echo the key; the outcome maps to 'infeasible'.
+      expect(screen.getByTestId('solver-outcome-reason')).toHaveTextContent('infeasible');
+    });
+
+    // The reason line must NOT appear when cpsat was served (outcome 'served') — the
+    // badge already communicates success and the reason is only for fallbacks.
+    it('does not show the reason line when cpsat was served', async () => {
+      const generatePlan = vi.fn((_input: unknown, opts: { onSuccess?: (r: unknown) => void }) =>
+        opts?.onSuccess?.({
+          stats: { engine: 'cpsat', solverOutcome: 'served' },
+          violations: { hard: [], soft: [] },
+        })
+      );
+      const { useGeneration } = await import('../_hooks/useGeneration');
+      vi.mocked(useGeneration).mockReturnValue({
+        shifts: [],
+        isLoadingShifts: false,
+        isFetchingShifts: false,
+        refetchShifts: vi.fn(),
+        generatePlan,
+        isGenerating: false,
+        deleteGenerated: vi.fn(),
+        isDeleting: false,
+        invalidateAll: vi.fn(),
+      } as any);
+      render(<GenerationPanel {...defaultPanelProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByText('Template A'));
+      fireEvent.click(screen.getByRole('switch'));
+      fireEvent.click(screen.getByText('generateButton'));
+      expect(screen.getByTestId('served-engine')).toBeInTheDocument();
+      expect(screen.queryByTestId('solver-outcome-reason')).not.toBeInTheDocument();
+    });
   });
 });
 

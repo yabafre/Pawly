@@ -19,18 +19,31 @@ import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
 import {
+  intervalsOverlap,
+  restMinutesBetween,
+  shiftsOverlap,
+  toAbsoluteInterval,
+} from './shift-interval';
+import {
   violatesHardContractIncremental,
   violatesHardRotation,
   type RuleType,
 } from './rule-engine';
 import {
+  evaluateMoveViolations,
+  type MoveEvalContext,
+  type MoveEvalShift,
+} from './move-validation';
+import {
   computeLoads,
   deriveEquityWeights,
   equityObjective,
+  mergeEquityLoads,
   findEjectionChain,
   selectImprovingSwap,
   type RepairSlot,
   type RepairAssignment,
+  type EmployeeLoad,
 } from './local-repair';
 import {
   buildSolverModel,
@@ -45,6 +58,7 @@ import type {
   HardViolation,
   SoftViolation,
   EquitySummaryEntry,
+  SolverOutcome,
 } from '@pawly/validators';
 import type {
   ScheduleViewData,
@@ -57,6 +71,13 @@ import type {
 } from '@pawly/validators';
 import { planningGenerationDuration } from '@/common/metrics';
 import type { CounterWithEmployee } from './equity-counter.service';
+
+// Story 13-6 (KON-137) — the improve pass reports WHY it did/didn't serve so the
+// caller can populate stats.solverOutcome and the metric. `served: true` carries the
+// recomputed holes exactly as before; `served: false` carries the fallback reason.
+type SolverPassResult =
+  | { served: true; holes: GenerationResult['holes'] }
+  | { served: false; outcome: Exclude<SolverOutcome, 'served'> };
 
 type SlotRequirement = {
   date: string;
@@ -185,6 +206,24 @@ export class PlanningGenerationService {
       }
     }
     throw lastError;
+  }
+
+  /**
+   * Story 13-1 (KON-131) — takes the (clinicId, month) advisory lock for every month a write
+   * touches, in SORTED order. Sorting is load-bearing: a cross-month move locks two months,
+   * and two admins moving in opposite directions (2026-03 -> 2026-04 and 2026-04 -> 2026-03)
+   * would deadlock if each locked "source then target". Same key shape as generation (:747)
+   * and publish (:3048), so manual writes now serialize against both. Auto-released at
+   * COMMIT / ROLLBACK on the transaction's pinned connection.
+   */
+  private async lockMonths(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    months: string[],
+  ): Promise<void> {
+    for (const m of [...new Set(months)].sort()) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${m}))`;
+    }
   }
 
   async generateMonthlyPlan(
@@ -356,6 +395,35 @@ export class PlanningGenerationService {
       this.incrementDayOfWeekCount(dayOfWeekCounts, bs.employeeId, bs.date);
     }
 
+    // Story 13-2 (KON-134) — widen the cross-month context the statutory eligibility window
+    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex so the
+    // eligibility predicate — main loop + repair + replay, which all share this one map — sees
+    // the frontier context. Deliberately NOT seeded into dayOfWeekCounts / weeklyMinutesCounter
+    // / allShiftsForScoring, so rotation/equity/fill stay byte-identical (invariant 11-10).
+    // Border days (ISO-straddle + D±1) are already seeded above — skip them to avoid
+    // double-counting.
+    // aped-review M2: scoreAndAssign's "Consecutive days penalty" SCORING scan reads this same
+    // map directly, walking up to 6 days back — so these purely-statutory out-of-month days
+    // would extend that scan for near-frontier slots and change which eligible employee wins,
+    // silently breaking the byte-identical claim above. Their keys are recorded in
+    // `statutoryOnlyKeys`; that one scoring scan stops at them (they were invisible to it
+    // pre-13-2), restoring exact pre-13-2 greedy selection while the eligibility window
+    // (step 5) still reads them from assignmentIndex.
+    const borderDateSet = new Set(borderShifts.map((bs) => bs.date));
+    const statutoryOnlyKeys = new Set<string>();
+    const statutoryBorderShifts = await this.loadStatutoryBorderShifts(
+      clinicId,
+      month,
+    );
+    for (const sbs of statutoryBorderShifts) {
+      if (borderDateSet.has(sbs.date)) continue;
+      const key = `${sbs.employeeId}|${sbs.date}`;
+      const existing = assignmentIndex.get(key) || [];
+      existing.push(sbs);
+      assignmentIndex.set(key, existing);
+      statutoryOnlyKeys.add(key);
+    }
+
     // allShiftsForScoring includes border + newly assigned (for weekly hour calculation)
     const allShiftsForScoring: AssignedShift[] = [...borderShifts];
 
@@ -501,13 +569,43 @@ export class PlanningGenerationService {
     // Story 12-1 (KON-129) — freeze the pre-greedy fixed baseline (border +
     // survivors + school) so the solver's model re-decides GENERATED assignments
     // only. Captured ONLY on the cpsat path: the default engine pays nothing.
+    // Story 13-5 adds the monthly-minute baseline (employeeMinutes is seeded with
+    // this month's survivors above; border shifts never enter it — exactly the
+    // per-month figure the monthly cap must deduct) and the survivor equity loads
+    // the spread + gate use.
     const solverBaseline =
       options.engine === 'cpsat'
         ? {
             weeklyMinutes: new Map(weeklyMinutesCounter),
+            monthlyMinutes: new Map(employeeMinutes),
+            equityLoads: (() => {
+              const survSlotById = new Map<string, RepairSlot>();
+              const survAssignments: RepairAssignment[] = [];
+              survivingShifts.forEach((ss, i) => {
+                const id = `surv|${i}`;
+                survSlotById.set(id, {
+                  id,
+                  date: ss.date,
+                  shiftTypeCode: ss.shiftTypeCode,
+                  startTime: ss.startTime,
+                  endTime: ss.endTime,
+                  breakMinutes: ss.breakMinutes ?? 0,
+                });
+                survAssignments.push({ slotId: id, employeeId: ss.employeeId });
+              });
+              return computeLoads(survAssignments, survSlotById);
+            })(),
             fixedShiftsByEmployee: (() => {
               const byEmp = new Map<string, AssignedShift[]>();
-              for (const bucket of assignmentIndex.values()) {
+              for (const [key, bucket] of assignmentIndex.entries()) {
+                // Story 13-2 (KON-134) aped-review — purely-statutory cross-month days live in
+                // assignmentIndex only for the greedy eligibility window (evaluateEligibility
+                // step 5); they carry no in-month decision variable. Keep them out of the
+                // solver's fixed baseline too, so 13-2 stays a greedy-scope change and does not
+                // silently widen the cpsat model (the cpsat mirror of the M2 scoring fix). A
+                // cross-frontier statutory breach in a served cpsat plan is still caught by the
+                // eligibility replay, which reads assignmentIndex directly.
+                if (statutoryOnlyKeys.has(key)) continue;
                 for (const s of bucket) {
                   if (!byEmp.has(s.employeeId)) byEmp.set(s.employeeId, []);
                   byEmp.get(s.employeeId)!.push(s);
@@ -544,11 +642,17 @@ export class PlanningGenerationService {
       for (const cov of coverageBucket) {
         if (cov.consumed) continue;
         if (
-          !this.timesOverlap(
-            slot.startTime,
-            slot.endTime,
-            cov.startTime,
-            cov.endTime,
+          !shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: slot.date,
+              startTime: cov.startTime,
+              endTime: cov.endTime,
+            },
           )
         ) {
           continue;
@@ -577,6 +681,7 @@ export class PlanningGenerationService {
         constraints,
         allShiftsForScoring,
         assignmentIndex,
+        statutoryOnlyKeys,
         employeeMinutes,
         weeksInMonth,
         weeklyMinutesCounter,
@@ -672,10 +777,13 @@ export class PlanningGenerationService {
     // the solver plan is served ONLY when strictly better (fill, then the exact
     // weighted equity objective) AND fully re-validated by replaying it through
     // evaluateEligibility on the live counters. Never degrades, never silent (NFR3).
+    // Story 13-6 (KON-137, T11) — capture WHY the pass did/didn't serve so stats +
+    // telemetry can report it (undefined ⇒ greedy request ⇒ no solver internals).
+    let solverOutcome: SolverOutcome | undefined;
     if (options.engine === 'cpsat' && solverBaseline) {
       const solverStart = Date.now();
       try {
-        const improvedHoles = await this.runSolverImprovePass({
+        const passResult = await this.runSolverImprovePass({
           employees,
           slots,
           constraints,
@@ -692,15 +800,22 @@ export class PlanningGenerationService {
           priorHoles: holes,
           baseline: solverBaseline,
         });
-        if (improvedHoles) {
+        if (passResult.served) {
           holes.length = 0;
-          holes.push(...improvedHoles);
+          holes.push(...passResult.holes);
           servedEngine = 'cpsat';
+          solverOutcome = 'served';
+        } else {
+          solverOutcome = passResult.outcome;
         }
       } catch (error) {
         this.logger.warn(
           `KON-129 solver pass failed after ${Date.now() - solverStart}ms — serving the greedy plan: ${String(error)}`,
         );
+        // Story 13-6 (KON-137) — an unexpected throw in the pass means the solver
+        // could not be used; surface it as engine-unavailable so the fleet metric
+        // still alerts (AC-2/AC-3), the same bucket as an adapter load failure.
+        solverOutcome = 'engine-unavailable';
       }
     }
 
@@ -746,6 +861,62 @@ export class PlanningGenerationService {
             // single-argument form; the tagged template binds them as parameters.
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clinicId}), hashtext(${month}))`;
 
+            // Story 13-1 (KON-131) — audit T2 (TOCTOU). `assignedShifts` was computed far
+            // above, OUTSIDE this transaction and BEFORE the lock: survivors and manual
+            // shifts were read from a snapshot a concurrent moveShift / createManualShift may
+            // have invalidated since. Now that the lock is held, re-read the shifts that will
+            // SURVIVE the deleteMany below (exact complement of its filter) and re-check the
+            // plan against them. The 11-2 @@unique constraint only catches an exact
+            // (employee, date, slot) duplicate — a partial time overlap between two different
+            // slots slips past it, which is precisely the double-booking this closes.
+            const survivors = await tx.shift.findMany({
+              where: {
+                clinicId,
+                date: { gte: monthStart, lte: monthEnd },
+                NOT: {
+                  source: 'GENERATED',
+                  isConfirmed: false,
+                  varianceEvents: { none: {} },
+                },
+              },
+              select: {
+                employeeId: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+              },
+            });
+            const survivorsByKey = new Map<string, typeof survivors>();
+            for (const s of survivors) {
+              const key = `${s.employeeId}|${s.date.toISOString().split('T')[0]}`;
+              const arr = survivorsByKey.get(key) ?? [];
+              arr.push(s);
+              survivorsByKey.set(key, arr);
+            }
+            const staleConflicts = assignedShifts.filter((a) =>
+              (survivorsByKey.get(`${a.employeeId}|${a.date}`) ?? []).some(
+                (s) =>
+                  shiftsOverlap(
+                    {
+                      date: a.date,
+                      startTime: a.startTime,
+                      endTime: a.endTime,
+                    },
+                    {
+                      date: s.date.toISOString().split('T')[0],
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                    },
+                  ),
+              ),
+            );
+            if (staleConflicts.length > 0) {
+              this.logger.warn(
+                `KON-131 stale plan for ${clinicId}/${month}: ${staleConflicts.length} assignment(s) conflict with shifts committed since the plan was computed — rejecting, the client can regenerate`,
+              );
+              throw new ConflictException('STALE_PLAN_REGENERATE');
+            }
+
             // Story 11-1 — preserve confirmed shifts and shifts carrying variance
             // history (VarianceEvent cascades on delete → would erase no-show /
             // clock-in records). Only unconfirmed, history-free GENERATED shifts
@@ -787,6 +958,12 @@ export class PlanningGenerationService {
           'Duplicate shift detected during generation',
         );
       }
+      // Story 13-1 (KON-131) — the in-transaction stale-plan re-validation throws a
+      // ConflictException on purpose (AC4). It is a real, retriable business conflict, not
+      // an infra failure, so surface it to the caller rather than masking it as a 500.
+      if (error instanceof ConflictException) {
+        throw error;
+      }
       this.logger.error('Transaction failed during shift generation', error);
       throw new InternalServerErrorException(
         'Failed to persist generated shifts',
@@ -816,17 +993,71 @@ export class PlanningGenerationService {
     planningGenerationDuration.record(Date.now() - generationStart, {
       clinic_id: clinicId,
       shift_count: String(createdShifts.length),
+      // Story 13-6 (KON-137, T11) — engine/outcome attributes make a fleet-wide
+      // cpsat→greedy degradation (e.g. a Node < 22.12 deploy) alertable in SigNoz.
+      requested_engine: options.engine ?? 'greedy',
+      served_engine: servedEngine,
+      solver_status: solverOutcome ?? 'not-requested',
     });
+
+    // Story 13-6 (KON-137, T6) — "System Never Lies" on the solver path. The improve
+    // pass mutated `assignedShifts`/holes in place, but the greedy `hardViolations`/
+    // `softViolations` arrays still describe the PRE-solver plan. When cpsat is served,
+    // recompute violations from the persisted schedule via the same whole-plan evaluator
+    // the publish gate uses — so what generation reports == what publish will check. The
+    // greedy path keeps its per-slot arrays (byte-identical greedy default, invariant #6).
+    let servedHard = hardViolations;
+    let servedSoft = softViolations;
+    if (servedEngine === 'cpsat') {
+      const equityCounters = await this.equityCounterService
+        .getCountersForPeriod(clinicId, year, [monthNum])
+        .catch(() => {
+          // Story 13-6 (KON-137) — log so a recompute-input failure is visible; the
+          // recompute degrades to equity-blind rules rather than crashing generation.
+          this.logger.warn(
+            'KON-137 served-plan recompute: failed to fetch equity counters',
+          );
+          return [] as CounterWithEmployee[];
+        });
+      const revalidated = await this.planningService
+        .validateShiftsAgainstRules(
+          clinicId,
+          {
+            startDate: monthStart.toISOString(),
+            endDate: monthEnd.toISOString(),
+          },
+          {
+            equityCounters:
+              equityCounters.length > 0 ? equityCounters : undefined,
+          },
+        )
+        .catch(() => null);
+      if (revalidated) {
+        servedHard = revalidated.hardViolations;
+        servedSoft = revalidated.softViolations;
+      } else {
+        // Story 13-6 (KON-137, T6) — the recompute is the served plan's truth source. If
+        // it fails, we keep the greedy arrays as a best-effort estimate (do NOT crash the
+        // whole generation), but this is an OBSERVABILITY story: a silent revert to the
+        // pre-solver arrays would re-introduce the exact T6 lie unseen. Warn so a persistent
+        // recompute failure is alertable alongside solver_status (aped-review F1).
+        this.logger.warn(
+          'KON-137 served-plan recompute: validateShiftsAgainstRules failed — ' +
+            'reporting pre-solver (greedy) violations for the served cpsat plan',
+        );
+      }
+    }
 
     return this.buildResult(
       createdShifts,
       employees,
       holes,
-      hardViolations,
-      softViolations,
+      servedHard,
+      servedSoft,
       totalPositions,
       survivorCoveredPositions,
       servedEngine,
+      solverOutcome,
     );
   }
 
@@ -895,24 +1126,32 @@ export class PlanningGenerationService {
         const specialDay = specialDayMap.get(dateStr);
         let startTime = shiftTimes.startTime;
         let endTime = shiftTimes.endTime;
-        if (
-          specialDay &&
-          this.timesOverlap(
-            shiftTimes.startTime,
-            shiftTimes.endTime,
-            specialDay.startTime,
-            specialDay.endTime,
-          )
-        ) {
-          // Clamp shift times to the special-day window
-          startTime =
-            shiftTimes.startTime < specialDay.startTime
-              ? specialDay.startTime
-              : shiftTimes.startTime;
-          endTime =
-            shiftTimes.endTime > specialDay.endTime
-              ? specialDay.endTime
-              : shiftTimes.endTime;
+        if (specialDay) {
+          // Story 13-3 (KON-132) — clamp the shift to its real-time intersection
+          // with the special-day window. AC-5 legalised overnight shift types, so a
+          // same-day clock compare (the old windowsOverlap) could miss the midnight
+          // wrap and leave a night shift running its full duration on a reduced-hours
+          // day. Both operands are anchored on dateStr; the special window is
+          // same-day. For a same-day shift this reduces to the previous
+          // max-start / min-end clamp.
+          const shiftItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: shiftTimes.startTime,
+            endTime: shiftTimes.endTime,
+          });
+          const specialItv = toAbsoluteInterval({
+            date: dateStr,
+            startTime: specialDay.startTime,
+            endTime: specialDay.endTime,
+          });
+          if (intervalsOverlap(shiftItv, specialItv)) {
+            startTime = this.absMinutesToTime(
+              Math.max(shiftItv[0], specialItv[0]),
+            );
+            endTime = this.absMinutesToTime(
+              Math.min(shiftItv[1], specialItv[1]),
+            );
+          }
         }
 
         slots.push({
@@ -1140,19 +1379,35 @@ export class PlanningGenerationService {
     if (unavailDates?.has(slot.date))
       return { eligible: false, blockedOnlyByRotation: false };
 
-    // 2) Time overlap with an existing assignment on the same date
-    const existingOnDate =
-      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || [];
-    for (const existing of existingOnDate) {
-      if (
-        this.timesOverlap(
-          slot.startTime,
-          slot.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        return { eligible: false, blockedOnlyByRotation: false };
+    // 2) Time overlap with an existing assignment — Story 13-3 (KON-132): scan
+    // D-1/D/D+1, because a shift crossing midnight occupies real time on the
+    // next calendar day. Mirrors the adjacent-day lookups the minRest and
+    // statutory blocks below already do. Border shifts are pre-seeded into
+    // assignmentIndex (see :347), so this also covers the month frontier.
+    for (const bucketDate of [
+      this.getPreviousDate(slot.date),
+      slot.date,
+      this.getNextDate(slot.date),
+    ]) {
+      const existingOnDate =
+        ctx.assignmentIndex.get(`${emp.id}|${bucketDate}`) || [];
+      for (const existing of existingOnDate) {
+        if (
+          shiftsOverlap(
+            {
+              date: slot.date,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            },
+            {
+              date: existing.date,
+              startTime: existing.startTime,
+              endTime: existing.endTime,
+            },
+          )
+        ) {
+          return { eligible: false, blockedOnlyByRotation: false };
+        }
       }
     }
 
@@ -1196,27 +1451,29 @@ export class PlanningGenerationService {
       const minRest = config.minRestHoursBetweenShifts as number | undefined;
       if (minRest) {
         const minRestMin = minRest * 60;
-        const prevDate = this.getPreviousDate(slot.date);
-        const prevShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${prevDate}`) || [];
-        for (const prev of prevShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(prev.endTime) +
-            this.toMinutes(slot.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
-        }
-        const nextDate = this.getNextDate(slot.date);
-        const nextShifts =
-          ctx.assignmentIndex.get(`${emp.id}|${nextDate}`) || [];
-        for (const next of nextShifts) {
-          const rest =
-            24 * 60 -
-            this.toMinutes(slot.endTime) +
-            this.toMinutes(next.startTime);
-          if (rest < minRestMin)
-            return { eligible: false, blockedOnlyByRotation: false };
+        // Story 13-3 (KON-132) — measure the REAL gap between absolute intervals.
+        // The previous arithmetic (24*60 - end + start) silently credited a full
+        // extra day whenever the neighbouring shift crossed midnight.
+        const candidate = {
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        };
+        for (const neighbourDate of [
+          this.getPreviousDate(slot.date),
+          this.getNextDate(slot.date),
+        ]) {
+          const neighbours =
+            ctx.assignmentIndex.get(`${emp.id}|${neighbourDate}`) || [];
+          for (const neighbour of neighbours) {
+            const rest = restMinutesBetween(candidate, {
+              date: neighbour.date,
+              startTime: neighbour.startTime,
+              endTime: neighbour.endTime,
+            });
+            if (rest < minRestMin)
+              return { eligible: false, blockedOnlyByRotation: false };
+          }
         }
       }
     }
@@ -1274,6 +1531,11 @@ export class PlanningGenerationService {
     constraints: ConstraintMap,
     alreadyAssigned: AssignedShift[],
     assignmentIndex: Map<string, AssignedShift[]>,
+    // Story 13-2 (KON-134) aped-review M2 — keys of the purely-statutory out-of-month days
+    // seeded into assignmentIndex for the eligibility window. The consecutive-days scoring scan
+    // below must NOT count them (they were invisible to scoring pre-13-2), or greedy selection
+    // shifts near a month frontier.
+    statutoryOnlyKeys: Set<string>,
     employeeMinutes: Map<string, number>,
     weeksInMonth: number,
     weeklyMinutesCounter: Map<string, number>,
@@ -1541,11 +1803,17 @@ export class PlanningGenerationService {
         score += 15; // moderate headroom
       }
 
-      // Consecutive days penalty
+      // Consecutive days penalty.
+      // Story 13-2 (KON-134) aped-review M2 — stop at a purely-statutory out-of-month day: it
+      // lives in assignmentIndex only for the eligibility window (evaluateEligibility step 5)
+      // and was invisible to this scoring scan before 13-2. Counting it would extend the run
+      // near a month frontier and change which eligible employee wins (breaking the
+      // byte-identical greedy invariant 11-10). Excluding it restores exact pre-13-2 scoring.
       let consecutiveDays = 0;
       let checkDate = this.getPreviousDate(slot.date);
       while (
         consecutiveDays < 6 &&
+        !statutoryOnlyKeys.has(`${emp.id}|${checkDate}`) &&
         (assignmentIndex.get(`${emp.id}|${checkDate}`) || []).length > 0
       ) {
         consecutiveDays++;
@@ -2349,7 +2617,6 @@ export class PlanningGenerationService {
     }
 
     // Story 7.6 — post-publication guard (checks BOTH months on a cross-month move)
-    const originalEmployeeId = shift.employeeId;
     const originalDateISO = shift.date.toISOString().split('T')[0];
     const originalMonth = originalDateISO.slice(0, 7);
     const targetMonth = target.targetDate
@@ -2361,79 +2628,126 @@ export class PlanningGenerationService {
       options.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const overlapEmployeeId = target.targetEmployeeId || shift.employeeId;
-    const overlapDate = target.targetDate
-      ? new Date(`${target.targetDate}T00:00:00.000Z`)
-      : shift.date;
+    // Story 11-6 — the shift mutation and the amendment bookkeeping commit atomically.
+    // Story 13-1 (KON-131) — and so does the DECISION: the lock is the transaction's first
+    // statement, every validation read is replayed from `tx` under it, and the write only
+    // happens if that replay is clean. Before this story the overlap check ran outside the
+    // transaction against an unlocked snapshot (audit T2) and no statutory / rule-engine
+    // check ran on this path at all (audit T1) — `preValidateMove` was the only guard, and
+    // it is client-invoked. Notification still fires AFTER commit (below), so a rejected or
+    // rolled-back change can never notify (AC2).
+    //
+    // Audit F1 (aped-review) — the lock set, the change flags and the amendment /
+    // notification recipients all key off `fresh` (the row actually being overwritten),
+    // NOT the pre-lock `shift`. Deriving them from the pre-lock snapshot left a window in
+    // which a concurrent same-shift relocation could make the write land in a month the
+    // lock never covered (reopening the T2 double-book) and make the amend / isConfirmed
+    // bookkeeping compare against a row that no longer reflected the write.
+    let amend = false;
+    let notifyRecipients: Array<{ employeeId: string; month: string }> = [];
+    const updated = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          // Re-read the shift's LIVE position first, so the lock set below covers the month
+          // it actually occupies now — a concurrent move may have relocated it since the
+          // pre-lock read. The shift is addressed by immutable id; its context (the other
+          // shifts) is read under the lock inside loadMoveValidationInputs.
+          const fresh = await tx.shift.findUnique({ where: { id: shiftId } });
+          if (!fresh) throw new NotFoundException('Shift not found');
+          if (fresh.clinicId !== clinicId)
+            throw new ForbiddenException(
+              'Shift does not belong to this clinic',
+            );
 
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: overlapEmployeeId,
-        clinicId,
-        date: overlapDate,
-        id: { not: shiftId },
-      },
-    });
+          const freshDateISO = fresh.date.toISOString().split('T')[0];
+          const freshMonth = freshDateISO.slice(0, 7);
+          const resolvedTargetDate = target.targetDate ?? freshDateISO;
+          const resolvedTargetMonth = resolvedTargetDate.slice(0, 7);
+          // ONE sorted acquisition over every month this write reads or writes — the
+          // stale-derived pair AND fresh's live month + resolved destination. lockMonths
+          // sorts + dedupes, so the whole set is still taken in a single deadlock-free order.
+          await this.lockMonths(tx, clinicId, [
+            originalMonth,
+            targetMonth,
+            freshMonth,
+            resolvedTargetMonth,
+          ]);
 
-    for (const existing of existingShifts) {
-      if (
-        this.timesOverlap(
-          shift.startTime,
-          shift.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
+          const inputs = await this.loadMoveValidationInputs(
+            clinicId,
+            {
+              shift: {
+                id: fresh.id,
+                employeeId: fresh.employeeId,
+                date: freshDateISO,
+                startTime: fresh.startTime,
+                endTime: fresh.endTime,
+                breakMinutes: fresh.breakMinutes ?? 0,
+                shiftTypeCode: fresh.shiftTypeCode,
+              },
+              targetEmployeeId: target.targetEmployeeId ?? fresh.employeeId,
+              targetDate: resolvedTargetDate,
+            },
+            tx,
+          );
+          const { hard } = evaluateMoveViolations(inputs);
+          if (hard.length > 0) {
+            throw new ConflictException(
+              `Move rejected — ${hard.length} blocking violation(s): ${hard
+                .map((h) => h.message)
+                .join('; ')}`,
+            );
+          }
 
-    const employeeChanged =
-      !!target.targetEmployeeId && target.targetEmployeeId !== shift.employeeId;
-    const dateChanged =
-      !!target.targetDate && target.targetDate !== originalDateISO;
+          // Change flags key off `fresh`, the row actually being overwritten (audit F1).
+          const employeeChanged =
+            !!target.targetEmployeeId &&
+            target.targetEmployeeId !== fresh.employeeId;
+          const dateChanged =
+            !!target.targetDate && target.targetDate !== freshDateISO;
 
-    // Story 11-6 — the shift mutation and the amendment bookkeeping commit
-    // atomically. If recordAmendment throws, shift.update rolls back, so a
-    // moved shift can never be left without its amendment record. Notification
-    // fires AFTER commit (below), so a rolled-back change never notifies.
-    const amend =
-      publishedMonths.length > 0 && (employeeChanged || dateChanged);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.shift.update({
-        where: { id: shiftId },
-        data: {
-          ...(target.targetEmployeeId && {
-            employeeId: target.targetEmployeeId,
-          }),
-          ...(target.targetDate && {
-            date: new Date(`${target.targetDate}T00:00:00.000Z`),
-          }),
-          source: 'MANUAL',
-          // Story 7.6 — a moved shift is no longer the one the employee confirmed
-          ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+          const u = await tx.shift.update({
+            where: { id: shiftId },
+            data: {
+              ...(target.targetEmployeeId && {
+                employeeId: target.targetEmployeeId,
+              }),
+              ...(target.targetDate && {
+                date: new Date(`${target.targetDate}T00:00:00.000Z`),
+              }),
+              source: 'MANUAL',
+              // Story 7.6 — a moved shift is no longer the one the employee confirmed
+              ...((employeeChanged || dateChanged) && { isConfirmed: false }),
+            },
+          });
+
+          amend =
+            publishedMonths.length > 0 && (employeeChanged || dateChanged);
+          if (amend) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+            const updatedMonth = u.date.toISOString().split('T')[0].slice(0, 7);
+            // Recipients keyed off `fresh` (source) and the committed row (destination),
+            // filtered to the published months. The published-month DETERMINATION still
+            // runs pre-lock (assertPublishedChangeAcknowledged) — widening that read under
+            // the lock is story 13-2's scope (audit F5), out of scope here.
+            notifyRecipients = [
+              { employeeId: fresh.employeeId, month: freshMonth },
+              { employeeId: u.employeeId, month: updatedMonth },
+            ].filter((r) => publishedMonths.includes(r.month));
+          }
+          return u;
         },
-      });
-      if (amend) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return u;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published months only), fire-and-forget
-    if (amend) {
-      const updatedMonth = updated.date.toISOString().split('T')[0].slice(0, 7);
-      const recipients = [
-        { employeeId: originalEmployeeId, month: originalMonth },
-        { employeeId: updated.employeeId, month: updatedMonth },
-      ].filter((r) => publishedMonths.includes(r.month));
-      this.notifyScheduleChange(clinicId, recipients).catch((err: Error) =>
-        this.logger.error(
-          `schedule-change notification failed: ${err.message}`,
-        ),
+    if (amend && notifyRecipients.length > 0) {
+      this.notifyScheduleChange(clinicId, notifyRecipients).catch(
+        (err: Error) =>
+          this.logger.error(
+            `schedule-change notification failed: ${err.message}`,
+          ),
       );
     }
 
@@ -2489,83 +2803,100 @@ export class PlanningGenerationService {
       input.acknowledgePublishedChange ?? false,
     );
 
-    // Check for time overlap on the target employee + date
-    const existingShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: new Date(`${input.date}T00:00:00.000Z`),
-      },
-    });
+    // Story 13-1 (KON-131) — same shape as moveShift: lock first, then replay every check
+    // from `tx` under it. The overlap check and the 11-3 statutory check used to run against
+    // an unlocked pre-transaction snapshot, so a concurrent generation could commit a
+    // conflicting shift between the check and the create (audit T2).
+    const created = await this.withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await this.lockMonths(tx, clinicId, [month]);
 
-    for (const existing of existingShifts) {
-      if (
-        this.timesOverlap(
-          shiftType.startTime,
-          shiftType.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        throw new ConflictException(
-          `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        );
-      }
-    }
+          // Story 13-3 (KON-132) — span the adjacent days and use the wrap-aware
+          // overlap so a shift crossing midnight on D-1 (or a candidate crossing
+          // into D+1) is caught. Still read from `tx` under the lock (Story 13-1).
+          const existingShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: { in: this.adjacentDayRange(input.date) },
+            },
+          });
+          for (const existing of existingShifts) {
+            if (
+              shiftsOverlap(
+                {
+                  date: input.date,
+                  startTime: shiftType.startTime,
+                  endTime: shiftType.endTime,
+                },
+                {
+                  date: existing.date.toISOString().split('T')[0],
+                  startTime: existing.startTime,
+                  endTime: existing.endTime,
+                },
+              )
+            ) {
+              throw new ConflictException(
+                `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
+              );
+            }
+          }
 
-    // Story 11-3 — statutory French labor-law HARD check. Load the employee's shifts in a
-    // window around the target day (ISO week + neighbours) and reject the create if it would
-    // breach a statutory limit. Enforced regardless of configured rules.
-    const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
-    const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
-    const statWindowShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.employeeId,
-        clinicId,
-        date: { gte: statWindowStart, lte: statWindowEnd },
-      },
-    });
-    const createBreaches = wouldExceedStatutory(
-      statWindowShifts.map((s) => ({
-        date: s.date.toISOString().split('T')[0],
-        startTime: s.startTime,
-        endTime: s.endTime,
-        breakMinutes: s.breakMinutes,
-      })),
-      {
-        date: input.date,
-        startTime: shiftType.startTime,
-        endTime: shiftType.endTime,
-        breakMinutes: shiftType.breakMinutes,
-      },
-    );
-    if (createBreaches.length > 0) {
-      throw new ConflictException(
-        `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
-      );
-    }
+          // Story 11-3 — statutory French labor-law HARD check on the +/-8 real-day window.
+          // Enforced regardless of configured rules.
+          const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+          const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
+          statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+          const statWindowShifts = await tx.shift.findMany({
+            where: {
+              employeeId: input.employeeId,
+              clinicId,
+              date: { gte: statWindowStart, lte: statWindowEnd },
+            },
+          });
+          const createBreaches = wouldExceedStatutory(
+            statWindowShifts.map((s) => ({
+              date: s.date.toISOString().split('T')[0],
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            })),
+            {
+              date: input.date,
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              breakMinutes: shiftType.breakMinutes,
+            },
+          );
+          if (createBreaches.length > 0) {
+            throw new ConflictException(
+              `Shift would breach French labor-law limit(s): ${createBreaches.join(', ')}`,
+            );
+          }
 
-    // Story 11-6 — create + amendment commit atomically; notify post-commit.
-    const created = await this.prisma.$transaction(async (tx) => {
-      const c = await tx.shift.create({
-        data: {
-          date: new Date(`${input.date}T00:00:00.000Z`),
-          startTime: shiftType.startTime,
-          endTime: shiftType.endTime,
-          shiftTypeCode: input.shiftTypeCode,
-          breakMinutes: shiftType.breakMinutes,
-          source: 'MANUAL',
-          employeeId: input.employeeId,
-          clinicId,
+          // Story 11-6 — create + amendment commit atomically; notify post-commit.
+          const c = await tx.shift.create({
+            data: {
+              date: new Date(`${input.date}T00:00:00.000Z`),
+              startTime: shiftType.startTime,
+              endTime: shiftType.endTime,
+              shiftTypeCode: input.shiftTypeCode,
+              breakMinutes: shiftType.breakMinutes,
+              source: 'MANUAL',
+              employeeId: input.employeeId,
+              clinicId,
+            },
+          });
+          if (publishedMonths.length > 0) {
+            await this.recordAmendment(tx, clinicId, publishedMonths);
+          }
+          return c;
         },
-      });
-      if (publishedMonths.length > 0) {
-        await this.recordAmendment(tx, clinicId, publishedMonths);
-      }
-      return c;
-    });
+        { timeout: 15000 },
+      ),
+    );
 
     // Story 7.6 — post-commit notification (published month only), fire-and-forget
     if (publishedMonths.length > 0) {
@@ -2636,39 +2967,69 @@ export class PlanningGenerationService {
     return { deleted: true };
   }
 
-  async preValidateMove(
+  /**
+   * Story 13-1 (KON-131) — loads every input the move decision reads, from `client`.
+   * Pass `this.prisma` for the advisory path or the active `tx` for the write path, so the
+   * enforcement replay sees the same rows the write is about to commit against.
+   *
+   * The statutory window is +/- 8 REAL days around the target date — the same window
+   * `createManualShift` uses, and the one `wouldExceedStatutory` documents as its minimum
+   * (candidate's ISO week +/- 1 day). The rotation pool stays month-based (quarter loaded
+   * lazily, only when a quarterly rule exists) to preserve the historic counting semantics.
+   */
+  private async loadMoveValidationInputs(
     clinicId: string,
-    input: { shiftId: string; targetEmployeeId: string; targetDate: string },
-  ): Promise<MoveValidationResult> {
-    const hard: Array<{ rule: string; message: string }> = [];
-    const soft: Array<{ rule: string; message: string }> = [];
-
-    // Load the shift
-    const shift = await this.prisma.shift.findUnique({
-      where: { id: input.shiftId },
-    });
-    if (!shift) throw new NotFoundException('Shift not found');
-    if (shift.clinicId !== clinicId)
-      throw new ForbiddenException('Shift does not belong to this clinic');
-
-    // Parallelize independent DB queries after shift ownership check
-    const targetDateObj = new Date(`${input.targetDate}T00:00:00.000Z`);
-    const [year, monthNum] = input.targetDate
-      .substring(0, 7)
-      .split('-')
-      .map(Number);
+    args: {
+      shift: MoveEvalShift;
+      targetEmployeeId: string;
+      targetDate: string;
+    },
+    client: Prisma.TransactionClient,
+  ): Promise<MoveEvalContext> {
+    const { shift, targetEmployeeId, targetDate } = args;
+    const targetDateObj = new Date(`${targetDate}T00:00:00.000Z`);
+    const [year, monthNum] = targetDate.substring(0, 7).split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+    const weekBounds = this.getWeekBounds(targetDate);
+
+    const statWindowStart = new Date(targetDateObj);
+    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    const statWindowEnd = new Date(targetDateObj);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+
+    const rules = await this.planningService.listRules(clinicId, {
+      isActive: true,
+    });
+    const needsQuarter = rules.some(
+      (r) =>
+        r.category === 'ROTATION_EQUITY' &&
+        (r.config as Record<string, unknown>).trackingPeriod === 'quarterly',
+    );
+    const quarter = Math.floor((monthNum - 1) / 3);
+    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
+    const quarterEnd = new Date(
+      Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999),
+    );
+
+    const employeeShiftWhere = {
+      employeeId: targetEmployeeId,
+      clinicId,
+      id: { not: shift.id },
+    };
 
     const [
       employee,
       operationalConfig,
       unavailabilities,
-      existingShifts,
-      rules,
+      overlapWindowShifts,
+      weekShifts,
+      monthShifts,
+      statutoryWindowShifts,
+      quarterExtraShifts,
     ] = await Promise.all([
-      this.prisma.employee.findFirst({
-        where: { id: input.targetEmployeeId, clinicId, isActive: true },
+      client.employee.findFirst({
+        where: { id: targetEmployeeId, clinicId, isActive: true },
         select: {
           id: true,
           firstName: true,
@@ -2678,308 +3039,135 @@ export class PlanningGenerationService {
         },
       }),
       this.clinicService.getOperationalConfig(clinicId),
-      this.prisma.unavailability.findMany({
+      client.unavailability.findMany({
         where: {
-          employeeId: input.targetEmployeeId,
+          employeeId: targetEmployeeId,
           clinicId,
-          startDate: { lte: new Date(`${input.targetDate}T23:59:59.999Z`) },
-          endDate: { gte: new Date(`${input.targetDate}T00:00:00.000Z`) },
+          startDate: { lte: new Date(`${targetDate}T23:59:59.999Z`) },
+          endDate: { gte: new Date(`${targetDate}T00:00:00.000Z`) },
         },
       }),
-      this.prisma.shift.findMany({
+      // Story 13-3 (KON-132) — the overlap pool spans D-1/D/D+1 so the wrap-aware
+      // check in evaluateMoveViolations sees a shift crossing midnight on an
+      // adjacent day. Read under the same lock / tx as every other input.
+      client.shift.findMany({
         where: {
-          employeeId: input.targetEmployeeId,
-          clinicId,
-          date: targetDateObj,
-          id: { not: input.shiftId },
+          ...employeeShiftWhere,
+          date: { in: this.adjacentDayRange(targetDate) },
         },
       }),
-      this.planningService.listRules(clinicId, { isActive: true }),
-    ]);
-
-    // Verify target employee
-    if (!employee) {
-      hard.push({
-        rule: 'EMPLOYEE',
-        message: 'Target employee not found or inactive',
-      });
-      return { hard, soft };
-    }
-
-    // Check closed/non-work days
-    const dayNameToIso: Record<string, number> = {
-      MONDAY: 1,
-      TUESDAY: 2,
-      WEDNESDAY: 3,
-      THURSDAY: 4,
-      FRIDAY: 5,
-      SATURDAY: 6,
-      SUNDAY: 7,
-    };
-    const workDaySet = new Set(
-      operationalConfig.workDays
-        .map((d: string) => dayNameToIso[d])
-        .filter(Boolean),
-    );
-    const closedDateSet = new Set(
-      operationalConfig.closedDays.map((cd: { date: string }) => cd.date),
-    );
-
-    if (closedDateSet.has(input.targetDate)) {
-      hard.push({ rule: 'CLOSED_DAY', message: 'Target date is a closed day' });
-    }
-
-    const targetIsoDay =
-      targetDateObj.getUTCDay() === 0 ? 7 : targetDateObj.getUTCDay();
-    if (!workDaySet.has(targetIsoDay)) {
-      hard.push({
-        rule: 'NON_WORK_DAY',
-        message: 'Target date is not a work day',
-      });
-    }
-
-    // Check unavailabilities
-    for (const ua of unavailabilities) {
-      if (ua.daysOfWeek.length === 0) {
-        hard.push({
-          rule: 'UNAVAILABILITY',
-          message: `Employee is unavailable (${ua.type}${ua.reason ? ': ' + ua.reason : ''})`,
-        });
-      } else if (ua.daysOfWeek.includes(targetIsoDay)) {
-        hard.push({
-          rule: 'UNAVAILABILITY',
-          message: `Employee has recurring unavailability on this day (${ua.type})`,
-        });
-      }
-    }
-
-    // Check time overlap with existing shifts
-    for (const existing of existingShifts) {
-      if (
-        this.timesOverlap(
-          shift.startTime,
-          shift.endTime,
-          existing.startTime,
-          existing.endTime,
-        )
-      ) {
-        hard.push({
-          rule: 'OVERLAP',
-          message: `Shift overlaps with existing shift (${existing.startTime}-${existing.endTime})`,
-        });
-        break;
-      }
-    }
-
-    // HARD SKILL_REQUIREMENT check
-    for (const rule of rules.filter(
-      (r) => r.ruleType === 'HARD' && r.category === 'SKILL_REQUIREMENT',
-    )) {
-      const config = rule.config as Record<string, unknown>;
-      if (config.shiftTypeCode === shift.shiftTypeCode) {
-        const requiredJobTypes = config.requiredJobTypes as string[];
-        if (requiredJobTypes && !requiredJobTypes.includes(employee.jobType)) {
-          hard.push({
-            rule: 'SKILL_REQUIREMENT',
-            message: `Employee job type ${employee.jobType} does not match required: ${requiredJobTypes.join(', ')}`,
-          });
-        }
-      }
-    }
-
-    // CONTRACT_COMPLIANCE check — respects HARD vs SOFT ruleType
-    const shiftMinutes =
-      this.calculateShiftMinutes(shift.startTime, shift.endTime) -
-      (shift.breakMinutes || 0);
-    const weekBounds = this.getWeekBounds(input.targetDate);
-
-    const weekShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.targetEmployeeId,
-        clinicId,
-        date: {
-          gte: new Date(`${weekBounds.start}T00:00:00.000Z`),
-          lte: new Date(`${weekBounds.end}T23:59:59.999Z`),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: {
+            gte: new Date(`${weekBounds.start}T00:00:00.000Z`),
+            lte: new Date(`${weekBounds.end}T23:59:59.999Z`),
+          },
         },
-        id: { not: input.shiftId },
-      },
-    });
-
-    let weeklyMinutes = 0;
-    for (const ws of weekShifts) {
-      weeklyMinutes +=
-        this.calculateShiftMinutes(ws.startTime, ws.endTime) -
-        (ws.breakMinutes || 0);
-    }
-
-    const projectedWeeklyMinutes = weeklyMinutes + shiftMinutes;
-    const projectedWeeklyHours =
-      Math.round((projectedWeeklyMinutes / 60) * 10) / 10;
-    const contractWeeklyMinutes = employee.contractHours * 60;
-
-    for (const rule of rules.filter(
-      (r) => r.category === 'CONTRACT_COMPLIANCE',
-    )) {
-      const config = rule.config as Record<string, unknown>;
-      const maxWeekly = config.maxWeeklyHours as number | undefined;
-      const effectiveLimit = maxWeekly
-        ? Math.min(employee.contractHours, maxWeekly)
-        : employee.contractHours;
-
-      // Story 11-8 — weekly cap decision delegated to the shared rule engine.
-      // maxMonthlyHours is stripped so only the weekly cap is evaluated,
-      // matching the move's historic weekly-only semantics.
-      if (
-        violatesHardContractIncremental(
-          {
-            id: rule.id,
-            name: rule.name,
-            ruleType: rule.ruleType as RuleType,
-            category: rule.category,
-            config: { ...config, maxMonthlyHours: undefined },
-          },
-          {
-            weekMinutes: weeklyMinutes,
-            monthMinutes: 0,
-            candidateMinutes: shiftMinutes,
-            contractHours: employee.contractHours,
-          },
-        )
-      ) {
-        const bucket = rule.ruleType === 'HARD' ? hard : soft;
-        bucket.push({
-          rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
-        });
-        break;
-      }
-    }
-
-    // If no contract rules exist, still warn based on contractHours
-    if (
-      rules.filter((r) => r.category === 'CONTRACT_COMPLIANCE').length === 0
-    ) {
-      if (projectedWeeklyMinutes > contractWeeklyMinutes) {
-        soft.push({
-          rule: 'CONTRACT_COMPLIANCE',
-          message: `Overtime risk: ${projectedWeeklyHours}h this week, contract limit ${employee.contractHours}h`,
-        });
-      }
-    }
-
-    // ROTATION_EQUITY check — load monthShifts once before the loop
-    const monthShifts = await this.prisma.shift.findMany({
-      where: {
-        employeeId: input.targetEmployeeId,
-        clinicId,
-        date: { gte: monthStart, lte: monthEnd },
-        id: { not: input.shiftId },
-      },
-    });
-
-    // Pre-load quarterly shifts (other months in same quarter) for quarterly-tracked rules
-    const quarter = Math.floor((monthNum - 1) / 3);
-    const quarterStart = new Date(Date.UTC(year, quarter * 3, 1));
-    const quarterEnd = new Date(
-      Date.UTC(year, quarter * 3 + 3, 0, 23, 59, 59, 999),
-    );
-    let quarterlyShifts: typeof monthShifts | null = null;
-
-    for (const rule of rules.filter((r) => r.category === 'ROTATION_EQUITY')) {
-      const config = rule.config as Record<string, unknown>;
-      const targetDay = config.targetDay as string;
-      const maxPerPeriod = config.maxPerPeriod as number;
-      const trackingPeriod = config.trackingPeriod as string | undefined;
-      const dayMap: Record<string, number> = {
-        monday: 1,
-        tuesday: 2,
-        wednesday: 3,
-        thursday: 4,
-        friday: 5,
-        saturday: 6,
-        sunday: 7,
-      };
-      const ruleDayIso = dayMap[targetDay];
-      if (!ruleDayIso || ruleDayIso !== targetIsoDay) continue;
-
-      const applicableJobTypes = config.applicableJobTypes as
-        | string[]
-        | undefined;
-      if (
-        applicableJobTypes &&
-        applicableJobTypes.length > 0 &&
-        !applicableJobTypes.includes(employee.jobType)
-      ) {
-        continue;
-      }
-
-      // Load quarterly shifts lazily on first quarterly rule
-      let shiftPool = monthShifts;
-      if (trackingPeriod === 'quarterly') {
-        if (!quarterlyShifts) {
-          quarterlyShifts = await this.prisma.shift.findMany({
+      }),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: { gte: monthStart, lte: monthEnd },
+        },
+      }),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: { gte: statWindowStart, lte: statWindowEnd },
+        },
+      }),
+      needsQuarter
+        ? client.shift.findMany({
             where: {
-              employeeId: input.targetEmployeeId,
-              clinicId,
+              ...employeeShiftWhere,
               date: { gte: quarterStart, lte: quarterEnd },
-              id: { not: input.shiftId },
               NOT: { date: { gte: monthStart, lte: monthEnd } },
             },
-          });
-        }
-        shiftPool = [...monthShifts, ...quarterlyShifts];
-      }
+          })
+        : Promise.resolve([]),
+    ]);
 
-      const targetDayCount = shiftPool.filter((s) => {
-        const d = s.date.getUTCDay() === 0 ? 7 : s.date.getUTCDay();
-        return d === ruleDayIso;
-      }).length;
+    const toEval = (s: {
+      id: string;
+      employeeId: string;
+      date: Date;
+      startTime: string;
+      endTime: string;
+      breakMinutes: number;
+      shiftTypeCode: string;
+    }): MoveEvalShift => ({
+      id: s.id,
+      employeeId: s.employeeId,
+      date: s.date.toISOString().split('T')[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+      breakMinutes: s.breakMinutes ?? 0,
+      shiftTypeCode: s.shiftTypeCode,
+    });
 
-      if (
-        violatesHardRotation(
-          {
-            id: rule.id,
-            name: rule.name,
-            ruleType: rule.ruleType as RuleType,
-            category: rule.category,
-            config: rule.config as Record<string, unknown>,
-          },
-          { currentCount: targetDayCount, jobType: employee.jobType },
-        )
-      ) {
-        const bucket = rule.ruleType === 'HARD' ? hard : soft;
-        bucket.push({
-          rule: 'ROTATION_EQUITY',
-          message: `${employee.firstName} ${employee.lastName} — would be ${targetDayCount + 1}th ${targetDay} this ${trackingPeriod || 'month'} (max ${maxPerPeriod})`,
-        });
-      }
-    }
-
-    // Story 11-3 — statutory French labor-law HARD check on the moved shift. `monthShifts`
-    // (target employee, target month, excluding the moved shift) is the window; the candidate
-    // is the moved shift placed at the target date.
-    const moveBreaches = wouldExceedStatutory(
-      monthShifts.map((s) => ({
-        date: s.date.toISOString().split('T')[0],
-        startTime: s.startTime,
-        endTime: s.endTime,
-        breakMinutes: s.breakMinutes,
-      })),
-      {
-        date: input.targetDate,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        breakMinutes: shift.breakMinutes,
+    return {
+      shift,
+      target: { employeeId: targetEmployeeId, date: targetDate },
+      employee,
+      operationalConfig: {
+        workDays: operationalConfig.workDays,
+        closedDays: operationalConfig.closedDays,
       },
-    );
-    for (const kind of moveBreaches) {
-      hard.push({
-        rule: 'CONTRACT_COMPLIANCE',
-        message: `Statutory limit exceeded: ${kind}`,
-      });
-    }
+      unavailabilities: unavailabilities.map((ua) => ({
+        type: ua.type,
+        reason: ua.reason,
+        daysOfWeek: ua.daysOfWeek,
+      })),
+      overlapWindowShifts: overlapWindowShifts.map(toEval),
+      weekShifts: weekShifts.map(toEval),
+      monthShifts: monthShifts.map(toEval),
+      quarterExtraShifts: quarterExtraShifts.map(toEval),
+      statutoryWindowShifts: statutoryWindowShifts.map(toEval),
+      rules: rules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        ruleType: r.ruleType as RuleType,
+        category: r.category,
+        config: r.config as Record<string, unknown>,
+      })),
+    };
+  }
 
-    return { hard, soft };
+  /**
+   * Advisory dry-run for drop feedback in the grid. Story 13-1 (KON-131): this is now UX
+   * ONLY — `moveShift` replays the same evaluator inside its write transaction, so a client
+   * that skips this call (or ignores its result) cannot persist an illegal move (audit T1).
+   */
+  async preValidateMove(
+    clinicId: string,
+    input: { shiftId: string; targetEmployeeId: string; targetDate: string },
+  ): Promise<MoveValidationResult> {
+    const shift = await this.prisma.shift.findUnique({
+      where: { id: input.shiftId },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.clinicId !== clinicId)
+      throw new ForbiddenException('Shift does not belong to this clinic');
+
+    const inputs = await this.loadMoveValidationInputs(
+      clinicId,
+      {
+        shift: {
+          id: shift.id,
+          employeeId: shift.employeeId,
+          date: shift.date.toISOString().split('T')[0],
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes ?? 0,
+          shiftTypeCode: shift.shiftTypeCode,
+        },
+        targetEmployeeId: input.targetEmployeeId,
+        targetDate: input.targetDate,
+      },
+      this.prisma,
+    );
+    return evaluateMoveViolations(inputs);
   }
 
   async publishPlan(
@@ -3525,6 +3713,7 @@ export class PlanningGenerationService {
     totalPositions: number,
     survivorCoveredPositions = 0,
     engine: 'greedy' | 'cpsat' = 'greedy',
+    solverOutcome?: SolverOutcome,
   ): GenerationResult {
     const employeeMap = new Map(employees.map((e) => [e.id, e]));
 
@@ -3558,23 +3747,25 @@ export class PlanningGenerationService {
         softWarningCount: softViolations.length,
         // Story 12-1 — which engine produced the served assignments.
         engine,
+        // Story 13-6 (KON-137) — the fallback reason, present only when cpsat was
+        // requested (undefined ⇒ greedy request ⇒ key omitted, no Pro leak, #7).
+        ...(solverOutcome ? { solverOutcome } : {}),
       },
     };
   }
 
-  private timesOverlap(
-    start1: string,
-    end1: string,
-    start2: string,
-    end2: string,
-  ): boolean {
-    const toMinutes = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      return h * 60 + m;
-    };
-    return (
-      toMinutes(start1) < toMinutes(end2) && toMinutes(end1) > toMinutes(start2)
-    );
+  /**
+   * Story 13-3 (KON-132) — format an absolute minute count (as produced by
+   * toAbsoluteInterval) back to a wall-clock `HH:MM` string. The day offset is
+   * dropped modulo 1440, so an interval end that lands on the next calendar day
+   * (an overnight shift) round-trips to its wall-clock time and the
+   * endTime < startTime wrap convention is preserved downstream.
+   */
+  private absMinutesToTime(abs: number): string {
+    const m = ((abs % 1440) + 1440) % 1440;
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
   }
 
   private calculateShiftMinutes(startTime: string, endTime: string): number {
@@ -3599,9 +3790,17 @@ export class PlanningGenerationService {
     return date.toISOString().split('T')[0];
   }
 
-  private toMinutes(time: string): number {
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
+  /**
+   * Story 13-3 (KON-132) — the three UTC-midnight Date objects an overlap query
+   * must load for a target day: a shift crossing midnight on D-1 occupies real
+   * time on D, and a shift on D can run into D+1.
+   */
+  private adjacentDayRange(dateISO: string): Date[] {
+    return [
+      this.getPreviousDate(dateISO),
+      dateISO,
+      this.getNextDate(dateISO),
+    ].map((d) => new Date(`${d}T00:00:00.000Z`));
   }
 
   private getWeekBounds(dateStr: string): { start: string; end: string } {
@@ -4200,10 +4399,12 @@ export class PlanningGenerationService {
     priorHoles: GenerationResult['holes'];
     baseline: {
       weeklyMinutes: Map<string, number>;
+      monthlyMinutes: Map<string, number>;
+      equityLoads: Map<string, EmployeeLoad>;
       fixedShiftsByEmployee: Map<string, AssignedShift[]>;
       rotationCounts: Map<string, Map<number, number>>;
     };
-  }): Promise<GenerationResult['holes'] | null> {
+  }): Promise<SolverPassResult> {
     // ── 1) Solver input from the generation context ────────────────────────────
     // Contract caps lift the SAME semantics as the CONTRACT_COMPLIANCE eligibility
     // branch (rule-engine): weekly = min(contractHours, maxWeeklyHours) with the
@@ -4362,6 +4563,8 @@ export class PlanningGenerationService {
       slots: positionSlots,
       unavailable: ctx.constraints.unavailableMap,
       fixedWeeklyMinutes: ctx.baseline.weeklyMinutes,
+      fixedMonthlyMinutes: ctx.baseline.monthlyMinutes,
+      fixedEquityLoads: ctx.baseline.equityLoads,
       fixedDailyMinutes,
       fixedWorkedDates,
       fixedRotationCounts,
@@ -4390,7 +4593,15 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver status ${result.status} — serving the greedy plan`,
       );
-      return null;
+      // Story 13-6 (KON-137) — distinguish engine-down from infeasible from
+      // budget-exhausted so `solver_status` is actionable in monitoring.
+      const outcome: Exclude<SolverOutcome, 'served'> =
+        result.status === 'ENGINE_UNAVAILABLE'
+          ? 'engine-unavailable'
+          : result.status === 'INFEASIBLE'
+            ? 'infeasible'
+            : 'budget-exhausted';
+      return { served: false, outcome };
     }
 
     const candidate = decodeSolution(model, result.chosenVarNames, input);
@@ -4423,12 +4634,26 @@ export class PlanningGenerationService {
         slotId: `${s.date}|${s.shiftTypeCode}|${s.startTime}`,
         employeeId: s.employeeId,
       }));
+    // Story 13-5 (T7) — the gate judges TOTAL fairness (survivors + generated),
+    // matching the survivor-aware spread the model now optimizes. mergeEquityLoads
+    // adds each employee's immovable survivor load to BOTH plans, so the comparison
+    // stays a strict apples-to-apples improvement test while "fairer" means fairer in
+    // reality, not just across the shifts the pass can move. Extracted to a pure,
+    // unit-tested helper (aped-review): the merge is load-bearing — because
+    // equityObjective is mean-normalized it can flip which equal-fill plan wins — so
+    // it must be provable in isolation, not only reachable through the fill branch.
     const greedyEquity = equityObjective(
-      computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
+      mergeEquityLoads(
+        ctx.baseline.equityLoads,
+        computeLoads(toRepairAssignments(ctx.assignedShifts), repairSlotById),
+      ),
       equityWeights,
     );
     const candidateEquity = equityObjective(
-      computeLoads(toRepairAssignments(candidate), repairSlotById),
+      mergeEquityLoads(
+        ctx.baseline.equityLoads,
+        computeLoads(toRepairAssignments(candidate), repairSlotById),
+      ),
       equityWeights,
     );
     const greedyFilled = ctx.assignedShifts.length;
@@ -4443,7 +4668,7 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver ${result.status}: filled ${candidate.length}/${greedyFilled}, equity ${candidateEquity.toFixed(4)} vs ${greedyEquity.toFixed(4)} — greedy plan kept`,
       );
-      return null;
+      return { served: false, outcome: 'no-improvement' };
     }
 
     // ── 4) Re-validation REPLAY through the live counters ──────────────────────
@@ -4512,18 +4737,21 @@ export class PlanningGenerationService {
       this.logger.warn(
         `KON-129 solver plan rejected by re-validation (${rejection}) — serving the greedy plan`,
       );
-      return null;
+      return { served: false, outcome: 'rejected-revalidation' };
     }
 
     this.logger.log(
       `KON-129 solver plan SERVED: ${result.status}, filled ${candidate.length} (greedy ${greedyFilled}), equity ${candidateEquity.toFixed(4)} (greedy ${greedyEquity.toFixed(4)})`,
     );
-    return this.recomputeHoles(
-      ctx.slots,
-      ctx.assignedShifts,
-      ctx.preExistingSlotCoverage,
-      ctx.priorHoles,
-    );
+    return {
+      served: true,
+      holes: this.recomputeHoles(
+        ctx.slots,
+        ctx.assignedShifts,
+        ctx.preExistingSlotCoverage,
+        ctx.priorHoles,
+      ),
+    };
   }
 
   /** Story 11-9 — add a GENERATED assignment and increment EVERY live counter in lockstep. */
@@ -4769,14 +4997,25 @@ export class PlanningGenerationService {
     const firstWeek = this.getWeekBounds(firstDayStr);
     const lastWeek = this.getWeekBounds(lastDayStr);
 
-    const borderDates: Date[] = [];
+    // Collect border-day date strings, de-duplicated. Two sources:
+    //   1) ISO-week straddle days — weekly-hour calc for a week spanning the month
+    //      boundary (the original Story 11-2 purpose).
+    //   2) Story 13-3 (KON-132) — the immediate calendar D-1 of the first day and
+    //      D+1 of the last day, ALWAYS. When the month starts on a Monday (or ends
+    //      on a Sunday) those neighbours live in a different ISO week, so the
+    //      straddle logic alone never loads them — leaving the cross-midnight
+    //      overlap / minRest / consecutive-day scans blind to an overnight shift on
+    //      the adjacent day and letting the generator double-book across the month
+    //      frontier. These land in a different ISO week from any in-month day, so
+    //      they never perturb the weekly-hour totals.
+    const borderDateStrs = new Set<string>();
 
     // First week overlap: days before month start in the same ISO week
     if (firstWeek.start < firstDayStr) {
       const cursor = new Date(`${firstWeek.start}T00:00:00Z`);
       const limit = new Date(`${firstDayStr}T00:00:00Z`);
       while (cursor < limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
@@ -4787,12 +5026,20 @@ export class PlanningGenerationService {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
       const limit = new Date(`${lastWeek.end}T00:00:00Z`);
       while (cursor <= limit) {
-        borderDates.push(new Date(cursor));
+        borderDateStrs.add(cursor.toISOString().split('T')[0]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
 
-    if (borderDates.length === 0) return [];
+    // Story 13-3 — always include the immediate calendar neighbours.
+    borderDateStrs.add(this.getPreviousDate(firstDayStr));
+    borderDateStrs.add(this.getNextDate(lastDayStr));
+
+    if (borderDateStrs.size === 0) return [];
+
+    const borderDates = [...borderDateStrs].map(
+      (d) => new Date(`${d}T00:00:00.000Z`),
+    );
 
     this.logger.debug(
       `Loading border week shifts for ${borderDates.length} days outside ${month}`,
@@ -4821,6 +5068,58 @@ export class PlanningGenerationService {
       shiftTypeCode: s.shiftTypeCode,
       breakMinutes: s.breakMinutes,
     }));
+  }
+
+  /**
+   * Story 13-2 (KON-134) — the out-of-month shifts the +/-8-real-day statutory window in
+   * evaluateEligibility (:1347-1372) needs to see a consecutive-day run or a 35h-rest
+   * deficit that straddles the month frontier. loadBorderWeekShifts only reaches the
+   * ISO-straddle days + immediate D-1/D+1 (13-3), so days 2..8 across the frontier are
+   * invisible and a 7th consecutive day hides. These rows feed `assignmentIndex` ONLY —
+   * never the weekly / monthly / rotation counters — so fill and equity stay byte-identical
+   * (invariant 11-10 / epic-13 context §3.6). A single `date: { gte, lte }` query (month +/- 8
+   * days) is filtered to out-of-month here; the in-month days are seeded with full fidelity
+   * by survivors / freshly-assigned shifts.
+   */
+  private async loadStatutoryBorderShifts(
+    clinicId: string,
+    month: string,
+  ): Promise<AssignedShift[]> {
+    const [year, monthNum] = month.split('-').map(Number);
+    const firstDayStr = new Date(Date.UTC(year, monthNum - 1, 1))
+      .toISOString()
+      .split('T')[0];
+    const lastDayStr = new Date(Date.UTC(year, monthNum, 0))
+      .toISOString()
+      .split('T')[0];
+
+    const windowStart = new Date(`${firstDayStr}T00:00:00.000Z`);
+    windowStart.setUTCDate(windowStart.getUTCDate() - 8);
+    const windowEnd = new Date(`${lastDayStr}T00:00:00.000Z`);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 8);
+
+    const shifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: windowStart, lte: windowEnd } },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        shiftTypeCode: true,
+        breakMinutes: true,
+      },
+    });
+
+    return shifts
+      .map((s) => ({
+        employeeId: s.employeeId,
+        date: s.date.toISOString().split('T')[0],
+        startTime: s.startTime,
+        endTime: s.endTime,
+        shiftTypeCode: s.shiftTypeCode,
+        breakMinutes: s.breakMinutes,
+      }))
+      .filter((s) => s.date < firstDayStr || s.date > lastDayStr);
   }
 
   // Story 11-2 — load the shifts INSIDE the target month that SURVIVE a

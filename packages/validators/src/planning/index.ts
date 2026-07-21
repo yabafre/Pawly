@@ -13,7 +13,7 @@ export {
   planningRuleIdSchema,
   listPlanningRulesSchema,
   validateShiftsSchema,
-} from "./planning-rule.schema";
+} from './planning-rule.schema';
 
 export type {
   PlanningRuleType,
@@ -29,7 +29,7 @@ export type {
   PlanningRuleIdInput,
   ListPlanningRulesInput,
   ValidateShiftsInput,
-} from "./planning-rule.schema";
+} from './planning-rule.schema';
 
 export {
   EQUITY_COUNTER_TYPES,
@@ -37,14 +37,14 @@ export {
   getEquityCountersSchema,
   getQuarterlySummarySchema,
   recalculateCountersSchema,
-} from "./equity-counter.schema";
+} from './equity-counter.schema';
 
 export type {
   EquityCounterType,
   GetEquityCountersInput,
   GetQuarterlySummaryInput,
   RecalculateCountersInput,
-} from "./equity-counter.schema";
+} from './equity-counter.schema';
 
 export {
   templateSlotSchema,
@@ -56,7 +56,7 @@ export {
   duplicateTemplateSchema,
   templateIdSchema,
   listTemplatesSchema,
-} from "./planning-template.schema";
+} from './planning-template.schema';
 
 export type {
   TemplateSlot,
@@ -67,7 +67,7 @@ export type {
   DuplicateTemplateInput,
   TemplateIdInput,
   ListTemplatesInput,
-} from "./planning-template.schema";
+} from './planning-template.schema';
 
 export {
   equityContextSchema,
@@ -81,7 +81,8 @@ export {
   softViolationSchema,
   generationStatsSchema,
   generationResultSchema,
-} from "./planning-generation.schema";
+  solverOutcomeSchema,
+} from './planning-generation.schema';
 
 export type {
   EquityContext,
@@ -94,7 +95,8 @@ export type {
   SoftViolation,
   GenerationStats,
   GenerationResult,
-} from "./planning-generation.schema";
+  SolverOutcome,
+} from './planning-generation.schema';
 
 export {
   APPRENTICE_MONTH_STATUSES,
@@ -103,7 +105,7 @@ export {
   deleteDeclarationSchema,
   getDeclarationStatusSchema,
   apprenticeDeclarationRowSchema,
-} from "./apprentice-declaration.schema";
+} from './apprentice-declaration.schema';
 
 export type {
   ApprenticeMonthStatusType,
@@ -112,7 +114,7 @@ export type {
   DeleteDeclarationInput,
   GetDeclarationStatusInput,
   ApprenticeDeclarationRow,
-} from "./apprentice-declaration.schema";
+} from './apprentice-declaration.schema';
 
 export {
   SCHOOL_DAY_MINUTES,
@@ -125,7 +127,7 @@ export {
   scheduleHoleSchema,
   equitySummaryEntrySchema,
   scheduleViewDataSchema,
-} from "./schedule-view.schema";
+} from './schedule-view.schema';
 
 export type {
   ScheduleViewInput,
@@ -137,7 +139,7 @@ export type {
   ScheduleHole,
   EquitySummaryEntry,
   ScheduleViewData,
-} from "./schedule-view.schema";
+} from './schedule-view.schema';
 
 export {
   moveShiftInputSchema,
@@ -145,7 +147,7 @@ export {
   deleteShiftInputSchema,
   preValidateMoveInputSchema,
   moveValidationResultSchema,
-} from "./shift-mutation.schema";
+} from './shift-mutation.schema';
 
 export type {
   MoveShiftInput,
@@ -153,7 +155,7 @@ export type {
   DeleteShiftInput,
   PreValidateMoveInput,
   MoveValidationResult,
-} from "./shift-mutation.schema";
+} from './shift-mutation.schema';
 
 export {
   PLANNING_PERIOD_STATUSES,
@@ -161,14 +163,14 @@ export {
   planningPeriodStatusSchema,
   publishPlanResultSchema,
   publicationStatusResultSchema,
-} from "./equity-alert.schema";
+} from './equity-alert.schema';
 
 export type {
   PublishPlanInput,
   PlanningPeriodStatus,
   PublishPlanResult,
   PublicationStatusResult,
-} from "./equity-alert.schema";
+} from './equity-alert.schema';
 
 export {
   getEmployeeScheduleSchema,
@@ -177,12 +179,12 @@ export {
   employeeWeeklySummarySchema,
   employeeShiftTypeInfoSchema,
   employeeScheduleDataSchema,
-} from "./employee-schedule.schema";
+} from './employee-schedule.schema';
 
 export type {
   GetEmployeeScheduleInput,
   EmployeeScheduleDataInput,
-} from "./employee-schedule.schema";
+} from './employee-schedule.schema';
 
 export {
   VARIANCE_EVENT_STATUSES,
@@ -191,7 +193,7 @@ export {
   reviewVarianceSchema,
   getVarianceStatsSchema,
   exportVarianceSchema,
-} from "./variance.schema";
+} from './variance.schema';
 
 export type {
   VarianceEventStatus,
@@ -200,15 +202,12 @@ export type {
   ReviewVarianceInput,
   GetVarianceStatsInput,
   ExportVarianceInput,
-} from "./variance.schema";
+} from './variance.schema';
 
 export {
   DEVIATION_THRESHOLD_MINUTES,
   confirmShiftSchema,
   noShowDetectionSchema,
-} from "./presence-confirmation.schema";
+} from './presence-confirmation.schema';
 
-export type {
-  ConfirmShiftInput,
-  NoShowDetectionInput,
-} from "./presence-confirmation.schema";
+export type { ConfirmShiftInput, NoShowDetectionInput } from './presence-confirmation.schema';

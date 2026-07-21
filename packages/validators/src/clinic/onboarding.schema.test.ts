@@ -212,17 +212,30 @@ describe('updateWorkHoursSchema', () => {
 // ---------------------------------------------------------------------------
 
 describe('shiftTypeSchema', () => {
-  it('should reject when endTime is before startTime', () => {
+  // Story 13-3 (KON-132) — AC5: an overnight shift type (endTime before startTime)
+  // is now accepted; only a zero-length slot (endTime === startTime) is rejected.
+  it('accepts an overnight shift type in the onboarding payload', () => {
     const result = shiftTypeSchema.safeParse({
-      ...validShiftType,
-      startTime: '14:00',
-      endTime: '08:00',
+      name: 'Night',
+      code: 'NIGHT',
+      startTime: '22:00',
+      endTime: '06:00',
+      breakMinutes: 20, // 8h overnight -> needs a break under 13-4
+      color: '#123456',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a zero-length shift type in the onboarding payload', () => {
+    const result = shiftTypeSchema.safeParse({
+      name: 'Broken',
+      code: 'BRK',
+      startTime: '09:00',
+      endTime: '09:00',
+      breakMinutes: 0,
+      color: '#123456',
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      const endTimeIssue = result.error.issues.find((i) => i.path.includes('endTime'));
-      expect(endTimeIssue?.message).toBe('End time must be after start time');
-    }
   });
 
   it('should reject when endTime equals startTime', () => {
@@ -354,9 +367,24 @@ describe('createShiftTypesSchema', () => {
     expect(result.data!.shiftTypes[0].code).toBe('AM');
   });
 
-  it('should reject a shift type where endTime is before startTime', () => {
+  // Story 13-3 (KON-132) — AC5: an overnight shift type in the array is accepted.
+  it('accepts a shift type where endTime is before startTime (overnight)', () => {
     const result = createShiftTypesSchema.safeParse({
-      shiftTypes: [{ ...validShiftType, startTime: '18:00', endTime: '08:00' }],
+      shiftTypes: [
+        {
+          ...validShiftType,
+          startTime: '18:00',
+          endTime: '08:00',
+          breakMinutes: 20, // 14h overnight -> needs a break under 13-4
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject a zero-length shift type in the array', () => {
+    const result = createShiftTypesSchema.safeParse({
+      shiftTypes: [{ ...validShiftType, startTime: '08:00', endTime: '08:00' }],
     });
     expect(result.success).toBe(false);
   });

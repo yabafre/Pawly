@@ -5,6 +5,7 @@ import {
   type SolverEmployee,
   type SolverSlot,
 } from './solver-model';
+import type { EmployeeLoad } from './local-repair';
 
 const emp = (id: string, weeklyCapMinutes = 2100): SolverEmployee => ({
   id,
@@ -37,6 +38,8 @@ const baseInput = (over: Partial<SolverInput> = {}): SolverInput => ({
   slots: [slot('s1', '2026-08-03')],
   unavailable: new Map(),
   fixedWeeklyMinutes: new Map(),
+  fixedMonthlyMinutes: new Map(),
+  fixedEquityLoads: new Map<string, EmployeeLoad>(),
   fixedDailyMinutes: new Map(),
   fixedWorkedDates: new Map(),
   fixedRotationCounts: new Map(),
@@ -92,6 +95,59 @@ describe('buildSolverModel — hard constraint parity (AC6)', () => {
     expect(mutex[0].kind === 'linearLe' && mutex[0].bound).toBe(1);
   });
 
+  // Story 13-3 (KON-132) — AC2: a pair the greedy engine would refuse must be
+  // forbidden in the model too, or the solver can propose it and the plan is SERVED.
+  it('mutexes a cross-midnight pair on adjacent dates', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '22:00', '06:00'),
+        slot('s2', '2026-08-04', '05:00', '09:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    const mutex = model.constraints.filter(
+      (c) => c.kind === 'linearLe' && c.tag.startsWith('overlap:'),
+    );
+    expect(mutex).toHaveLength(1);
+    expect(mutex[0].kind === 'linearLe' && mutex[0].bound).toBe(1);
+  });
+
+  it('does not mutex a cross-midnight pair that only touches at the junction', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '22:00', '06:00'),
+        slot('s2', '2026-08-04', '06:00', '12:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    expect(
+      model.constraints.filter(
+        (c) => c.kind === 'linearLe' && c.tag.startsWith('overlap:'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  // AC6: 06:00->14:00 plus 22:00->06:00 on ONE date spans 06:00 to 06:00 next day
+  // = 24h amplitude, far past the statutory 13h. The raw HH:MM span scored it 8h.
+  it('emits the statutory amplitude mutex when a same-date pair spans midnight', () => {
+    const input = baseInput({
+      employees: [emp('a')],
+      slots: [
+        slot('s1', '2026-08-03', '06:00', '14:00'),
+        slot('s2', '2026-08-03', '22:00', '06:00'),
+      ],
+    });
+    const model = buildSolverModel(input);
+    expect(
+      model.constraints.filter(
+        (c) =>
+          c.kind === 'linearLe' && c.tag.startsWith('statutory-amplitude:'),
+      ),
+    ).toHaveLength(1);
+  });
+
   it('caps weekly net minutes including the fixed baseline', () => {
     const input = baseInput({
       employees: [emp('a', 480)], // 8h/week cap
@@ -107,6 +163,23 @@ describe('buildSolverModel — hard constraint parity (AC6)', () => {
     );
     expect(weekly).toBeDefined();
     expect(weekly!.kind === 'linearLe' && weekly!.bound).toBe(480 - 60);
+  });
+
+  it('deducts the fixed monthly baseline from the monthly cap (T5, mirror of weekly)', () => {
+    const input = baseInput({
+      employees: [{ ...emp('a'), monthlyCapMinutes: 480 }], // 8h/month cap
+      slots: [
+        slot('s1', '2026-08-03', '09:00', '17:00'), // 480 net
+        slot('s2', '2026-08-10', '09:00', '17:00'),
+      ],
+      fixedMonthlyMinutes: new Map([['a', 240]]), // 4h of survivors already worked this month
+    });
+    const model = buildSolverModel(input);
+    const monthly = model.constraints.find(
+      (c) => c.kind === 'linearLe' && c.tag === 'monthly:a',
+    );
+    expect(monthly).toBeDefined();
+    expect(monthly!.kind === 'linearLe' && monthly!.bound).toBe(480 - 240);
   });
 
   it('enforces statutory daily 10h as a per-date cap', () => {
@@ -225,5 +298,74 @@ describe('objective + decode', () => {
       slots: [slot('s2', '2026-08-05'), slot('s1', '2026-08-03')],
     });
     expect(buildSolverModel(input)).toEqual(buildSolverModel(input));
+  });
+
+  it('adds a shift-spread term mirroring equityObjective (T7a)', () => {
+    const input = baseInput({
+      employees: [emp('a'), emp('b')],
+      slots: [slot('s1', '2026-08-03'), slot('s2', '2026-08-04')],
+    });
+    const model = buildSolverModel(input);
+    expect(
+      model.constraints.some(
+        (c) => c.kind === 'spread' && c.tag === 'spread:shift',
+      ),
+    ).toBe(true);
+    expect(model.objective.some((t) => t.tag === 'spread:shift')).toBe(true);
+  });
+
+  it("carries the survivors' equity load as the spread's fixed baseline (T7b)", () => {
+    const input = baseInput({
+      employees: [emp('a'), emp('b')],
+      slots: [slot('sat1', '2026-08-01'), slot('mon1', '2026-08-03')], // 08-01 is a Saturday
+      fixedEquityLoads: new Map<string, EmployeeLoad>([
+        ['a', { saturdayCount: 2, weekendCount: 3, shiftCount: 5 }],
+      ]),
+    });
+    const model = buildSolverModel(input);
+    const shiftSpread = model.constraints.find(
+      (c) => c.kind === 'spread' && c.tag === 'spread:shift',
+    );
+    const aShift =
+      shiftSpread?.kind === 'spread'
+        ? shiftSpread.perEmployee.find((p) => p.employeeId === 'a')
+        : undefined;
+    expect(aShift?.fixed).toBe(5);
+
+    const satSpread = model.constraints.find(
+      (c) => c.kind === 'spread' && c.tag === 'spread:saturday',
+    );
+    const aSat =
+      satSpread?.kind === 'spread'
+        ? satSpread.perEmployee.find((p) => p.employeeId === 'a')
+        : undefined;
+    expect(aSat?.fixed).toBe(2);
+  });
+
+  it('keeps fill dominant even when a survivor baseline inflates the spread (AC-3)', () => {
+    // 'a' carries 5 survivor shifts; the shift-count spread can reach 6 (5 fixed + 1
+    // free) — past the 1-slot count — so the fill-dominance bound must grow with it.
+    const input = baseInput({
+      employees: [emp('a'), emp('b')],
+      slots: [slot('s1', '2026-08-03')],
+      fixedEquityLoads: new Map<string, EmployeeLoad>([
+        ['a', { saturdayCount: 0, weekendCount: 0, shiftCount: 5 }],
+      ]),
+    });
+    const model = buildSolverModel(input);
+    const fillTerms = model.objective.filter((t) => t.tag === 'fill');
+    const spreadTerms = model.objective.filter((t) => t.tag !== 'fill');
+    const minFill = Math.min(...fillTerms.map((t) => Math.abs(t.weight)));
+    const sumSpread = spreadTerms.reduce((s, t) => s + Math.abs(t.weight), 0);
+    // Largest per-employee count any active spread can reach (terms + survivor fixed).
+    const maxCount = Math.max(
+      ...model.constraints.flatMap((c) =>
+        c.kind === 'spread'
+          ? c.perEmployee.map((p) => p.terms.length + p.fixed)
+          : [],
+      ),
+    );
+    // Filling one slot must beat collapsing every weighted spread from its max to 0.
+    expect(minFill).toBeGreaterThan(sumSpread * maxCount);
   });
 });

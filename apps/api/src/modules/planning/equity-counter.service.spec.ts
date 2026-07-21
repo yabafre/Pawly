@@ -361,13 +361,11 @@ describe('EquityCounterService', () => {
       expect(callArgs.where.clinicId).toBe(clinicId);
       const gte = callArgs.where.date.gte;
       const lte = callArgs.where.date.lte;
-      // March 2026: starts March 1, ends March 31
-      expect(gte.getFullYear()).toBe(2026);
-      expect(gte.getMonth()).toBe(2); // 0-based: 2 = March
-      expect(gte.getDate()).toBe(1);
-      expect(lte.getFullYear()).toBe(2026);
-      expect(lte.getMonth()).toBe(2);
-      expect(lte.getDate()).toBe(31);
+      // March 2026, in UTC: production stores Shift.date at UTC midnight, so the window
+      // must be UTC too — reading these bounds with local getters would pass under
+      // Europe/Paris while the window silently slid a day (Story 13-7, audit T8).
+      expect(gte.toISOString()).toBe('2026-03-01T00:00:00.000Z');
+      expect(lte.toISOString()).toBe('2026-03-31T23:59:59.999Z');
     });
 
     it('fetches closed days for holiday detection', async () => {
@@ -397,7 +395,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 7), // Saturday March 7
+          date: new Date(Date.UTC(2026, 2, 7)), // Saturday March 7
           startTime: '08:00',
           endTime: '12:00',
         },
@@ -437,13 +435,13 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 7), // Saturday
+          date: new Date(Date.UTC(2026, 2, 7)), // Saturday
           startTime: '08:00',
           endTime: '12:00',
         },
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 8), // Sunday
+          date: new Date(Date.UTC(2026, 2, 8)), // Sunday
           startTime: '08:00',
           endTime: '12:00',
         },
@@ -488,7 +486,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 8), // Sunday
+          date: new Date(Date.UTC(2026, 2, 8)), // Sunday
           startTime: '09:00',
           endTime: '17:00',
         },
@@ -528,14 +526,14 @@ describe('EquityCounterService', () => {
 
     it('detects holidays using clinic closed days', async () => {
       // 2026-03-02 is a Monday; make it a closed day (holiday)
-      const closedDate = new Date(2026, 2, 2);
+      const closedDate = new Date(Date.UTC(2026, 2, 2));
       mockPrismaService.clinicClosedDay.findMany.mockResolvedValue([
         { date: closedDate },
       ]);
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2), // Monday, closed day
+          date: new Date(Date.UTC(2026, 2, 2)), // Monday, closed day
           startTime: '08:00',
           endTime: '16:00',
         },
@@ -564,7 +562,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2), // Monday, NOT a closed day
+          date: new Date(Date.UTC(2026, 2, 2)), // Monday, NOT a closed day
           startTime: '08:00',
           endTime: '16:00',
         },
@@ -632,7 +630,7 @@ describe('EquityCounterService', () => {
       for (const day of weekdays) {
         shifts.push({
           employeeId: 'emp-1',
-          date: new Date(2026, 2, day),
+          date: new Date(Date.UTC(2026, 2, day)),
           startTime: '08:00',
           endTime: '15:00', // 7 hours = 420 minutes each
         });
@@ -677,7 +675,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2),
+          date: new Date(Date.UTC(2026, 2, 2)),
           startTime: '08:00',
           endTime: '12:00', // 4 hours = 240 minutes
         },
@@ -711,7 +709,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2),
+          date: new Date(Date.UTC(2026, 2, 2)),
           startTime: '08:00',
           endTime: '13:00', // 5 hours = 300 minutes
         },
@@ -791,7 +789,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2), // Monday
+          date: new Date(Date.UTC(2026, 2, 2)), // Monday
           startTime: '08:00',
           endTime: '17:30',
         },
@@ -830,7 +828,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2),
+          date: new Date(Date.UTC(2026, 2, 2)),
           startTime: '22:00',
           endTime: '06:00',
         },
@@ -902,7 +900,7 @@ describe('EquityCounterService', () => {
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           employeeId: 'emp-1',
-          date: new Date(2026, 2, 2),
+          date: new Date(Date.UTC(2026, 2, 2)),
           startTime: '08:00',
           endTime: '16:00', // 8 hours = 480 minutes
         },

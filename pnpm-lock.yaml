@@ -246,6 +246,9 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.2.2
         version: 5.5.5(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.39.3(jiti@2.6.1)))(eslint@9.39.3(jiti@2.6.1))(prettier@3.8.1)
+      fast-check:
+        specifier: ^3.23.2
+        version: 3.23.2
       globals:
         specifier: ^16.0.0
         version: 16.5.0

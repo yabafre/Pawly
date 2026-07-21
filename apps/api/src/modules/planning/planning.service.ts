@@ -238,9 +238,26 @@ export class PlanningService {
       }
     }
 
-    // Story 11-3 — statutory French labor-law HARD limits, ALWAYS enforced (independent of
-    // configured rules). Surfaces in the Planning Health Bar and blocks publication.
-    this.evaluateStatutoryLimits(validShifts, hardViolations);
+    // Story 13-2 (KON-134) — statutory checks (35h weekly rest, consecutive days) span
+    // month frontiers, so they run on a +/-8-real-day window around [startDate, endDate],
+    // NOT the strict month `validShifts` uses. Only breaches attributable to the published
+    // range are reported (a breach living purely in an adjacent month must not block this
+    // month's publish).
+    const statWindowStart = new Date(startDate);
+    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    const statWindowEnd = new Date(endDate);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+    const statutoryShifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: statWindowStart, lte: statWindowEnd } },
+      include: { employee: { select: { id: true } } },
+    });
+    const toIso = (d: Date) => d.toISOString().split('T')[0];
+    this.evaluateStatutoryLimits(
+      statutoryShifts.filter((s) => s.shiftTypeCode),
+      hardViolations,
+      { start: toIso(startDate), end: toIso(endDate) },
+      { start: toIso(statWindowStart), end: toIso(statWindowEnd) },
+    );
 
     return { hardViolations, softViolations, rules };
   }
@@ -251,6 +268,9 @@ export class PlanningService {
   > = {
     DAILY_WORK: 'violations.statutory.dailyWork',
     DAILY_AMPLITUDE: 'violations.statutory.dailyAmplitude',
+    DAILY_REST: 'violations.statutory.dailyRest',
+    WEEKLY_CEILING: 'violations.statutory.weeklyCeiling',
+    MANDATORY_BREAK: 'violations.statutory.mandatoryBreak',
     WEEKLY_REST: 'violations.statutory.weeklyRest',
     CONSECUTIVE_DAYS: 'violations.statutory.consecutiveDays',
   };
@@ -264,6 +284,8 @@ export class PlanningService {
       employee: { id: string };
     }>,
     hardViolations: HardViolation[],
+    reportRange: { start: string; end: string },
+    window: { start: string; end: string },
   ) {
     const byEmployee = new Map<string, StatutoryShift[]>();
     for (const s of shifts) {
@@ -278,10 +300,32 @@ export class PlanningService {
     }
 
     for (const [employeeId, empShifts] of byEmployee) {
-      for (const v of findStatutoryViolations(empShifts)) {
+      for (const v of findStatutoryViolations(empShifts, window)) {
+        if (!PlanningService.violationInPublishedRange(v, reportRange))
+          continue;
         hardViolations.push(this.statutoryToHardViolation(v, employeeId));
       }
     }
+  }
+
+  /**
+   * Story 13-2 (KON-134) — keep only statutory violations attributable to the published
+   * range. DAILY_* / CONSECUTIVE_DAYS are attributed to the offending day; WEEKLY_REST to
+   * its ISO-week Monday, so it is kept when that week intersects the range (a Dec-29→Jan-4
+   * week straddling the frontier is relevant to a January publish). ISO `YYYY-MM-DD`
+   * strings compare chronologically as lexicographic strings.
+   */
+  private static violationInPublishedRange(
+    v: StatutoryViolation,
+    range: { start: string; end: string },
+  ): boolean {
+    if (v.kind === 'WEEKLY_REST' || v.kind === 'WEEKLY_CEILING') {
+      const d = new Date(`${v.date}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 6);
+      const weekEnd = d.toISOString().split('T')[0];
+      return v.date <= range.end && weekEnd >= range.start;
+    }
+    return v.date >= range.start && v.date <= range.end;
   }
 
   /** ISO `YYYY-MM-DD` → French `DD/MM/YYYY` for human-facing statutory messages. */
@@ -294,9 +338,15 @@ export class PlanningService {
     v: StatutoryViolation,
     employeeId: string,
   ): HardViolation {
-    const isDaily = v.kind === 'DAILY_WORK' || v.kind === 'DAILY_AMPLITUDE';
-    const actual = isDaily ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
-    const limit = isDaily ? v.limit / 60 : v.limit;
+    const MINUTE_KINDS: ReadonlySet<StatutoryViolationKind> = new Set([
+      'DAILY_WORK',
+      'DAILY_AMPLITUDE',
+      'DAILY_REST',
+      'WEEKLY_CEILING',
+    ]);
+    const inMinutes = MINUTE_KINDS.has(v.kind);
+    const actual = inMinutes ? Math.round((v.actual / 60) * 10) / 10 : v.actual;
+    const limit = inMinutes ? v.limit / 60 : v.limit;
     // Human-facing date is French-formatted; `affectedDate` stays ISO because it
     // keys the grid-cell conflict lookup (`${employeeId}|${day.date}`).
     const displayDate = PlanningService.formatFrDate(v.date);

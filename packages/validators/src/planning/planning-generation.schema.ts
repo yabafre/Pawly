@@ -99,6 +99,21 @@ export const softViolationSchema = z.object({
 });
 export type SoftViolation = z.infer<typeof softViolationSchema>;
 
+// ── Solver outcome (Story 13-6, KON-137 — T6/T11) ────────────────────────
+
+// The reason the exact (cpsat) improve pass did or didn't serve its plan. Present
+// only when the exact engine was requested; a greedy request omits it so a Starter
+// response never carries solver internals (tier-gate invariant #7).
+export const solverOutcomeSchema = z.enum([
+  'served', // cpsat plan was served (strictly better + re-validated)
+  'engine-unavailable', // solver failed to load/run (e.g. Node < 22.12) — greedy served
+  'infeasible', // solver proved no valid schedule — greedy served
+  'budget-exhausted', // solver found no solution within its deterministic budget — greedy served
+  'no-improvement', // solver ran but did not strictly beat greedy — greedy served
+  'rejected-revalidation', // solver plan failed the re-validation replay — greedy served
+]);
+export type SolverOutcome = z.infer<typeof solverOutcomeSchema>;
+
 // ── Generation result schema ─────────────────────────────────────────────
 
 export const generationStatsSchema = z.object({
@@ -110,6 +125,9 @@ export const generationStatsSchema = z.object({
   // Story 12-1 — which engine produced the SERVED assignments ('cpsat' only when
   // the solver strictly improved on greedy+repair and re-validation passed).
   engine: z.enum(['greedy', 'cpsat']).default('greedy'),
+  // Story 13-6 (KON-137) — why the cpsat pass did/didn't serve. Optional: omitted
+  // for greedy requests so a Starter response never carries solver internals (#7).
+  solverOutcome: solverOutcomeSchema.optional(),
 });
 export type GenerationStats = z.infer<typeof generationStatsSchema>;
 

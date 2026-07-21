@@ -20,7 +20,12 @@
  * weighted by the KON-128 EquityWeights); the exact quadratic normalized
  * objective is only used by the service's acceptance gate via equityObjective().
  */
-import type { EquityWeights } from './local-repair';
+import type { EquityWeights, EmployeeLoad } from './local-repair';
+import {
+  intervalsOverlap,
+  toAbsoluteInterval,
+  type AbsoluteInterval,
+} from './shift-interval';
 
 export interface SolverEmployee {
   id: string;
@@ -54,6 +59,10 @@ export interface SolverInput {
   unavailable: Map<string, Set<string>>;
   /** `${employeeId}|${isoWeekMonday}` -> fixed net minutes (border + survivors + school). */
   fixedWeeklyMinutes: Map<string, number>;
+  /** employeeId -> fixed net minutes already worked THIS month (survivors) — deducted from the monthly cap, the exact mirror of fixedWeeklyMinutes (Story 13-5, T5). */
+  fixedMonthlyMinutes: Map<string, number>;
+  /** employeeId -> survivor equity load (saturday/weekend/shift counts) — the per-metric spread baseline, so the spread reflects TOTAL fairness the survivor-aware gate judges (Story 13-5, T7). */
+  fixedEquityLoads: Map<string, EmployeeLoad>;
   /** `${employeeId}|${date}` -> fixed net minutes that day (survivors). */
   fixedDailyMinutes: Map<string, number>;
   /** employeeId -> Set<'YYYY-MM-DD'> of days already worked (survivors/border) — feeds consecutive-days. */
@@ -143,19 +152,25 @@ function addDays(dateISO: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function overlaps(a: SolverSlot, b: SolverSlot): boolean {
-  if (a.date !== b.date) return false;
-  return (
-    toMin(a.startTime) < toMin(b.endTime) &&
-    toMin(b.startTime) < toMin(a.endTime)
-  );
+function overlaps(a: AbsoluteInterval, b: AbsoluteInterval): boolean {
+  return intervalsOverlap(a, b);
 }
 
-function amplitudeExceeded(a: SolverSlot, b: SolverSlot): boolean {
+/**
+ * Statutory 13h amplitude for one calendar day: first start -> last end, breaks
+ * included. Stays same-date on purpose — amplitude is a per-day limit (see
+ * french-labor-law.ts dayAmplitudeMinutes); the inter-day gap is the 11h daily
+ * rest, which story 13-4 owns. Story 13-3 only fixes the span arithmetic: with a
+ * midnight-crossing slot the raw HH:MM span was computed as 8h instead of 24h.
+ */
+function amplitudeExceeded(
+  a: SolverSlot,
+  b: SolverSlot,
+  ia: AbsoluteInterval,
+  ib: AbsoluteInterval,
+): boolean {
   if (a.date !== b.date) return false;
-  const span =
-    Math.max(toMin(a.endTime), toMin(b.endTime)) -
-    Math.min(toMin(a.startTime), toMin(b.startTime));
+  const span = Math.max(ia[1], ib[1]) - Math.min(ia[0], ib[0]);
   return span > STATUTORY_AMPLITUDE_MINUTES;
 }
 
@@ -193,6 +208,13 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   const constraints: IrConstraint[] = [];
   const slotById = new Map(slots.map((s) => [s.id, s]));
 
+  // Story 13-3 (KON-132) — one absolute interval per slot, computed once. The
+  // pairwise mutex loop below is O(slots^2) per employee; date parsing inside it
+  // would be a NFR2 regression.
+  const intervalBySlotId = new Map<string, AbsoluteInterval>(
+    slots.map((s) => [s.id, toAbsoluteInterval(s)]),
+  );
+
   // Fill caps: sum_e x[e,s] <= requiredStaff.
   for (const s of slots) {
     const sv = varsBySlot.get(s.id) ?? [];
@@ -215,7 +237,9 @@ export function buildSolverModel(input: SolverInput): SolverModel {
       for (let j = i + 1; j < evSlots.length; j++) {
         const A = evSlots[i];
         const B = evSlots[j];
-        if (overlaps(A.s, B.s)) {
+        const iA = intervalBySlotId.get(A.s.id)!;
+        const iB = intervalBySlotId.get(B.s.id)!;
+        if (overlaps(iA, iB)) {
           constraints.push({
             kind: 'linearLe',
             tag: `overlap:${e.id}:${A.s.id}:${B.s.id}`,
@@ -225,7 +249,7 @@ export function buildSolverModel(input: SolverInput): SolverModel {
             ],
             bound: 1,
           });
-        } else if (amplitudeExceeded(A.s, B.s)) {
+        } else if (amplitudeExceeded(A.s, B.s, iA, iB)) {
           constraints.push({
             kind: 'linearLe',
             tag: `statutory-amplitude:${e.id}:${A.s.id}:${B.s.id}`,
@@ -258,8 +282,14 @@ export function buildSolverModel(input: SolverInput): SolverModel {
       });
     }
 
-    // Monthly cap when configured.
+    // Monthly cap when configured. The fixed survivor baseline is deducted from
+    // the bound — the exact mirror of the weekly cap above (Story 13-5, T5).
+    // Without it the model searched the full cap while survivors already consumed
+    // part of it, so its optimum tripped the real cap on replay and the whole
+    // candidate was discarded — "always serve greedy" for every survivor-bearing
+    // capped clinic (same bug class as the weekly regression, service :4277-4284).
     if (e.monthlyCapMinutes !== null) {
+      const fixed = input.fixedMonthlyMinutes.get(e.id) ?? 0;
       constraints.push({
         kind: 'linearLe',
         tag: `monthly:${e.id}`,
@@ -267,7 +297,7 @@ export function buildSolverModel(input: SolverInput): SolverModel {
           varName: v.name,
           coeff: netMinutes(s),
         })),
-        bound: e.monthlyCapMinutes,
+        bound: Math.max(0, e.monthlyCapMinutes - fixed),
       });
     }
 
@@ -346,15 +376,38 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   }
 
   // Objective: fill lexicographically dominates the weighted equity spreads.
-  // Spread vars are bounded by the slot count, so fillWeight = totalSpreadWeight
-  // * (maxSpread + 1) guarantees a filled position always beats any spread gain.
+  // The three spread metrics mirror equityObjective (local-repair.ts) EXACTLY —
+  // saturday, weekend AND shift — so the solver optimizes every metric the
+  // service's acceptance gate judges (Story 13-5, T7a). Each per-employee count
+  // carries a `fixed` survivor baseline (that employee's immovable MANUAL/confirmed
+  // load for the metric), so the spread reflects TOTAL fairness the same way the
+  // survivor-aware gate does — the model no longer balances only what it can move.
   const w = input.equityWeights;
-  const spreadDefs: Array<{ tag: string; isoDays: number[]; weight: number }> =
-    [
-      { tag: 'spread:saturday', isoDays: [6], weight: w.saturday },
-      { tag: 'spread:weekend', isoDays: [6, 7], weight: w.weekend },
-    ];
-  const maxSpread = slots.length;
+  const spreadDefs: Array<{
+    tag: string;
+    isoDays: number[];
+    weight: number;
+    metric: keyof EmployeeLoad;
+  }> = [
+    {
+      tag: 'spread:saturday',
+      isoDays: [6],
+      weight: w.saturday,
+      metric: 'saturdayCount',
+    },
+    {
+      tag: 'spread:weekend',
+      isoDays: [6, 7],
+      weight: w.weekend,
+      metric: 'weekendCount',
+    },
+    {
+      tag: 'spread:shift',
+      isoDays: [1, 2, 3, 4, 5, 6, 7],
+      weight: w.shift,
+      metric: 'shiftCount',
+    },
+  ];
   const activeSpreads: IrSpread[] = [];
   for (const def of spreadDefs) {
     const perEmployee = employees
@@ -365,9 +418,13 @@ export function buildSolverModel(input: SolverInput): SolverModel {
             def.isoDays.includes(isoWeekday(slotById.get(v.slotId)!.date)),
           )
           .map((v) => ({ varName: v.name, coeff: 1 }));
-        return { employeeId: e.id, terms, fixed: 0 };
+        const fixed = input.fixedEquityLoads.get(e.id)?.[def.metric] ?? 0;
+        return { employeeId: e.id, terms, fixed };
       })
-      .filter((p) => p.terms.length > 0);
+      // Keep an employee whose only contribution is a survivor baseline: a
+      // `fixed > 0` with no free term still shifts the spread, so the model must
+      // see it to balance TOTAL load (the survivor-aware gate does).
+      .filter((p) => p.terms.length > 0 || p.fixed > 0);
     if (perEmployee.length < 2) continue;
     activeSpreads.push({ kind: 'spread', tag: def.tag, perEmployee });
   }
@@ -375,6 +432,18 @@ export function buildSolverModel(input: SolverInput): SolverModel {
   const totalSpreadWeight = spreadDefs.reduce(
     (s, d) => s + Math.ceil(d.weight * 100),
     0,
+  );
+  // Fill must beat any weighted spread swing. A survivor `fixed` can push a
+  // per-employee count past slots.length, so the dominance bound tracks the
+  // largest achievable spread across active defs, not just the slot count
+  // (Story 13-5, AC-3) — otherwise a heavy survivor imbalance could let the
+  // optimizer trade a filled position for fairness.
+  const maxSpread = Math.max(
+    slots.length,
+    0,
+    ...activeSpreads.map((sp) =>
+      Math.max(...sp.perEmployee.map((p) => p.terms.length + p.fixed)),
+    ),
   );
   const fillWeight = totalSpreadWeight * (maxSpread + 1);
 
