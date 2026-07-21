@@ -842,31 +842,59 @@ export function wouldExceedStatutory(
   // >=10h continuous trigger day, or consume a rest day a neighbouring trigger relied on.
   // Count-based (like DAILY_REST): flag iff the number of failing trigger days rises.
   {
-    const coverage = {
-      start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
-      end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),
-    };
-    const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
-    const hardCount = (shifts: StatutoryShift[]): number => {
-      const byDayLocal = new Map<string, StatutoryShift[]>();
-      for (const s of shifts) {
-        const arr = byDayLocal.get(s.date) ?? [];
-        arr.push(s);
-        byDayLocal.set(s.date, arr);
+    // Perf fast path (NFR2): without any >=10h continuous trigger day the rule cannot
+    // apply, and the overwhelmingly common 4-8h candidate skips all window counting.
+    const byDayWith = new Map<string, StatutoryShift[]>();
+    for (const s of withCandidate) {
+      const arr = byDayWith.get(s.date) ?? [];
+      arr.push(s);
+      byDayWith.set(s.date, arr);
+    }
+    const triggersWith: string[] = [];
+    for (const [d, ds] of byDayWith) {
+      if (
+        dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES &&
+        isContinuousDay(ds)
+      ) {
+        triggersWith.push(d);
       }
-      const worked = new Set(byDayLocal.keys());
-      const triggers = [...byDayLocal.entries()]
-        .filter(
-          ([, ds]) =>
-            isContinuousDay(ds) &&
-            dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES,
-        )
-        .map(([d]) => d);
-      return restDaysWindowFindings(worked, triggers, coverage, sundayHard).hard
-        .size;
-    };
-    if (hardCount(withCandidate) > hardCount(windowShifts))
-      kinds.push('REST_DAYS_WINDOW');
+    }
+    if (triggersWith.length > 0) {
+      const coverage = {
+        start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
+        end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),
+      };
+      const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
+      const afterCount = restDaysWindowFindings(
+        new Set(byDayWith.keys()),
+        triggersWith,
+        coverage,
+        sundayHard,
+      ).hard.size;
+      if (afterCount > 0) {
+        // Only now pay for the "before" count — the candidate must have INTRODUCED it.
+        const byDayBefore = new Map<string, StatutoryShift[]>();
+        for (const s of windowShifts) {
+          const arr = byDayBefore.get(s.date) ?? [];
+          arr.push(s);
+          byDayBefore.set(s.date, arr);
+        }
+        const triggersBefore = [...byDayBefore.entries()]
+          .filter(
+            ([, ds]) =>
+              isContinuousDay(ds) &&
+              dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES,
+          )
+          .map(([d]) => d);
+        const beforeCount = restDaysWindowFindings(
+          new Set(byDayBefore.keys()),
+          triggersBefore,
+          coverage,
+          sundayHard,
+        ).hard.size;
+        if (afterCount > beforeCount) kinds.push('REST_DAYS_WINDOW');
+      }
+    }
   }
 
   // KON-139 — 44h average over 12 consecutive ISO weeks, introduced-by-candidate. Only
