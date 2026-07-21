@@ -842,58 +842,78 @@ export function wouldExceedStatutory(
   // >=10h continuous trigger day, or consume a rest day a neighbouring trigger relied on.
   // Count-based (like DAILY_REST): flag iff the number of failing trigger days rises.
   {
-    // Perf fast path (NFR2): without any >=10h continuous trigger day the rule cannot
-    // apply, and the overwhelmingly common 4-8h candidate skips all window counting.
+    // Perf (NFR2): only the 14 windows CONTAINING candidate.date can differ between the
+    // before/after states — every other window sees identical worked days and cancels out
+    // of the comparison. Work is therefore bounded to 14 windows x 14 days per call, and
+    // the fast path skips even that when no >=10h continuous trigger day sits within 13
+    // days of the candidate (the overwhelmingly common 4-8h case).
     const byDayWith = new Map<string, StatutoryShift[]>();
     for (const s of withCandidate) {
       const arr = byDayWith.get(s.date) ?? [];
       arr.push(s);
       byDayWith.set(s.date, arr);
     }
-    const triggersWith: string[] = [];
+    const isTrigger = (ds: StatutoryShift[] | undefined): boolean =>
+      ds !== undefined &&
+      dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES &&
+      isContinuousDay(ds);
+    let hasTriggerNear = false;
     for (const [d, ds] of byDayWith) {
-      if (
-        dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES &&
-        isContinuousDay(ds)
-      ) {
-        triggersWith.push(d);
+      if (Math.abs(dayDiff(d, candidate.date)) <= 13 && isTrigger(ds)) {
+        hasTriggerNear = true;
+        break;
       }
     }
-    if (triggersWith.length > 0) {
+    if (hasTriggerNear) {
       const coverage = {
         start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
         end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),
       };
       const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
-      const afterCount = restDaysWindowFindings(
-        new Set(byDayWith.keys()),
-        triggersWith,
-        coverage,
-        sundayHard,
-      ).hard.size;
-      if (afterCount > 0) {
-        // Only now pay for the "before" count — the candidate must have INTRODUCED it.
-        const byDayBefore = new Map<string, StatutoryShift[]>();
-        for (const s of windowShifts) {
-          const arr = byDayBefore.get(s.date) ?? [];
-          arr.push(s);
-          byDayBefore.set(s.date, arr);
-        }
-        const triggersBefore = [...byDayBefore.entries()]
-          .filter(
-            ([, ds]) =>
-              isContinuousDay(ds) &&
-              dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES,
-          )
-          .map(([d]) => d);
-        const beforeCount = restDaysWindowFindings(
-          new Set(byDayBefore.keys()),
-          triggersBefore,
-          coverage,
-          sundayHard,
-        ).hard.size;
-        if (afterCount > beforeCount) kinds.push('REST_DAYS_WINDOW');
+      const byDayBefore = new Map<string, StatutoryShift[]>();
+      for (const s of windowShifts) {
+        const arr = byDayBefore.get(s.date) ?? [];
+        arr.push(s);
+        byDayBefore.set(s.date, arr);
       }
+      // Count failing fully-covered windows containing candidate.date, per state.
+      const failingWindows = (byDay: Map<string, StatutoryShift[]>): number => {
+        let failures = 0;
+        for (let back = CCN_SHARED.REST_WINDOW_DAYS - 1; back >= 0; back--) {
+          const ws = addDays(candidate.date, -back);
+          const we = addDays(ws, CCN_SHARED.REST_WINDOW_DAYS - 1);
+          if (ws < coverage.start || we > coverage.end) continue;
+          let windowHasTrigger = false;
+          const restDates: string[] = [];
+          for (let i = 0; i < CCN_SHARED.REST_WINDOW_DAYS; i++) {
+            const d = addDays(ws, i);
+            const ds = byDay.get(d);
+            if (!ds || ds.length === 0) restDates.push(d);
+            else if (!windowHasTrigger && isTrigger(ds))
+              windowHasTrigger = true;
+          }
+          if (!windowHasTrigger) continue;
+          let hasPair = false;
+          let hasSundayPair = false;
+          for (let i = 0; i < restDates.length - 1; i++) {
+            if (dayDiff(restDates[i + 1], restDates[i]) === 1) {
+              hasPair = true;
+              if (isSunday(restDates[i]) || isSunday(restDates[i + 1]))
+                hasSundayPair = true;
+            }
+          }
+          if (
+            restDates.length < CCN_SHARED.REST_MIN_DAYS_IN_WINDOW ||
+            !hasPair ||
+            (sundayHard && !hasSundayPair)
+          ) {
+            failures++;
+          }
+        }
+        return failures;
+      };
+      if (failingWindows(byDayWith) > failingWindows(byDayBefore))
+        kinds.push('REST_DAYS_WINDOW');
     }
   }
 
