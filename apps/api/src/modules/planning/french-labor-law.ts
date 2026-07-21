@@ -25,10 +25,94 @@
 
 import { toAbsoluteInterval } from './shift-interval';
 
+/**
+ * CCN regimes — KON-139. The extended veterinary collective agreement carries two distinct
+ * working-time regimes under one roof since the merger accord of 2019-03-29:
+ * corps IDCC 1875 (non-veterinarian staff) and annexe VII ex-IDCC 2564 (salaried
+ * practitioners, i.e. employees under the veterinary order's authority). Regime is derived
+ * from `Employee.jobType` — VET is the only ordinal job type in the schema.
+ * Legal basis: docs/reference/ccn-veterinary-worktime-verification.md (owner-approved).
+ */
+export type StatutoryRegime = 'SUPPORT_STAFF' | 'PRACTITIONER';
+
+export function regimeForJobType(
+  jobType: string | null | undefined,
+): StatutoryRegime {
+  return jobType === 'VET' ? 'PRACTITIONER' : 'SUPPORT_STAFF';
+}
+
+/** Per-regime CCN limits that differ between corps 1875 and annexe VII. */
+export const CCN_LIMITS = {
+  SUPPORT_STAFF: {
+    /** CCN art. 18 — continuous-day duration AND amplitude both capped at 12h. */
+    CONTINUOUS_DAY_AMPLITUDE_MINUTES: 720,
+    /** Art. 18 — the 2 consecutive rest days of the 4-per-fortnight rule MUST include a Sunday. */
+    SUNDAY_IN_REST_PAIR_HARD: true,
+  },
+  PRACTITIONER: {
+    /** Annexe VII art. 20 — continuous-day amplitude may be raised to 15h. */
+    CONTINUOUS_DAY_AMPLITUDE_MINUTES: 900,
+    /** Annexe VII art. 20 — « de préférence un dimanche » → SOFT preference, not blocking. */
+    SUNDAY_IN_REST_PAIR_HARD: false,
+  },
+} as const satisfies Record<
+  StatutoryRegime,
+  {
+    CONTINUOUS_DAY_AMPLITUDE_MINUTES: number;
+    SUNDAY_IN_REST_PAIR_HARD: boolean;
+  }
+>;
+
+/** CCN limits shared by both regimes (on top of the Code set below). */
+export const CCN_SHARED = {
+  /** Art. 18 / annexe VII art. 20 — max 2 disjoint work blocks (vacations) per day. */
+  MAX_VACATIONS_PER_DAY: 2,
+  /** Art. 18 — with 2 vacations, the shorter must be >= 2h and the longer >= 3h (gross). */
+  VACATION_MIN_SHORT_MINUTES: 120,
+  VACATION_MIN_LONG_MINUTES: 180,
+  /** Art. 18 — trigger: a continuous worked day of >= 10h net. */
+  CONTINUOUS_TRIGGER_NET_MINUTES: 600,
+  /** Art. 18 — every 14-day window containing a trigger day needs >= 4 rest days... */
+  REST_WINDOW_DAYS: 14,
+  REST_MIN_DAYS_IN_WINDOW: 4,
+  /** ...of which >= 2 consecutive (Sunday membership per regime above). */
+  REST_MIN_CONSECUTIVE_DAYS: 2,
+  /** Art. 18 / annexe VII art. 20 — 44h average ceiling over 12 consecutive ISO weeks. */
+  TWELVE_WEEK_SPAN: 12,
+  MAX_TWELVE_WEEK_TOTAL_MINUTES: 12 * 44 * 60, // 31 680
+} as const;
+
+/**
+ * Radius (real days) of the statutory data window every incremental caller loads around a
+ * candidate. KON-139 widened it from 8 to 14: the CCN rest-days rule must fully prove any
+ * 14-day window containing the candidate ([c-13,c] .. [c,c+13] ⊆ [c-14,c+14]).
+ */
+export const STATUTORY_WINDOW_DAYS = 14;
+
+/** Options for `wouldExceedStatutory` — KON-139. */
+export type WouldExceedOptions = {
+  regime: StatutoryRegime;
+  /**
+   * 12-week-average support: `totals(isoMonday)` returns the employee's net worked minutes
+   * for that ISO week EXCLUDING the candidate (live counters + history), and
+   * `lastWeekMonday` is the last ISO week with known data (windows reaching past it are
+   * skipped — they are re-checked when those weeks gain their own assignments). Omit to
+   * skip the 44h/12-week check.
+   */
+  twelveWeek?: {
+    totals: (isoMonday: string) => number;
+    lastWeekMonday: string;
+  };
+};
+
 export const FRENCH_LABOR_LAW = {
-  /** L.3121-18 — max 10h net worked per employee per calendar day. */
-  MAX_DAILY_WORK_MINUTES: 600,
-  /** 13h max amplitude (first start -> last end) per employee per day; breaks included. */
+  /**
+   * Max net worked per employee per calendar day. 12h by express conventional derogation
+   * (CCN art. 18 corps / annexe VII art. 20 — L.3121-19 path), KON-139; was the L.3121-18
+   * 10h default until then. Both regimes.
+   */
+  MAX_DAILY_WORK_MINUTES: 720,
+  /** 13h max amplitude for a DISCONTINUOUS day (>= 2 vacations); continuous days use CCN_LIMITS. */
   MAX_DAILY_AMPLITUDE_MINUTES: 780,
   /** L.3131-1 — >= 11h rest between two consecutive worked blocks (merged busy intervals). */
   MIN_DAILY_REST_MINUTES: 660,
@@ -63,7 +147,13 @@ export type StatutoryViolationKind =
   | 'WEEKLY_CEILING'
   | 'MANDATORY_BREAK'
   | 'WEEKLY_REST'
-  | 'CONSECUTIVE_DAYS';
+  | 'CONSECUTIVE_DAYS'
+  // KON-139 — CCN working-time rules (both regimes unless noted):
+  | 'VACATIONS_COUNT' // > 2 disjoint work blocks in one day
+  | 'VACATION_MIN_DURATION' // 2 blocks but shorter < 2h or longer < 3h (gross)
+  | 'REST_DAYS_WINDOW' // a 14-day window w/ >=10h continuous day lacks 4 rest days / 2 consecutive (/ Sunday, corps)
+  | 'REST_DAYS_SUNDAY' // SOFT (practitioners) — pair exists but contains no Sunday
+  | 'TWELVE_WEEK_AVG'; // > 44h average over 12 consecutive ISO weeks
 
 /** Minimal shift shape the statutory checks need. `date` = `YYYY-MM-DD`, times = `HH:MM`. */
 export type StatutoryShift = {
@@ -75,12 +165,27 @@ export type StatutoryShift = {
 
 export type StatutoryViolation = {
   kind: StatutoryViolationKind;
-  /** Day the breach is attributed to (DAILY_*, CONSECUTIVE_DAYS = offending day; WEEKLY_REST = ISO-week Monday). */
+  /** Day the breach is attributed to (DAILY_*, CONSECUTIVE_DAYS, VACATIONS_*, REST_DAYS_* = offending/trigger day; WEEKLY_REST, WEEKLY_CEILING, TWELVE_WEEK_AVG = ISO-week Monday). */
   date: string;
-  /** Measured value: minutes for DAILY_*, hours for WEEKLY_REST, days for CONSECUTIVE_DAYS. */
+  /** Measured value: minutes for DAILY_x, VACATION_MIN_DURATION and TWELVE_WEEK_AVG; hours for WEEKLY_REST; days/counts otherwise. */
   actual: number;
   /** The statutory limit that was exceeded, in the same unit as `actual`. */
   limit: number;
+  /** KON-139 — true only for REST_DAYS_SUNDAY on the PRACTITIONER regime (« de préférence »): surfaced as a warning, never blocking. */
+  soft?: boolean;
+};
+
+/** Options every statutory evaluation now requires — KON-139 makes regime explicit at every call-site (compile-enforced). */
+export type StatutoryOptions = {
+  regime: StatutoryRegime;
+  /** ISO bounds of the loaded data window (weekly-rest sentinel clip + rest-days-window coverage). */
+  window?: { start: string; end: string };
+  /**
+   * Net worked minutes per ISO-week Monday for weeks NOT represented in the shift set
+   * (typically the 11 weeks preceding the loaded window). Missing week = 0 (unknown
+   * pre-Pawly history is treated as rest — documented in the quick-spec).
+   */
+  weeklyHistory?: ReadonlyMap<string, number>;
 };
 
 const MIN_PER_DAY = 1440;
@@ -112,7 +217,7 @@ function addDays(dateStr: string, delta: number): string {
   return date.toISOString().split('T')[0];
 }
 
-function isoWeekStart(dateStr: string): string {
+export function isoWeekStart(dateStr: string): string {
   const date = new Date(`${dateStr}T00:00:00.000Z`);
   const dow = date.getUTCDay(); // 0=Sun, 1=Mon...
   const mondayOffset = dow === 0 ? -6 : 1 - dow;
@@ -213,6 +318,151 @@ function runLengthThrough(workedDates: Set<string>, date: string): number {
   return len;
 }
 
+/** True when the day's shifts collapse to a single merged busy block (« journée continue »). */
+function isContinuousDay(dayShifts: StatutoryShift[]): boolean {
+  return mergedBusyIntervals(dayShifts).length === 1;
+}
+
+/** Amplitude limit for one day: continuous days use the per-regime CCN cap, discontinuous days keep 13h. */
+function amplitudeLimitMinutes(
+  regime: StatutoryRegime,
+  dayShifts: StatutoryShift[],
+): number {
+  return isContinuousDay(dayShifts)
+    ? CCN_LIMITS[regime].CONTINUOUS_DAY_AMPLITUDE_MINUTES
+    : FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES;
+}
+
+/** KON-139 — CCN vacation-structure violations for ONE day (count + minimum durations, gross block lengths). */
+function dayVacationViolations(
+  date: string,
+  dayShifts: StatutoryShift[],
+): StatutoryViolation[] {
+  const blocks = mergedBusyIntervals(dayShifts);
+  if (blocks.length > CCN_SHARED.MAX_VACATIONS_PER_DAY) {
+    return [
+      {
+        kind: 'VACATIONS_COUNT',
+        date,
+        actual: blocks.length,
+        limit: CCN_SHARED.MAX_VACATIONS_PER_DAY,
+      },
+    ];
+  }
+  if (blocks.length === 2) {
+    const durations = blocks.map(([s, e]) => e - s).sort((a, b) => a - b);
+    const out: StatutoryViolation[] = [];
+    if (durations[0] < CCN_SHARED.VACATION_MIN_SHORT_MINUTES) {
+      out.push({
+        kind: 'VACATION_MIN_DURATION',
+        date,
+        actual: durations[0],
+        limit: CCN_SHARED.VACATION_MIN_SHORT_MINUTES,
+      });
+    } else if (durations[1] < CCN_SHARED.VACATION_MIN_LONG_MINUTES) {
+      out.push({
+        kind: 'VACATION_MIN_DURATION',
+        date,
+        actual: durations[1],
+        limit: CCN_SHARED.VACATION_MIN_LONG_MINUTES,
+      });
+    }
+    return out;
+  }
+  return [];
+}
+
+function isSunday(dateStr: string): boolean {
+  return new Date(`${dateStr}T00:00:00.000Z`).getUTCDay() === 0;
+}
+
+/**
+ * KON-139 — CCN rest-days rule (art. 18 / annexe VII art. 20): every fully-covered 14-day
+ * window containing a trigger day (continuous worked day >= 10h net) must hold >= 4 rest
+ * days, of which >= 2 consecutive — including a Sunday (HARD on corps 1875, SOFT preference
+ * on annexe VII). Returns the trigger days whose windows fail (deduped per trigger day).
+ */
+function restDaysWindowFindings(
+  workedDates: Set<string>,
+  triggerDays: Iterable<string>,
+  coverage: { start: string; end: string },
+  sundayHard: boolean,
+): { hard: Map<string, number>; soft: Set<string> } {
+  const hard = new Map<string, number>(); // trigger day -> rest-day count of the first failing window
+  const soft = new Set<string>();
+  for (const t of triggerDays) {
+    let softCandidate = false;
+    for (let back = CCN_SHARED.REST_WINDOW_DAYS - 1; back >= 0; back--) {
+      const ws = addDays(t, -back);
+      const we = addDays(ws, CCN_SHARED.REST_WINDOW_DAYS - 1);
+      if (ws < coverage.start || we > coverage.end) continue; // window not fully proven by loaded data
+      const restDates: string[] = [];
+      for (let i = 0; i < CCN_SHARED.REST_WINDOW_DAYS; i++) {
+        const d = addDays(ws, i);
+        if (!workedDates.has(d)) restDates.push(d);
+      }
+      let hasPair = false;
+      let hasSundayPair = false;
+      for (let i = 0; i < restDates.length - 1; i++) {
+        if (dayDiff(restDates[i + 1], restDates[i]) === 1) {
+          hasPair = true;
+          if (isSunday(restDates[i]) || isSunday(restDates[i + 1]))
+            hasSundayPair = true;
+        }
+      }
+      const hardFail =
+        restDates.length < CCN_SHARED.REST_MIN_DAYS_IN_WINDOW ||
+        !hasPair ||
+        (sundayHard && !hasSundayPair);
+      if (hardFail) {
+        if (!hard.has(t)) hard.set(t, restDates.length);
+        break; // one failing window is enough to flag the trigger day
+      }
+      if (!sundayHard && !hasSundayPair) softCandidate = true;
+    }
+    if (!hard.has(t) && softCandidate) soft.add(t);
+  }
+  return { hard, soft };
+}
+
+/**
+ * KON-139 — 44h average over 12 consecutive ISO weeks (art. 18 / annexe VII art. 20),
+ * post-hoc: one violation per shift-bearing week whose trailing 12-week total exceeds the
+ * cap. `weeklyHistory` supplies weeks not represented in `shifts` (missing week = 0 —
+ * unknown pre-Pawly history counts as rest, documented in the quick-spec).
+ */
+function twelveWeekViolations(
+  shifts: StatutoryShift[],
+  weeklyHistory?: ReadonlyMap<string, number>,
+): StatutoryViolation[] {
+  // History is AUTHORITATIVE for its weeks: a week present in `weeklyHistory` ignores any
+  // shift rows the (possibly partial) loaded window contributes to it — no double count,
+  // and edge weeks half-covered by a +/-14-day load stay fully summed.
+  const totals = new Map<string, number>(weeklyHistory ?? []);
+  const shiftWeeks = new Set<string>();
+  for (const s of shifts) {
+    const wk = isoWeekStart(s.date);
+    if (weeklyHistory?.has(wk)) continue;
+    shiftWeeks.add(wk);
+    totals.set(wk, (totals.get(wk) ?? 0) + shiftNetMinutes(s));
+  }
+  const out: StatutoryViolation[] = [];
+  for (const wkEnd of [...shiftWeeks].sort()) {
+    let sum = 0;
+    for (let i = 0; i < CCN_SHARED.TWELVE_WEEK_SPAN; i++)
+      sum += totals.get(addDays(wkEnd, -7 * i)) ?? 0;
+    if (sum > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES) {
+      out.push({
+        kind: 'TWELVE_WEEK_AVG',
+        date: wkEnd,
+        actual: sum,
+        limit: CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES,
+      });
+    }
+  }
+  return out;
+}
+
 /**
  * Length of a rest gap that counts toward the week [lo, hi). A gap bounded by real
  * shifts on both sides is credited in FULL. An OPEN end — the -BIG lead / +BIG trail
@@ -272,9 +522,10 @@ function weekHasRestDeficit(
  */
 export function findStatutoryViolations(
   shifts: StatutoryShift[],
-  window?: { start: string; end: string },
+  opts: StatutoryOptions,
 ): StatutoryViolation[] {
   const out: StatutoryViolation[] = [];
+  const { window, regime } = opts;
   const win = window
     ? {
         lo: shiftEpoch(window.start),
@@ -300,14 +551,16 @@ export function findStatutoryViolations(
       });
     }
     const amplitude = dayAmplitudeMinutes(dayShifts);
-    if (amplitude > FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES) {
+    const ampLimit = amplitudeLimitMinutes(regime, dayShifts);
+    if (amplitude > ampLimit) {
       out.push({
         kind: 'DAILY_AMPLITUDE',
         date,
         actual: amplitude,
-        limit: FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES,
+        limit: ampLimit,
       });
     }
+    out.push(...dayVacationViolations(date, dayShifts));
     const totalBreak = dayShifts.reduce(
       (sum, s) => sum + (s.breakMinutes ?? 0),
       0,
@@ -411,6 +664,49 @@ export function findStatutoryViolations(
     }
   }
 
+  // KON-139 — CCN rest-days rule: 14-day windows around >=10h continuous days. Coverage
+  // defaults to the shift set's own span when no explicit data window was provided.
+  const workedDates = new Set(sortedDays);
+  const triggerDays = sortedDays.filter((d) => {
+    const dayShifts = byDay.get(d)!;
+    return (
+      isContinuousDay(dayShifts) &&
+      dayWorkedMinutes(dayShifts) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES
+    );
+  });
+  if (triggerDays.length > 0) {
+    const coverage = window ?? {
+      start: sortedDays[0],
+      end: sortedDays[sortedDays.length - 1],
+    };
+    const findings = restDaysWindowFindings(
+      workedDates,
+      triggerDays,
+      coverage,
+      CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD,
+    );
+    for (const [t, restCount] of findings.hard) {
+      out.push({
+        kind: 'REST_DAYS_WINDOW',
+        date: t,
+        actual: restCount,
+        limit: CCN_SHARED.REST_MIN_DAYS_IN_WINDOW,
+      });
+    }
+    for (const t of findings.soft) {
+      out.push({
+        kind: 'REST_DAYS_SUNDAY',
+        date: t,
+        actual: 0,
+        limit: 1,
+        soft: true,
+      });
+    }
+  }
+
+  // KON-139 — 44h average over 12 consecutive ISO weeks.
+  out.push(...twelveWeekViolations(shifts, opts.weeklyHistory));
+
   return out;
 }
 
@@ -446,12 +742,17 @@ function weekWorkedMinutes(shifts: StatutoryShift[], date: string): number {
 export function wouldExceedStatutory(
   windowShifts: StatutoryShift[],
   candidate: StatutoryShift,
+  opts: WouldExceedOptions,
 ): StatutoryViolationKind[] {
   const kinds: StatutoryViolationKind[] = [];
+  const { regime } = opts;
   const withCandidate = [...windowShifts, candidate];
+  // KON-139 — the loaded data window is +/-14 real days (was +/-8): the CCN rest-days rule
+  // needs every 14-day window containing the candidate to be fully proven.
   const win = {
-    lo: shiftEpoch(addDays(candidate.date, -8)),
-    hi: shiftEpoch(addDays(candidate.date, 8)) + MIN_PER_DAY,
+    lo: shiftEpoch(addDays(candidate.date, -STATUTORY_WINDOW_DAYS)),
+    hi:
+      shiftEpoch(addDays(candidate.date, STATUTORY_WINDOW_DAYS)) + MIN_PER_DAY,
   };
 
   // Daily — candidate's day only, introduced-by-candidate
@@ -463,13 +764,24 @@ export function wouldExceedStatutory(
   ) {
     kinds.push('DAILY_WORK');
   }
-  if (
-    dayAmplitudeMinutes(dayAfter) >
-      FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES &&
-    dayAmplitudeMinutes(dayBefore) <=
-      FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES
-  ) {
+  // Amplitude is day-shape aware (KON-139): the candidate can merge blocks into a
+  // continuous day (or split one), so before/after are each judged against their OWN limit.
+  const ampBreachBefore =
+    dayBefore.length > 0 &&
+    dayAmplitudeMinutes(dayBefore) > amplitudeLimitMinutes(regime, dayBefore);
+  const ampBreachAfter =
+    dayAmplitudeMinutes(dayAfter) > amplitudeLimitMinutes(regime, dayAfter);
+  if (ampBreachAfter && !ampBreachBefore) {
     kinds.push('DAILY_AMPLITUDE');
+  }
+
+  // KON-139 — CCN vacation structure (count + minimum durations), candidate's day only.
+  const vacBreachBefore =
+    dayBefore.length > 0 &&
+    dayVacationViolations(candidate.date, dayBefore).length > 0;
+  const vacViolationsAfter = dayVacationViolations(candidate.date, dayAfter);
+  if (vacViolationsAfter.length > 0 && !vacBreachBefore) {
+    kinds.push(vacViolationsAfter[0].kind);
   }
 
   // Mandatory break (L.3121-16) — candidate's day: > 6h net worked with < 20min break.
@@ -524,6 +836,61 @@ export function wouldExceedStatutory(
       FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES
   ) {
     kinds.push('WEEKLY_CEILING');
+  }
+
+  // KON-139 — CCN rest-days rule, introduced-by-candidate: the candidate can create a new
+  // >=10h continuous trigger day, or consume a rest day a neighbouring trigger relied on.
+  // Count-based (like DAILY_REST): flag iff the number of failing trigger days rises.
+  {
+    const coverage = {
+      start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
+      end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),
+    };
+    const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
+    const hardCount = (shifts: StatutoryShift[]): number => {
+      const byDayLocal = new Map<string, StatutoryShift[]>();
+      for (const s of shifts) {
+        const arr = byDayLocal.get(s.date) ?? [];
+        arr.push(s);
+        byDayLocal.set(s.date, arr);
+      }
+      const worked = new Set(byDayLocal.keys());
+      const triggers = [...byDayLocal.entries()]
+        .filter(
+          ([, ds]) =>
+            isContinuousDay(ds) &&
+            dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES,
+        )
+        .map(([d]) => d);
+      return restDaysWindowFindings(worked, triggers, coverage, sundayHard).hard
+        .size;
+    };
+    if (hardCount(withCandidate) > hardCount(windowShifts))
+      kinds.push('REST_DAYS_WINDOW');
+  }
+
+  // KON-139 — 44h average over 12 consecutive ISO weeks, introduced-by-candidate. Only
+  // windows whose 12 weeks are all known (ending <= lastWeekMonday) are judged; later
+  // windows are re-checked when their own last week receives assignments.
+  if (opts.twelveWeek) {
+    const { totals, lastWeekMonday } = opts.twelveWeek;
+    const candNet = shiftNetMinutes(candidate);
+    const candWeek = isoWeekStart(candidate.date);
+    for (let e = candWeek; e <= lastWeekMonday; e = addDays(e, 7)) {
+      // window [e-11w, e] contains candWeek by construction (e >= candWeek >= e-11w)
+      if (dayDiff(e, candWeek) >= CCN_SHARED.TWELVE_WEEK_SPAN * 7) break;
+      let before = 0;
+      for (let i = 0; i < CCN_SHARED.TWELVE_WEEK_SPAN; i++)
+        before += totals(addDays(e, -7 * i));
+      const after = before + candNet;
+      if (
+        after > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES &&
+        before <= CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES
+      ) {
+        kinds.push('TWELVE_WEEK_AVG');
+        break;
+      }
+    }
   }
 
   return kinds;

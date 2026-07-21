@@ -17,7 +17,12 @@ import { PlanningService } from './planning.service';
 import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
-import { wouldExceedStatutory, type StatutoryShift } from './french-labor-law';
+import {
+  regimeForJobType,
+  STATUTORY_WINDOW_DAYS,
+  wouldExceedStatutory,
+  type StatutoryShift,
+} from './french-labor-law';
 import {
   intervalsOverlap,
   restMinutesBetween,
@@ -109,6 +114,19 @@ type AssignedShift = {
 // Story 11-2 (AC3) — a surviving shift carries its employee's jobType so the
 // coverage subtraction can gate on requiredJobTypes exactly like AC1 eligibility.
 type SurvivingShift = AssignedShift & { jobType: string | null };
+
+/**
+ * KON-139 — per-generation statutory support data for the CCN 44h/12-week average.
+ * `weeklyHistory`: empId -> ISO-Monday -> net worked minutes, covering the 11 weeks
+ * STRICTLY BEFORE `firstMonthMonday` (in-month weeks — border week included — live in
+ * `weeklyMinutesCounter`, so the two never overlap). `lastWeekMonday` bounds the judged
+ * 12-week windows to weeks with known data. Immutable during the run (determinism).
+ */
+type StatutoryEvalCtx = {
+  weeklyHistory: Map<string, Map<string, number>>;
+  firstMonthMonday: string;
+  lastWeekMonday: string;
+};
 
 type RuleEntry = {
   id: string;
@@ -410,6 +428,22 @@ export class PlanningGenerationService {
     // pre-13-2), restoring exact pre-13-2 greedy selection while the eligibility window
     // (step 5) still reads them from assignmentIndex.
     const borderDateSet = new Set(borderShifts.map((bs) => bs.date));
+    // KON-139 — CCN 44h/12-week average support: ISO-Monday bounds of the month and the
+    // 11-week pre-month history (in-month weeks live in weeklyMinutesCounter below).
+    const firstDayOfMonth = new Date(Date.UTC(year, monthNum - 1, 1))
+      .toISOString()
+      .split('T')[0];
+    const lastDayOfMonth = new Date(Date.UTC(year, monthNum, 0))
+      .toISOString()
+      .split('T')[0];
+    const firstMonthMonday = this.getWeekBounds(firstDayOfMonth).start;
+    const lastWeekMonday = this.getWeekBounds(lastDayOfMonth).start;
+    const statutoryCtx: StatutoryEvalCtx = {
+      weeklyHistory: await this.loadWeeklyHistory(clinicId, firstMonthMonday),
+      firstMonthMonday,
+      lastWeekMonday,
+    };
+
     const statutoryOnlyKeys = new Set<string>();
     const statutoryBorderShifts = await this.loadStatutoryBorderShifts(
       clinicId,
@@ -689,6 +723,7 @@ export class PlanningGenerationService {
         employeeShiftCounts,
         dayOfWeekCounts,
         quarterlyDayOfWeekCounts,
+        statutoryCtx,
       );
 
       assignedShifts.push(...result.assigned);
@@ -767,6 +802,7 @@ export class PlanningGenerationService {
         quarterlyDayOfWeekCounts,
         preExistingSlotCoverage,
         priorHoles: holes,
+        statutoryCtx,
       });
       holes.length = 0;
       holes.push(...repairedHoles);
@@ -799,6 +835,7 @@ export class PlanningGenerationService {
           preExistingSlotCoverage,
           priorHoles: holes,
           baseline: solverBaseline,
+          statutoryCtx,
         });
         if (passResult.served) {
           holes.length = 0;
@@ -1367,6 +1404,7 @@ export class PlanningGenerationService {
       employeeMinutes: Map<string, number>;
       dayOfWeekCounts: Map<string, Map<number, number>>;
       quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
+      statutoryCtx: StatutoryEvalCtx;
     },
   ): { eligible: boolean; blockedOnlyByRotation: boolean } {
     const slotMinutes =
@@ -1478,29 +1516,48 @@ export class PlanningGenerationService {
       }
     }
 
-    // 5) French labor-law HARD limits (Story 11-3) — +/-8 day window around the slot
+    // 5) French labor-law + CCN HARD limits (Stories 11-3, KON-139) — +/-14 day window
+    // around the slot (STATUTORY_WINDOW_DAYS: the CCN rest-days rule needs every 14-day
+    // window containing the candidate fully proven).
     {
       const statutoryWindow: StatutoryShift[] = [];
       let cursor = this.getPreviousDate(slot.date);
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < STATUTORY_WINDOW_DAYS; i++) {
         statutoryWindow.push(
           ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
         );
         cursor = this.getPreviousDate(cursor);
       }
       cursor = slot.date;
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < STATUTORY_WINDOW_DAYS + 1; i++) {
         statutoryWindow.push(
           ...(ctx.assignmentIndex.get(`${emp.id}|${cursor}`) || []),
         );
         cursor = this.getNextDate(cursor);
       }
-      const statutoryBreach = wouldExceedStatutory(statutoryWindow, {
-        date: slot.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        breakMinutes: slot.breakMinutes,
-      });
+      const { weeklyHistory, firstMonthMonday, lastWeekMonday } =
+        ctx.statutoryCtx;
+      const statutoryBreach = wouldExceedStatutory(
+        statutoryWindow,
+        {
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          breakMinutes: slot.breakMinutes,
+        },
+        {
+          regime: regimeForJobType(emp.jobType),
+          // KON-139 — 44h/12-week totals: live counter for in-month weeks, preloaded
+          // history for the 11 weeks before the month's first ISO Monday.
+          twelveWeek: {
+            totals: (isoMonday) =>
+              isoMonday >= firstMonthMonday
+                ? ctx.weeklyMinutesCounter.get(`${emp.id}|${isoMonday}`) || 0
+                : weeklyHistory.get(emp.id)?.get(isoMonday) || 0,
+            lastWeekMonday,
+          },
+        },
+      );
       if (statutoryBreach.length > 0)
         return { eligible: false, blockedOnlyByRotation: false };
     }
@@ -1543,6 +1600,7 @@ export class PlanningGenerationService {
     employeeShiftCountsMap: Map<string, number>,
     dayOfWeekCounts: Map<string, Map<number, number>>,
     quarterlyDayOfWeekCounts: Map<string, Map<number, number>>,
+    statutoryCtx: StatutoryEvalCtx,
   ): {
     assigned: AssignedShift[];
     holeInfo?: GenerationResult['holes'][number];
@@ -1581,6 +1639,7 @@ export class PlanningGenerationService {
       employeeMinutes,
       dayOfWeekCounts,
       quarterlyDayOfWeekCounts,
+      statutoryCtx,
     };
     const eligible = employees.filter((emp) => {
       const verdict = this.evaluateEligibility(emp, slot, eligibilityCtx);
@@ -2843,19 +2902,40 @@ export class PlanningGenerationService {
             }
           }
 
-          // Story 11-3 — statutory French labor-law HARD check on the +/-8 real-day window.
-          // Enforced regardless of configured rules.
-          const statWindowStart = new Date(`${input.date}T00:00:00.000Z`);
-          statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
-          const statWindowEnd = new Date(`${input.date}T00:00:00.000Z`);
-          statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
-          const statWindowShifts = await tx.shift.findMany({
+          // Story 11-3 / KON-139 — statutory + CCN HARD check. One fetch covers both the
+          // +/-14 real-day window (STATUTORY_WINDOW_DAYS) and the 44h/12-week totals
+          // (target ISO week -/+ 11 weeks). Enforced regardless of configured rules.
+          const targetMonday = this.getWeekBounds(input.date).start;
+          const fetchStart = new Date(`${targetMonday}T00:00:00.000Z`);
+          fetchStart.setUTCDate(fetchStart.getUTCDate() - 77);
+          const fetchEnd = new Date(`${targetMonday}T00:00:00.000Z`);
+          fetchEnd.setUTCDate(fetchEnd.getUTCDate() + 83);
+          const fetchedShifts = await tx.shift.findMany({
             where: {
               employeeId: input.employeeId,
               clinicId,
-              date: { gte: statWindowStart, lte: statWindowEnd },
+              date: { gte: fetchStart, lte: fetchEnd },
             },
           });
+          const statLo = new Date(`${input.date}T00:00:00.000Z`);
+          statLo.setUTCDate(statLo.getUTCDate() - STATUTORY_WINDOW_DAYS);
+          const statHi = new Date(`${input.date}T00:00:00.000Z`);
+          statHi.setUTCDate(statHi.getUTCDate() + STATUTORY_WINDOW_DAYS);
+          const statWindowShifts = fetchedShifts.filter(
+            (s) => s.date >= statLo && s.date <= statHi,
+          );
+          const totalsByMonday = new Map<string, number>();
+          for (const s of fetchedShifts) {
+            const monday = this.getWeekBounds(
+              s.date.toISOString().split('T')[0],
+            ).start;
+            const net =
+              this.calculateShiftMinutes(s.startTime, s.endTime) -
+              (s.breakMinutes || 0);
+            totalsByMonday.set(monday, (totalsByMonday.get(monday) || 0) + net);
+          }
+          const lastKnown = new Date(`${targetMonday}T00:00:00.000Z`);
+          lastKnown.setUTCDate(lastKnown.getUTCDate() + 77);
           const createBreaches = wouldExceedStatutory(
             statWindowShifts.map((s) => ({
               date: s.date.toISOString().split('T')[0],
@@ -2868,6 +2948,13 @@ export class PlanningGenerationService {
               startTime: shiftType.startTime,
               endTime: shiftType.endTime,
               breakMinutes: shiftType.breakMinutes,
+            },
+            {
+              regime: regimeForJobType(employee.jobType),
+              twelveWeek: {
+                totals: (isoMonday) => totalsByMonday.get(isoMonday) || 0,
+                lastWeekMonday: lastKnown.toISOString().split('T')[0],
+              },
             },
           );
           if (createBreaches.length > 0) {
@@ -2994,9 +3081,19 @@ export class PlanningGenerationService {
     const weekBounds = this.getWeekBounds(targetDate);
 
     const statWindowStart = new Date(targetDateObj);
-    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    statWindowStart.setUTCDate(
+      statWindowStart.getUTCDate() - STATUTORY_WINDOW_DAYS,
+    );
     const statWindowEnd = new Date(targetDateObj);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+
+    // KON-139 — CCN 44h/12-week average: the target employee's net minutes per ISO week
+    // over targetWeek -/+ 11 weeks (moved shift excluded via employeeShiftWhere). Windows
+    // ending past the fetch horizon cannot contain the candidate week.
+    const twelveWeekStart = new Date(`${weekBounds.start}T00:00:00.000Z`);
+    twelveWeekStart.setUTCDate(twelveWeekStart.getUTCDate() - 77);
+    const twelveWeekEnd = new Date(`${weekBounds.start}T00:00:00.000Z`);
+    twelveWeekEnd.setUTCDate(twelveWeekEnd.getUTCDate() + 83);
 
     const rules = await this.planningService.listRules(clinicId, {
       isActive: true,
@@ -3027,6 +3124,7 @@ export class PlanningGenerationService {
       monthShifts,
       statutoryWindowShifts,
       quarterExtraShifts,
+      twelveWeekShifts,
     ] = await Promise.all([
       client.employee.findFirst({
         where: { id: targetEmployeeId, clinicId, isActive: true },
@@ -3086,6 +3184,18 @@ export class PlanningGenerationService {
             },
           })
         : Promise.resolve([]),
+      client.shift.findMany({
+        where: {
+          ...employeeShiftWhere,
+          date: { gte: twelveWeekStart, lte: twelveWeekEnd },
+        },
+        select: {
+          date: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+        },
+      }),
     ]);
 
     const toEval = (s: {
@@ -3124,6 +3234,24 @@ export class PlanningGenerationService {
       monthShifts: monthShifts.map(toEval),
       quarterExtraShifts: quarterExtraShifts.map(toEval),
       statutoryWindowShifts: statutoryWindowShifts.map(toEval),
+      twelveWeek: (() => {
+        const totalsByMonday = new Map<string, number>();
+        for (const s of twelveWeekShifts) {
+          const monday = this.getWeekBounds(
+            s.date.toISOString().split('T')[0],
+          ).start;
+          const net =
+            this.calculateShiftMinutes(s.startTime, s.endTime) -
+            (s.breakMinutes || 0);
+          totalsByMonday.set(monday, (totalsByMonday.get(monday) || 0) + net);
+        }
+        const lastWeekMonday = new Date(`${weekBounds.start}T00:00:00.000Z`);
+        lastWeekMonday.setUTCDate(lastWeekMonday.getUTCDate() + 77);
+        return {
+          totalsByMonday,
+          lastWeekMonday: lastWeekMonday.toISOString().split('T')[0],
+        };
+      })(),
       rules: rules.map((r) => ({
         id: r.id,
         name: r.name,
@@ -4075,6 +4203,7 @@ export class PlanningGenerationService {
       }>
     >;
     priorHoles: GenerationResult['holes'];
+    statutoryCtx: StatutoryEvalCtx;
   }): Promise<GenerationResult['holes']> {
     const eligibilityCtx = {
       constraints: ctx.constraints,
@@ -4083,6 +4212,7 @@ export class PlanningGenerationService {
       employeeMinutes: ctx.employeeMinutes,
       dayOfWeekCounts: ctx.dayOfWeekCounts,
       quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
+      statutoryCtx: ctx.statutoryCtx,
     };
     const employeeById = new Map(ctx.employees.map((e) => [e.id, e]));
     const employeeIds = ctx.employees.map((e) => e.id).sort();
@@ -4397,6 +4527,7 @@ export class PlanningGenerationService {
       }>
     >;
     priorHoles: GenerationResult['holes'];
+    statutoryCtx: StatutoryEvalCtx;
     baseline: {
       weeklyMinutes: Map<string, number>;
       monthlyMinutes: Map<string, number>;
@@ -4680,6 +4811,7 @@ export class PlanningGenerationService {
       employeeMinutes: ctx.employeeMinutes,
       dayOfWeekCounts: ctx.dayOfWeekCounts,
       quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
+      statutoryCtx: ctx.statutoryCtx,
     };
     const requiredJobTypesByKey = new Map<string, string[] | undefined>();
     for (const s of ctx.slots) {
@@ -5081,6 +5213,46 @@ export class PlanningGenerationService {
    * days) is filtered to out-of-month here; the in-month days are seeded with full fidelity
    * by survivors / freshly-assigned shifts.
    */
+  /**
+   * KON-139 — net worked minutes per employee per ISO week for the 11 weeks strictly
+   * before `firstMonthMonday` (the CCN 44h/12-week average's history side; in-month weeks
+   * live in weeklyMinutesCounter). One query, reduced in JS — net = gross − breakMinutes,
+   * overnight-aware via calculateShiftMinutes. All shift sources count (worked is worked).
+   */
+  private async loadWeeklyHistory(
+    clinicId: string,
+    firstMonthMonday: string,
+  ): Promise<Map<string, Map<string, number>>> {
+    const historyStart = new Date(`${firstMonthMonday}T00:00:00.000Z`);
+    historyStart.setUTCDate(historyStart.getUTCDate() - 11 * 7);
+    const historyEnd = new Date(`${firstMonthMonday}T00:00:00.000Z`);
+    historyEnd.setUTCDate(historyEnd.getUTCDate() - 1);
+
+    const shifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: historyStart, lte: historyEnd } },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        breakMinutes: true,
+      },
+    });
+
+    const out = new Map<string, Map<string, number>>();
+    for (const s of shifts) {
+      const dateStr = s.date.toISOString().split('T')[0];
+      const monday = this.getWeekBounds(dateStr).start;
+      const net =
+        this.calculateShiftMinutes(s.startTime, s.endTime) -
+        (s.breakMinutes || 0);
+      const perWeek = out.get(s.employeeId) ?? new Map<string, number>();
+      perWeek.set(monday, (perWeek.get(monday) || 0) + net);
+      out.set(s.employeeId, perWeek);
+    }
+    return out;
+  }
+
   private async loadStatutoryBorderShifts(
     clinicId: string,
     month: string,
@@ -5094,9 +5266,9 @@ export class PlanningGenerationService {
       .split('T')[0];
 
     const windowStart = new Date(`${firstDayStr}T00:00:00.000Z`);
-    windowStart.setUTCDate(windowStart.getUTCDate() - 8);
+    windowStart.setUTCDate(windowStart.getUTCDate() - STATUTORY_WINDOW_DAYS);
     const windowEnd = new Date(`${lastDayStr}T00:00:00.000Z`);
-    windowEnd.setUTCDate(windowEnd.getUTCDate() + 8);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
 
     const shifts = await this.prisma.shift.findMany({
       where: { clinicId, date: { gte: windowStart, lte: windowEnd } },

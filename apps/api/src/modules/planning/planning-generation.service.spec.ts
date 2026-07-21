@@ -769,6 +769,14 @@ describe('PlanningGenerationService', () => {
       esc,
       dayOfWeekCounts,
       quarterlyDayOfWeekCounts,
+      // KON-139 — neutral statutory context for direct scoreAndAssign units: empty history
+      // and a lastWeekMonday in the distant past, so the 44h/12-week loop never runs (the
+      // dedicated CCN tests exercise it through the pure module / generateMonthlyPlan).
+      {
+        weeklyHistory: new Map<string, Map<string, number>>(),
+        firstMonthMonday: '2000-01-03',
+        lastWeekMonday: '2000-01-03',
+      },
     ) as ScoreAndAssignResult;
   };
 
@@ -10168,9 +10176,9 @@ describe('PlanningGenerationService', () => {
     //   HARD-rule violation, When planning.moveShift is called from any client, Then the
     //   mutation is rejected server-side and no shift.update is persisted.
     it('rejects a move that breaches a statutory limit, with no client pre-check involved', async () => {
-      // emp-2 already holds 13:00-20:00 (7h) on 2026-03-02; the moved 08:00-12:00 (4h)
-      // takes the day to 11h > the 10h L.3121-18 limit. Amplitude 08:00->20:00 = 12h stays
-      // under 13h, so DAILY_WORK is the only statutory breach, and 13:00 does not overlap
+      // emp-2 already holds 12:00-20:30 (8.5h) on 2026-03-02, touching the moved
+      // 08:00-12:00 (4h): one continuous 12.5h day > the conventional 12h cap (KON-139).
+      // Touching blocks merge, so no DAILY_REST noise, and 12:00 does not overlap
       // 08:00-12:00 so OVERLAP stays silent.
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
@@ -10178,8 +10186,8 @@ describe('PlanningGenerationService', () => {
           employeeId: 'emp-2',
           clinicId: 'clinic-123',
           date: new Date('2026-03-02T00:00:00.000Z'),
-          startTime: '13:00',
-          endTime: '20:00',
+          startTime: '12:00',
+          endTime: '20:30',
           breakMinutes: 0,
           shiftTypeCode: 'RECEPTION',
         },
@@ -10228,14 +10236,15 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-03' },
       ]);
+      // KON-139 — touching 12:00-20:30 block: continuous 12.5h day > the 12h cap.
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           id: 'shift-2',
           employeeId: 'emp-2',
           clinicId: 'clinic-123',
           date: new Date('2026-03-02T00:00:00.000Z'),
-          startTime: '13:00',
-          endTime: '20:00',
+          startTime: '12:00',
+          endTime: '20:30',
           breakMinutes: 0,
           shiftTypeCode: 'RECEPTION',
         },
