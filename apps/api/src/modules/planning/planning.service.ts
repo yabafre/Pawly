@@ -27,7 +27,10 @@ import type { EquityContext } from '@pawly/validators';
 import type { CounterWithEmployee } from './equity-counter.service';
 import {
   findStatutoryViolations,
+  isoWeekStart,
+  regimeForJobType,
   STATUTORY_RULE_NAME,
+  STATUTORY_WINDOW_DAYS,
   type StatutoryShift,
   type StatutoryViolation,
   type StatutoryViolationKind,
@@ -239,24 +242,58 @@ export class PlanningService {
     }
 
     // Story 13-2 (KON-134) — statutory checks (35h weekly rest, consecutive days) span
-    // month frontiers, so they run on a +/-8-real-day window around [startDate, endDate],
-    // NOT the strict month `validShifts` uses. Only breaches attributable to the published
-    // range are reported (a breach living purely in an adjacent month must not block this
+    // month frontiers, so they run on a +/-14-real-day window around [startDate, endDate]
+    // (STATUTORY_WINDOW_DAYS — KON-139 widened it for the CCN rest-days rule), NOT the
+    // strict month `validShifts` uses. Only breaches attributable to the published range
+    // are reported (a breach living purely in an adjacent month must not block this
     // month's publish).
     const statWindowStart = new Date(startDate);
-    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - 8);
+    statWindowStart.setUTCDate(statWindowStart.getUTCDate() - STATUTORY_WINDOW_DAYS);
     const statWindowEnd = new Date(endDate);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + 8);
+    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
     const statutoryShifts = await this.prisma.shift.findMany({
       where: { clinicId, date: { gte: statWindowStart, lte: statWindowEnd } },
-      include: { employee: { select: { id: true } } },
+      include: { employee: { select: { id: true, jobType: true } } },
     });
     const toIso = (d: Date) => d.toISOString().split('T')[0];
+
+    // KON-139 — CCN 44h/12-week average: authoritative weekly history for every ISO week
+    // strictly before the range's first Monday (11 weeks back), per employee. Weeks in the
+    // history map override the (possibly partial) +/-14-day shift rows.
+    const rangeMonday = isoWeekStart(toIso(startDate));
+    const historyStart = new Date(`${rangeMonday}T00:00:00.000Z`);
+    historyStart.setUTCDate(historyStart.getUTCDate() - 77);
+    const historyEnd = new Date(`${rangeMonday}T00:00:00.000Z`);
+    historyEnd.setUTCDate(historyEnd.getUTCDate() - 1);
+    const historyShifts = await this.prisma.shift.findMany({
+      where: { clinicId, date: { gte: historyStart, lte: historyEnd } },
+      select: {
+        employeeId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        breakMinutes: true,
+      },
+    });
+    const weeklyHistory = new Map<string, Map<string, number>>();
+    for (const s of historyShifts) {
+      const monday = isoWeekStart(s.date.toISOString().split('T')[0]);
+      const perWeek = weeklyHistory.get(s.employeeId) ?? new Map();
+      perWeek.set(
+        monday,
+        (perWeek.get(monday) || 0) +
+          netMinutes(s.startTime, s.endTime, s.breakMinutes),
+      );
+      weeklyHistory.set(s.employeeId, perWeek);
+    }
+
     this.evaluateStatutoryLimits(
       statutoryShifts.filter((s) => s.shiftTypeCode),
       hardViolations,
+      softViolations,
       { start: toIso(startDate), end: toIso(endDate) },
       { start: toIso(statWindowStart), end: toIso(statWindowEnd) },
+      weeklyHistory,
     );
 
     return { hardViolations, softViolations, rules };
@@ -273,6 +310,11 @@ export class PlanningService {
     MANDATORY_BREAK: 'violations.statutory.mandatoryBreak',
     WEEKLY_REST: 'violations.statutory.weeklyRest',
     CONSECUTIVE_DAYS: 'violations.statutory.consecutiveDays',
+    VACATIONS_COUNT: 'violations.statutory.vacationsCount',
+    VACATION_MIN_DURATION: 'violations.statutory.vacationMinDuration',
+    REST_DAYS_WINDOW: 'violations.statutory.restDaysWindow',
+    REST_DAYS_SUNDAY: 'violations.statutory.restDaysSunday',
+    TWELVE_WEEK_AVG: 'violations.statutory.twelveWeekAvg',
   };
 
   private evaluateStatutoryLimits(
@@ -281,13 +323,16 @@ export class PlanningService {
       startTime: string;
       endTime: string;
       breakMinutes: number;
-      employee: { id: string };
+      employee: { id: string; jobType: string };
     }>,
     hardViolations: HardViolation[],
+    softViolations: SoftViolation[],
     reportRange: { start: string; end: string },
     window: { start: string; end: string },
+    weeklyHistory?: Map<string, Map<string, number>>,
   ) {
     const byEmployee = new Map<string, StatutoryShift[]>();
+    const jobTypeByEmployee = new Map<string, string>();
     for (const s of shifts) {
       const arr = byEmployee.get(s.employee.id) ?? [];
       arr.push({
@@ -297,13 +342,26 @@ export class PlanningService {
         breakMinutes: s.breakMinutes,
       });
       byEmployee.set(s.employee.id, arr);
+      jobTypeByEmployee.set(s.employee.id, s.employee.jobType);
     }
 
     for (const [employeeId, empShifts] of byEmployee) {
-      for (const v of findStatutoryViolations(empShifts, window)) {
+      const violations = findStatutoryViolations(empShifts, {
+        regime: regimeForJobType(jobTypeByEmployee.get(employeeId)),
+        window,
+        weeklyHistory: weeklyHistory?.get(employeeId),
+      });
+      for (const v of violations) {
         if (!PlanningService.violationInPublishedRange(v, reportRange))
           continue;
-        hardViolations.push(this.statutoryToHardViolation(v, employeeId));
+        if (v.soft) {
+          // KON-139 — REST_DAYS_SUNDAY on practitioners (« de préférence un dimanche »):
+          // surfaced as a warning, never blocking.
+          const h = this.statutoryToHardViolation(v, employeeId);
+          softViolations.push({ ...h, severity: 'warning' });
+        } else {
+          hardViolations.push(this.statutoryToHardViolation(v, employeeId));
+        }
       }
     }
   }
@@ -319,7 +377,11 @@ export class PlanningService {
     v: StatutoryViolation,
     range: { start: string; end: string },
   ): boolean {
-    if (v.kind === 'WEEKLY_REST' || v.kind === 'WEEKLY_CEILING') {
+    if (
+      v.kind === 'WEEKLY_REST' ||
+      v.kind === 'WEEKLY_CEILING' ||
+      v.kind === 'TWELVE_WEEK_AVG'
+    ) {
       const d = new Date(`${v.date}T00:00:00.000Z`);
       d.setUTCDate(d.getUTCDate() + 6);
       const weekEnd = d.toISOString().split('T')[0];
@@ -343,6 +405,8 @@ export class PlanningService {
       'DAILY_AMPLITUDE',
       'DAILY_REST',
       'WEEKLY_CEILING',
+      'VACATION_MIN_DURATION',
+      'TWELVE_WEEK_AVG',
     ]);
     const inMinutes = MINUTE_KINDS.has(v.kind);
     const actual = inMinutes ? Math.round((v.actual / 60) * 10) / 10 : v.actual;

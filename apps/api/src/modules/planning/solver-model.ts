@@ -115,7 +115,10 @@ export interface SolverModel {
 }
 
 /** Mirrors FRENCH_LABOR_LAW (french-labor-law.ts) — restated here to keep this module dependency-light. */
-const STATUTORY_DAILY_MINUTES = 600; // L.3121-18
+const STATUTORY_DAILY_MINUTES = 720; // 12h conventional cap (KON-139; was the L.3121-18 10h default)
+// 13h discontinuous-day cap. The per-regime CCN continuous-day amplitude (12h corps / 15h
+// practitioners, KON-139) is NOT modeled — the replay re-validation rejects any breach, and
+// under-modeling amplitude only risks a fallback, never an invalid served plan.
 const STATUTORY_AMPLITUDE_MINUTES = 780; // 13h
 const MAX_CONSECUTIVE_DAYS = 6; // L.3132-1
 

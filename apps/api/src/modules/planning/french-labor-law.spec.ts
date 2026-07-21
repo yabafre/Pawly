@@ -1,10 +1,14 @@
 import {
+  CCN_LIMITS,
+  CCN_SHARED,
   FRENCH_LABOR_LAW,
   STATUTORY_RULE_CONFIG,
+  STATUTORY_WINDOW_DAYS,
   dayWorkedMinutes,
   dayAmplitudeMinutes,
   maxConsecutiveWorkedDays,
   findStatutoryViolations,
+  regimeForJobType,
   wouldExceedStatutory,
   type StatutoryShift,
 } from './french-labor-law';
@@ -21,9 +25,13 @@ const shift = (
   breakMinutes,
 });
 
+/** Default options — corps 1875 (support staff), no data window, no 12-week context. */
+const S = { regime: 'SUPPORT_STAFF' } as const;
+const P = { regime: 'PRACTITIONER' } as const;
+
 describe('french-labor-law constants', () => {
-  it('exposes the seven statutory limits', () => {
-    expect(FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES).toBe(600);
+  it('exposes the statutory limits (KON-139: daily cap = conventional 12h)', () => {
+    expect(FRENCH_LABOR_LAW.MAX_DAILY_WORK_MINUTES).toBe(720);
     expect(FRENCH_LABOR_LAW.MAX_DAILY_AMPLITUDE_MINUTES).toBe(780);
     expect(FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES).toBe(660);
     expect(FRENCH_LABOR_LAW.MAX_WEEKLY_WORK_MINUTES).toBe(2880);
@@ -32,9 +40,18 @@ describe('french-labor-law constants', () => {
     expect(FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS).toBe(35);
     expect(FRENCH_LABOR_LAW.MAX_CONSECUTIVE_WORK_DAYS).toBe(6);
   });
+  it('exposes the per-regime and shared CCN limits (KON-139)', () => {
+    expect(CCN_LIMITS.SUPPORT_STAFF.CONTINUOUS_DAY_AMPLITUDE_MINUTES).toBe(720);
+    expect(CCN_LIMITS.PRACTITIONER.CONTINUOUS_DAY_AMPLITUDE_MINUTES).toBe(900);
+    expect(CCN_LIMITS.SUPPORT_STAFF.SUNDAY_IN_REST_PAIR_HARD).toBe(true);
+    expect(CCN_LIMITS.PRACTITIONER.SUNDAY_IN_REST_PAIR_HARD).toBe(false);
+    expect(CCN_SHARED.MAX_VACATIONS_PER_DAY).toBe(2);
+    expect(CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES).toBe(31_680);
+    expect(STATUTORY_WINDOW_DAYS).toBe(14);
+  });
   it('STATUTORY_RULE_CONFIG mirrors the constants', () => {
     expect(STATUTORY_RULE_CONFIG).toEqual({
-      maxDailyHours: 10,
+      maxDailyHours: 12,
       maxDailyAmplitudeHours: 13,
       minDailyRestHours: 11,
       maxWeeklyStatutoryHours: 48,
@@ -42,6 +59,12 @@ describe('french-labor-law constants', () => {
       minWeeklyRestHours: 35,
       maxConsecutiveWorkDays: 6,
     });
+  });
+  it('maps jobType to regime: VET is the only ordinal job type', () => {
+    expect(regimeForJobType('VET')).toBe('PRACTITIONER');
+    expect(regimeForJobType('ASV')).toBe('SUPPORT_STAFF');
+    expect(regimeForJobType('APPRENTICE')).toBe('SUPPORT_STAFF');
+    expect(regimeForJobType(null)).toBe('SUPPORT_STAFF');
   });
 });
 
@@ -51,18 +74,20 @@ describe('daily work + amplitude', () => {
       600,
     ); // 11h - 1h = 10h
   });
-  it('flags > 10h net worked on a day', () => {
-    const v = findStatutoryViolations([
-      shift('2026-08-03', '08:00', '19:00', 0),
-    ]); // 11h net
+  it('flags > 12h net worked on a day (KON-139 conventional cap)', () => {
+    const v = findStatutoryViolations(
+      [shift('2026-08-03', '07:00', '20:00', 0)], // 13h net
+      S,
+    );
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'DAILY_WORK', date: '2026-08-03' }),
     );
   });
-  it('does not flag exactly 10h net worked', () => {
-    const v = findStatutoryViolations([
-      shift('2026-08-03', '08:00', '18:00', 0),
-    ]); // 10h
+  it('does not flag exactly 12h net worked (a lawful 12h guard shift)', () => {
+    const v = findStatutoryViolations(
+      [shift('2026-08-03', '07:00', '19:00', 0)], // 12h
+      S,
+    );
     expect(v.filter((x) => x.kind === 'DAILY_WORK')).toHaveLength(0);
   });
   it('amplitude spans earliest start to latest end across split shifts', () => {
@@ -71,10 +96,264 @@ describe('daily work + amplitude', () => {
       shift('2026-08-03', '18:00', '22:00', 0),
     ];
     expect(dayAmplitudeMinutes(day)).toBe(14 * 60); // 08:00 -> 22:00
-    const v = findStatutoryViolations(day);
+    const v = findStatutoryViolations(day, S);
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'DAILY_AMPLITUDE' }),
     );
+  });
+});
+
+describe('KON-139 — continuous-day amplitude by regime', () => {
+  // Single busy block 07:00-20:00 (13h span) with a 90-min break: net 11.5h <= 12h.
+  const continuousDay = [shift('2026-08-03', '07:00', '20:00', 90)];
+
+  it('caps a continuous day at 12h amplitude for SUPPORT_STAFF (CCN art. 18)', () => {
+    const v = findStatutoryViolations(continuousDay, S);
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'DAILY_AMPLITUDE', limit: 720 }),
+    );
+  });
+  it('allows the same continuous day for PRACTITIONER (15h cap, annexe VII art. 20)', () => {
+    const v = findStatutoryViolations(continuousDay, P);
+    expect(v.filter((x) => x.kind === 'DAILY_AMPLITUDE')).toHaveLength(0);
+  });
+  it('keeps the 13h cap for a discontinuous day (both regimes)', () => {
+    const discontinuous = [
+      shift('2026-08-03', '08:00', '12:00', 0),
+      shift('2026-08-03', '17:00', '21:00', 0), // amplitude 13h exactly
+    ];
+    for (const opts of [S, P]) {
+      expect(
+        findStatutoryViolations(discontinuous, opts).filter(
+          (x) => x.kind === 'DAILY_AMPLITUDE',
+        ),
+      ).toHaveLength(0);
+    }
+  });
+});
+
+describe('KON-139 — vacation structure (max 2 blocks, 2h/3h minima)', () => {
+  it('flags a third disjoint work block in one day', () => {
+    const v = findStatutoryViolations(
+      [
+        shift('2026-08-03', '08:00', '10:00', 0),
+        shift('2026-08-03', '12:00', '14:00', 0),
+        shift('2026-08-03', '16:00', '19:00', 0),
+      ],
+      S,
+    );
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'VACATIONS_COUNT', actual: 3, limit: 2 }),
+    );
+  });
+  it('flags a short vacation under 2h when the day is split in two', () => {
+    const v = findStatutoryViolations(
+      [
+        shift('2026-08-03', '09:00', '10:30', 0), // 1h30 < 2h
+        shift('2026-08-03', '12:00', '16:00', 0), // 4h
+      ],
+      S,
+    );
+    expect(v).toContainEqual(
+      expect.objectContaining({
+        kind: 'VACATION_MIN_DURATION',
+        actual: 90,
+        limit: 120,
+      }),
+    );
+  });
+  it('flags a long vacation under 3h (2h + 2h30 split)', () => {
+    const v = findStatutoryViolations(
+      [
+        shift('2026-08-03', '09:00', '11:00', 0), // 2h ok as the short one
+        shift('2026-08-03', '13:00', '15:30', 0), // 2h30 < 3h as the long one
+      ],
+      S,
+    );
+    expect(v).toContainEqual(
+      expect.objectContaining({
+        kind: 'VACATION_MIN_DURATION',
+        actual: 150,
+        limit: 180,
+      }),
+    );
+  });
+  it('accepts a lawful 2h + 3h split day', () => {
+    const v = findStatutoryViolations(
+      [
+        shift('2026-08-03', '09:00', '11:00', 0),
+        shift('2026-08-03', '14:00', '17:00', 0),
+      ],
+      S,
+    );
+    expect(
+      v.filter(
+        (x) =>
+          x.kind === 'VACATIONS_COUNT' || x.kind === 'VACATION_MIN_DURATION',
+      ),
+    ).toHaveLength(0);
+  });
+  it('wouldExceedStatutory blocks the candidate creating a 3rd block', () => {
+    const windowShifts = [
+      shift('2026-08-03', '08:00', '10:00', 0),
+      shift('2026-08-03', '12:00', '15:00', 0),
+    ];
+    expect(
+      wouldExceedStatutory(
+        windowShifts,
+        shift('2026-08-03', '17:00', '19:00', 0),
+        S,
+      ),
+    ).toContain('VACATIONS_COUNT');
+  });
+});
+
+describe('KON-139 — rest-days rule (4 per 14-day window w/ >=10h continuous day)', () => {
+  // Fortnight Mon 2026-08-03 .. Sun 2026-08-16; explicit window = exactly that span, so a
+  // single 14-day window is fully covered (deterministic). The trigger day is Mon 08-03:
+  // one continuous block 07:30-18:00 with 30-min break = 10h net. Other worked days are
+  // 09:00-15:20 with a 20-min break (6h net — no mandatory-break noise).
+  const fortnight = (restDays: string[]): StatutoryShift[] => {
+    const rest = new Set(restDays);
+    const out: StatutoryShift[] = [];
+    for (let d = 3; d <= 16; d++) {
+      const date = `2026-08-${String(d).padStart(2, '0')}`;
+      if (rest.has(date)) continue;
+      out.push(
+        date === '2026-08-03'
+          ? shift(date, '07:30', '18:00', 30)
+          : shift(date, '09:00', '15:20', 20),
+      );
+    }
+    return out;
+  };
+  const window = { start: '2026-08-03', end: '2026-08-16' };
+
+  it('flags a window with only 3 rest days', () => {
+    const v = findStatutoryViolations(
+      fortnight(['2026-08-05', '2026-08-06', '2026-08-12']),
+      { ...S, window },
+    );
+    expect(v).toContainEqual(
+      expect.objectContaining({
+        kind: 'REST_DAYS_WINDOW',
+        date: '2026-08-03',
+        actual: 3,
+        limit: 4,
+      }),
+    );
+  });
+  it('SUPPORT_STAFF: flags 4 rest days whose consecutive pair holds no Sunday (HARD)', () => {
+    // Rest: Wed 05 + Thu 06 (pair, no Sunday), Wed 12, Fri 14.
+    const v = findStatutoryViolations(
+      fortnight(['2026-08-05', '2026-08-06', '2026-08-12', '2026-08-14']),
+      { ...S, window },
+    );
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'REST_DAYS_WINDOW' }),
+    );
+  });
+  it('PRACTITIONER: same pattern is a SOFT Sunday preference, not a block', () => {
+    const v = findStatutoryViolations(
+      fortnight(['2026-08-05', '2026-08-06', '2026-08-12', '2026-08-14']),
+      { ...P, window },
+    );
+    expect(v.filter((x) => x.kind === 'REST_DAYS_WINDOW')).toHaveLength(0);
+    expect(v).toContainEqual(
+      expect.objectContaining({ kind: 'REST_DAYS_SUNDAY', soft: true }),
+    );
+  });
+  it('accepts 4 rest days with a Sat+Sun consecutive pair (both regimes)', () => {
+    const restDays = [
+      '2026-08-08',
+      '2026-08-09', // Sat + Sun pair
+      '2026-08-12',
+      '2026-08-14',
+    ];
+    for (const opts of [S, P]) {
+      const v = findStatutoryViolations(fortnight(restDays), {
+        ...opts,
+        window,
+      });
+      expect(
+        v.filter(
+          (x) => x.kind === 'REST_DAYS_WINDOW' || x.kind === 'REST_DAYS_SUNDAY',
+        ),
+      ).toHaveLength(0);
+    }
+  });
+  it('emits nothing when no day reaches the 10h continuous trigger', () => {
+    const noTrigger = fortnight(['2026-08-05', '2026-08-06', '2026-08-12']).map(
+      (s) =>
+        s.date === '2026-08-03' ? shift(s.date, '09:00', '15:20', 20) : s,
+    );
+    const v = findStatutoryViolations(noTrigger, { ...S, window });
+    expect(
+      v.filter(
+        (x) => x.kind === 'REST_DAYS_WINDOW' || x.kind === 'REST_DAYS_SUNDAY',
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe('KON-139 — 44h average over 12 consecutive ISO weeks', () => {
+  // Candidate week: Mon 2026-08-03. The 11 prior ISO Mondays:
+  const priorMondays = [
+    '2026-07-27',
+    '2026-07-20',
+    '2026-07-13',
+    '2026-07-06',
+    '2026-06-29',
+    '2026-06-22',
+    '2026-06-15',
+    '2026-06-08',
+    '2026-06-01',
+    '2026-05-25',
+    '2026-05-18',
+  ];
+  // 5 worked days 08:00-17:00 (60 break) = 8h net each = 2400 net minutes in-week.
+  const inWeek = ['03', '04', '05', '06', '07'].map((d) =>
+    shift(`2026-08-${d}`, '08:00', '17:00', 60),
+  );
+
+  it('findStatutoryViolations flags a 12-week total over 31 680 net minutes', () => {
+    const weeklyHistory = new Map(priorMondays.map((m) => [m, 2700])); // 45h x 11
+    const v = findStatutoryViolations(inWeek, { ...S, weeklyHistory });
+    expect(v).toContainEqual(
+      expect.objectContaining({
+        kind: 'TWELVE_WEEK_AVG',
+        date: '2026-08-03',
+        actual: 11 * 2700 + 2400,
+        limit: 31_680,
+      }),
+    );
+  });
+  it('does not flag a 12-week total at exactly the 44h average', () => {
+    const weeklyHistory = new Map(priorMondays.map((m) => [m, 2640])); // 44h x 11
+    // in-week 2400 => total 31 440 <= 31 680
+    const v = findStatutoryViolations(inWeek, { ...S, weeklyHistory });
+    expect(v.filter((x) => x.kind === 'TWELVE_WEEK_AVG')).toHaveLength(0);
+  });
+  it('wouldExceedStatutory blocks the candidate that tips the rolling average', () => {
+    const totalsByMonday = new Map<string, number>([
+      ...priorMondays.map((m) => [m, 2640] as const),
+      ['2026-08-03', 2400],
+    ]);
+    const opts = {
+      ...S,
+      twelveWeek: {
+        totals: (m: string) => totalsByMonday.get(m) ?? 0,
+        lastWeekMonday: '2026-08-03',
+      },
+    };
+    // before = 11*2640 + 2400 = 31 440; candidate 6h net -> 31 800 > 31 680
+    expect(
+      wouldExceedStatutory([], shift('2026-08-08', '09:00', '15:00', 0), opts),
+    ).toContain('TWELVE_WEEK_AVG');
+    // a 4h candidate lands exactly at 31 680 — not a breach
+    expect(
+      wouldExceedStatutory([], shift('2026-08-08', '09:00', '13:00', 0), opts),
+    ).not.toContain('TWELVE_WEEK_AVG');
   });
 });
 
@@ -87,7 +366,7 @@ describe('consecutive days', () => {
     const week = ['03', '04', '05', '06', '07', '08', '09'].map((d) =>
       shift(`2026-08-${d}`, '09:00', '15:00', 0),
     );
-    const v = findStatutoryViolations(week);
+    const v = findStatutoryViolations(week, S);
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'CONSECUTIVE_DAYS', date: '2026-08-09' }),
     );
@@ -97,7 +376,7 @@ describe('consecutive days', () => {
       shift(`2026-08-${d}`, '09:00', '15:00', 0),
     );
     expect(
-      findStatutoryViolations(week).filter(
+      findStatutoryViolations(week, S).filter(
         (x) => x.kind === 'CONSECUTIVE_DAYS',
       ),
     ).toHaveLength(0);
@@ -110,7 +389,7 @@ describe('weekly rest (>=35h, boundary-aware)', () => {
     const week = ['03', '04', '05', '06', '07', '08'].map((d) =>
       shift(`2026-08-${d}`, '09:00', '20:00', 0),
     );
-    const v = findStatutoryViolations(week); // Sat 20:00 -> Sun 24:00 = 28h only
+    const v = findStatutoryViolations(week, S); // Sat 20:00 -> Sun 24:00 = 28h only
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'WEEKLY_REST', date: '2026-08-03' }),
     );
@@ -121,7 +400,7 @@ describe('weekly rest (>=35h, boundary-aware)', () => {
     );
     const next = [shift('2026-08-11', '09:00', '17:00', 0)]; // Fri 17:00 -> Tue next 09:00 >> 35h
     expect(
-      findStatutoryViolations([...week, ...next]).filter(
+      findStatutoryViolations([...week, ...next], S).filter(
         (x) => x.kind === 'WEEKLY_REST',
       ),
     ).toHaveLength(0);
@@ -129,23 +408,29 @@ describe('weekly rest (>=35h, boundary-aware)', () => {
 });
 
 describe('wouldExceedStatutory (incremental)', () => {
-  it('blocks a candidate that tips the day over 10h net', () => {
-    const window = [shift('2026-08-03', '08:00', '14:00', 0)]; // 6h
-    const candidate = shift('2026-08-03', '14:00', '19:00', 0); // +5h = 11h
-    expect(wouldExceedStatutory(window, candidate)).toContain('DAILY_WORK');
+  it('blocks a candidate that tips the day over 12h net', () => {
+    const windowShifts = [shift('2026-08-03', '08:00', '14:00', 0)]; // 6h
+    const candidate = shift('2026-08-03', '14:00', '21:00', 0); // +7h = 13h
+    expect(wouldExceedStatutory(windowShifts, candidate, S)).toContain(
+      'DAILY_WORK',
+    );
   });
   it('blocks the 7th consecutive day', () => {
-    const window = ['03', '04', '05', '06', '07', '08'].map((d) =>
+    const windowShifts = ['03', '04', '05', '06', '07', '08'].map((d) =>
       shift(`2026-08-${d}`, '09:00', '15:00', 0),
     );
     expect(
-      wouldExceedStatutory(window, shift('2026-08-09', '09:00', '15:00', 0)),
+      wouldExceedStatutory(
+        windowShifts,
+        shift('2026-08-09', '09:00', '15:00', 0),
+        S,
+      ),
     ).toContain('CONSECUTIVE_DAYS');
   });
   it('returns [] when the candidate cannot make things worse (window already over)', () => {
-    const window = [shift('2026-08-03', '08:00', '20:00', 0)]; // already 12h
+    const windowShifts = [shift('2026-08-03', '07:00', '20:30', 0)]; // already 13.5h
     const candidate = shift('2026-08-05', '09:00', '15:00', 0); // unrelated day
-    expect(wouldExceedStatutory(window, candidate)).toEqual([]);
+    expect(wouldExceedStatutory(windowShifts, candidate, S)).toEqual([]);
   });
 });
 
@@ -159,8 +444,8 @@ describe('Story 13-2 — window-bounded weekly rest', () => {
     // Window = the loaded days only. The head sentinel cannot be proven as 35h rest,
     // so the week is (conservatively) flagged — no phantom credit at the edge.
     const v = findStatutoryViolations(denseWedToSun, {
-      start: '2026-08-05',
-      end: '2026-08-09',
+      ...S,
+      window: { start: '2026-08-05', end: '2026-08-09' },
     });
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'WEEKLY_REST', date: '2026-08-03' }),
@@ -171,8 +456,8 @@ describe('Story 13-2 — window-bounded weekly rest', () => {
     // Same dense Wed–Sun work, but the window spans 8 real days on each side and no shift
     // exists before Wed — the proven long rest before the first shift is credited.
     const v = findStatutoryViolations(denseWedToSun, {
-      start: '2026-07-28',
-      end: '2026-08-16',
+      ...S,
+      window: { start: '2026-07-28', end: '2026-08-16' },
     });
     expect(v.filter((x) => x.kind === 'WEEKLY_REST')).toHaveLength(0);
   });
@@ -187,8 +472,8 @@ describe('Story 13-2 — window-bounded weekly rest', () => {
       days.push(`2026-01-${String(d).padStart(2, '0')}`);
     const dense = days.map((d) => shift(d, '09:00', '18:00', 0));
     const v = findStatutoryViolations(dense, {
-      start: '2025-12-15',
-      end: '2026-01-18',
+      ...S,
+      window: { start: '2025-12-15', end: '2026-01-18' },
     });
     expect(v).toContainEqual(
       expect.objectContaining({ kind: 'WEEKLY_REST', date: '2025-12-29' }),
@@ -205,7 +490,11 @@ describe('Story 13-2 — window-bounded weekly rest', () => {
       '2026-01-01',
     ].map((d) => shift(d, '09:00', '15:00', 0));
     expect(
-      wouldExceedStatutory(priorRun, shift('2026-01-02', '09:00', '15:00', 0)),
+      wouldExceedStatutory(
+        priorRun,
+        shift('2026-01-02', '09:00', '15:00', 0),
+        S,
+      ),
     ).toContain('CONSECUTIVE_DAYS');
   });
 });
@@ -224,7 +513,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         day('2026-03-02', '14:00', '22:00'), // ends Mon 22:00
         day('2026-03-03', '06:00', '14:00'), // starts Tue 06:00 -> 8h rest
       ];
-      const kinds = findStatutoryViolations(shifts).map((v) => v.kind);
+      const kinds = findStatutoryViolations(shifts, S).map((v) => v.kind);
       expect(kinds).toContain('DAILY_REST');
     });
 
@@ -234,7 +523,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         day('2026-03-02', '14:00', '18:00'), // 2h gap
       ];
       expect(
-        findStatutoryViolations(shifts).some((v) => v.kind === 'DAILY_REST'),
+        findStatutoryViolations(shifts, S).some((v) => v.kind === 'DAILY_REST'),
       ).toBe(true);
     });
 
@@ -244,19 +533,23 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         day('2026-03-03', '06:00', '10:00'), // starts +11h
       ];
       expect(
-        findStatutoryViolations(shifts).some((v) => v.kind === 'DAILY_REST'),
+        findStatutoryViolations(shifts, S).some((v) => v.kind === 'DAILY_REST'),
       ).toBe(false);
     });
 
     it('wouldExceedStatutory returns DAILY_REST only when the candidate introduces it', () => {
       const windowShifts = [day('2026-03-02', '14:00', '22:00')];
       const candidate = day('2026-03-03', '06:00', '14:00');
-      expect(wouldExceedStatutory(windowShifts, candidate)).toContain(
+      expect(wouldExceedStatutory(windowShifts, candidate, S)).toContain(
         'DAILY_REST',
       );
       // A candidate 12h later introduces nothing.
       expect(
-        wouldExceedStatutory(windowShifts, day('2026-03-03', '10:00', '18:00')),
+        wouldExceedStatutory(
+          windowShifts,
+          day('2026-03-03', '10:00', '18:00'),
+          S,
+        ),
       ).not.toContain('DAILY_REST');
     });
 
@@ -270,7 +563,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         day('2026-03-04', '20:00', '23:00'),
       ];
       const candidate = day('2026-03-05', '06:00', '14:00'); // 23:00 -> 06:00 = 7h < 11h
-      expect(wouldExceedStatutory(windowShifts, candidate)).toContain(
+      expect(wouldExceedStatutory(windowShifts, candidate, S)).toContain(
         'DAILY_REST',
       );
     });
@@ -284,7 +577,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
       );
 
     it('findStatutoryViolations flags an ISO week over 48h net', () => {
-      const v = findStatutoryViolations(fifty()).find(
+      const v = findStatutoryViolations(fifty(), S).find(
         (x) => x.kind === 'WEEKLY_CEILING',
       );
       expect(v).toBeDefined();
@@ -300,6 +593,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         wouldExceedStatutory(
           windowShifts,
           day('2026-03-07', '08:00', '18:00', 60),
+          S,
         ),
       ).toContain('WEEKLY_CEILING'); // 54h
     });
@@ -308,7 +602,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
   describe('MANDATORY_BREAK (20min over 6h, L.3121-16)', () => {
     it('flags a > 6h net day with under 20min break', () => {
       const shifts = [day('2026-03-02', '08:00', '15:00', 0)]; // 7h net, 0 break
-      const v = findStatutoryViolations(shifts).find(
+      const v = findStatutoryViolations(shifts, S).find(
         (x) => x.kind === 'MANDATORY_BREAK',
       );
       expect(v).toBeDefined();
@@ -319,7 +613,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
     it('does not flag a > 6h day with a 20min break', () => {
       const shifts = [day('2026-03-02', '08:00', '15:20', 20)]; // ~7h net, 20 break
       expect(
-        findStatutoryViolations(shifts).some(
+        findStatutoryViolations(shifts, S).some(
           (v) => v.kind === 'MANDATORY_BREAK',
         ),
       ).toBe(false);
@@ -328,7 +622,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
     it('does not flag a <= 6h day', () => {
       const shifts = [day('2026-03-02', '08:00', '14:00', 0)]; // 6h net exactly
       expect(
-        findStatutoryViolations(shifts).some(
+        findStatutoryViolations(shifts, S).some(
           (v) => v.kind === 'MANDATORY_BREAK',
         ),
       ).toBe(false);
@@ -340,6 +634,7 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
         wouldExceedStatutory(
           windowShifts,
           day('2026-03-02', '13:00', '16:30', 0),
+          S,
         ),
       ).toEqual(expect.arrayContaining(['MANDATORY_BREAK'])); // day now 7h30 net, 0 break
     });
