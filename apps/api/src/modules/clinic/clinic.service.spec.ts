@@ -27,6 +27,10 @@ describe('ClinicService', () => {
     clinicShiftType: {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     clinicClosedDay: {
       deleteMany: jest.fn(),
@@ -367,6 +371,50 @@ describe('ClinicService', () => {
       expect(result).toEqual(createManyResult);
     });
 
+    // Story 13-3 (KON-132), aped-review M4 — AC-5 "and persisted": the validators
+    // now accept an overnight shift type; prove the service writes 22:00 -> 06:00
+    // through to the DB unaltered (persistence, not just acceptance).
+    it('persists an overnight shift type (22:00 -> 06:00) with its times intact', async () => {
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<any>) => cb(mockPrismaService),
+      );
+      mockPrismaService.clinicShiftType.deleteMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.clinicShiftType.createMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await service.createShiftTypes(clinicId, {
+        shiftTypes: [
+          {
+            name: 'Night',
+            code: 'NIGHT',
+            startTime: '22:00',
+            endTime: '06:00',
+            breakMinutes: 0,
+            color: '#123456',
+          },
+        ],
+      });
+
+      expect(mockPrismaService.clinicShiftType.createMany).toHaveBeenCalledWith(
+        {
+          data: [
+            {
+              clinicId,
+              name: 'Night',
+              code: 'NIGHT',
+              startTime: '22:00',
+              endTime: '06:00',
+              breakMinutes: 0,
+              color: '#123456',
+            },
+          ],
+        },
+      );
+    });
+
     it('should throw ConflictException on P2002 duplicate code error', async () => {
       const prismaError = {
         code: 'P2002',
@@ -399,6 +447,116 @@ describe('ClinicService', () => {
   // ---------------------------------------------------------------------------
   // completeOnboarding
   // ---------------------------------------------------------------------------
+  // Story 13-3 (KON-132), aped-review M4 — AC-5 also covers "in settings", whose
+  // path is createSingleShiftType. Prove that path persists an overnight shift type
+  // unaltered too (the schema change this story made is what unlocks it).
+  describe('createSingleShiftType', () => {
+    const clinicId = 'clinic-uuid-single';
+
+    it('persists an overnight shift type (22:00 -> 06:00) with its times intact', async () => {
+      mockPrismaService.clinicShiftType.create.mockResolvedValue({
+        id: 'st-night',
+      });
+
+      await service.createSingleShiftType(clinicId, {
+        name: 'Night',
+        code: 'NIGHT',
+        startTime: '22:00',
+        endTime: '06:00',
+        breakMinutes: 0,
+        color: '#123456',
+      });
+
+      expect(mockPrismaService.clinicShiftType.create).toHaveBeenCalledWith({
+        data: {
+          clinicId,
+          name: 'Night',
+          code: 'NIGHT',
+          startTime: '22:00',
+          endTime: '06:00',
+          breakMinutes: 0,
+          color: '#123456',
+        },
+      });
+    });
+  });
+
+  // Story 13-4 (KON-136), aped-review F5 — a partial PATCH cannot be validated by the pure zod
+  // schema against the persisted row, so updateSingleShiftType re-reads the row and validates the
+  // MERGED result. Two adversarially-reachable bypasses (widen hours w/o break; strip break) must
+  // be rejected server-side; a patch that does not touch the workload must not be blocked.
+  describe('updateSingleShiftType break garde-fou (aped-review F5)', () => {
+    const clinicId = 'clinic-upd';
+
+    it('rejects a patch that widens hours past 6h without supplying a break', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-1',
+        clinicId,
+        startTime: '08:00',
+        endTime: '14:00', // legal now (6h net, 0 break)
+        breakMinutes: 0,
+      });
+      await expect(
+        service.updateSingleShiftType(clinicId, 'st-1', { endTime: '17:00' }),
+      ).rejects.toThrow(/20-minute break/);
+      expect(
+        mockPrismaService.clinicShiftType.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('rejects a patch that strips the break from an already >6h type', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-2',
+        clinicId,
+        startTime: '08:00',
+        endTime: '15:20', // 7h20 gross
+        breakMinutes: 20, // legal now (net 7h, 20 break)
+      });
+      await expect(
+        service.updateSingleShiftType(clinicId, 'st-2', { breakMinutes: 0 }),
+      ).rejects.toThrow(/20-minute break/);
+      expect(
+        mockPrismaService.clinicShiftType.updateMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('accepts a name-only patch without re-reading or blocking (workload untouched)', async () => {
+      mockPrismaService.clinicShiftType.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaService.clinicShiftType.findUnique.mockResolvedValue({
+        id: 'st-3',
+      });
+      await service.updateSingleShiftType(clinicId, 'st-3', {
+        name: 'Renamed',
+      });
+      expect(
+        mockPrismaService.clinicShiftType.findFirst,
+      ).not.toHaveBeenCalled();
+      expect(mockPrismaService.clinicShiftType.updateMany).toHaveBeenCalled();
+    });
+
+    it('accepts a workload patch whose merged result is legal', async () => {
+      mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
+        id: 'st-4',
+        clinicId,
+        startTime: '08:00',
+        endTime: '15:00', // 7h gross
+        breakMinutes: 0,
+      });
+      mockPrismaService.clinicShiftType.updateMany.mockResolvedValue({
+        count: 1,
+      });
+      mockPrismaService.clinicShiftType.findUnique.mockResolvedValue({
+        id: 'st-4',
+      });
+      await service.updateSingleShiftType(clinicId, 'st-4', {
+        breakMinutes: 20,
+      });
+      expect(mockPrismaService.clinicShiftType.updateMany).toHaveBeenCalled();
+    });
+  });
+
   describe('completeOnboarding', () => {
     const clinicId = 'clinic-uuid-5';
     const onboardingData = {
@@ -648,6 +806,11 @@ describe('ClinicService', () => {
           ruleType: 'HARD',
           category: 'CONTRACT_COMPLIANCE',
           isActive: true,
+          config: expect.objectContaining({
+            minDailyRestHours: 11,
+            maxWeeklyStatutoryHours: 48,
+            minBreakMinutesOver6h: 20,
+          }),
         }),
       });
     });

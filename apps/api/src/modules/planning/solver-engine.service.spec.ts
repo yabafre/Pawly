@@ -43,6 +43,8 @@ describe('SolverEngineService (KON-129)', () => {
     ],
     unavailable: new Map([['b', new Set(['2026-08-05'])]]),
     fixedWeeklyMinutes: new Map(),
+    fixedMonthlyMinutes: new Map(),
+    fixedEquityLoads: new Map(),
     fixedDailyMinutes: new Map(),
     fixedWorkedDates: new Map(),
     fixedRotationCounts: new Map(),
@@ -224,5 +226,23 @@ describe('SolverEngineService (KON-129)', () => {
       deterministicTimeBudget: 1e-9,
     });
     expect(['OPTIMAL', 'FEASIBLE', 'UNKNOWN']).toContain(result.status);
+  });
+
+  it('surfaces ENGINE_UNAVAILABLE instead of throwing when the engine fails to load (Story 13-6)', async () => {
+    const service = new SolverEngineService();
+    jest
+      .spyOn(
+        service as unknown as {
+          solveUnsafe: (...args: unknown[]) => Promise<unknown>;
+        },
+        'solveUnsafe',
+      )
+      .mockRejectedValue(new Error('ERR_REQUIRE_ESM'));
+    const result = await service.solve(
+      { vars: [], constraints: [], objective: [] },
+      { deterministicTimeBudget: 0.05 },
+    );
+    expect(result.status).toBe('ENGINE_UNAVAILABLE');
+    expect(result.chosenVarNames.size).toBe(0);
   });
 });

@@ -7,6 +7,7 @@ import {
   holeInfoSchema,
   hardViolationSchema,
   softViolationSchema,
+  generationStatsSchema,
   generationResultSchema,
 } from './planning-generation.schema';
 
@@ -381,6 +382,46 @@ describe('generationResultSchema', () => {
       },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('generationStatsSchema', () => {
+  it('accepts a valid solverOutcome (Story 13-6)', () => {
+    const result = generationStatsSchema.safeParse({
+      totalSlots: 10,
+      filledSlots: 10,
+      holeCount: 0,
+      hardViolationCount: 0,
+      softWarningCount: 0,
+      engine: 'cpsat',
+      solverOutcome: 'served',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an unknown solverOutcome (Story 13-6)', () => {
+    const result = generationStatsSchema.safeParse({
+      totalSlots: 10,
+      filledSlots: 10,
+      holeCount: 0,
+      hardViolationCount: 0,
+      softWarningCount: 0,
+      engine: 'cpsat',
+      solverOutcome: 'gave-up',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('omits solverOutcome (greedy request — no Pro leak, Story 13-6)', () => {
+    const result = generationStatsSchema.safeParse({
+      totalSlots: 10,
+      filledSlots: 10,
+      holeCount: 0,
+      hardViolationCount: 0,
+      softWarningCount: 0,
+      engine: 'greedy',
+    });
+    expect(result.success).toBe(true);
   });
 });
 

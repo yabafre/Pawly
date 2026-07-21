@@ -117,7 +117,7 @@ function OnboardingWizardForm({
               code: 'CHIR',
               startTime: '08:30',
               endTime: '18:30',
-              breakMinutes: 0,
+              breakMinutes: 30,
               color: '#4F46E5',
             },
             {
@@ -125,7 +125,7 @@ function OnboardingWizardForm({
               code: 'ACC',
               startTime: '09:00',
               endTime: '19:30',
-              breakMinutes: 0,
+              breakMinutes: 30,
               color: '#F97316',
             },
           ],
@@ -207,7 +207,7 @@ function OnboardingWizardForm({
               st.code.length > 0 &&
               /^\d{2}:\d{2}$/.test(st.startTime) &&
               /^\d{2}:\d{2}$/.test(st.endTime) &&
-              st.endTime > st.startTime &&
+              st.endTime !== st.startTime &&
               /^#[0-9A-Fa-f]{6}$/.test(st.color)
           )
         );

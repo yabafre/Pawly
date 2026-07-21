@@ -384,15 +384,43 @@ describe('clinicRouter', () => {
       });
     });
 
-    it('rejects invalid input (endTime <= startTime)', async () => {
+    // Story 13-3 (KON-132) — an overnight shift type (endTime before startTime) is
+    // now valid; only a zero-length slot (endTime === startTime) is rejected.
+    it('rejects invalid input (endTime === startTime)', async () => {
       const caller = createAdminCaller();
       await expect(
         caller.createShiftType({
           ...validInput,
-          startTime: '14:00',
+          startTime: '08:00',
           endTime: '08:00',
         }),
       ).rejects.toThrow();
+    });
+
+    it('accepts an overnight shift type (endTime before startTime)', async () => {
+      mockClinicService.createSingleShiftType.mockResolvedValue({
+        id: 'st-night',
+        name: 'Night',
+        code: 'NIGHT',
+        startTime: '22:00',
+        endTime: '06:00',
+        breakMinutes: 20,
+        color: '#4F46E5',
+      });
+      const caller = createAdminCaller();
+      await expect(
+        // 22:00→06:00 is 8h worked, so story 13-4's mandatory-break rule
+        // requires breakMinutes >= 20; this test asserts the OVERNIGHT
+        // (endTime < startTime) acceptance, so the fixture is otherwise valid.
+        caller.createShiftType({
+          name: 'Night',
+          code: 'NIGHT',
+          startTime: '22:00',
+          endTime: '06:00',
+          breakMinutes: 20,
+          color: '#4F46E5',
+        }),
+      ).resolves.toBeDefined();
     });
   });
 

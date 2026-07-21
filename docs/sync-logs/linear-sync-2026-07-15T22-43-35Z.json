@@ -1,0 +1,50 @@
+{
+  "sync_id": "linear-sync-2026-07-15T22-43-35Z",
+  "started_at": "2026-07-15T22:43:35Z",
+  "provider": "linear",
+  "operator": "fred79272@gmail.com",
+  "directive_version": null,
+  "phases": {
+    "auth_check": {
+      "status": "complete"
+    },
+    "projects": {
+      "status": "complete",
+      "calls": 1,
+      "created": []
+    },
+    "milestones": {
+      "status": "complete",
+      "calls": 1,
+      "created": {
+        "epic-13": "87f8f0cd-c9f6-44b2-8652-019fb5a208f5"
+      }
+    },
+    "labels": {
+      "status": "complete",
+      "calls": 1,
+      "created": {
+        "epic-13-planning-integrity": "7450b0f6-5e85-4b2d-a204-99c74c23ff73"
+      }
+    },
+    "issues_created": {
+      "status": "complete",
+      "calls": 8,
+      "issues": [
+        "KON-131",
+        "KON-134",
+        "KON-132",
+        "KON-136",
+        "KON-135",
+        "KON-137",
+        "KON-133",
+        "KON-138"
+      ],
+      "dependency_links": 7
+    }
+  },
+  "totals": {
+    "api_calls_total": 12
+  },
+  "ended_at": "2026-07-15T23:00:57Z"
+}

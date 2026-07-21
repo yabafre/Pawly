@@ -248,6 +248,39 @@ export function equityObjective(
 }
 
 /**
+ * Merge an immovable survivor equity baseline into a generated-only load map, per
+ * employee, and return a fresh map of TOTAL loads. Used by the solver acceptance
+ * gate (Story 13-5, T7): the gate scores fairness over survivors + generated so it
+ * judges the same objective the survivor-aware model spread optimizes. Because the
+ * quadratic `equityObjective` is mean-normalized, folding survivors in is NOT a
+ * neutral constant offset — it can flip which of two equal-fill plans reads as
+ * fairer, which is exactly the point. Pure: deep-copies every entry, mutates neither
+ * input, deterministic (per-employee sums are commutative).
+ */
+export function mergeEquityLoads(
+  baseline: Map<string, EmployeeLoad>,
+  generated: Map<string, EmployeeLoad>,
+): Map<string, EmployeeLoad> {
+  const merged = new Map<string, EmployeeLoad>();
+  for (const [empId, l] of baseline) {
+    merged.set(empId, { ...l });
+  }
+  for (const [empId, l] of generated) {
+    const cur = merged.get(empId) ?? {
+      saturdayCount: 0,
+      weekendCount: 0,
+      shiftCount: 0,
+    };
+    merged.set(empId, {
+      saturdayCount: cur.saturdayCount + l.saturdayCount,
+      weekendCount: cur.weekendCount + l.weekendCount,
+      shiftCount: cur.shiftCount + l.shiftCount,
+    });
+  }
+  return merged;
+}
+
+/**
  * Ejection-chain search for a single hole: depth 2 first, depth-3 fallback on a miss (KON-128).
  *
  * Depth 2 scans the current assignments in deterministic order; for each candidate mover eligible

@@ -6,6 +6,7 @@ import { Field, FieldLabel, FieldError } from '@/components/ui/field';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { OnboardingForm } from '../OnboardingWizard';
+import { validateOnboardingShiftTypes } from './shift-types-validation';
 
 interface StepShiftTypesProps {
   form: OnboardingForm;
@@ -37,19 +38,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
       <form.Field
         name="shiftTypes"
         validators={{
-          onChange: ({ value }: { value: any[] }) => {
-            if (!value || value.length === 0) return t('minRequired');
-            const hasIncomplete = value.some(
-              (st) =>
-                !st.name?.trim() ||
-                !st.code?.trim() ||
-                !/^\d{2}:\d{2}$/.test(st.startTime) ||
-                !/^\d{2}:\d{2}$/.test(st.endTime) ||
-                st.endTime <= st.startTime
-            );
-            if (hasIncomplete) return t('incompleteShiftType');
-            return undefined;
-          },
+          onChange: ({ value }: { value: any[] }) => validateOnboardingShiftTypes(value, t),
         }}
       >
         {(field: any) => (
@@ -192,7 +181,7 @@ export function StepShiftTypes({ form }: StepShiftTypesProps) {
                     code: '',
                     startTime: '08:30',
                     endTime: '18:30',
-                    breakMinutes: 0,
+                    breakMinutes: 30,
                     color: COLOR_PALETTE[field.state.value.length % COLOR_PALETTE.length].value,
                   },
                 ]);
