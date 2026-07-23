@@ -114,9 +114,21 @@ export type WouldExceedOptions = {
   deferStructural?: boolean;
 };
 
-/** The order-sensitive kinds `deferStructural` postpones to a final-state validation. */
+/**
+ * The order-sensitive kinds `deferStructural` postpones to a final-state validation.
+ * KON-140 review R-C: REST_DAYS_WINDOW (a detached same-day insert can dissolve a >=10h
+ * continuous trigger) and MANDATORY_BREAK (a later insert can carry the missing break)
+ * are ALSO non-monotone under insertion and belong here.
+ */
 export const STRUCTURAL_STATUTORY_KINDS: ReadonlySet<StatutoryViolationKind> =
-  new Set(['VACATIONS_COUNT', 'VACATION_MIN_DURATION', 'DAILY_AMPLITUDE', 'DAILY_REST']);
+  new Set([
+    'VACATIONS_COUNT',
+    'VACATION_MIN_DURATION',
+    'DAILY_AMPLITUDE',
+    'DAILY_REST',
+    'REST_DAYS_WINDOW',
+    'MANDATORY_BREAK',
+  ]);
 
 export const FRENCH_LABOR_LAW = {
   /**
@@ -140,6 +152,22 @@ export const FRENCH_LABOR_LAW = {
   /** L.3132-1 — <= 6 consecutive worked calendar days. */
   MAX_CONSECUTIVE_WORK_DAYS: 6,
 } as const;
+
+/**
+ * KON-140 (V8/R-F) — the seeded statutory showcase row is DISPLAY-only, but rules loaded
+ * for EVALUATION reach the rule engine too. Normalizing the showcase's config from the
+ * code constants everywhere keeps stale pre-KON-139 seeds (maxDailyHours: 10) from being
+ * silently ENFORCED as a V7 tightening on some surfaces and displayed on others.
+ */
+export function normalizeStatutoryShowcaseRules<
+  T extends { name: string; config: unknown },
+>(rules: T[]): T[] {
+  return rules.map((r) =>
+    r.name === STATUTORY_RULE_NAME
+      ? { ...r, config: { ...STATUTORY_RULE_CONFIG } }
+      : r,
+  );
+}
 
 /** Name + config of the visible statutory rule seeded at onboarding (Task 7). */
 export const STATUTORY_RULE_NAME = 'French labor-law limits';
@@ -835,14 +863,16 @@ function bucketByDay(shifts: StatutoryShift[]): Map<string, StatutoryShift[]> {
  * practitioner's continuous day (15h amplitude cap) can become discontinuous (13h cap)
  * without its span shrinking below it (DAILY_AMPLITUDE). Removing a small block can also
  * leave a single continuous >=10h block behind — creating a REST_DAYS_WINDOW trigger.
- * Everything else is monotone under removal and needs no check:
- * - DAILY_WORK / WEEKLY_* / TWELVE_WEEK_AVG / MANDATORY_BREAK / CONSECUTIVE_DAYS only
- *   shrink when work is removed.
- * - DAILY_REST cannot be introduced: the merged gap after a removal spans both consumed
- *   gaps plus the removed block, so it is >= each of them; and if its endpoints start on
- *   different dates, at least one consumed gap already did — so any new inter-day deficit
- *   was already a counted deficit before. (Proof recorded here on purpose — do not add a
- *   redundant check.)
+ * Monotone under removal (no check needed): DAILY_WORK / WEEKLY_* / TWELVE_WEEK_AVG /
+ * CONSECUTIVE_DAYS only shrink when work is removed.
+ * NOT monotone (checked below) — KON-140 review R-A executed the counterexamples:
+ * - DAILY_REST: removing a piece INSIDE a merged block splits it, creating a brand-new
+ *   gap that consumed no prior gap; and removing a block's sub-midnight segment shifts
+ *   the successor's START DATE across midnight, turning an intra-day-exempt gap into a
+ *   counted inter-day deficit. (The earlier "cannot be introduced" proof only covered
+ *   removing an ENTIRE merged block.)
+ * - MANDATORY_BREAK: removing the shift that carried the day's only break can leave a
+ *   >6h-net day with <20 min of break.
  * Same introduced-by semantics as wouldExceedStatutory: pre-existing breaches never block.
  * `windowShifts` MUST include `removed` (matched by date+startTime+endTime, first match).
  */
@@ -861,9 +891,24 @@ export function removalWouldExceedStatutory(
   const after = windowShifts.slice(0, idx).concat(windowShifts.slice(idx + 1));
   const kinds: StatutoryViolationKind[] = [];
   const { regime } = opts;
-
   const dayBefore = windowShifts.filter((s) => s.date === removed.date);
   const dayAfter = after.filter((s) => s.date === removed.date);
+
+  // DAILY_REST — count-based introduced-by (KON-140 R-A): inter-day deficit count must
+  // not rise. Evaluated on the full provided window (the callers load +/-14 real days).
+  if (countDailyRestDeficits(after) > countDailyRestDeficits(windowShifts)) {
+    kinds.push('DAILY_REST');
+  }
+
+  // MANDATORY_BREAK — the removed shift may have carried the day's only break.
+  {
+    const breachOf = (ds: StatutoryShift[]): boolean =>
+      dayWorkedMinutes(ds) > FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+      ds.reduce((s, x) => s + (x.breakMinutes ?? 0), 0) <
+        FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+    if (breachOf(dayAfter) && !breachOf(dayBefore))
+      kinds.push('MANDATORY_BREAK');
+  }
 
   // Vacation structure of the removed shift's day.
   const vacBreachBefore =
@@ -972,7 +1017,8 @@ export function wouldExceedStatutory(
     dayWorkedMinutes(dayBefore) >
       FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
     breakBefore < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
-  if (breachAfter && !breachBefore) kinds.push('MANDATORY_BREAK');
+  if (breachAfter && !breachBefore && !deferStructural)
+    kinds.push('MANDATORY_BREAK');
 
   // Consecutive days — only when the candidate adds a NEW worked day
   const datesBefore = new Set(windowShifts.map((s) => s.date));
@@ -1037,7 +1083,7 @@ export function wouldExceedStatutory(
         break;
       }
     }
-    if (hasTriggerNear) {
+    if (hasTriggerNear && !deferStructural) {
       const coverage = {
         start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
         end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),

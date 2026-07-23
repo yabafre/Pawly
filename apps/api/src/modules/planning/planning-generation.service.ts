@@ -1486,16 +1486,24 @@ export class PlanningGenerationService {
     // 4) HARD CONTRACT_COMPLIANCE (weekly + monthly + daily via the unified engine) + minRest
     const weekMinutes =
       ctx.weeklyMinutesCounter.get(`${emp.id}|${weekBounds.start}`) || 0;
-    // KON-140 (V7) — net minutes already assigned on the slot's day, for maxDailyHours.
-    const dayNetMinutes = (
-      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || []
-    ).reduce(
-      (sum, s) =>
-        sum +
-        this.calculateShiftMinutes(s.startTime, s.endTime) -
-        (s.breakMinutes || 0),
-      0,
+    // KON-140 (V7, lazy) — day net minutes are only needed when some HARD contract rule
+    // actually configures a tightening daily cap (<12h); skip the per-call reduce on the
+    // hot path otherwise (R-perf: the unconditional version cost ~25% on the 11-10 stress).
+    const needsDailyCap = ctx.constraints.hardRules.some(
+      (r) =>
+        r.category === 'CONTRACT_COMPLIANCE' &&
+        typeof r.config.maxDailyHours === 'number' &&
+        (r.config.maxDailyHours as number) < 12,
     );
+    const dayNetMinutes = needsDailyCap
+      ? (ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || []).reduce(
+          (sum, s) =>
+            sum +
+            this.calculateShiftMinutes(s.startTime, s.endTime) -
+            (s.breakMinutes || 0),
+          0,
+        )
+      : undefined;
     const hardContractRules = ctx.constraints.hardRules.filter(
       (r) => r.category === 'CONTRACT_COMPLIANCE',
     );
@@ -2216,14 +2224,86 @@ export class PlanningGenerationService {
 
     // Story 11-1 — preserve confirmed shifts and shifts carrying variance
     // history; only these unconfirmed, history-free GENERATED shifts are purged.
-    const { count } = await this.prisma.shift.deleteMany({
-      where: {
-        clinicId,
-        source: 'GENERATED',
-        isConfirmed: false,
-        varianceEvents: { none: {} },
-        date: { gte: monthStart, lte: monthEnd },
-      },
+    // KON-140 (R-D) — a bulk purge is a mass REMOVAL, and the CCN structure rules are
+    // non-monotone under removal: the survivors left behind can form illegal structures
+    // (a GENERATED bridge between two MANUAL blocks, a break-carrier, ...). Same
+    // introduced-by semantics as the single-shift paths, under the month lock.
+    const { count } = await this.prisma.$transaction(async (tx) => {
+      await this.lockMonths(tx, clinicId, [month]);
+      const winStart = new Date(monthStart);
+      winStart.setUTCDate(winStart.getUTCDate() - STATUTORY_WINDOW_DAYS);
+      const winEnd = new Date(monthEnd);
+      winEnd.setUTCDate(winEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+      const [contextRows, deletableRows, employees] = await Promise.all([
+        tx.shift.findMany({
+          where: { clinicId, date: { gte: winStart, lte: winEnd } },
+          select: {
+            id: true,
+            employeeId: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            breakMinutes: true,
+          },
+        }),
+        tx.shift.findMany({
+          where: {
+            clinicId,
+            source: 'GENERATED',
+            isConfirmed: false,
+            varianceEvents: { none: {} },
+            date: { gte: monthStart, lte: monthEnd },
+          },
+          select: { id: true, employeeId: true },
+        }),
+        tx.employee.findMany({
+          where: { clinicId },
+          select: { id: true, jobType: true },
+        }),
+      ]);
+      const deletableIds = new Set(deletableRows.map((r) => r.id));
+      const affected = new Set(deletableRows.map((r) => r.employeeId));
+      const jobTypeById = new Map(employees.map((e) => [e.id, e.jobType]));
+      const windowISO = {
+        start: winStart.toISOString().split('T')[0],
+        end: winEnd.toISOString().split('T')[0],
+      };
+      const toStat = (r: (typeof contextRows)[number]): StatutoryShift => ({
+        date: r.date.toISOString().split('T')[0],
+        startTime: r.startTime,
+        endTime: r.endTime,
+        breakMinutes: r.breakMinutes,
+      });
+      for (const employeeId of [...affected].sort()) {
+        const mine = contextRows.filter((r) => r.employeeId === employeeId);
+        const opts = {
+          regime: regimeForJobType(jobTypeById.get(employeeId)),
+          window: windowISO,
+        };
+        const keysOf = (rows: typeof mine): Set<string> =>
+          new Set(
+            findStatutoryViolations(rows.map(toStat), opts)
+              .filter((v) => !v.soft && STRUCTURAL_STATUTORY_KINDS.has(v.kind))
+              .map((v) => `${v.kind}|${v.date}`),
+          );
+        const before = keysOf(mine);
+        const after = keysOf(mine.filter((r) => !deletableIds.has(r.id)));
+        const introduced = [...after].find((k) => !before.has(k));
+        if (introduced) {
+          throw new ConflictException(
+            `Purge would leave an illegal day structure for an employee (${introduced.replace('|', ' on ')}) — adjust the manual shifts first`,
+          );
+        }
+      }
+      return tx.shift.deleteMany({
+        where: {
+          clinicId,
+          source: 'GENERATED',
+          isConfirmed: false,
+          varianceEvents: { none: {} },
+          date: { gte: monthStart, lte: monthEnd },
+        },
+      });
     });
 
     // Story 11-1 — a purge of a PUBLISHED month is an amendment: record it and
@@ -3139,10 +3219,25 @@ export class PlanningGenerationService {
     // limit, or create a >=10h continuous trigger). Re-validate the removal in-transaction
     // under the same (clinic, month) advisory lock as every other write path.
     await this.prisma.$transaction(async (tx) => {
-      const dateISO = shift.date.toISOString().split('T')[0];
       await this.lockMonths(tx, clinicId, [month]);
+      // KON-140 (R-E) — fail-closed refetch under the lock: the pre-lock snapshot may be
+      // stale (a concurrent move can change employee/date/times, which would silently
+      // no-op the removal guard and leave the lock on the wrong month).
+      const fresh = await tx.shift.findUnique({ where: { id: shiftId } });
+      if (!fresh) throw new NotFoundException('Shift not found');
+      if (
+        fresh.employeeId !== shift.employeeId ||
+        fresh.date.getTime() !== shift.date.getTime() ||
+        fresh.startTime !== shift.startTime ||
+        fresh.endTime !== shift.endTime
+      ) {
+        throw new ConflictException(
+          'Shift was modified concurrently — reload and retry the delete',
+        );
+      }
+      const dateISO = fresh.date.toISOString().split('T')[0];
       const employee = await tx.employee.findFirst({
-        where: { id: shift.employeeId, clinicId },
+        where: { id: fresh.employeeId, clinicId },
         select: { jobType: true },
       });
       const winStart = new Date(`${dateISO}T00:00:00.000Z`);
@@ -3151,7 +3246,7 @@ export class PlanningGenerationService {
       winEnd.setUTCDate(winEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
       const windowRows = await tx.shift.findMany({
         where: {
-          employeeId: shift.employeeId,
+          employeeId: fresh.employeeId,
           clinicId,
           date: { gte: winStart, lte: winEnd },
         },
@@ -3171,9 +3266,9 @@ export class PlanningGenerationService {
         })),
         {
           date: dateISO,
-          startTime: shift.startTime,
-          endTime: shift.endTime,
-          breakMinutes: shift.breakMinutes,
+          startTime: fresh.startTime,
+          endTime: fresh.endTime,
+          breakMinutes: fresh.breakMinutes,
         },
         { regime: regimeForJobType(employee?.jobType) },
       );
@@ -4972,6 +5067,39 @@ export class PlanningGenerationService {
       );
     }
 
+    // KON-140 (R-B) — capture the structural-violation keys of the GREEDY state first:
+    // the final-state validation below must use introduced-by semantics, or any legacy
+    // structural breach living in survivors/border rows would veto every cpsat plan.
+    const { firstMonthMonday, lastCounterMonday } = ctx.statutoryCtx;
+    const scanStart = addDaysISO(firstMonthMonday, -STATUTORY_WINDOW_DAYS);
+    const scanEnd = addDaysISO(lastCounterMonday, 6 + STATUTORY_WINDOW_DAYS);
+    const structuralKeysOf = (): Set<string> => {
+      const keys = new Set<string>();
+      for (const emp of ctx.employees) {
+        const empShifts: StatutoryShift[] = [];
+        for (let d = scanStart; d <= scanEnd; d = addDaysISO(d, 1)) {
+          for (const s of ctx.assignmentIndex.get(`${emp.id}|${d}`) || []) {
+            empShifts.push({
+              date: s.date,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            });
+          }
+        }
+        if (empShifts.length === 0) continue;
+        for (const v of findStatutoryViolations(empShifts, {
+          regime: regimeForJobType(emp.jobType),
+          window: { start: scanStart, end: scanEnd },
+        })) {
+          if (!v.soft && STRUCTURAL_STATUTORY_KINDS.has(v.kind))
+            keys.add(`${emp.id}|${v.kind}|${v.date}`);
+        }
+      }
+      return keys;
+    };
+    const beforeStructuralKeys = structuralKeysOf();
+
     const original = [...ctx.assignedShifts];
     for (const s of original) this.removeAssignment(s, ctx);
 
@@ -5014,40 +5142,15 @@ export class PlanningGenerationService {
       applied.push(shift);
     }
 
-    // KON-140 (V4) — final-state validation of the deferred structural kinds, per
-    // employee, on the fully-applied plan (order-insensitive by construction). The
-    // employee's shifts are read back from assignmentIndex so survivors and the
-    // +/-14-day statutory border rows participate exactly like they do in eligibility.
+    // KON-140 (V4/R-B) — final-state validation of the deferred structural kinds on the
+    // fully-applied plan (order-insensitive), with INTRODUCED-BY semantics: only keys
+    // absent from the greedy state's own structural set reject the plan.
     if (!rejection) {
-      const { firstMonthMonday, lastCounterMonday } = ctx.statutoryCtx;
-      const scanStart = addDaysISO(firstMonthMonday, -STATUTORY_WINDOW_DAYS);
-      const scanEnd = addDaysISO(lastCounterMonday, 6 + STATUTORY_WINDOW_DAYS);
-      const touched = new Set(applied.map((s) => s.employeeId));
-      outer: for (const employeeId of [...touched].sort()) {
-        const emp = employeeById.get(employeeId);
-        if (!emp) continue;
-        const empShifts: StatutoryShift[] = [];
-        for (
-          let d = scanStart;
-          d <= scanEnd;
-          d = addDaysISO(d, 1)
-        ) {
-          for (const s of ctx.assignmentIndex.get(`${employeeId}|${d}`) || []) {
-            empShifts.push({
-              date: s.date,
-              startTime: s.startTime,
-              endTime: s.endTime,
-              breakMinutes: s.breakMinutes,
-            });
-          }
-        }
-        const finalViolations = findStatutoryViolations(empShifts, {
-          regime: regimeForJobType(emp.jobType),
-          window: { start: scanStart, end: scanEnd },
-        }).filter((v) => !v.soft && STRUCTURAL_STATUTORY_KINDS.has(v.kind));
-        if (finalViolations.length > 0) {
-          rejection = `${employeeId} final-state ${finalViolations[0].kind} on ${finalViolations[0].date}`;
-          break outer;
+      const afterKeys = structuralKeysOf();
+      for (const key of [...afterKeys].sort()) {
+        if (!beforeStructuralKeys.has(key)) {
+          rejection = `final-state ${key.split('|').slice(1).join(' on ')} (${key.split('|')[0]})`;
+          break;
         }
       }
     }

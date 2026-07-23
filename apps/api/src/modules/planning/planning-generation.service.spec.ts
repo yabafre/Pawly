@@ -6922,8 +6922,19 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-07' },
       ]);
+      // KON-140 (R-D) — the purge guard reads full rows (context + deletable) under the
+      // month lock: the mock must carry the real shape, not just employeeId.
       mockPrismaService.shift.findMany.mockResolvedValue([
-        { employeeId: 'emp-1' },
+        {
+          id: 'gen-1',
+          employeeId: 'emp-1',
+          date: new Date('2026-07-06T00:00:00.000Z'),
+          startTime: '09:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          source: 'GENERATED',
+          isConfirmed: false,
+        },
       ]);
       mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
@@ -7052,8 +7063,19 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-07' },
       ]);
+      // KON-140 (R-D) — the purge guard reads full rows (context + deletable) under the
+      // month lock: the mock must carry the real shape, not just employeeId.
       mockPrismaService.shift.findMany.mockResolvedValue([
-        { employeeId: 'emp-1' },
+        {
+          id: 'gen-1',
+          employeeId: 'emp-1',
+          date: new Date('2026-07-06T00:00:00.000Z'),
+          startTime: '09:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          source: 'GENERATED',
+          isConfirmed: false,
+        },
       ]);
       mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({

@@ -278,9 +278,23 @@ export function evaluateMoveViolations(
       )
     ) {
       const bucket = rule.ruleType === 'HARD' ? hard : soft;
+      // KON-140 (R-I) — name the arm that actually tripped: a daily-cap rejection
+      // reported with weekly numbers contradicted itself.
+      const maxDaily = rule.config.maxDailyHours as number | undefined;
+      const dayNet = ctx.monthShifts
+        .filter((s) => s.date === targetDate)
+        .reduce((sum, s) => sum + toNetMinutes(s), 0);
+      // Labeling only (the DECISION came from the engine call above): tolerance is
+      // ignored here, so an edge case within tolerance may still read as weekly.
+      const dailyTripped =
+        maxDaily !== undefined &&
+        maxDaily < 12 &&
+        dayNet + shiftMinutes > Math.min(maxDaily * 60, 720);
       bucket.push({
         rule: 'CONTRACT_COMPLIANCE',
-        message: `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
+        message: dailyTripped
+          ? `Daily cap: ${Math.round(((dayNet + shiftMinutes) / 60) * 10) / 10}h on ${targetDate}, configured limit ${maxDaily}h`
+          : `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
       });
       break;
     }

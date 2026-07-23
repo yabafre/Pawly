@@ -3,7 +3,7 @@
 **Date:** 2026-07-23
 **Author:** Alex
 **Type:** fix
-**Status:** in-progress
+**Status:** done
 
 > **Gate note:** the remediation plan was presented in the verification-audit report
 > (https://claude.ai/code/artifact/fc6aac28-3f46-43fd-b707-8394e4991e07) and approved by
@@ -99,4 +99,34 @@ verification power (V6).
 
 ## Result
 
-<!-- Filled after implementation -->
+Shipped on `feature/KON-140-ccn-interaction-fixes` in two passes: the implementation
+commit, then fixes for the 14 findings of an adversarial review workflow (4 reviewers ×
+2 refuters; every finding held). Highlights of the review round:
+
+- **R-A (critical, executed counterexample)**: the "DAILY_REST cannot be introduced by
+  removal" proof was FALSE for removals inside a merged block (bridge splits, cross-
+  midnight start-date flips). `removalWouldExceedStatutory` now checks DAILY_REST
+  (count-based) and MANDATORY_BREAK (break-carrier removal); the executed counterexamples
+  are pinned as tests.
+- **R-B**: the replay final-state validation now uses introduced-by semantics against the
+  greedy state's own structural keys (legacy survivor breaches no longer veto cpsat).
+- **R-C**: `STRUCTURAL_STATUTORY_KINDS` extended with REST_DAYS_WINDOW and
+  MANDATORY_BREAK (both non-monotone under insertion).
+- **R-D**: `deleteGeneratedShifts` (bulk purge) gained the same introduced-by removal
+  guard, in-transaction under the month lock.
+- **R-E**: `deleteShift` refetches the row fail-closed under the lock (concurrent-move
+  TOCTOU).
+- **R-F**: showcase normalization extended to `validateShiftsAgainstRules` via a shared
+  `normalizeStatutoryShowcaseRules` (generation already went through `listRules`).
+- **R-G/K**: harness NIGHT carries a 20-min break (overnight coverage no longer vacuous)
+  and the workday universe spans all 7 days.
+- **R-I**: move rejections name the daily arm; **R-J**: V7/V8 test coverage added.
+- V7 day-minutes made LAZY (only when a <12h daily cap is configured) after the
+  unconditional reduce cost ~25% on the 11-10 stress.
+
+**Verification**: full APED turbo runner 8/8 green, property harness 5/5 under the
+strengthened generators, module spec 56 tests, tsc at the 24-error pre-existing baseline.
+**Known accepted limits** (documented): school-day minutes absent from the 44h
+history/forward zones (under-count, false-negatives only); `pnpm --filter api test` run
+directly (no TURBO_HASH/CI) uses standalone perf budgets under full parallelism and can
+flake the 11-10 stress — use the turbo runner.

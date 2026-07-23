@@ -423,6 +423,59 @@ describe('KON-140 (V3) — removalWouldExceedStatutory (non-monotone structure r
     );
   });
 
+
+  it('flags DAILY_REST when removing a cross-midnight bridge splits a merged block (KON-140 R-A, executed counterexample)', () => {
+    // P: D 15:00-18:00 · R: D 21:30->00:30 (overnight bridge) · S: D+1 00:30-08:00.
+    // R and S merge into one block STARTING D, so the only gap (18:00->21:30) is
+    // intra-day exempt and the state is clean. Removing R leaves [P] and [S] with a
+    // 6.5h gap whose blocks start D and D+1 -> hard inter-day DAILY_REST.
+    const windowShifts = [
+      shift('2026-03-02', '15:00', '18:00', 0),
+      shift('2026-03-02', '21:30', '00:30', 0),
+      shift('2026-03-03', '00:30', '08:00', 30),
+    ];
+    expect(findStatutoryViolations(windowShifts, S)).toEqual([]);
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-03-02', '21:30', '00:30', 0),
+        S,
+      ),
+    ).toContain('DAILY_REST');
+  });
+
+  it('flags DAILY_REST when removing the sub-midnight segment shifts the successor start date (KON-140 R-A)', () => {
+    // 13:00-15:00 + [21:00-00:00 + 00:00-04:00 merged, starts D]: the 6h gap is
+    // intra-day exempt. Removing 21:00-00:00 leaves a block starting D+1 -> the 9h gap
+    // becomes inter-day and deficient.
+    const windowShifts = [
+      shift('2026-03-02', '13:00', '15:00', 0),
+      shift('2026-03-02', '21:00', '00:00', 0),
+      shift('2026-03-03', '00:00', '04:00', 0),
+    ];
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-03-02', '21:00', '00:00', 0),
+        S,
+      ),
+    ).toContain('DAILY_REST');
+  });
+
+  it('flags MANDATORY_BREAK when removing the shift that carried the day\'s only break (KON-140 R-C)', () => {
+    const windowShifts = [
+      shift('2026-03-02', '08:00', '15:00', 0), // 7h net, no break
+      shift('2026-03-02', '15:00', '16:00', 30), // carries the break, merged day
+    ];
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-03-02', '15:00', '16:00', 30),
+        S,
+      ),
+    ).toContain('MANDATORY_BREAK');
+  });
+
   it('returns [] for a harmless end-of-block removal', () => {
     const windowShifts = [
       shift('2026-08-03', '08:00', '12:00', 0),

@@ -65,17 +65,23 @@ export const SHIFT_TYPE_MENU = [
     name: 'Night',
     startTime: '21:00',
     endTime: '05:00', // overnight: exercises cross-midnight buckets, inter-day rest, wraps.
-    color: '#334155',
+    breakMinutes: 20, // KON-140 (R-G) — 7h40 net: without a break, MANDATORY_BREAK made
+    color: '#334155', // every NIGHT unassignable and the overnight coverage vacuous.
     clinicId: HARNESS_CLINIC_ID,
   },
 ] as const;
 
+// KON-140 (R-K) — the full 7-day universe: a Mon-Fri-only menu made CONSECUTIVE_DAYS
+// (>6) and weekend-involving REST_DAYS failures structurally unreachable for the
+// properties, so those rules were pressured by nothing.
 const WORKDAY_NAMES = [
   'MONDAY',
   'TUESDAY',
   'WEDNESDAY',
   'THURSDAY',
   'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
 ] as const;
 const DOW_INDEX: Record<(typeof WORKDAY_NAMES)[number], number> = {
   MONDAY: 1,
@@ -83,6 +89,8 @@ const DOW_INDEX: Record<(typeof WORKDAY_NAMES)[number], number> = {
   WEDNESDAY: 3,
   THURSDAY: 4,
   FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 7,
 };
 
 export type PlanningFixture = {

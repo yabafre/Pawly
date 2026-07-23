@@ -1588,4 +1588,74 @@ describe('PlanningService', () => {
       expect(hardViolations.some((v) => v.ruleId === 'rule-cc')).toBe(false);
     });
   });
+
+  describe('KON-140 (V8/R-F) — statutory showcase normalized at read', () => {
+    it('listRules overrides a stale showcase config with the code constants', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'r-showcase',
+          name: 'French labor-law limits',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          priority: 100,
+          isActive: true,
+          config: { maxDailyHours: 10 }, // pre-KON-139 seed
+        },
+        {
+          id: 'r-user',
+          name: 'My clinic cap',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          priority: 50,
+          isActive: true,
+          config: { maxDailyHours: 9 },
+        },
+      ]);
+      const rules = await service.listRules(clinicId);
+      const showcase = rules.find((r) => r.id === 'r-showcase')!;
+      expect((showcase.config as { maxDailyHours: number }).maxDailyHours).toBe(
+        12,
+      );
+      // user rules untouched — a genuine tightening stays enforceable
+      const user = rules.find((r) => r.id === 'r-user')!;
+      expect((user.config as { maxDailyHours: number }).maxDailyHours).toBe(9);
+    });
+
+    it('validateShiftsAgainstRules does not enforce a stale showcase maxDailyHours: 10', async () => {
+      mockPrismaService.planningRule.findMany.mockResolvedValue([
+        {
+          id: 'r-showcase',
+          name: 'French labor-law limits',
+          category: 'CONTRACT_COMPLIANCE',
+          ruleType: 'HARD',
+          priority: 100,
+          isActive: true,
+          config: { maxDailyHours: 10 },
+        },
+      ]);
+      // 11h net day: legal under the engine's 12h; the stale 10h seed must not block it.
+      mockPrismaService.shift.findMany.mockResolvedValue([
+        {
+          id: 's-11h',
+          date: new Date('2026-08-03'),
+          shiftTypeCode: 'SURGERY',
+          startTime: '07:00',
+          endTime: '18:30',
+          breakMinutes: 30,
+          employeeId: 'emp-1',
+          employee: { id: 'emp-1', jobType: 'ASV', contractHours: 35 },
+        },
+      ]);
+      const result = await service.validateShiftsAgainstRules(clinicId, {
+        startDate: '2026-08-01T00:00:00.000Z',
+        endDate: '2026-08-31T23:59:59.999Z',
+      });
+      expect(
+        result.hardViolations.filter(
+          (v) => v.messageKey === 'violations.contractCompliance.dailyOvertime',
+        ),
+      ).toHaveLength(0);
+    });
+  });
+
 });

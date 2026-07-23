@@ -28,8 +28,8 @@ import type { CounterWithEmployee } from './equity-counter.service';
 import {
   findStatutoryViolations,
   isoWeekStart,
+  normalizeStatutoryShowcaseRules,
   regimeForJobType,
-  STATUTORY_RULE_CONFIG,
   STATUTORY_RULE_NAME,
   STATUTORY_WINDOW_DAYS,
   type StatutoryShift,
@@ -138,16 +138,9 @@ export class PlanningService {
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
-    // KON-140 (V8) — the seeded statutory showcase row is display-only, but clinics
-    // seeded before KON-139 still carry the old limits in DB (maxDailyHours: 10 while
-    // the engine enforces 12). Normalize AT READ from the code constants so the display
-    // is always truthful — no data migration, and admin edits to the showcase cannot
-    // desync it either.
-    return rules.map((r) =>
-      r.name === STATUTORY_RULE_NAME
-        ? { ...r, config: { ...STATUTORY_RULE_CONFIG } }
-        : r,
-    );
+    // KON-140 (V8) — normalize the seeded statutory showcase from the code constants:
+    // display stays truthful and stale seeds can't be silently ENFORCED (R-F).
+    return normalizeStatutoryShowcaseRules(rules);
   }
 
   async getRuleById(clinicId: string, ruleId: string) {
@@ -182,11 +175,15 @@ export class PlanningService {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
 
-    // Load active planning rules for this clinic, ordered by priority DESC
-    const rules = await this.prisma.planningRule.findMany({
-      where: { clinicId, isActive: true },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-    });
+    // Load active planning rules for this clinic, ordered by priority DESC.
+    // KON-140 (R-F) — normalized like every evaluation surface: a stale showcase seed
+    // (maxDailyHours: 10) must not be enforced at publish while generation sees 12.
+    const rules = normalizeStatutoryShowcaseRules(
+      await this.prisma.planningRule.findMany({
+        where: { clinicId, isActive: true },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+      }),
+    );
 
     // Load shifts in the date range with employee data
     const shifts = await this.prisma.shift.findMany({
