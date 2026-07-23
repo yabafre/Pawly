@@ -47,9 +47,11 @@ clinic, which is Pawly's entire market.
   (generation eligibility, `moveShift`/`createManualShift` guards, publish validation,
   cpsat replay), When the employee is a `VET`, Then annexe VII limits apply; otherwise corps
   1875 limits apply. Zero call-site left regime-blind (compile-enforced signature change).
-- [ ] **AC2 — 12h daily cap.** Given a 12h-net continuous guard shift, When eligibility runs,
-  Then it is assignable (was blocked at 10h); Given 12h01+, Then blocked — both regimes
-  (corps art. 18 / annexe VII art. 20).
+- [x] **AC2 — 12h daily cap.** Given a 12h-net continuous guard shift, When eligibility runs,
+  Then it is assignable (was blocked at 10h); Given 12h01+, Then blocked.
+  _Amended by KON-140 (V2): "both regimes" was over-optimistic — corps 1875 pins amplitude
+  AND duration at 12h, so 12h net + the mandatory 20-min break is only realizable on the
+  annexe VII side (15h amplitude). Corps ceiling ≈ 11h40 net. Legally correct behavior._
 - [ ] **AC3 — Continuous-day amplitude.** Given a single-block worked day, Then amplitude is
   capped at 12h (SUPPORT_STAFF) / 15h (PRACTITIONER) as HARD; Given a discontinuous day,
   Then the 13h cap stays as today.

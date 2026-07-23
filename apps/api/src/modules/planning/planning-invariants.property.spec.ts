@@ -20,6 +20,7 @@ import {
   configureFixture,
   planningFixtureArb,
   buildImprovableCpsatFixture,
+  SHIFT_TYPE_MENU,
   HARNESS_CLINIC_ID,
   type GenerationHarness,
 } from './planning-harness.testutil';
@@ -99,7 +100,9 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
               date: isoDate(a.date),
               startTime: a.startTime,
               endTime: a.endTime,
-              breakMinutes: 0,
+              // KON-140 (V6) — was hardcoded 0: harmless while the menu had no breaks,
+              // but a served GUARD (40-min break) must not read as a break-less 12h day.
+              breakMinutes: a.breakMinutes ?? 0,
             });
           }
           for (const s of f.survivors) {
@@ -217,7 +220,7 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
         date: isoDate(a.date),
         startTime: a.startTime,
         endTime: a.endTime,
-        breakMinutes: 0,
+        breakMinutes: a.breakMinutes ?? 0, // KON-140 (V6) — same oracle fix as P1
       });
       byEmployee.set(a.employeeId, list);
     }
@@ -229,4 +232,24 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
       ).toEqual([]);
     }
   }, 60000);
+
+  // KON-140 (V6) — the safety property is only as strong as what the generators can
+  // produce. This pins the menu's ability to pressure the KON-139 rule set: at least one
+  // continuous >=10h-net type (REST_DAYS trigger / 12h-cap territory) and one overnight
+  // type (cross-midnight paths). If a refactor waters the menu down, this fails before
+  // the property silently turns vacuous again (verification-audit V6).
+  it('generator menu can pressure the CCN rules (>=10h continuous + overnight types)', () => {
+    const net = (t: { startTime: string; endTime: string }) => {
+      const [sh, sm] = t.startTime.split(':').map(Number);
+      const [eh, em] = t.endTime.split(':').map(Number);
+      const raw = eh * 60 + em - (sh * 60 + sm);
+      const span = raw < 0 ? raw + 1440 : raw;
+      const brk = (t as { breakMinutes?: number }).breakMinutes ?? 0;
+      return span - brk;
+    };
+    expect(SHIFT_TYPE_MENU.some((t) => net(t) >= 600)).toBe(true);
+    expect(
+      SHIFT_TYPE_MENU.some((t) => t.endTime < t.startTime), // overnight wrap
+    ).toBe(true);
+  });
 });

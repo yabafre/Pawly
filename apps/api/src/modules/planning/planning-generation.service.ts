@@ -18,8 +18,11 @@ import { PlanningTemplateService } from './planning-template.service';
 import { EquityCounterService } from './equity-counter.service';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import {
+  findStatutoryViolations,
   regimeForJobType,
+  removalWouldExceedStatutory,
   STATUTORY_WINDOW_DAYS,
+  STRUCTURAL_STATUTORY_KINDS,
   wouldExceedStatutory,
   type StatutoryShift,
 } from './french-labor-law';
@@ -123,10 +126,21 @@ type SurvivingShift = AssignedShift & { jobType: string | null };
  * 12-week windows to weeks with known data. Immutable during the run (determinism).
  */
 type StatutoryEvalCtx = {
+  /** empId -> ISO-Monday -> net minutes, for weeks OUTSIDE [firstMonthMonday, lastCounterMonday]: 11 weeks back AND 11 weeks forward (KON-140 V5 — future months already persisted count toward the 44h average). */
   weeklyHistory: Map<string, Map<string, number>>;
   firstMonthMonday: string;
+  /** Monday of the month's last ISO week — the last week weeklyMinutesCounter owns. */
+  lastCounterMonday: string;
+  /** Forward judgment horizon for 12-week windows (lastCounterMonday + 11 weeks). */
   lastWeekMonday: string;
 };
+
+/** UTC-safe `YYYY-MM-DD` + delta days (module-level; the class helpers are instance-bound). */
+function addDaysISO(dateStr: string, delta: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().split('T')[0];
+}
 
 type RuleEntry = {
   id: string;
@@ -414,7 +428,7 @@ export class PlanningGenerationService {
     }
 
     // Story 13-2 (KON-134) — widen the cross-month context the statutory eligibility window
-    // (evaluateEligibility, step 5) reads to +/-8 real days. Seed into assignmentIndex so the
+    // (evaluateEligibility, step 5) reads to +/-14 real days (STATUTORY_WINDOW_DAYS, KON-139). Seed into assignmentIndex so the
     // eligibility predicate — main loop + repair + replay, which all share this one map — sees
     // the frontier context. Deliberately NOT seeded into dayOfWeekCounts / weeklyMinutesCounter
     // / allShiftsForScoring, so rotation/equity/fill stay byte-identical (invariant 11-10).
@@ -437,10 +451,18 @@ export class PlanningGenerationService {
       .toISOString()
       .split('T')[0];
     const firstMonthMonday = this.getWeekBounds(firstDayOfMonth).start;
-    const lastWeekMonday = this.getWeekBounds(lastDayOfMonth).start;
+    const lastCounterMonday = this.getWeekBounds(lastDayOfMonth).start;
+    // KON-140 (V5) — judge 12-week windows up to 11 weeks past the month: future weeks
+    // already persisted in DB participate via the preloaded map below.
+    const lastWeekMonday = addDaysISO(lastCounterMonday, 11 * 7);
     const statutoryCtx: StatutoryEvalCtx = {
-      weeklyHistory: await this.loadWeeklyHistory(clinicId, firstMonthMonday),
+      weeklyHistory: await this.loadWeeklyHistory(
+        clinicId,
+        firstMonthMonday,
+        lastCounterMonday,
+      ),
       firstMonthMonday,
+      lastCounterMonday,
       lastWeekMonday,
     };
 
@@ -883,6 +905,7 @@ export class PlanningGenerationService {
       startTime: string;
       endTime: string;
       shiftTypeCode: string;
+      breakMinutes: number;
     }>;
     try {
       createdShifts = await this.withSerializationRetry(() =>
@@ -1405,6 +1428,8 @@ export class PlanningGenerationService {
       dayOfWeekCounts: Map<string, Map<number, number>>;
       quarterlyDayOfWeekCounts: Map<string, Map<number, number>>;
       statutoryCtx: StatutoryEvalCtx;
+      /** KON-140 (V4) — set ONLY by the cpsat replay: order-sensitive structural kinds are validated once on the final applied state instead. */
+      deferStructuralStatutory?: boolean;
     },
   ): { eligible: boolean; blockedOnlyByRotation: boolean } {
     const slotMinutes =
@@ -1458,9 +1483,19 @@ export class PlanningGenerationService {
       return { eligible: false, blockedOnlyByRotation: false };
     }
 
-    // 4) HARD CONTRACT_COMPLIANCE (weekly + monthly via the unified engine) + minRest
+    // 4) HARD CONTRACT_COMPLIANCE (weekly + monthly + daily via the unified engine) + minRest
     const weekMinutes =
       ctx.weeklyMinutesCounter.get(`${emp.id}|${weekBounds.start}`) || 0;
+    // KON-140 (V7) — net minutes already assigned on the slot's day, for maxDailyHours.
+    const dayNetMinutes = (
+      ctx.assignmentIndex.get(`${emp.id}|${slot.date}`) || []
+    ).reduce(
+      (sum, s) =>
+        sum +
+        this.calculateShiftMinutes(s.startTime, s.endTime) -
+        (s.breakMinutes || 0),
+      0,
+    );
     const hardContractRules = ctx.constraints.hardRules.filter(
       (r) => r.category === 'CONTRACT_COMPLIANCE',
     );
@@ -1480,6 +1515,7 @@ export class PlanningGenerationService {
             monthMinutes: ctx.employeeMinutes.get(emp.id) || 0,
             candidateMinutes: slotMinutes,
             contractHours: emp.contractHours,
+            dayMinutes: dayNetMinutes,
           },
         )
       ) {
@@ -1535,7 +1571,7 @@ export class PlanningGenerationService {
         );
         cursor = this.getNextDate(cursor);
       }
-      const { weeklyHistory, firstMonthMonday, lastWeekMonday } =
+      const { weeklyHistory, firstMonthMonday, lastCounterMonday, lastWeekMonday } =
         ctx.statutoryCtx;
       const statutoryBreach = wouldExceedStatutory(
         statutoryWindow,
@@ -1547,11 +1583,12 @@ export class PlanningGenerationService {
         },
         {
           regime: regimeForJobType(emp.jobType),
+          deferStructural: ctx.deferStructuralStatutory === true,
           // KON-139 — 44h/12-week totals: live counter for in-month weeks, preloaded
           // history for the 11 weeks before the month's first ISO Monday.
           twelveWeek: {
             totals: (isoMonday) =>
-              isoMonday >= firstMonthMonday
+              isoMonday >= firstMonthMonday && isoMonday <= lastCounterMonday
                 ? ctx.weeklyMinutesCounter.get(`${emp.id}|${isoMonday}`) || 0
                 : weeklyHistory.get(emp.id)?.get(isoMonday) || 0,
             lastWeekMonday,
@@ -2765,6 +2802,69 @@ export class PlanningGenerationService {
           const dateChanged =
             !!target.targetDate && target.targetDate !== freshDateISO;
 
+          // KON-140 (V3) — SOURCE-side removal guard: the CCN structure rules are
+          // non-monotone under removal, so vacating the source (employee, day) must be
+          // re-validated too. Final-state semantics: for a same-employee move the shift
+          // re-appears at its target position, so it is injected before the removal check.
+          if (employeeChanged || dateChanged) {
+            const srcWinStart = new Date(`${freshDateISO}T00:00:00.000Z`);
+            srcWinStart.setUTCDate(
+              srcWinStart.getUTCDate() - STATUTORY_WINDOW_DAYS,
+            );
+            const srcWinEnd = new Date(`${freshDateISO}T00:00:00.000Z`);
+            srcWinEnd.setUTCDate(srcWinEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+            const [sourceEmployee, sourceRows] = await Promise.all([
+              tx.employee.findFirst({
+                where: { id: fresh.employeeId, clinicId },
+                select: { jobType: true },
+              }),
+              tx.shift.findMany({
+                where: {
+                  employeeId: fresh.employeeId,
+                  clinicId,
+                  date: { gte: srcWinStart, lte: srcWinEnd },
+                },
+                select: {
+                  date: true,
+                  startTime: true,
+                  endTime: true,
+                  breakMinutes: true,
+                },
+              }),
+            ]);
+            const sourceWindow: StatutoryShift[] = sourceRows.map((s) => ({
+              date: s.date.toISOString().split('T')[0],
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            }));
+            if (!employeeChanged) {
+              // Same employee, new date: the moved shift exists at its target in the
+              // final state (harmless when the target sits outside the source window).
+              sourceWindow.push({
+                date: resolvedTargetDate,
+                startTime: fresh.startTime,
+                endTime: fresh.endTime,
+                breakMinutes: fresh.breakMinutes ?? 0,
+              });
+            }
+            const removalBreaches = removalWouldExceedStatutory(
+              sourceWindow,
+              {
+                date: freshDateISO,
+                startTime: fresh.startTime,
+                endTime: fresh.endTime,
+                breakMinutes: fresh.breakMinutes ?? 0,
+              },
+              { regime: regimeForJobType(sourceEmployee?.jobType) },
+            );
+            if (removalBreaches.length > 0) {
+              throw new ConflictException(
+                `Move rejected — vacating the source day would breach: ${removalBreaches.join(', ')}`,
+              );
+            }
+          }
+
           const u = await tx.shift.update({
             where: { id: shiftId },
             data: {
@@ -3034,7 +3134,54 @@ export class PlanningGenerationService {
     );
 
     // Story 11-6 — delete + amendment commit atomically; notify post-commit.
+    // KON-140 (V3) — the CCN structure rules are NON-monotone under removal (deleting the
+    // middle of merged work can split a vacation, flip a practitioner day's amplitude
+    // limit, or create a >=10h continuous trigger). Re-validate the removal in-transaction
+    // under the same (clinic, month) advisory lock as every other write path.
     await this.prisma.$transaction(async (tx) => {
+      const dateISO = shift.date.toISOString().split('T')[0];
+      await this.lockMonths(tx, clinicId, [month]);
+      const employee = await tx.employee.findFirst({
+        where: { id: shift.employeeId, clinicId },
+        select: { jobType: true },
+      });
+      const winStart = new Date(`${dateISO}T00:00:00.000Z`);
+      winStart.setUTCDate(winStart.getUTCDate() - STATUTORY_WINDOW_DAYS);
+      const winEnd = new Date(`${dateISO}T00:00:00.000Z`);
+      winEnd.setUTCDate(winEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+      const windowRows = await tx.shift.findMany({
+        where: {
+          employeeId: shift.employeeId,
+          clinicId,
+          date: { gte: winStart, lte: winEnd },
+        },
+        select: {
+          date: true,
+          startTime: true,
+          endTime: true,
+          breakMinutes: true,
+        },
+      });
+      const removalBreaches = removalWouldExceedStatutory(
+        windowRows.map((s) => ({
+          date: s.date.toISOString().split('T')[0],
+          startTime: s.startTime,
+          endTime: s.endTime,
+          breakMinutes: s.breakMinutes,
+        })),
+        {
+          date: dateISO,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes,
+        },
+        { regime: regimeForJobType(employee?.jobType) },
+      );
+      if (removalBreaches.length > 0) {
+        throw new ConflictException(
+          `Delete would breach French labor-law limit(s) on the remaining day structure: ${removalBreaches.join(', ')}`,
+        );
+      }
       await tx.shift.delete({ where: { id: shiftId } });
       if (publishedMonths.length > 0) {
         await this.recordAmendment(tx, clinicId, publishedMonths);
@@ -3059,9 +3206,8 @@ export class PlanningGenerationService {
    * Pass `this.prisma` for the advisory path or the active `tx` for the write path, so the
    * enforcement replay sees the same rows the write is about to commit against.
    *
-   * The statutory window is +/- 8 REAL days around the target date — the same window
-   * `createManualShift` uses, and the one `wouldExceedStatutory` documents as its minimum
-   * (candidate's ISO week +/- 1 day). The rotation pool stays month-based (quarter loaded
+   * The statutory window is +/- 14 REAL days (STATUTORY_WINDOW_DAYS, KON-139) around the
+   * target date — the same window `createManualShift` and generation eligibility use. The rotation pool stays month-based (quarter loaded
    * lazily, only when a quarterly rule exists) to preserve the historic counting semantics.
    */
   private async loadMoveValidationInputs(
@@ -3833,6 +3979,7 @@ export class PlanningGenerationService {
       startTime: string;
       endTime: string;
       shiftTypeCode: string;
+      breakMinutes: number;
     }>,
     employees: EmployeeInfo[],
     holes: GenerationResult['holes'],
@@ -3855,6 +4002,7 @@ export class PlanningGenerationService {
         shiftTypeCode: shift.shiftTypeCode,
         employeeId: shift.employeeId,
         employeeName: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown',
+        breakMinutes: shift.breakMinutes ?? 0, // KON-140 — net-minutes truthfulness
       };
     });
 
@@ -4812,6 +4960,9 @@ export class PlanningGenerationService {
       dayOfWeekCounts: ctx.dayOfWeekCounts,
       quarterlyDayOfWeekCounts: ctx.quarterlyDayOfWeekCounts,
       statutoryCtx: ctx.statutoryCtx,
+      // KON-140 (V4) — the one-by-one loop judges only insertion-monotone rules; the
+      // order-sensitive structural kinds are validated once on the final state below.
+      deferStructuralStatutory: true,
     };
     const requiredJobTypesByKey = new Map<string, string[] | undefined>();
     for (const s of ctx.slots) {
@@ -4861,6 +5012,44 @@ export class PlanningGenerationService {
       };
       this.applyAssignment(shift, ctx);
       applied.push(shift);
+    }
+
+    // KON-140 (V4) — final-state validation of the deferred structural kinds, per
+    // employee, on the fully-applied plan (order-insensitive by construction). The
+    // employee's shifts are read back from assignmentIndex so survivors and the
+    // +/-14-day statutory border rows participate exactly like they do in eligibility.
+    if (!rejection) {
+      const { firstMonthMonday, lastCounterMonday } = ctx.statutoryCtx;
+      const scanStart = addDaysISO(firstMonthMonday, -STATUTORY_WINDOW_DAYS);
+      const scanEnd = addDaysISO(lastCounterMonday, 6 + STATUTORY_WINDOW_DAYS);
+      const touched = new Set(applied.map((s) => s.employeeId));
+      outer: for (const employeeId of [...touched].sort()) {
+        const emp = employeeById.get(employeeId);
+        if (!emp) continue;
+        const empShifts: StatutoryShift[] = [];
+        for (
+          let d = scanStart;
+          d <= scanEnd;
+          d = addDaysISO(d, 1)
+        ) {
+          for (const s of ctx.assignmentIndex.get(`${employeeId}|${d}`) || []) {
+            empShifts.push({
+              date: s.date,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              breakMinutes: s.breakMinutes,
+            });
+          }
+        }
+        const finalViolations = findStatutoryViolations(empShifts, {
+          regime: regimeForJobType(emp.jobType),
+          window: { start: scanStart, end: scanEnd },
+        }).filter((v) => !v.soft && STRUCTURAL_STATUTORY_KINDS.has(v.kind));
+        if (finalViolations.length > 0) {
+          rejection = `${employeeId} final-state ${finalViolations[0].kind} on ${finalViolations[0].date}`;
+          break outer;
+        }
+      }
     }
 
     if (rejection) {
@@ -5214,22 +5403,38 @@ export class PlanningGenerationService {
    * by survivors / freshly-assigned shifts.
    */
   /**
-   * KON-139 — net worked minutes per employee per ISO week for the 11 weeks strictly
-   * before `firstMonthMonday` (the CCN 44h/12-week average's history side; in-month weeks
-   * live in weeklyMinutesCounter). One query, reduced in JS — net = gross − breakMinutes,
+   * KON-139/KON-140 — net worked minutes per employee per ISO week for the weeks OUTSIDE
+   * the generated month's counter span: 11 weeks strictly before `firstMonthMonday` AND
+   * (V5) 11 weeks strictly after `lastCounterMonday` — future months already persisted in
+   * DB count toward the 44h/12-week average, so generating months out of order cannot
+   * sneak past the cap. In-month weeks (border week included) live in
+   * weeklyMinutesCounter. One query, reduced in JS — net = gross − breakMinutes,
    * overnight-aware via calculateShiftMinutes. All shift sources count (worked is worked).
+   * The forward range starts at lastCounterMonday+7, strictly after the trailing border
+   * week, so no row of the month being (re)generated can leak in.
    */
   private async loadWeeklyHistory(
     clinicId: string,
     firstMonthMonday: string,
+    lastCounterMonday: string,
   ): Promise<Map<string, Map<string, number>>> {
     const historyStart = new Date(`${firstMonthMonday}T00:00:00.000Z`);
     historyStart.setUTCDate(historyStart.getUTCDate() - 11 * 7);
     const historyEnd = new Date(`${firstMonthMonday}T00:00:00.000Z`);
     historyEnd.setUTCDate(historyEnd.getUTCDate() - 1);
+    const futureStart = new Date(`${lastCounterMonday}T00:00:00.000Z`);
+    futureStart.setUTCDate(futureStart.getUTCDate() + 7);
+    const futureEnd = new Date(`${lastCounterMonday}T00:00:00.000Z`);
+    futureEnd.setUTCDate(futureEnd.getUTCDate() + 11 * 7 + 6);
 
     const shifts = await this.prisma.shift.findMany({
-      where: { clinicId, date: { gte: historyStart, lte: historyEnd } },
+      where: {
+        clinicId,
+        OR: [
+          { date: { gte: historyStart, lte: historyEnd } },
+          { date: { gte: futureStart, lte: futureEnd } },
+        ],
+      },
       select: {
         employeeId: true,
         date: true,

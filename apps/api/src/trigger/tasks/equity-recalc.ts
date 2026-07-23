@@ -93,9 +93,11 @@ export const equityNightlyRecalcTask = schedules.task({
     timezone: 'Europe/Paris',
   },
   run: async () => {
+    // KON-140 (T8 vestige) — period selection must be UTC like everything else in the
+    // engine; the worker's local clock could pick the wrong month around midnight.
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth() + 1;
 
     logger.info('Starting nightly equity counter recalculation', {
       period: `${year}-${String(month).padStart(2, '0')}`,
@@ -133,9 +135,10 @@ export const equityMonthlyFinalTask = schedules.task({
     timezone: 'Europe/Paris',
   },
   run: async () => {
+    // KON-140 (T8 vestige) — UTC, same rationale as the nightly task above.
     const now = new Date();
-    let year = now.getFullYear();
-    let month = now.getMonth(); // 0-based → previous month (1-based)
+    let year = now.getUTCFullYear();
+    let month = now.getUTCMonth(); // 0-based → previous month (1-based)
 
     if (month === 0) {
       month = 12;

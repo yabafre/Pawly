@@ -9,6 +9,7 @@ import {
   maxConsecutiveWorkedDays,
   findStatutoryViolations,
   regimeForJobType,
+  removalWouldExceedStatutory,
   wouldExceedStatutory,
   type StatutoryShift,
 } from './french-labor-law';
@@ -178,7 +179,9 @@ describe('KON-139 — vacation structure (max 2 blocks, 2h/3h minima)', () => {
       }),
     );
   });
-  it('accepts a lawful 2h + 3h split day', () => {
+  it('accepts a lawful 2h + 3h split day with ZERO violations of any kind (KON-140)', () => {
+    // Pre-KON-140 this fixture emitted DAILY_REST on the 3h intra-day gap and the test
+    // only passed by filtering kinds — the verification audit called out the masking.
     const v = findStatutoryViolations(
       [
         shift('2026-08-03', '09:00', '11:00', 0),
@@ -186,12 +189,7 @@ describe('KON-139 — vacation structure (max 2 blocks, 2h/3h minima)', () => {
       ],
       S,
     );
-    expect(
-      v.filter(
-        (x) =>
-          x.kind === 'VACATIONS_COUNT' || x.kind === 'VACATION_MIN_DURATION',
-      ),
-    ).toHaveLength(0);
+    expect(v).toHaveLength(0);
   });
   it('wouldExceedStatutory blocks the candidate creating a 3rd block', () => {
     const windowShifts = [
@@ -357,6 +355,89 @@ describe('KON-139 — 44h average over 12 consecutive ISO weeks', () => {
   });
 });
 
+
+describe('KON-140 (V3) — removalWouldExceedStatutory (non-monotone structure rules)', () => {
+  it('flags VACATIONS_COUNT when removing the middle of merged work splits into 3 blocks', () => {
+    const windowShifts = [
+      shift('2026-08-03', '08:00', '10:00', 0),
+      shift('2026-08-03', '10:00', '12:00', 0), // middle of the merged morning block
+      shift('2026-08-03', '12:00', '14:00', 0),
+      shift('2026-08-03', '16:00', '19:00', 0), // separate afternoon block
+    ];
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-08-03', '10:00', '12:00', 0),
+        S,
+      ),
+    ).toContain('VACATIONS_COUNT');
+  });
+
+  it('flags VACATION_MIN_DURATION when the split leaves a fragment under 2h', () => {
+    const windowShifts = [
+      shift('2026-08-03', '08:00', '09:30', 0),
+      shift('2026-08-03', '09:30', '13:00', 0), // merged with the fragment
+      shift('2026-08-03', '15:00', '19:00', 0),
+    ];
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-08-03', '09:30', '13:00', 0),
+        S,
+      ),
+    ).toContain('VACATION_MIN_DURATION');
+  });
+
+  it('flags practitioner DAILY_AMPLITUDE on continuous->discontinuous shape change; corps pre-breached stays silent', () => {
+    const windowShifts = [
+      shift('2026-08-03', '06:00', '10:00', 30),
+      shift('2026-08-03', '10:00', '14:00', 60),
+      shift('2026-08-03', '14:00', '20:00', 60), // one merged 14h-span block, 12h net
+    ];
+    const removed = shift('2026-08-03', '10:00', '14:00', 60);
+    // Practitioner: continuous 14h <= 15h cap before; discontinuous 14h > 13h after.
+    expect(removalWouldExceedStatutory(windowShifts, removed, P)).toContain(
+      'DAILY_AMPLITUDE',
+    );
+    // Corps: already breached before (14h > 12h continuous cap) -> introduced-by = none.
+    expect(removalWouldExceedStatutory(windowShifts, removed, S)).not.toContain(
+      'DAILY_AMPLITUDE',
+    );
+  });
+
+  it('flags REST_DAYS_WINDOW when the removal CREATES a >=10h continuous trigger day', () => {
+    // Mon 2026-08-03: 10h-net continuous block + a detached evening block (2 blocks ->
+    // not a trigger). Working 11 of the surrounding 14 days leaves only 3 rest days.
+    const windowShifts: ReturnType<typeof shift>[] = [
+      shift('2026-08-03', '07:30', '18:00', 30),
+      shift('2026-08-03', '20:00', '21:00', 0),
+    ];
+    for (let d = 4; d <= 16; d++) {
+      const date = `2026-08-${String(d).padStart(2, '0')}`;
+      if (['2026-08-05', '2026-08-06', '2026-08-12'].includes(date)) continue;
+      windowShifts.push(shift(date, '09:00', '15:20', 20));
+    }
+    const removed = shift('2026-08-03', '20:00', '21:00', 0);
+    expect(removalWouldExceedStatutory(windowShifts, removed, S)).toContain(
+      'REST_DAYS_WINDOW',
+    );
+  });
+
+  it('returns [] for a harmless end-of-block removal', () => {
+    const windowShifts = [
+      shift('2026-08-03', '08:00', '12:00', 0),
+      shift('2026-08-03', '12:00', '16:00', 0),
+    ];
+    expect(
+      removalWouldExceedStatutory(
+        windowShifts,
+        shift('2026-08-03', '12:00', '16:00', 0),
+        S,
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe('consecutive days', () => {
   it('counts the longest run', () => {
     const dates = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-07'];
@@ -517,10 +598,22 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
       expect(kinds).toContain('DAILY_REST');
     });
 
-    it('flags an intra-day split under 11h (Alex: stricter reading)', () => {
+    it('does NOT flag an intra-day split — daily rest is BETWEEN working days (KON-140)', () => {
+      // KON-140 reverses the 13-4 "stricter reading": a 2h lunch gap between two
+      // same-day vacations is CCN structure (vacations + amplitude), not daily rest.
       const shifts = [
         day('2026-03-02', '09:00', '12:00'),
-        day('2026-03-02', '14:00', '18:00'), // 2h gap
+        day('2026-03-02', '14:00', '18:00'), // 2h gap, both blocks start 03-02
+      ];
+      expect(
+        findStatutoryViolations(shifts, S).some((v) => v.kind === 'DAILY_REST'),
+      ).toBe(false);
+    });
+
+    it('still flags a short gap after an overnight block (different start dates)', () => {
+      const shifts = [
+        day('2026-03-02', '22:00', '06:00'), // starts 03-02, ends 03-03 06:00
+        day('2026-03-03', '10:00', '14:00'), // starts 03-03 -> inter-day gap of 4h
       ];
       expect(
         findStatutoryViolations(shifts, S).some((v) => v.kind === 'DAILY_REST'),
@@ -553,13 +646,13 @@ describe('Story 13-4 (KON-136) — statutory extensions', () => {
       ).not.toContain('DAILY_REST');
     });
 
-    it('flags a candidate-introduced deficit even when the window already holds an unrelated one (aped-review F1)', () => {
-      // A pre-existing intra-day split on Mar-01 is itself a <11h gap. A whole-window boolean
-      // "does a deficit exist" would already be true for windowShifts and mask the fresh deficit
-      // the candidate introduces days later — the masking regression F1 closes.
+    it('flags a candidate-introduced deficit even when the window already holds unrelated blocks (aped-review F1)', () => {
+      // The Mar-01 intra-day split is exempt post-KON-140; the point of F1 stands via the
+      // count-based check: the candidate's fresh INTER-day deficit (Mar-04 23:00 -> Mar-05
+      // 06:00 = 7h) must be flagged regardless of the rest of the window's shape.
       const windowShifts = [
         day('2026-03-01', '09:00', '12:00'),
-        day('2026-03-01', '14:00', '18:00'), // pre-existing 2h split gap
+        day('2026-03-01', '14:00', '18:00'), // intra-day split (exempt, KON-140)
         day('2026-03-04', '20:00', '23:00'),
       ];
       const candidate = day('2026-03-05', '06:00', '14:00'); // 23:00 -> 06:00 = 7h < 11h

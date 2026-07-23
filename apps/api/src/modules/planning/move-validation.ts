@@ -240,6 +240,14 @@ export function evaluateMoveViolations(
     Math.round((projectedWeeklyMinutes / 60) * 10) / 10;
   const contractWeeklyMinutes = employee.contractHours * 60;
 
+  const toNetMinutes = (s: MoveEvalShift): number => {
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    const raw = eh * 60 + em - (sh * 60 + sm);
+    const span = raw < 0 ? raw + 1440 : raw;
+    return Math.max(0, span - (s.breakMinutes || 0));
+  };
+
   const contractRules = ctx.rules.filter(
     (r) => r.category === 'CONTRACT_COMPLIANCE',
   );
@@ -262,6 +270,10 @@ export function evaluateMoveViolations(
           monthMinutes: 0,
           candidateMinutes: shiftMinutes,
           contractHours: employee.contractHours,
+          // KON-140 (V7) — target-day net minutes for a configured maxDailyHours.
+          dayMinutes: ctx.monthShifts
+            .filter((s) => s.date === targetDate)
+            .reduce((sum, s) => sum + toNetMinutes(s), 0),
         },
       )
     ) {

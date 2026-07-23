@@ -29,6 +29,7 @@ import {
   findStatutoryViolations,
   isoWeekStart,
   regimeForJobType,
+  STATUTORY_RULE_CONFIG,
   STATUTORY_RULE_NAME,
   STATUTORY_WINDOW_DAYS,
   type StatutoryShift,
@@ -126,7 +127,7 @@ export class PlanningService {
   }
 
   async listRules(clinicId: string, filters?: ListPlanningRulesInput) {
-    return this.prisma.planningRule.findMany({
+    const rules = await this.prisma.planningRule.findMany({
       where: {
         clinicId,
         ...(filters?.category ? { category: filters.category } : {}),
@@ -137,6 +138,16 @@ export class PlanningService {
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
+    // KON-140 (V8) — the seeded statutory showcase row is display-only, but clinics
+    // seeded before KON-139 still carry the old limits in DB (maxDailyHours: 10 while
+    // the engine enforces 12). Normalize AT READ from the code constants so the display
+    // is always truthful — no data migration, and admin edits to the showcase cannot
+    // desync it either.
+    return rules.map((r) =>
+      r.name === STATUTORY_RULE_NAME
+        ? { ...r, config: { ...STATUTORY_RULE_CONFIG } }
+        : r,
+    );
   }
 
   async getRuleById(clinicId: string, ruleId: string) {
@@ -414,11 +425,22 @@ export class PlanningService {
     // Human-facing date is French-formatted; `affectedDate` stays ISO because it
     // keys the grid-cell conflict lookup (`${employeeId}|${day.date}`).
     const displayDate = PlanningService.formatFrDate(v.date);
+    // KON-140 — deficit kinds measure a value UNDER a minimum; the fallback comparator
+    // must read the right way ('(0 > 20)' for a missing break was nonsense).
+    const DEFICIT_KINDS: ReadonlySet<StatutoryViolationKind> = new Set([
+      'DAILY_REST',
+      'WEEKLY_REST',
+      'MANDATORY_BREAK',
+      'REST_DAYS_WINDOW',
+      'REST_DAYS_SUNDAY',
+      'VACATION_MIN_DURATION',
+    ]);
+    const cmp = DEFICIT_KINDS.has(v.kind) ? '<' : '>';
     return {
       ruleId: `statutory:${v.kind.toLowerCase()}`,
       ruleName: STATUTORY_RULE_NAME,
       category: 'CONTRACT_COMPLIANCE',
-      message: `Statutory ${v.kind} limit exceeded on ${displayDate} (${actual} > ${limit})`,
+      message: `Statutory ${v.kind} limit breached on ${displayDate} (${actual} ${cmp} ${limit})`,
       messageKey: PlanningService.STATUTORY_MESSAGE_KEY[v.kind],
       messageParams: { date: displayDate, actual, limit },
       affectedEmployeeId: employeeId,
