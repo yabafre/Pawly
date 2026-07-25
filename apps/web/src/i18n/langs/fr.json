@@ -220,7 +220,7 @@
         "STAFFING_MINIMUM": "Personnel minimum requis par type de créneau",
         "ROTATION_EQUITY": "Rotation équitable de jours spécifiques entre employés",
         "SKILL_REQUIREMENT": "Rôles requis par type de créneau",
-        "CONTRACT_COMPLIANCE": "Respect des limites d'heures hebdomadaires/mensuelles"
+        "CONTRACT_COMPLIANCE": "Respect des limites d'heures journalières, hebdomadaires et mensuelles"
       },
       "form": {
         "createTitle": "Nouvelle règle de planning",
@@ -254,6 +254,8 @@
           "requiredJobTypes": "Types de poste requis",
           "maxWeeklyHours": "Max heures hebdomadaires",
           "maxMonthlyHours": "Max heures mensuelles",
+          "maxDailyHours": "Max heures par jour",
+          "maxDailyHoursHint": "Au-delà de 12h, la limite légale s'applique de toute façon.",
           "overtimeThresholdPercent": "Seuil heures supplémentaires (%)",
           "days": {
             "monday": "Lundi",

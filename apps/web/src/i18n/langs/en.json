@@ -220,7 +220,7 @@
         "STAFFING_MINIMUM": "Minimum staff required per shift type",
         "ROTATION_EQUITY": "Fair rotation of specific days across employees",
         "SKILL_REQUIREMENT": "Required job roles per shift type",
-        "CONTRACT_COMPLIANCE": "Respect weekly/monthly hour limits"
+        "CONTRACT_COMPLIANCE": "Respect daily, weekly and monthly hour limits"
       },
       "form": {
         "createTitle": "New Planning Rule",
@@ -254,6 +254,8 @@
           "requiredJobTypes": "Required job types",
           "maxWeeklyHours": "Max weekly hours",
           "maxMonthlyHours": "Max monthly hours",
+          "maxDailyHours": "Max hours per day",
+          "maxDailyHoursHint": "Above 12h the statutory limit applies anyway.",
           "overtimeThresholdPercent": "Overtime threshold (%)",
           "days": {
             "monday": "Monday",
