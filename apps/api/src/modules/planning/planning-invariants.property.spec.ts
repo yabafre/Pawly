@@ -13,6 +13,7 @@ import fc from 'fast-check';
 import {
   findStatutoryViolations,
   regimeForJobType,
+  STATUTORY_WINDOW_DAYS,
   type StatutoryShift,
 } from './french-labor-law';
 import {
@@ -27,6 +28,20 @@ import {
 
 // CI-aware run ladder (NFR2 budget pattern — bounded shrinking/runs).
 const NUM_RUNS_DET = process.env.CI ? 15 : process.env.TURBO_HASH ? 25 : 40;
+
+/** The data window the engine had for `YYYY-MM`: the month +/- its statutory radius. */
+const monthDataWindow = (month: string): { start: string; end: string } => {
+  const [y, m] = month.split('-').map(Number);
+  const shift = (d: Date, days: number): string => {
+    const c = new Date(d);
+    c.setUTCDate(c.getUTCDate() + days);
+    return c.toISOString().slice(0, 10);
+  };
+  return {
+    start: shift(new Date(Date.UTC(y, m - 1, 1)), -STATUTORY_WINDOW_DAYS),
+    end: shift(new Date(Date.UTC(y, m, 0)), STATUTORY_WINDOW_DAYS),
+  };
+};
 
 describe('Planning engine invariants (Story 13-8, KON-138)', () => {
   let harness: GenerationHarness;
@@ -113,13 +128,20 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
               breakMinutes: s.breakMinutes,
             });
           }
-          const jobTypeOf = new Map(
-            f.employees.map((e) => [e.id, e.jobType]),
-          );
+          const jobTypeOf = new Map(f.employees.map((e) => [e.id, e.jobType]));
+          // KON-141 — re-evaluate over the SAME data window the engine reasoned on: the union
+          // of its per-candidate +/-STATUTORY_WINDOW_DAYS windows across the month. Omitting it
+          // clips open-ended rest gaps to the ISO-week edge, which manufactures a weekly-rest
+          // "deficit" at the month frontier out of hours nobody ever loaded — the engine cannot
+          // be held to a rest period that depends on data outside its window. Interior weeks,
+          // where every gap is bounded by real shifts, are unaffected: this was verified by
+          // re-running the recorded counterexamples against the pre-fix engine, which stays RED.
+          const window = monthDataWindow(f.month);
           for (const [empId, shifts] of byEmployee) {
             expect(
               findStatutoryViolations(shifts, {
                 regime: regimeForJobType(jobTypeOf.get(empId)),
+                window,
               }).filter((v) => !v.soft),
             ).toEqual([]);
           }

@@ -541,17 +541,83 @@ function weekHasRestDeficit(
   weekStart: string,
   win?: { lo: number; hi: number },
 ): boolean {
-  const worked = allShifts.some((s) => isoWeekStart(s.date) === weekStart);
-  if (!worked) return false;
+  return weekRestDeficitFrom(
+    restGaps(allShifts),
+    new Set(allShifts.map((s) => isoWeekStart(s.date))),
+    weekStart,
+    win,
+  );
+}
+
+/**
+ * ISO weeks whose weekly-rest verdict an insertion of `candidate` can change (KON-141).
+ *
+ * Inserting a shift splits exactly ONE pre-existing rest gap, so only weeks that gap
+ * touches can lose their >=35h rest. Enumerating them is what makes the guard sound:
+ * judging just `isoWeekStart(candidate.date)` misses the previous week whenever the split
+ * gap started there (a Monday-night shift eating into the Sunday-evening gap).
+ *
+ * Bounded by the data window, hence at most ~5 weeks for a +/-14-day window.
+ */
+function weeksSpannedByInsertion(
+  gapsBefore: Array<[number, number]>,
+  candidate: StatutoryShift,
+  win: { lo: number; hi: number },
+): string[] {
+  const [cStart, cEnd] = toAbsoluteInterval(candidate);
+  let from = cStart;
+  let to = cEnd;
+  for (const [gs, ge] of gapsBefore) {
+    // the gap the candidate lands in (half-open, sentinels included)
+    if (gs <= cStart && ge >= cEnd) {
+      from = Math.max(gs, win.lo);
+      to = Math.min(ge, win.hi);
+      break;
+    }
+  }
+  const weeks: string[] = [];
+  let wk = isoWeekStart(epochMinuteToDate(from));
+  const last = isoWeekStart(epochMinuteToDate(Math.max(to - 1, from)));
+  for (;;) {
+    weeks.push(wk);
+    if (wk >= last) break;
+    wk = addDays(wk, 7);
+  }
+  const own = isoWeekStart(candidate.date);
+  if (!weeks.includes(own)) weeks.push(own);
+  return weeks;
+}
+
+/**
+ * Same verdict as `weekHasRestDeficit`, on gaps and worked-weeks computed ONCE by the
+ * caller. KON-141: the incremental guard has to judge several weeks per candidate, and
+ * recomputing `restGaps` (a sort over the whole window) per week is the hot path.
+ */
+function weekRestDeficitFrom(
+  gaps: Array<[number, number]>,
+  workedWeeks: ReadonlySet<string>,
+  weekStart: string,
+  win?: { lo: number; hi: number },
+): boolean {
+  if (!workedWeeks.has(weekStart)) return false;
   const lo = shiftEpoch(weekStart);
   const hi = lo + 7 * MIN_PER_DAY;
+  // KON-141 — a week the data window does not fully cover cannot be decided: its rest may
+  // continue past the edge into hours we never loaded. Judging it anyway invents a verdict
+  // from missing data (either a phantom 35h or a phantom deficit, depending on which edge
+  // the clip lands on). Same discipline `boundedRestDaysFailures` already applies to the
+  // 14-day rest windows. Weeks skipped here are judged by whichever caller does cover them.
+  if (win && (lo < win.lo || hi > win.hi)) return false;
   const restMin = FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS * 60;
-  const overlapping = restGaps(allShifts).filter(
-    ([gs, ge]) => gs < hi && ge > lo,
-  );
-  return !overlapping.some(
-    ([gs, ge]) => clampGapLen(gs, ge, lo, hi, win) >= restMin,
-  );
+  let deficit = true;
+  for (const [gs, ge] of gaps) {
+    if (gs >= hi || ge <= lo) continue;
+    if (clampGapLen(gs, ge, lo, hi, win) >= restMin) {
+      deficit = false;
+      break;
+    }
+  }
+  return deficit;
 }
 
 /**
@@ -645,6 +711,13 @@ export function findStatutoryViolations(
   }
 
   // Weekly rest — every ISO week with worked shifts must be overlapped by a >=35h rest gap.
+  // NOTE (KON-141): this POST-HOC pass keeps Story 13-2's fail-closed policy — a week that
+  // pokes out of the loaded window is still judged, on rest the window can prove, so an
+  // unprovable week reads as a deficit rather than silently passing. Callers that cannot
+  // supply the missing side (the invariant harness re-evaluating a generated month, whose
+  // "future" simply does not exist yet) must scope WHICH weeks they assert on; they must not
+  // reinterpret this verdict. The incremental guard is the one that skips undecidable weeks,
+  // because there a skip costs nothing: the week is re-judged by its own candidates.
   const weeks = new Set(sortedDays.map(isoWeekStart));
   const gaps = restGaps(shifts);
   const restMin = FRENCH_LABOR_LAW.MIN_WEEKLY_REST_HOURS * 60;
@@ -1035,13 +1108,26 @@ export function wouldExceedStatutory(
       kinds.push('CONSECUTIVE_DAYS');
   }
 
-  // Weekly rest — candidate's ISO week, introduced-by-candidate
-  const wk = isoWeekStart(candidate.date);
-  if (
-    weekHasRestDeficit(withCandidate, wk, win) &&
-    !weekHasRestDeficit(windowShifts, wk, win)
-  ) {
-    kinds.push('WEEKLY_REST');
+  // Weekly rest (L.3132-2), introduced-by-candidate. KON-141: judging ONLY the candidate's
+  // own ISO week is unsound. Inserting a shift SPLITS one rest gap, and that gap can
+  // overlap several ISO weeks — a Monday-night shift shortens the gap that started the
+  // previous Sunday evening, so it can drop the PREVIOUS week under 35h while its own week
+  // stays fine. The harness caught exactly that (served plan at 33h). The affected set is
+  // every week the split gap touches, which is the same "enumerate what actually changed"
+  // discipline the rest-days rule already applies to its 14-day windows.
+  const gapsAfter = restGaps(withCandidate);
+  const gapsBefore = restGaps(windowShifts);
+  const weeksAfter = new Set(withCandidate.map((s) => isoWeekStart(s.date)));
+  const weeksBefore = new Set(windowShifts.map((s) => isoWeekStart(s.date)));
+  const wkSet = weeksSpannedByInsertion(gapsBefore, candidate, win);
+  for (const wkX of wkSet) {
+    if (
+      weekRestDeficitFrom(gapsAfter, weeksAfter, wkX, win) &&
+      !weekRestDeficitFrom(gapsBefore, weeksBefore, wkX, win)
+    ) {
+      kinds.push('WEEKLY_REST');
+      break;
+    }
   }
 
   // Daily rest (L.3131-1) — a NEW deficit gap introduced by the candidate. Count-based, not a
