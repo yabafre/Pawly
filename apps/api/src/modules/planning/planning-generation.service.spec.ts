@@ -5923,24 +5923,29 @@ describe('PlanningGenerationService', () => {
     // AC2 (verbatim from story 11-3): "When an admin manually adds a shift ... such that
     // an employee would exceed a statutory limit, Then the action is blocked — the add is
     // rejected with a conflict error".
-    it('throws ConflictException when the new shift pushes the day over 10h net (statutory)', async () => {
+    it('throws ConflictException when the new shift pushes the day over the 12h net conventional cap (KON-139/140)', async () => {
       mockPrismaService.clinicShiftType.findFirst.mockResolvedValue({
         id: 'st-late',
         code: 'SURGERY',
-        startTime: '17:00',
-        endTime: '20:00',
-        breakMinutes: 0,
+        startTime: '16:00',
+        endTime: '21:00',
+        breakMinutes: 30,
         clinicId,
       });
-      // Existing 08:00-16:00 (8h) + candidate 17:00-20:00 (3h) = 11h net > 10h. The same
-      // mock feeds the overlap query (no overlap) and the statutory window query.
+      // Existing 08:00-16:00 (30 break -> 7.5h net), TOUCHING candidate 16:00-21:00
+      // (30 break -> 4.5h net + 20-min-break rule satisfied): one continuous 13h-span
+      // day, 12h05... net 7.5+4.5 = 12h -> push over with 12h15: use 16:00-21:15?
+      // Simpler: existing 07:30-16:00 (30 break, 8h net) + 16:00-21:00 (30 break,
+      // 4.5h net) = 12.5h net > 12h. Merged/touching, so no intra-day gap is involved
+      // (KON-140 exempts intra-day gaps from DAILY_REST — the old 11h fixture passed
+      // for that wrong reason, verification audit).
       mockPrismaService.shift.findMany.mockResolvedValue([
         {
           id: 'ex-day',
           date: new Date('2026-03-10T00:00:00.000Z'),
-          startTime: '08:00',
+          startTime: '07:30',
           endTime: '16:00',
-          breakMinutes: 0,
+          breakMinutes: 30,
           employeeId: 'emp-1',
           clinicId,
         },
@@ -5950,9 +5955,9 @@ describe('PlanningGenerationService', () => {
           employeeId: 'emp-1',
           date: '2026-03-10',
           shiftTypeCode: 'SURGERY',
-          startTime: '17:00',
-          endTime: '20:00',
-          breakMinutes: 0,
+          startTime: '16:00',
+          endTime: '21:00',
+          breakMinutes: 30,
         }),
       ).rejects.toThrow(ConflictException);
     });
@@ -6917,8 +6922,19 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-07' },
       ]);
+      // KON-140 (R-D) — the purge guard reads full rows (context + deletable) under the
+      // month lock: the mock must carry the real shape, not just employeeId.
       mockPrismaService.shift.findMany.mockResolvedValue([
-        { employeeId: 'emp-1' },
+        {
+          id: 'gen-1',
+          employeeId: 'emp-1',
+          date: new Date('2026-07-06T00:00:00.000Z'),
+          startTime: '09:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          source: 'GENERATED',
+          isConfirmed: false,
+        },
       ]);
       mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({
@@ -7047,8 +7063,19 @@ describe('PlanningGenerationService', () => {
       mockPrismaService.planningPeriodStatus.findMany.mockResolvedValue([
         { month: '2026-07' },
       ]);
+      // KON-140 (R-D) — the purge guard reads full rows (context + deletable) under the
+      // month lock: the mock must carry the real shape, not just employeeId.
       mockPrismaService.shift.findMany.mockResolvedValue([
-        { employeeId: 'emp-1' },
+        {
+          id: 'gen-1',
+          employeeId: 'emp-1',
+          date: new Date('2026-07-06T00:00:00.000Z'),
+          startTime: '09:00',
+          endTime: '15:00',
+          breakMinutes: 0,
+          source: 'GENERATED',
+          isConfirmed: false,
+        },
       ]);
       mockPrismaService.shift.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaService.clinic.findUniqueOrThrow.mockResolvedValue({

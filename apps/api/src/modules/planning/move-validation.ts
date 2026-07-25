@@ -240,6 +240,14 @@ export function evaluateMoveViolations(
     Math.round((projectedWeeklyMinutes / 60) * 10) / 10;
   const contractWeeklyMinutes = employee.contractHours * 60;
 
+  const toNetMinutes = (s: MoveEvalShift): number => {
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    const raw = eh * 60 + em - (sh * 60 + sm);
+    const span = raw < 0 ? raw + 1440 : raw;
+    return Math.max(0, span - (s.breakMinutes || 0));
+  };
+
   const contractRules = ctx.rules.filter(
     (r) => r.category === 'CONTRACT_COMPLIANCE',
   );
@@ -262,13 +270,31 @@ export function evaluateMoveViolations(
           monthMinutes: 0,
           candidateMinutes: shiftMinutes,
           contractHours: employee.contractHours,
+          // KON-140 (V7) — target-day net minutes for a configured maxDailyHours.
+          dayMinutes: ctx.monthShifts
+            .filter((s) => s.date === targetDate)
+            .reduce((sum, s) => sum + toNetMinutes(s), 0),
         },
       )
     ) {
       const bucket = rule.ruleType === 'HARD' ? hard : soft;
+      // KON-140 (R-I) — name the arm that actually tripped: a daily-cap rejection
+      // reported with weekly numbers contradicted itself.
+      const maxDaily = rule.config.maxDailyHours as number | undefined;
+      const dayNet = ctx.monthShifts
+        .filter((s) => s.date === targetDate)
+        .reduce((sum, s) => sum + toNetMinutes(s), 0);
+      // Labeling only (the DECISION came from the engine call above): tolerance is
+      // ignored here, so an edge case within tolerance may still read as weekly.
+      const dailyTripped =
+        maxDaily !== undefined &&
+        maxDaily < 12 &&
+        dayNet + shiftMinutes > Math.min(maxDaily * 60, 720);
       bucket.push({
         rule: 'CONTRACT_COMPLIANCE',
-        message: `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
+        message: dailyTripped
+          ? `Daily cap: ${Math.round(((dayNet + shiftMinutes) / 60) * 10) / 10}h on ${targetDate}, configured limit ${maxDaily}h`
+          : `Overtime risk: ${projectedWeeklyHours}h this week, effective limit ${effectiveLimit}h`,
       });
       break;
     }

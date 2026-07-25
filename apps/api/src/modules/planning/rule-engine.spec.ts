@@ -308,3 +308,84 @@ describe('incremental HARD primitives', () => {
     ); // not applicable
   });
 });
+
+describe('KON-140 (V7) — configured maxDailyHours as a tightening', () => {
+  const dailyRule = (
+    maxDailyHours: number,
+    ruleType: 'HARD' | 'SOFT' = 'HARD',
+  ) => ({
+    id: 'r-daily',
+    name: 'Daily cap',
+    ruleType,
+    category: 'CONTRACT_COMPLIANCE',
+    config: { maxDailyHours },
+  });
+
+  it('evaluateContractCompliance emits dailyOvertime for a day over a <12h configured cap', () => {
+    const v = evaluateContractCompliance(dailyRule(10), [
+      {
+        employeeId: 'e1',
+        date: '2026-08-03',
+        startTime: '08:00',
+        endTime: '19:30',
+        breakMinutes: 30,
+        contractHours: 35,
+      }, // 11h net > 10h configured
+    ]);
+    expect(v).toContainEqual(
+      expect.objectContaining({
+        messageKey: 'violations.contractCompliance.dailyOvertime',
+        affectedDate: '2026-08-03',
+      }),
+    );
+  });
+
+  it('a >=12h configured cap is inert (redundant with the statutory 12h)', () => {
+    const v = evaluateContractCompliance(dailyRule(12), [
+      {
+        employeeId: 'e1',
+        date: '2026-08-03',
+        startTime: '07:00',
+        endTime: '21:00',
+        breakMinutes: 0,
+        contractHours: 35,
+      }, // 14h net — statutory territory, not this rule's
+    ]);
+    expect(v).toHaveLength(0);
+  });
+
+  it('a daily-only rule does NOT trigger the weekly fallback evaluation (R-guard)', () => {
+    const v = evaluateContractCompliance(dailyRule(10), [
+      {
+        employeeId: 'e1',
+        date: '2026-08-03',
+        startTime: '08:00',
+        endTime: '17:00',
+        breakMinutes: 0,
+        contractHours: 5,
+      }, // 9h day under 10h cap; way over contractHours — must NOT emit weekly
+    ]);
+    expect(v).toHaveLength(0);
+  });
+
+  it('violatesHardContractIncremental trips on the configured daily cap', () => {
+    expect(
+      violatesHardContractIncremental(dailyRule(10), {
+        weekMinutes: 0,
+        monthMinutes: 0,
+        candidateMinutes: 5 * 60,
+        contractHours: 35,
+        dayMinutes: 6 * 60, // 6h + 5h = 11h > 10h configured
+      }),
+    ).toBe(true);
+    expect(
+      violatesHardContractIncremental(dailyRule(12), {
+        weekMinutes: 0,
+        monthMinutes: 0,
+        candidateMinutes: 5 * 60,
+        contractHours: 35,
+        dayMinutes: 6 * 60, // >=12h configured: inert
+      }),
+    ).toBe(false);
+  });
+});

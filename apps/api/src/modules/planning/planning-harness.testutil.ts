@@ -27,7 +27,7 @@ export const HARNESS_TEMPLATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 // Non-overlapping 4h shift-type menu: an employee may hold both on one day (8h < 10h,
 // no overlap) without ever tripping a statutory limit. Kept ≤6h so MANDATORY_BREAK
 // (>6h net) never applies and breakMinutes stays 0.
-const SHIFT_TYPE_MENU = [
+export const SHIFT_TYPE_MENU = [
   {
     id: 'st-surgery',
     code: 'SURGERY',
@@ -46,14 +46,42 @@ const SHIFT_TYPE_MENU = [
     color: '#f59e0b',
     clinicId: HARNESS_CLINIC_ID,
   },
+  // KON-140 (V6) — the original 4h-only menu could never pressure the KON-139 rules:
+  // no fixture contained a >=10h continuous trigger day, an amplitude-relevant span, or
+  // a mandatory-break case, so the safety property validated them vacuously.
+  {
+    id: 'st-guard',
+    code: 'GUARD',
+    name: 'Guard',
+    startTime: '07:30',
+    endTime: '19:30', // 12h span, 40-min break -> 11h20 net: assignable under the 12h cap,
+    breakMinutes: 40, // >=10h continuous REST_DAYS trigger, break rule satisfied.
+    color: '#0ea5e9',
+    clinicId: HARNESS_CLINIC_ID,
+  },
+  {
+    id: 'st-night',
+    code: 'NIGHT',
+    name: 'Night',
+    startTime: '21:00',
+    endTime: '05:00', // overnight: exercises cross-midnight buckets, inter-day rest, wraps.
+    breakMinutes: 20, // KON-140 (R-G) — 7h40 net: without a break, MANDATORY_BREAK made
+    color: '#334155', // every NIGHT unassignable and the overnight coverage vacuous.
+    clinicId: HARNESS_CLINIC_ID,
+  },
 ] as const;
 
+// KON-140 (R-K) — the full 7-day universe: a Mon-Fri-only menu made CONSECUTIVE_DAYS
+// (>6) and weekend-involving REST_DAYS failures structurally unreachable for the
+// properties, so those rules were pressured by nothing.
 const WORKDAY_NAMES = [
   'MONDAY',
   'TUESDAY',
   'WEDNESDAY',
   'THURSDAY',
   'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
 ] as const;
 const DOW_INDEX: Record<(typeof WORKDAY_NAMES)[number], number> = {
   MONDAY: 1,
@@ -61,6 +89,8 @@ const DOW_INDEX: Record<(typeof WORKDAY_NAMES)[number], number> = {
   WEDNESDAY: 3,
   THURSDAY: 4,
   FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 7,
 };
 
 export type PlanningFixture = {
@@ -133,14 +163,16 @@ const employeesArb = fc.integer({ min: 1, max: 5 }).chain((n) =>
 
 // 1-3 workdays; each drives a template day with 1-2 slots referencing the menu.
 const workdaysArb = fc
-  .subarray([...WORKDAY_NAMES], { minLength: 1, maxLength: 3 })
+  // KON-140 (V6) — up to 6 workdays: dense weeks pressure consecutive-days, weekly
+  // ceilings and the rest-days windows instead of only sparse 1-3-day templates.
+  .subarray([...WORKDAY_NAMES], { minLength: 1, maxLength: WORKDAY_NAMES.length })
   .filter((d) => d.length > 0);
 
 export const planningFixtureArb: fc.Arbitrary<PlanningFixture> = fc
   .record({
     employees: employeesArb,
     shiftTypes: fc
-      .subarray([...SHIFT_TYPE_MENU], { minLength: 1, maxLength: 2 })
+      .subarray([...SHIFT_TYPE_MENU], { minLength: 1, maxLength: 3 })
       .filter((s) => s.length > 0),
     workDays: workdaysArb,
     // 0 or 1 legal survivor per employee (built after employees are known).

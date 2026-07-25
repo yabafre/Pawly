@@ -73,6 +73,12 @@
    effectif quotidien (journée continue). Le cap 10h du moteur sur-bloque les gardes 12h
    licites. → candidat : limite par défaut 10h, extensible à 12h par config explicite
    « service continu » (jamais au-delà — le 12h est le plafond conventionnel).
+   _Résolu par KON-139 (cap 12h). **Pince résiduelle documentée (KON-140/V2, correcte
+   juridiquement)** : côté corps 1875, une garde continue de 12h NET est impossible —
+   12h net + pause obligatoire ≥20 min = amplitude ≥12h20 > le plafond conventionnel de
+   12h (durée ET amplitude, art. 18). Maximum réel corps ≈ 11h40 net ; le 12h net
+   continu n'est réalisable que côté annexe VII (amplitude 15h). Ce n'est PAS un bug du
+   moteur : c'est la convention qui pince._
 2. **Repos quotidien 9h dérogatoire (vétérinaires)** : l'annexe VII permet 9h + 2h de
    compensation sous 2 mois. Le moteur (11h strict) sur-bloque les enchaînements
    garde-nuit → consultation licites pour les vétos. → extension par jobType, avec

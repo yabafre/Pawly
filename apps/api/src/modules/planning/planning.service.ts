@@ -28,6 +28,7 @@ import type { CounterWithEmployee } from './equity-counter.service';
 import {
   findStatutoryViolations,
   isoWeekStart,
+  normalizeStatutoryShowcaseRules,
   regimeForJobType,
   STATUTORY_RULE_NAME,
   STATUTORY_WINDOW_DAYS,
@@ -126,7 +127,7 @@ export class PlanningService {
   }
 
   async listRules(clinicId: string, filters?: ListPlanningRulesInput) {
-    return this.prisma.planningRule.findMany({
+    const rules = await this.prisma.planningRule.findMany({
       where: {
         clinicId,
         ...(filters?.category ? { category: filters.category } : {}),
@@ -137,6 +138,9 @@ export class PlanningService {
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
+    // KON-140 (V8) — normalize the seeded statutory showcase from the code constants:
+    // display stays truthful and stale seeds can't be silently ENFORCED (R-F).
+    return normalizeStatutoryShowcaseRules(rules);
   }
 
   async getRuleById(clinicId: string, ruleId: string) {
@@ -171,11 +175,15 @@ export class PlanningService {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
 
-    // Load active planning rules for this clinic, ordered by priority DESC
-    const rules = await this.prisma.planningRule.findMany({
-      where: { clinicId, isActive: true },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-    });
+    // Load active planning rules for this clinic, ordered by priority DESC.
+    // KON-140 (R-F) — normalized like every evaluation surface: a stale showcase seed
+    // (maxDailyHours: 10) must not be enforced at publish while generation sees 12.
+    const rules = normalizeStatutoryShowcaseRules(
+      await this.prisma.planningRule.findMany({
+        where: { clinicId, isActive: true },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+      }),
+    );
 
     // Load shifts in the date range with employee data
     const shifts = await this.prisma.shift.findMany({
@@ -414,11 +422,22 @@ export class PlanningService {
     // Human-facing date is French-formatted; `affectedDate` stays ISO because it
     // keys the grid-cell conflict lookup (`${employeeId}|${day.date}`).
     const displayDate = PlanningService.formatFrDate(v.date);
+    // KON-140 — deficit kinds measure a value UNDER a minimum; the fallback comparator
+    // must read the right way ('(0 > 20)' for a missing break was nonsense).
+    const DEFICIT_KINDS: ReadonlySet<StatutoryViolationKind> = new Set([
+      'DAILY_REST',
+      'WEEKLY_REST',
+      'MANDATORY_BREAK',
+      'REST_DAYS_WINDOW',
+      'REST_DAYS_SUNDAY',
+      'VACATION_MIN_DURATION',
+    ]);
+    const cmp = DEFICIT_KINDS.has(v.kind) ? '<' : '>';
     return {
       ruleId: `statutory:${v.kind.toLowerCase()}`,
       ruleName: STATUTORY_RULE_NAME,
       category: 'CONTRACT_COMPLIANCE',
-      message: `Statutory ${v.kind} limit exceeded on ${displayDate} (${actual} > ${limit})`,
+      message: `Statutory ${v.kind} limit breached on ${displayDate} (${actual} ${cmp} ${limit})`,
       messageKey: PlanningService.STATUTORY_MESSAGE_KEY[v.kind],
       messageParams: { date: displayDate, actual, limit },
       affectedEmployeeId: employeeId,
