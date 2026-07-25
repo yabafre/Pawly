@@ -355,7 +355,6 @@ describe('KON-139 — 44h average over 12 consecutive ISO weeks', () => {
   });
 });
 
-
 describe('KON-140 (V3) — removalWouldExceedStatutory (non-monotone structure rules)', () => {
   it('flags VACATIONS_COUNT when removing the middle of merged work splits into 3 blocks', () => {
     const windowShifts = [
@@ -423,7 +422,6 @@ describe('KON-140 (V3) — removalWouldExceedStatutory (non-monotone structure r
     );
   });
 
-
   it('flags DAILY_REST when removing a cross-midnight bridge splits a merged block (KON-140 R-A, executed counterexample)', () => {
     // P: D 15:00-18:00 · R: D 21:30->00:30 (overnight bridge) · S: D+1 00:30-08:00.
     // R and S merge into one block STARTING D, so the only gap (18:00->21:30) is
@@ -462,7 +460,7 @@ describe('KON-140 (V3) — removalWouldExceedStatutory (non-monotone structure r
     ).toContain('DAILY_REST');
   });
 
-  it('flags MANDATORY_BREAK when removing the shift that carried the day\'s only break (KON-140 R-C)', () => {
+  it("flags MANDATORY_BREAK when removing the shift that carried the day's only break (KON-140 R-C)", () => {
     const windowShifts = [
       shift('2026-03-02', '08:00', '15:00', 0), // 7h net, no break
       shift('2026-03-02', '15:00', '16:00', 30), // carries the break, merged day
@@ -565,6 +563,77 @@ describe('wouldExceedStatutory (incremental)', () => {
     const windowShifts = [shift('2026-08-03', '07:00', '20:30', 0)]; // already 13.5h
     const candidate = shift('2026-08-05', '09:00', '15:00', 0); // unrelated day
     expect(wouldExceedStatutory(windowShifts, candidate, S)).toEqual([]);
+  });
+});
+
+// KON-141 — counterexamples EXECUTED against the engine by the invariant harness, which
+// served plans breaching L.3132-2. The guard used to judge only isoWeekStart(candidate.date);
+// an insertion splits one rest gap and that gap can overlap several ISO weeks, so a candidate
+// can drop a NEIGHBOURING week under 35h while its own stays fine.
+describe('KON-141 — weekly rest across the weeks an insertion actually touches', () => {
+  // Week Mon 2026-03-02 .. Sun 2026-03-08: CARE Mon-Thu, an overnight Fri, CARE Sun.
+  // Longest rest inside it is Sat 05:00 -> Sun 14:00 = 33h, but while nothing was booked
+  // after Sunday the open trailing gap carried the week. The Monday-night candidate below
+  // closes that gap at 27h and is the one that drops the PREVIOUS week to 33h.
+  const weekOfMar02 = [
+    // Sunday of the PREVIOUS week — without it the head sentinel credits the untouched
+    // pre-window emptiness as rest and the week is legitimately fine.
+    shift('2026-03-01', '14:00', '18:00'),
+    shift('2026-03-02', '14:00', '18:00'),
+    shift('2026-03-03', '14:00', '18:00'),
+    shift('2026-03-04', '14:00', '18:00'),
+    shift('2026-03-05', '14:00', '18:00'),
+    shift('2026-03-06', '21:00', '05:00', 20), // overnight -> Sat 05:00
+    shift('2026-03-08', '14:00', '18:00'),
+  ];
+
+  it('blocks a Monday-night candidate that drops the PREVIOUS week under 35h', () => {
+    const candidate = shift('2026-03-09', '21:00', '05:00', 20);
+    expect(wouldExceedStatutory(weekOfMar02, candidate, S)).toContain(
+      'WEEKLY_REST',
+    );
+  });
+
+  it('the served plan the guard used to allow really is a breach (oracle agrees)', () => {
+    const served = [...weekOfMar02, shift('2026-03-09', '21:00', '05:00', 20)];
+    expect(
+      findStatutoryViolations(served, {
+        ...S,
+        window: { start: '2026-02-16', end: '2026-03-29' },
+      }),
+    ).toContainEqual(
+      expect.objectContaining({ kind: 'WEEKLY_REST', date: '2026-03-02' }),
+    );
+  });
+
+  it('does NOT block when the split gap leaves every touched week >=35h', () => {
+    // Same week, but the candidate lands the following Wednesday: the gap it splits still
+    // leaves Sun 18:00 -> Wed 21:00 = 75h overlapping the week of 03-02.
+    const candidate = shift('2026-03-11', '21:00', '05:00', 20);
+    expect(wouldExceedStatutory(weekOfMar02, candidate, S)).not.toContain(
+      'WEEKLY_REST',
+    );
+  });
+
+  it('still blocks a candidate that breaches its OWN week (no regression)', () => {
+    // Bounded on BOTH sides so no sentinel carries the week: 03-01..03-07 and 03-09 are
+    // booked, leaving Sat 20:00 -> Mon 09:00 = 37h as the week's only qualifying rest.
+    const dense = ['01', '02', '03', '04', '05', '06', '07', '09'].map((d) =>
+      shift(`2026-03-${d}`, '09:00', '20:00'),
+    );
+    // Filling Sunday 03-08 cuts that 37h into 13h + 13h — the breach is in its OWN week.
+    expect(
+      wouldExceedStatutory(dense, shift('2026-03-08', '09:00', '20:00'), S),
+    ).toContain('WEEKLY_REST');
+  });
+
+  it('skips a week the data window cannot decide instead of inventing a verdict', () => {
+    // Candidate at the very start of the loaded window: the week before it is only half
+    // covered, so its rest may continue into hours never loaded. Not judged here — it is
+    // judged by the candidates that do cover it.
+    const candidate = shift('2026-03-02', '14:00', '18:00');
+    const weeks = wouldExceedStatutory([], candidate, S);
+    expect(weeks).toEqual([]);
   });
 });
 
