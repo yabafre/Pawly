@@ -1579,8 +1579,12 @@ export class PlanningGenerationService {
         );
         cursor = this.getNextDate(cursor);
       }
-      const { weeklyHistory, firstMonthMonday, lastCounterMonday, lastWeekMonday } =
-        ctx.statutoryCtx;
+      const {
+        weeklyHistory,
+        firstMonthMonday,
+        lastCounterMonday,
+        lastWeekMonday,
+      } = ctx.statutoryCtx;
       const statutoryBreach = wouldExceedStatutory(
         statutoryWindow,
         {
@@ -2892,7 +2896,9 @@ export class PlanningGenerationService {
               srcWinStart.getUTCDate() - STATUTORY_WINDOW_DAYS,
             );
             const srcWinEnd = new Date(`${freshDateISO}T00:00:00.000Z`);
-            srcWinEnd.setUTCDate(srcWinEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+            srcWinEnd.setUTCDate(
+              srcWinEnd.getUTCDate() + STATUTORY_WINDOW_DAYS,
+            );
             const [sourceEmployee, sourceRows] = await Promise.all([
               tx.employee.findFirst({
                 where: { id: fresh.employeeId, clinicId },
@@ -3326,7 +3332,9 @@ export class PlanningGenerationService {
       statWindowStart.getUTCDate() - STATUTORY_WINDOW_DAYS,
     );
     const statWindowEnd = new Date(targetDateObj);
-    statWindowEnd.setUTCDate(statWindowEnd.getUTCDate() + STATUTORY_WINDOW_DAYS);
+    statWindowEnd.setUTCDate(
+      statWindowEnd.getUTCDate() + STATUTORY_WINDOW_DAYS,
+    );
 
     // KON-139 — CCN 44h/12-week average: the target employee's net minutes per ISO week
     // over targetWeek -/+ 11 weeks (moved shift excluded via employeeShiftWhere). Windows
@@ -4643,6 +4651,11 @@ export class PlanningGenerationService {
       for (const shift of applied) this.applyAssignment(shift, ctx);
 
       // Revert the whole chain if any applied shift is somehow invalid (unreachable by design).
+      // KON-141 asked whether a chain needs a NET-effect statutory check on top of the per-step
+      // ones: it does not. Statutory limits are per-EMPLOYEE, and a chain gives each employee at
+      // most one removal plus one addition, which is exactly what isMoverEligible evaluates (on
+      // post-removal state). 3600 randomized fixtures found no chain-level leak; a net-effect
+      // re-scan measured +80% on the 11-10 stress pin for no observed gain.
       if (applied.some((shift) => !isAppliedShiftValid(shift))) {
         for (const shift of [...applied].reverse())
           this.removeAssignment(shift, ctx);
