@@ -759,9 +759,14 @@ export function findStatutoryViolations(
  * True when two adjacent merged busy blocks start on different calendar dates — the only
  * gaps the statutory daily rest (L.3131-1) applies to (KON-140; intra-day gaps are CCN
  * vacation structure, not daily rest).
+ *
+ * Compares day INDICES rather than formatted dates: absolute minutes are anchored at
+ * EPOCH 00:00Z, so `floor(m / MIN_PER_DAY)` is exactly the value `epochMinuteToDate`
+ * formats — identical verdict, without the Date allocation + toISOString this hot path
+ * ran on every adjacent pair of every eligibility call.
  */
 function isInterDayGap(a: [number, number], b: [number, number]): boolean {
-  return epochMinuteToDate(a[0]) !== epochMinuteToDate(b[0]);
+  return Math.floor(a[0] / MIN_PER_DAY) !== Math.floor(b[0] / MIN_PER_DAY);
 }
 
 /** Count of INTER-DAY gaps between consecutive merged busy intervals under 11h (KON-140). */
@@ -853,7 +858,6 @@ function bucketByDay(shifts: StatutoryShift[]): Map<string, StatutoryShift[]> {
   }
   return byDay;
 }
-
 
 /**
  * KON-140 (V3) — which statutory limits REMOVING `removed` from `windowShifts` would
@@ -1113,21 +1117,36 @@ export function wouldExceedStatutory(
   // windows are re-checked when their own last week receives assignments.
   if (opts.twelveWeek) {
     const { totals, lastWeekMonday } = opts.twelveWeek;
-    const candNet = shiftNetMinutes(candidate);
+    const span = CCN_SHARED.TWELVE_WEEK_SPAN;
     const candWeek = isoWeekStart(candidate.date);
-    for (let e = candWeek; e <= lastWeekMonday; e = addDays(e, 7)) {
-      // window [e-11w, e] contains candWeek by construction (e >= candWeek >= e-11w)
-      if (dayDiff(e, candWeek) >= CCN_SHARED.TWELVE_WEEK_SPAN * 7) break;
+    const reach = dayDiff(lastWeekMonday, candWeek);
+    if (reach >= 0) {
+      const candNet = shiftNetMinutes(candidate);
+      // Judged window ends: candWeek + 7k for k in [0, lastEnd]. Every such window
+      // [e-11w, e] contains candWeek by construction.
+      const lastEnd = Math.min(span - 1, Math.floor(reach / 7));
+      // Consecutive windows share 11 of their 12 weeks, so walk the weeks ONCE and slide
+      // the sum. KON-140 (V5) widened the horizon to a full 12 windows for EVERY candidate
+      // (it used to stop at the month's last ISO week), which turned the naive re-summation
+      // into 144 `addDays` + 144 `totals` calls per eligibility call — measured at ~2x the
+      // whole greedy hot path on the NFR2 stress fixture.
+      const weekTotals: number[] = new Array(span + lastEnd);
+      let monday = addDays(candWeek, -7 * (span - 1));
+      for (let i = 0; i < weekTotals.length; i++) {
+        weekTotals[i] = totals(monday);
+        monday = addDays(monday, 7);
+      }
       let before = 0;
-      for (let i = 0; i < CCN_SHARED.TWELVE_WEEK_SPAN; i++)
-        before += totals(addDays(e, -7 * i));
-      const after = before + candNet;
-      if (
-        after > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES &&
-        before <= CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES
-      ) {
-        kinds.push('TWELVE_WEEK_AVG');
-        break;
+      for (let i = 0; i < span; i++) before += weekTotals[i];
+      for (let k = 0; k <= lastEnd; k++) {
+        if (k > 0) before += weekTotals[k + span - 1] - weekTotals[k - 1];
+        if (
+          before + candNet > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES &&
+          before <= CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES
+        ) {
+          kinds.push('TWELVE_WEEK_AVG');
+          break;
+        }
       }
     }
   }
