@@ -1,6 +1,10 @@
 import { defineConfig } from '@trigger.dev/sdk';
 import type { BuildExtension } from '@trigger.dev/build';
-import { syncEnvVars, additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core';
+import {
+  syncEnvVars,
+  additionalFiles,
+  additionalPackages,
+} from '@trigger.dev/build/extensions/core';
 
 const SYNCED_ENV_KEYS = [
   'DATABASE_URL',
@@ -58,13 +62,16 @@ export default defineConfig({
     ],
     extensions: [
       additionalFiles({
-        files: [
-          'prisma/schema/**/*.prisma',
-          'prisma.config.ts',
-        ],
+        files: ['prisma/schema/**/*.prisma', 'prisma.config.ts'],
       }),
       additionalPackages({
-        packages: ['prisma@7.2.0', '@prisma/config@7.2.0'],
+        // react-dom is only a PEER of @react-email/render, so the generated image
+        // package.json never listed it and `npm i` pulled the newest 19.x -- which then
+        // demanded a matching react and clashed with the react the build pins from the
+        // lockfile (prod deploy of v0.16.1 died on exactly that ERESOLVE). Pin it here so
+        // the pair is fixed in the image; keep the version in step with apps/api's
+        // react/react-dom, which are pinned exact for the same reason.
+        packages: ['prisma@7.2.0', '@prisma/config@7.2.0', 'react-dom@19.2.7'],
       }),
       prismaGenerate(),
       syncEnvVars(async () => {
