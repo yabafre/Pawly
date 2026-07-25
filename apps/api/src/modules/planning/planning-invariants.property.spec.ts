@@ -9,7 +9,7 @@ jest.mock('@/trigger/client', () => ({
   sendEmailTask: { trigger: jest.fn().mockResolvedValue({ id: 'mock' }) },
 }));
 
-import fc from 'fast-check';
+import fc, { sample as fcSample } from 'fast-check';
 import {
   findStatutoryViolations,
   regimeForJobType,
@@ -273,5 +273,32 @@ describe('Planning engine invariants (Story 13-8, KON-138)', () => {
     expect(
       SHIFT_TYPE_MENU.some((t) => t.endTime < t.startTime), // overnight wrap
     ).toBe(true);
+  });
+
+  // KON-144 follow-up — the same "is the generator actually reaching it?" pin, one level
+  // up. 13-8 shipped `rules: []`, so the rule engine's CONFIGURABLE caps never ran under
+  // randomized input and KON-140's maxDailyHours path was unreachable by any property.
+  // A rule the engine ignores would be coverage theatre, so this pins two things: the
+  // fixtures really carry contract rules, and the caps they carry really BITE — i.e. they
+  // are tighter than what the shift-type menu produces in a day, so the engine has to act.
+  it('generators reach the configurable contract caps, and the caps can bite', () => {
+    const fixtures = fcSample(planningFixtureArb, 200);
+    const withRule = fixtures.filter((f) => f.rules.length > 0);
+    expect(withRule.length).toBeGreaterThan(0);
+
+    const configs = withRule.map(
+      (f) =>
+        (f.rules[0] as { config: Record<string, number | undefined> }).config,
+    );
+    // A daily cap only tightens below the statutory 12h; above it the engine drops it.
+    const dailyCaps = configs
+      .map((c) => c.maxDailyHours)
+      .filter((h): h is number => h !== undefined);
+    expect(dailyCaps.length).toBeGreaterThan(0);
+    expect(dailyCaps.every((h) => h < 12)).toBe(true);
+
+    // ...and at least one sampled cap is below a full GUARD day (11h20 net), so a fixture
+    // pairing that cap with that shift type genuinely forces the engine to refuse.
+    expect(Math.min(...dailyCaps) * 60).toBeLessThan(680);
   });
 });
