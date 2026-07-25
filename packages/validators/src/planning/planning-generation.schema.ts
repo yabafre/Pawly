@@ -47,6 +47,9 @@ export const shiftAssignmentSchema = z.object({
   shiftTypeCode: z.string().min(1),
   employeeId: z.string().uuid(),
   employeeName: z.string(),
+  // KON-140 — served assignments carry their break so consumers (and the invariant
+  // harness's independent oracle) can compute NET minutes without a shift-type lookup.
+  breakMinutes: z.number().int().min(0).optional(),
 });
 export type ShiftAssignment = z.infer<typeof shiftAssignmentSchema>;
 

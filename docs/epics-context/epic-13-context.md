@@ -56,10 +56,17 @@ proxy") — 13-4 revisits that decision deliberately; it is not a bug fix.
 4. **Statutory rules are non-disableable** (11-3): hard-coded constants, evaluated
    unconditionally; config can only tighten, never loosen. 13-4's new limits follow the same
    pattern.
-5. **Net vs gross**: daily 10h compares NET minutes (breaks deducted); amplitude and weekly
-   rest use raw busy intervals. Keep the distinction in any new statutory check.
-6. **Byte-identical greedy default**: `engine` unset/greedy → zero solver work, results
-   identical (12-1 AC). 13-5/13-6 must not perturb the greedy path.
+5. **Net vs gross**: the daily cap (12h since KON-139; the "10h" wording predates it)
+   compares NET minutes (breaks deducted); amplitude and weekly rest use raw busy
+   intervals. Keep the distinction in any new statutory check. KON-140 adds: the CCN
+   structure rules (vacations, day-shape amplitude, inter-day rest) are the engine's first
+   NON-monotone rules — any new "introduced-by-candidate" guard or incremental replay must
+   be re-derived against them (see removalWouldExceedStatutory and the replay's
+   deferred-structural final-state validation).
+6. **Byte-identical greedy default** (12-1 AC): `engine` unset/greedy → zero solver work.
+   Historical note: KON-139/KON-140 legitimately CHANGED greedy behavior (12h cap, CCN
+   rules, split-day exemption) — the invariant now means "no solver work on the greedy
+   path", not bit-stability across releases.
 7. **Tier gate on the VALUE**: `requireProfessional` fires only on `engine: 'cpsat'`
    (12-2). Observability additions (13-6) must not leak Pro info to Starter responses.
 8. **UTC everywhere**: dates are UTC-midnight `YYYY-MM-DD`, times are `HH:MM` minute

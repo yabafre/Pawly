@@ -138,7 +138,19 @@ export function evaluateContractCompliance(
   const violations: RuleViolation[] = [];
   const maxWeekly = rule.config.maxWeeklyHours as number | undefined;
   const maxMonthly = rule.config.maxMonthlyHours as number | undefined;
-  if (maxWeekly === undefined && maxMonthly === undefined) return violations;
+  // KON-140 (V7) — a configured daily cap is evaluated only when it actually TIGHTENS
+  // below the statutory 12h; at >=12 it is redundant with the statutory DAILY_WORK check
+  // (and the seeded showcase row carries 12 — it must stay inert, same doctrine as the
+  // capless-weekly case below).
+  const rawMaxDaily = rule.config.maxDailyHours as number | undefined;
+  const maxDaily =
+    rawMaxDaily !== undefined && rawMaxDaily < 12 ? rawMaxDaily : undefined;
+  if (
+    maxWeekly === undefined &&
+    maxMonthly === undefined &&
+    maxDaily === undefined
+  )
+    return violations;
 
   const tol = toleranceFor(rule);
   const severity = severityFor(rule.ruleType);
@@ -153,18 +165,55 @@ export function evaluateContractCompliance(
   for (const [employeeId, empShifts] of byEmployee) {
     const contractHours = empShifts[0].contractHours;
 
+    const evaluateWeekly = maxWeekly !== undefined || maxMonthly !== undefined;
     const effectiveLimit =
       maxWeekly !== undefined
         ? Math.min(contractHours, maxWeekly)
         : contractHours;
     const weekMinutes = new Map<string, number>();
-    for (const s of empShifts) {
-      const wk = isoWeekStart(s.date);
-      weekMinutes.set(
-        wk,
-        (weekMinutes.get(wk) || 0) +
-          netMinutes(s.startTime, s.endTime, s.breakMinutes),
-      );
+    if (evaluateWeekly) {
+      for (const s of empShifts) {
+        const wk = isoWeekStart(s.date);
+        weekMinutes.set(
+          wk,
+          (weekMinutes.get(wk) || 0) +
+            netMinutes(s.startTime, s.endTime, s.breakMinutes),
+        );
+      }
+    }
+
+    // KON-140 (V7) — configured daily cap (clamped to the statutory 720 net minutes).
+    if (maxDaily !== undefined) {
+      const effectiveDaily = Math.min(maxDaily * 60 * tol, 720);
+      const dayMinutes = new Map<string, number>();
+      for (const s of empShifts) {
+        dayMinutes.set(
+          s.date,
+          (dayMinutes.get(s.date) || 0) +
+            netMinutes(s.startTime, s.endTime, s.breakMinutes),
+        );
+      }
+      for (const [d, mins] of dayMinutes) {
+        if (mins > effectiveDaily) {
+          const hours = Math.round((mins / 60) * 10) / 10;
+          const displayDate = formatFrDate(d);
+          violations.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            category: rule.category,
+            message: `Employee worked ${hours}h on ${displayDate}, exceeds daily limit ${Math.round((effectiveDaily / 60) * 10) / 10}h`,
+            messageKey: 'violations.contractCompliance.dailyOvertime',
+            messageParams: {
+              currentDailyHours: hours,
+              maxDailyHours: Math.round((effectiveDaily / 60) * 10) / 10,
+              date: displayDate,
+            },
+            affectedEmployeeId: employeeId,
+            affectedDate: d,
+            severity,
+          });
+        }
+      }
     }
     for (const [wk, mins] of weekMinutes) {
       if (mins > effectiveLimit * 60 * tol) {
@@ -291,6 +340,8 @@ export function violatesHardContractIncremental(
     monthMinutes: number;
     candidateMinutes: number;
     contractHours: number;
+    /** Net minutes already worked on the candidate's calendar day (KON-140 V7). */
+    dayMinutes?: number;
   },
 ): boolean {
   const tol = toleranceFor(rule);
@@ -305,6 +356,19 @@ export function violatesHardContractIncremental(
   if (
     maxMonthly &&
     args.monthMinutes + args.candidateMinutes > maxMonthly * 60 * tol
+  ) {
+    return true;
+  }
+
+  // KON-140 (V7) — configured daily cap, previously accepted by the schema but evaluated
+  // nowhere. Config can only TIGHTEN: the effective cap is clamped to the statutory 12h
+  // (720 net minutes) even after tolerance.
+  const maxDaily = rule.config.maxDailyHours as number | undefined;
+  if (
+    maxDaily !== undefined &&
+    maxDaily < 12 && // tighten-only: >=12 duplicates the statutory DAILY_WORK check
+    args.dayMinutes !== undefined &&
+    args.dayMinutes + args.candidateMinutes > Math.min(maxDaily * 60 * tol, 720)
   ) {
     return true;
   }

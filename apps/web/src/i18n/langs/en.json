@@ -348,7 +348,8 @@
           },
           "contractCompliance": {
             "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h",
-            "weeklyOvertime": "{currentWeeklyHours}h in the week of {date}, exceeds the weekly limit of {maxWeeklyHours}h"
+            "weeklyOvertime": "{currentWeeklyHours}h in the week of {date}, exceeds the weekly limit of {maxWeeklyHours}h",
+            "dailyOvertime": "{currentDailyHours}h on {date}, exceeds the configured daily limit of {maxDailyHours}h"
           },
           "statutory": {
             "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",
@@ -747,7 +748,8 @@
       },
       "contractCompliance": {
         "overtime": "{currentMonthlyHours}h this month, exceeds limit of {maxMonthlyHours}h",
-        "weeklyOvertime": "{currentWeeklyHours}h in the week of {date}, exceeds the weekly limit of {maxWeeklyHours}h"
+        "weeklyOvertime": "{currentWeeklyHours}h in the week of {date}, exceeds the weekly limit of {maxWeeklyHours}h",
+        "dailyOvertime": "{currentDailyHours}h on {date}, exceeds the configured daily limit of {maxDailyHours}h"
       },
       "statutory": {
         "dailyWork": "{date}: {actual}h worked, exceeds the statutory limit of {limit}h/day",

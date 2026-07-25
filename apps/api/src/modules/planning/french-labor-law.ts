@@ -103,7 +103,32 @@ export type WouldExceedOptions = {
     totals: (isoMonday: string) => number;
     lastWeekMonday: string;
   };
+  /**
+   * KON-140 (V4) — skip the ORDER-SENSITIVE structural kinds (VACATIONS_COUNT,
+   * VACATION_MIN_DURATION, DAILY_AMPLITUDE, DAILY_REST): they are not monotone under
+   * insertion (a later insert can merge blocks and dissolve a mid-state breach), so a
+   * one-by-one application loop judging them mid-way can reject a plan whose FINAL state
+   * is valid. Callers that set this MUST validate those kinds once on the final applied
+   * state (the cpsat replay does). Everything monotone stays checked incrementally.
+   */
+  deferStructural?: boolean;
 };
+
+/**
+ * The order-sensitive kinds `deferStructural` postpones to a final-state validation.
+ * KON-140 review R-C: REST_DAYS_WINDOW (a detached same-day insert can dissolve a >=10h
+ * continuous trigger) and MANDATORY_BREAK (a later insert can carry the missing break)
+ * are ALSO non-monotone under insertion and belong here.
+ */
+export const STRUCTURAL_STATUTORY_KINDS: ReadonlySet<StatutoryViolationKind> =
+  new Set([
+    'VACATIONS_COUNT',
+    'VACATION_MIN_DURATION',
+    'DAILY_AMPLITUDE',
+    'DAILY_REST',
+    'REST_DAYS_WINDOW',
+    'MANDATORY_BREAK',
+  ]);
 
 export const FRENCH_LABOR_LAW = {
   /**
@@ -127,6 +152,22 @@ export const FRENCH_LABOR_LAW = {
   /** L.3132-1 — <= 6 consecutive worked calendar days. */
   MAX_CONSECUTIVE_WORK_DAYS: 6,
 } as const;
+
+/**
+ * KON-140 (V8/R-F) — the seeded statutory showcase row is DISPLAY-only, but rules loaded
+ * for EVALUATION reach the rule engine too. Normalizing the showcase's config from the
+ * code constants everywhere keeps stale pre-KON-139 seeds (maxDailyHours: 10) from being
+ * silently ENFORCED as a V7 tightening on some surfaces and displayed on others.
+ */
+export function normalizeStatutoryShowcaseRules<
+  T extends { name: string; config: unknown },
+>(rules: T[]): T[] {
+  return rules.map((r) =>
+    r.name === STATUTORY_RULE_NAME
+      ? { ...r, config: { ...STATUTORY_RULE_CONFIG } }
+      : r,
+  );
+}
 
 /** Name + config of the visible statutory rule seeded at onboarding (Task 7). */
 export const STATUTORY_RULE_NAME = 'French labor-law limits';
@@ -629,12 +670,16 @@ export function findStatutoryViolations(
     }
   }
 
-  // Daily rest (L.3131-1) — every gap between consecutive merged busy intervals must be
-  // >= 11h. A shorter gap (cross-midnight OR intra-day split) is a deficit attributed to
-  // the day work RESUMED (the later interval's start). Cross-midnight aware via the merged
-  // absolute-minute intervals (Story 13-3's toAbsoluteInterval).
+  // Daily rest (L.3131-1) — every gap between consecutive merged busy intervals that
+  // belong to DIFFERENT working days must be >= 11h. KON-140 (owner decision, reversing
+  // the 13-4 "stricter reading"): the statutory daily rest sits BETWEEN working days —
+  // a gap whose two blocks START on the same calendar date is intra-day structure,
+  // governed by the CCN vacation rules + amplitude (otherwise every lawful 2h+3h split
+  // day was unsatisfiable — verification audit V1). Cross-midnight deficits (blocks
+  // starting on different dates) still count, attributed to the day work RESUMED.
   const busy = mergedBusyIntervals(shifts);
   for (let i = 0; i < busy.length - 1; i++) {
+    if (!isInterDayGap(busy[i], busy[i + 1])) continue;
     const gap = busy[i + 1][0] - busy[i][1];
     if (gap < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES) {
       out.push({
@@ -710,11 +755,26 @@ export function findStatutoryViolations(
   return out;
 }
 
-/** Count of gaps between consecutive merged busy intervals that are under 11h. */
+/**
+ * True when two adjacent merged busy blocks start on different calendar dates — the only
+ * gaps the statutory daily rest (L.3131-1) applies to (KON-140; intra-day gaps are CCN
+ * vacation structure, not daily rest).
+ *
+ * Compares day INDICES rather than formatted dates: absolute minutes are anchored at
+ * EPOCH 00:00Z, so `floor(m / MIN_PER_DAY)` is exactly the value `epochMinuteToDate`
+ * formats — identical verdict, without the Date allocation + toISOString this hot path
+ * ran on every adjacent pair of every eligibility call.
+ */
+function isInterDayGap(a: [number, number], b: [number, number]): boolean {
+  return Math.floor(a[0] / MIN_PER_DAY) !== Math.floor(b[0] / MIN_PER_DAY);
+}
+
+/** Count of INTER-DAY gaps between consecutive merged busy intervals under 11h (KON-140). */
 function countDailyRestDeficits(shifts: StatutoryShift[]): number {
   const busy = mergedBusyIntervals(shifts);
   let count = 0;
   for (let i = 0; i < busy.length - 1; i++) {
+    if (!isInterDayGap(busy[i], busy[i + 1])) continue;
     if (busy[i + 1][0] - busy[i][1] < FRENCH_LABOR_LAW.MIN_DAILY_REST_MINUTES)
       count++;
   }
@@ -735,10 +795,175 @@ function weekWorkedMinutes(shifts: StatutoryShift[], date: string): number {
  * the candidate are returned (a pre-existing breach in `windowShifts` is not re-flagged),
  * so it never blocks an assignment that cannot make things worse. Used to reject a single
  * generation candidate / manual create / manual move before it is written.
- * Story 13-2 (KON-134): the weekly-rest window is candidate.date +/- 8 real days — the
+ * Story 13-2 (KON-134), widened by KON-139: the weekly-rest window is candidate.date +/- 14 real days (STATUTORY_WINDOW_DAYS) — the
  * exact window every caller loads (createManualShift, loadMoveValidationInputs, generation
  * eligibility) — so a sentinel is clipped to it, not to the ISO week (no phantom rest).
  */
+/**
+ * Count of failing fully-covered 14-day rest windows containing `centerDate`, for one
+ * day-bucketed shift state. Shared by the insertion (wouldExceedStatutory) and removal
+ * (removalWouldExceedStatutory) checks — only windows containing the changed day can
+ * differ between two states that agree everywhere else, so bounding to them is exact.
+ */
+function boundedRestDaysFailures(
+  byDay: Map<string, StatutoryShift[]>,
+  centerDate: string,
+  coverage: { start: string; end: string },
+  sundayHard: boolean,
+): number {
+  const isTrigger = (ds: StatutoryShift[] | undefined): boolean =>
+    ds !== undefined &&
+    dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES &&
+    isContinuousDay(ds);
+  let failures = 0;
+  for (let back = CCN_SHARED.REST_WINDOW_DAYS - 1; back >= 0; back--) {
+    const ws = addDays(centerDate, -back);
+    const we = addDays(ws, CCN_SHARED.REST_WINDOW_DAYS - 1);
+    if (ws < coverage.start || we > coverage.end) continue;
+    let windowHasTrigger = false;
+    const restDates: string[] = [];
+    for (let i = 0; i < CCN_SHARED.REST_WINDOW_DAYS; i++) {
+      const d = addDays(ws, i);
+      const ds = byDay.get(d);
+      if (!ds || ds.length === 0) restDates.push(d);
+      else if (!windowHasTrigger && isTrigger(ds)) windowHasTrigger = true;
+    }
+    if (!windowHasTrigger) continue;
+    let hasPair = false;
+    let hasSundayPair = false;
+    for (let i = 0; i < restDates.length - 1; i++) {
+      if (dayDiff(restDates[i + 1], restDates[i]) === 1) {
+        hasPair = true;
+        if (isSunday(restDates[i]) || isSunday(restDates[i + 1]))
+          hasSundayPair = true;
+      }
+    }
+    if (
+      restDates.length < CCN_SHARED.REST_MIN_DAYS_IN_WINDOW ||
+      !hasPair ||
+      (sundayHard && !hasSundayPair)
+    ) {
+      failures++;
+    }
+  }
+  return failures;
+}
+
+function bucketByDay(shifts: StatutoryShift[]): Map<string, StatutoryShift[]> {
+  const byDay = new Map<string, StatutoryShift[]>();
+  for (const s of shifts) {
+    const arr = byDay.get(s.date) ?? [];
+    arr.push(s);
+    byDay.set(s.date, arr);
+  }
+  return byDay;
+}
+
+/**
+ * KON-140 (V3) — which statutory limits REMOVING `removed` from `windowShifts` would
+ * introduce for this employee. The structure rules of KON-139 are the engine's first
+ * NON-monotone rules under removal: deleting the middle block of merged work can split
+ * one vacation into several (VACATIONS_COUNT / VACATION_MIN_DURATION), and a
+ * practitioner's continuous day (15h amplitude cap) can become discontinuous (13h cap)
+ * without its span shrinking below it (DAILY_AMPLITUDE). Removing a small block can also
+ * leave a single continuous >=10h block behind — creating a REST_DAYS_WINDOW trigger.
+ * Monotone under removal (no check needed): DAILY_WORK / WEEKLY_* / TWELVE_WEEK_AVG /
+ * CONSECUTIVE_DAYS only shrink when work is removed.
+ * NOT monotone (checked below) — KON-140 review R-A executed the counterexamples:
+ * - DAILY_REST: removing a piece INSIDE a merged block splits it, creating a brand-new
+ *   gap that consumed no prior gap; and removing a block's sub-midnight segment shifts
+ *   the successor's START DATE across midnight, turning an intra-day-exempt gap into a
+ *   counted inter-day deficit. (The earlier "cannot be introduced" proof only covered
+ *   removing an ENTIRE merged block.)
+ * - MANDATORY_BREAK: removing the shift that carried the day's only break can leave a
+ *   >6h-net day with <20 min of break.
+ * Same introduced-by semantics as wouldExceedStatutory: pre-existing breaches never block.
+ * `windowShifts` MUST include `removed` (matched by date+startTime+endTime, first match).
+ */
+export function removalWouldExceedStatutory(
+  windowShifts: StatutoryShift[],
+  removed: StatutoryShift,
+  opts: { regime: StatutoryRegime },
+): StatutoryViolationKind[] {
+  const idx = windowShifts.findIndex(
+    (s) =>
+      s.date === removed.date &&
+      s.startTime === removed.startTime &&
+      s.endTime === removed.endTime,
+  );
+  if (idx < 0) return [];
+  const after = windowShifts.slice(0, idx).concat(windowShifts.slice(idx + 1));
+  const kinds: StatutoryViolationKind[] = [];
+  const { regime } = opts;
+  const dayBefore = windowShifts.filter((s) => s.date === removed.date);
+  const dayAfter = after.filter((s) => s.date === removed.date);
+
+  // DAILY_REST — count-based introduced-by (KON-140 R-A): inter-day deficit count must
+  // not rise. Evaluated on the full provided window (the callers load +/-14 real days).
+  if (countDailyRestDeficits(after) > countDailyRestDeficits(windowShifts)) {
+    kinds.push('DAILY_REST');
+  }
+
+  // MANDATORY_BREAK — the removed shift may have carried the day's only break.
+  {
+    const breachOf = (ds: StatutoryShift[]): boolean =>
+      dayWorkedMinutes(ds) > FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
+      ds.reduce((s, x) => s + (x.breakMinutes ?? 0), 0) <
+        FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
+    if (breachOf(dayAfter) && !breachOf(dayBefore))
+      kinds.push('MANDATORY_BREAK');
+  }
+
+  // Vacation structure of the removed shift's day.
+  const vacBreachBefore =
+    dayVacationViolations(removed.date, dayBefore).length > 0;
+  const vacViolationsAfter = dayVacationViolations(removed.date, dayAfter);
+  if (vacViolationsAfter.length > 0 && !vacBreachBefore) {
+    kinds.push(vacViolationsAfter[0].kind);
+  }
+
+  // Day-shape amplitude (continuous -> discontinuous can LOWER the limit for
+  // practitioners: 15h continuous cap vs 13h discontinuous).
+  const ampBreachBefore =
+    dayBefore.length > 0 &&
+    dayAmplitudeMinutes(dayBefore) > amplitudeLimitMinutes(regime, dayBefore);
+  const ampBreachAfter =
+    dayAfter.length > 0 &&
+    dayAmplitudeMinutes(dayAfter) > amplitudeLimitMinutes(regime, dayAfter);
+  if (ampBreachAfter && !ampBreachBefore) {
+    kinds.push('DAILY_AMPLITUDE');
+  }
+
+  // Rest-days windows: a removal can CREATE a >=10h continuous trigger day (see above).
+  // Bounded exactly like the insertion check — only windows containing the changed day
+  // can differ between the two states.
+  {
+    const coverage = {
+      start: addDays(removed.date, -STATUTORY_WINDOW_DAYS),
+      end: addDays(removed.date, STATUTORY_WINDOW_DAYS),
+    };
+    const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
+    const failuresAfter = boundedRestDaysFailures(
+      bucketByDay(after),
+      removed.date,
+      coverage,
+      sundayHard,
+    );
+    if (
+      failuresAfter >
+      boundedRestDaysFailures(
+        bucketByDay(windowShifts),
+        removed.date,
+        coverage,
+        sundayHard,
+      )
+    )
+      kinds.push('REST_DAYS_WINDOW');
+  }
+
+  return kinds;
+}
+
 export function wouldExceedStatutory(
   windowShifts: StatutoryShift[],
   candidate: StatutoryShift,
@@ -766,12 +991,13 @@ export function wouldExceedStatutory(
   }
   // Amplitude is day-shape aware (KON-139): the candidate can merge blocks into a
   // continuous day (or split one), so before/after are each judged against their OWN limit.
+  const deferStructural = opts.deferStructural === true;
   const ampBreachBefore =
     dayBefore.length > 0 &&
     dayAmplitudeMinutes(dayBefore) > amplitudeLimitMinutes(regime, dayBefore);
   const ampBreachAfter =
     dayAmplitudeMinutes(dayAfter) > amplitudeLimitMinutes(regime, dayAfter);
-  if (ampBreachAfter && !ampBreachBefore) {
+  if (ampBreachAfter && !ampBreachBefore && !deferStructural) {
     kinds.push('DAILY_AMPLITUDE');
   }
 
@@ -780,7 +1006,7 @@ export function wouldExceedStatutory(
     dayBefore.length > 0 &&
     dayVacationViolations(candidate.date, dayBefore).length > 0;
   const vacViolationsAfter = dayVacationViolations(candidate.date, dayAfter);
-  if (vacViolationsAfter.length > 0 && !vacBreachBefore) {
+  if (vacViolationsAfter.length > 0 && !vacBreachBefore && !deferStructural) {
     kinds.push(vacViolationsAfter[0].kind);
   }
 
@@ -795,7 +1021,8 @@ export function wouldExceedStatutory(
     dayWorkedMinutes(dayBefore) >
       FRENCH_LABOR_LAW.BREAK_REQUIRED_AFTER_MINUTES &&
     breakBefore < FRENCH_LABOR_LAW.MIN_BREAK_MINUTES_OVER_6H;
-  if (breachAfter && !breachBefore) kinds.push('MANDATORY_BREAK');
+  if (breachAfter && !breachBefore && !deferStructural)
+    kinds.push('MANDATORY_BREAK');
 
   // Consecutive days — only when the candidate adds a NEW worked day
   const datesBefore = new Set(windowShifts.map((s) => s.date));
@@ -824,6 +1051,7 @@ export function wouldExceedStatutory(
   // rejected upstream), so the deficit count is monotonic under insertion and rises iff the
   // candidate adds a gap < 11h.
   if (
+    !deferStructural &&
     countDailyRestDeficits(withCandidate) > countDailyRestDeficits(windowShifts)
   )
     kinds.push('DAILY_REST');
@@ -847,12 +1075,7 @@ export function wouldExceedStatutory(
     // of the comparison. Work is therefore bounded to 14 windows x 14 days per call, and
     // the fast path skips even that when no >=10h continuous trigger day sits within 13
     // days of the candidate (the overwhelmingly common 4-8h case).
-    const byDayWith = new Map<string, StatutoryShift[]>();
-    for (const s of withCandidate) {
-      const arr = byDayWith.get(s.date) ?? [];
-      arr.push(s);
-      byDayWith.set(s.date, arr);
-    }
+    const byDayWith = bucketByDay(withCandidate);
     const isTrigger = (ds: StatutoryShift[] | undefined): boolean =>
       ds !== undefined &&
       dayWorkedMinutes(ds) >= CCN_SHARED.CONTINUOUS_TRIGGER_NET_MINUTES &&
@@ -864,55 +1087,27 @@ export function wouldExceedStatutory(
         break;
       }
     }
-    if (hasTriggerNear) {
+    if (hasTriggerNear && !deferStructural) {
       const coverage = {
         start: addDays(candidate.date, -STATUTORY_WINDOW_DAYS),
         end: addDays(candidate.date, STATUTORY_WINDOW_DAYS),
       };
       const sundayHard = CCN_LIMITS[regime].SUNDAY_IN_REST_PAIR_HARD;
-      const byDayBefore = new Map<string, StatutoryShift[]>();
-      for (const s of windowShifts) {
-        const arr = byDayBefore.get(s.date) ?? [];
-        arr.push(s);
-        byDayBefore.set(s.date, arr);
-      }
-      // Count failing fully-covered windows containing candidate.date, per state.
-      const failingWindows = (byDay: Map<string, StatutoryShift[]>): number => {
-        let failures = 0;
-        for (let back = CCN_SHARED.REST_WINDOW_DAYS - 1; back >= 0; back--) {
-          const ws = addDays(candidate.date, -back);
-          const we = addDays(ws, CCN_SHARED.REST_WINDOW_DAYS - 1);
-          if (ws < coverage.start || we > coverage.end) continue;
-          let windowHasTrigger = false;
-          const restDates: string[] = [];
-          for (let i = 0; i < CCN_SHARED.REST_WINDOW_DAYS; i++) {
-            const d = addDays(ws, i);
-            const ds = byDay.get(d);
-            if (!ds || ds.length === 0) restDates.push(d);
-            else if (!windowHasTrigger && isTrigger(ds))
-              windowHasTrigger = true;
-          }
-          if (!windowHasTrigger) continue;
-          let hasPair = false;
-          let hasSundayPair = false;
-          for (let i = 0; i < restDates.length - 1; i++) {
-            if (dayDiff(restDates[i + 1], restDates[i]) === 1) {
-              hasPair = true;
-              if (isSunday(restDates[i]) || isSunday(restDates[i + 1]))
-                hasSundayPair = true;
-            }
-          }
-          if (
-            restDates.length < CCN_SHARED.REST_MIN_DAYS_IN_WINDOW ||
-            !hasPair ||
-            (sundayHard && !hasSundayPair)
-          ) {
-            failures++;
-          }
-        }
-        return failures;
-      };
-      if (failingWindows(byDayWith) > failingWindows(byDayBefore))
+      const after = boundedRestDaysFailures(
+        byDayWith,
+        candidate.date,
+        coverage,
+        sundayHard,
+      );
+      if (
+        after >
+        boundedRestDaysFailures(
+          bucketByDay(windowShifts),
+          candidate.date,
+          coverage,
+          sundayHard,
+        )
+      )
         kinds.push('REST_DAYS_WINDOW');
     }
   }
@@ -922,21 +1117,36 @@ export function wouldExceedStatutory(
   // windows are re-checked when their own last week receives assignments.
   if (opts.twelveWeek) {
     const { totals, lastWeekMonday } = opts.twelveWeek;
-    const candNet = shiftNetMinutes(candidate);
+    const span = CCN_SHARED.TWELVE_WEEK_SPAN;
     const candWeek = isoWeekStart(candidate.date);
-    for (let e = candWeek; e <= lastWeekMonday; e = addDays(e, 7)) {
-      // window [e-11w, e] contains candWeek by construction (e >= candWeek >= e-11w)
-      if (dayDiff(e, candWeek) >= CCN_SHARED.TWELVE_WEEK_SPAN * 7) break;
+    const reach = dayDiff(lastWeekMonday, candWeek);
+    if (reach >= 0) {
+      const candNet = shiftNetMinutes(candidate);
+      // Judged window ends: candWeek + 7k for k in [0, lastEnd]. Every such window
+      // [e-11w, e] contains candWeek by construction.
+      const lastEnd = Math.min(span - 1, Math.floor(reach / 7));
+      // Consecutive windows share 11 of their 12 weeks, so walk the weeks ONCE and slide
+      // the sum. KON-140 (V5) widened the horizon to a full 12 windows for EVERY candidate
+      // (it used to stop at the month's last ISO week), which turned the naive re-summation
+      // into 144 `addDays` + 144 `totals` calls per eligibility call — measured at ~2x the
+      // whole greedy hot path on the NFR2 stress fixture.
+      const weekTotals: number[] = new Array(span + lastEnd);
+      let monday = addDays(candWeek, -7 * (span - 1));
+      for (let i = 0; i < weekTotals.length; i++) {
+        weekTotals[i] = totals(monday);
+        monday = addDays(monday, 7);
+      }
       let before = 0;
-      for (let i = 0; i < CCN_SHARED.TWELVE_WEEK_SPAN; i++)
-        before += totals(addDays(e, -7 * i));
-      const after = before + candNet;
-      if (
-        after > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES &&
-        before <= CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES
-      ) {
-        kinds.push('TWELVE_WEEK_AVG');
-        break;
+      for (let i = 0; i < span; i++) before += weekTotals[i];
+      for (let k = 0; k <= lastEnd; k++) {
+        if (k > 0) before += weekTotals[k + span - 1] - weekTotals[k - 1];
+        if (
+          before + candNet > CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES &&
+          before <= CCN_SHARED.MAX_TWELVE_WEEK_TOTAL_MINUTES
+        ) {
+          kinds.push('TWELVE_WEEK_AVG');
+          break;
+        }
       }
     }
   }
