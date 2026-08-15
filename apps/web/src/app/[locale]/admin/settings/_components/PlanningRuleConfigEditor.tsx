@@ -1,21 +1,17 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useTranslations } from 'next-intl';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import {
-  DAYS_OF_WEEK,
-  TRACKING_PERIODS,
-  type PlanningRuleCategory,
-} from "@pawly/validators";
-import type { ShiftTypeRecord } from "../_hooks/useClinicShiftTypes";
+} from '@/components/ui/select';
+import { DAYS_OF_WEEK, TRACKING_PERIODS, type PlanningRuleCategory } from '@pawly/validators';
+import type { ShiftTypeRecord } from '../_hooks/useClinicShiftTypes';
 
 const EMPTY_SHIFT_TYPES: ShiftTypeRecord[] = [];
 
@@ -26,13 +22,7 @@ type Props = {
   shiftTypes?: ShiftTypeRecord[];
 };
 
-function FieldGroup({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
@@ -47,28 +37,28 @@ export function PlanningRuleConfigEditor({
   onChange,
   shiftTypes = EMPTY_SHIFT_TYPES,
 }: Props) {
-  const t = useTranslations("admin.planningRules.form");
+  const t = useTranslations('admin.planningRules.form');
 
   const updateField = (key: string, value: unknown) => {
     onChange({ ...config, [key]: value });
   };
 
   const inputClass =
-    "rounded-xl border-border bg-card transition-all focus:border-primary focus:ring-1 focus:ring-primary/20";
-  const selectTriggerClass = "rounded-xl border-border bg-card";
+    'rounded-xl border-border bg-card transition-all focus:border-primary focus:ring-1 focus:ring-primary/20';
+  const selectTriggerClass = 'rounded-xl border-border bg-card';
 
   switch (category) {
-    case "STAFFING_MINIMUM":
+    case 'STAFFING_MINIMUM':
       return (
         <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
-          <FieldGroup label={t("config.shiftTypeCode")}>
+          <FieldGroup label={t('config.shiftTypeCode')}>
             {shiftTypes.length > 0 ? (
               <Select
-                value={(config.shiftTypeCode as string) ?? ""}
-                onValueChange={(v) => updateField("shiftTypeCode", v)}
+                value={(config.shiftTypeCode as string) ?? ''}
+                onValueChange={(v) => updateField('shiftTypeCode', v)}
               >
                 <SelectTrigger className={selectTriggerClass}>
-                  <SelectValue placeholder={t("config.selectShiftType")} />
+                  <SelectValue placeholder={t('config.selectShiftType')} />
                 </SelectTrigger>
                 <SelectContent>
                   {shiftTypes.map((st) => (
@@ -80,41 +70,37 @@ export function PlanningRuleConfigEditor({
               </Select>
             ) : (
               <Input
-                value={(config.shiftTypeCode as string) ?? ""}
-                onChange={(e) => updateField("shiftTypeCode", e.target.value)}
+                value={(config.shiftTypeCode as string) ?? ''}
+                onChange={(e) => updateField('shiftTypeCode', e.target.value)}
                 placeholder="SURGERY"
                 className={inputClass}
               />
             )}
           </FieldGroup>
           <div className="grid grid-cols-2 gap-4">
-            <FieldGroup label={t("config.minStaff")}>
+            <FieldGroup label={t('config.minStaff')}>
               <Input
                 type="number"
                 min={1}
                 value={(config.minStaff as number) ?? 1}
-                onChange={(e) =>
-                  updateField("minStaff", Number(e.target.value))
-                }
+                onChange={(e) => updateField('minStaff', Number(e.target.value))}
                 className={inputClass}
               />
             </FieldGroup>
-            <FieldGroup label={t("config.jobTypes")}>
+            <FieldGroup label={t('config.jobTypes')}>
               <Input
                 value={
-                  Array.isArray(config.jobTypes)
-                    ? (config.jobTypes as string[]).join(", ")
-                    : ""
+                  Array.isArray(config.jobTypes) ? (config.jobTypes as string[]).join(', ') : ''
                 }
                 onChange={(e) =>
                   updateField(
-                    "jobTypes",
+                    'jobTypes',
                     e.target.value
                       ? e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                      : undefined,
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                      : undefined
                   )
                 }
                 placeholder="ASV, VET"
@@ -125,13 +111,13 @@ export function PlanningRuleConfigEditor({
         </div>
       );
 
-    case "ROTATION_EQUITY":
+    case 'ROTATION_EQUITY':
       return (
         <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
-          <FieldGroup label={t("config.targetDay")}>
+          <FieldGroup label={t('config.targetDay')}>
             <Select
-              value={(config.targetDay as string) ?? "saturday"}
-              onValueChange={(v) => updateField("targetDay", v)}
+              value={(config.targetDay as string) ?? 'saturday'}
+              onValueChange={(v) => updateField('targetDay', v)}
             >
               <SelectTrigger className={selectTriggerClass}>
                 <SelectValue />
@@ -146,21 +132,19 @@ export function PlanningRuleConfigEditor({
             </Select>
           </FieldGroup>
           <div className="grid grid-cols-2 gap-4">
-            <FieldGroup label={t("config.maxPerPeriod")}>
+            <FieldGroup label={t('config.maxPerPeriod')}>
               <Input
                 type="number"
                 min={1}
                 value={(config.maxPerPeriod as number) ?? 2}
-                onChange={(e) =>
-                  updateField("maxPerPeriod", Number(e.target.value))
-                }
+                onChange={(e) => updateField('maxPerPeriod', Number(e.target.value))}
                 className={inputClass}
               />
             </FieldGroup>
-            <FieldGroup label={t("config.trackingPeriod")}>
+            <FieldGroup label={t('config.trackingPeriod')}>
               <Select
-                value={(config.trackingPeriod as string) ?? "monthly"}
-                onValueChange={(v) => updateField("trackingPeriod", v)}
+                value={(config.trackingPeriod as string) ?? 'monthly'}
+                onValueChange={(v) => updateField('trackingPeriod', v)}
               >
                 <SelectTrigger className={selectTriggerClass}>
                   <SelectValue />
@@ -178,17 +162,17 @@ export function PlanningRuleConfigEditor({
         </div>
       );
 
-    case "SKILL_REQUIREMENT":
+    case 'SKILL_REQUIREMENT':
       return (
         <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
-          <FieldGroup label={t("config.shiftTypeCode")}>
+          <FieldGroup label={t('config.shiftTypeCode')}>
             {shiftTypes.length > 0 ? (
               <Select
-                value={(config.shiftTypeCode as string) ?? ""}
-                onValueChange={(v) => updateField("shiftTypeCode", v)}
+                value={(config.shiftTypeCode as string) ?? ''}
+                onValueChange={(v) => updateField('shiftTypeCode', v)}
               >
                 <SelectTrigger className={selectTriggerClass}>
-                  <SelectValue placeholder={t("config.selectShiftType")} />
+                  <SelectValue placeholder={t('config.selectShiftType')} />
                 </SelectTrigger>
                 <SelectContent>
                   {shiftTypes.map((st) => (
@@ -200,29 +184,29 @@ export function PlanningRuleConfigEditor({
               </Select>
             ) : (
               <Input
-                value={(config.shiftTypeCode as string) ?? ""}
-                onChange={(e) => updateField("shiftTypeCode", e.target.value)}
+                value={(config.shiftTypeCode as string) ?? ''}
+                onChange={(e) => updateField('shiftTypeCode', e.target.value)}
                 placeholder="SURGERY"
                 className={inputClass}
               />
             )}
           </FieldGroup>
-          <FieldGroup label={t("config.requiredJobTypes")}>
+          <FieldGroup label={t('config.requiredJobTypes')}>
             <Input
               value={
                 Array.isArray(config.requiredJobTypes)
-                  ? (config.requiredJobTypes as string[]).join(", ")
-                  : ""
+                  ? (config.requiredJobTypes as string[]).join(', ')
+                  : ''
               }
               onChange={(e) =>
                 updateField(
-                  "requiredJobTypes",
+                  'requiredJobTypes',
                   e.target.value
                     ? e.target.value
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                    : undefined,
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    : undefined
                 )
               }
               placeholder="VET, ASV"
@@ -232,34 +216,31 @@ export function PlanningRuleConfigEditor({
         </div>
       );
 
-    case "CONTRACT_COMPLIANCE":
+    case 'CONTRACT_COMPLIANCE':
       return (
         <div className="space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
           <div className="grid grid-cols-2 gap-4">
-            <FieldGroup label={t("config.maxWeeklyHours")}>
+            <FieldGroup label={t('config.maxWeeklyHours')}>
               <Input
                 type="number"
                 min={1}
-                value={(config.maxWeeklyHours as number) ?? ""}
+                value={(config.maxWeeklyHours as number) ?? ''}
                 onChange={(e) =>
-                  updateField(
-                    "maxWeeklyHours",
-                    e.target.value ? Number(e.target.value) : undefined,
-                  )
+                  updateField('maxWeeklyHours', e.target.value ? Number(e.target.value) : undefined)
                 }
                 placeholder="35"
                 className={inputClass}
               />
             </FieldGroup>
-            <FieldGroup label={t("config.maxMonthlyHours")}>
+            <FieldGroup label={t('config.maxMonthlyHours')}>
               <Input
                 type="number"
                 min={1}
-                value={(config.maxMonthlyHours as number) ?? ""}
+                value={(config.maxMonthlyHours as number) ?? ''}
                 onChange={(e) =>
                   updateField(
-                    "maxMonthlyHours",
-                    e.target.value ? Number(e.target.value) : undefined,
+                    'maxMonthlyHours',
+                    e.target.value ? Number(e.target.value) : undefined
                   )
                 }
                 placeholder="151"
@@ -267,22 +248,43 @@ export function PlanningRuleConfigEditor({
               />
             </FieldGroup>
           </div>
-          <FieldGroup label={t("config.overtimeThresholdPercent")}>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              value={(config.overtimeThresholdPercent as number) ?? ""}
-              onChange={(e) =>
-                updateField(
-                  "overtimeThresholdPercent",
-                  e.target.value ? Number(e.target.value) : undefined,
-                )
-              }
-              placeholder="10"
-              className={inputClass}
-            />
-          </FieldGroup>
+          <div className="grid grid-cols-2 gap-4">
+            {/* KON-144 — the engine has honoured maxDailyHours since KON-140, but the form
+                never offered it, so the capability was unreachable outside seeded rows. It
+                can only TIGHTEN: the statutory 12h ceiling applies regardless, so anything
+                >= 12 is redundant and the engine ignores it. Hence max={11.9} + the hint. */}
+            <FieldGroup label={t('config.maxDailyHours')}>
+              <Input
+                type="number"
+                min={1}
+                max={11.9}
+                step={0.5}
+                value={(config.maxDailyHours as number) ?? ''}
+                onChange={(e) =>
+                  updateField('maxDailyHours', e.target.value ? Number(e.target.value) : undefined)
+                }
+                placeholder="8"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t('config.maxDailyHoursHint')}</p>
+            </FieldGroup>
+            <FieldGroup label={t('config.overtimeThresholdPercent')}>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={(config.overtimeThresholdPercent as number) ?? ''}
+                onChange={(e) =>
+                  updateField(
+                    'overtimeThresholdPercent',
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
+                placeholder="10"
+                className={inputClass}
+              />
+            </FieldGroup>
+          </div>
         </div>
       );
 

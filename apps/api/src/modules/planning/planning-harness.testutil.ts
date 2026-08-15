@@ -165,8 +165,41 @@ const employeesArb = fc.integer({ min: 1, max: 5 }).chain((n) =>
 const workdaysArb = fc
   // KON-140 (V6) — up to 6 workdays: dense weeks pressure consecutive-days, weekly
   // ceilings and the rest-days windows instead of only sparse 1-3-day templates.
-  .subarray([...WORKDAY_NAMES], { minLength: 1, maxLength: WORKDAY_NAMES.length })
+  .subarray([...WORKDAY_NAMES], {
+    minLength: 1,
+    maxLength: WORKDAY_NAMES.length,
+  })
   .filter((d) => d.length > 0);
+
+/**
+ * KON-144 follow-up — a HARD CONTRACT_COMPLIANCE rule, present about half the time.
+ *
+ * 13-8 deliberately shipped `rules: []` ("P1 targets the non-configurable statutory
+ * floor"), which left the whole CONFIGURABLE surface unprobed: the rule engine's daily,
+ * weekly and monthly caps never ran under randomized input. KON-140 then added a brand-new
+ * evaluation path there (`maxDailyHours`, V7) that no property could reach. The caps below
+ * are tighter than the statutory floor on purpose — a cap the engine ignores tests nothing.
+ */
+const contractRuleArb = fc.option(
+  fc
+    .record({
+      maxDailyHours: fc.option(fc.constantFrom(6, 8, 10), { nil: undefined }),
+      maxWeeklyHours: fc.option(fc.constantFrom(20, 35), { nil: undefined }),
+    })
+    // the schema requires at least one constraint
+    .filter(
+      (c) => c.maxDailyHours !== undefined || c.maxWeeklyHours !== undefined,
+    )
+    .map((config) => ({
+      id: '33333333-3333-4333-8333-333333333333',
+      name: 'Contract caps (harness)',
+      category: 'CONTRACT_COMPLIANCE' as const,
+      ruleType: 'HARD' as const,
+      config: { ...config, overtimeThresholdPercent: 0 },
+      priority: 8,
+    })),
+  { nil: undefined, freq: 2 },
+);
 
 export const planningFixtureArb: fc.Arbitrary<PlanningFixture> = fc
   .record({
@@ -177,6 +210,7 @@ export const planningFixtureArb: fc.Arbitrary<PlanningFixture> = fc
     workDays: workdaysArb,
     // 0 or 1 legal survivor per employee (built after employees are known).
     survivorEmpCount: fc.integer({ min: 0, max: 2 }),
+    contractRule: contractRuleArb,
   })
   .chain((base) =>
     fc
@@ -234,7 +268,9 @@ export const planningFixtureArb: fc.Arbitrary<PlanningFixture> = fc
           shiftTypes: base.shiftTypes,
           template: { days },
           employees: base.employees,
-          rules: [], // configurable rules kept empty: P1 targets the non-configurable statutory floor.
+          // KON-144 follow-up — was `[]`, which left the rule engine's configurable caps
+          // (including KON-140's maxDailyHours path) unreachable by any property.
+          rules: base.contractRule ? [base.contractRule] : [],
           unavailabilities: [],
           survivors,
         } satisfies PlanningFixture;
