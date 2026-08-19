@@ -3,7 +3,7 @@
 **Date:** 2026-08-19
 **Author:** Alex
 **Type:** fix
-**Status:** in-progress
+**Status:** done
 
 ## What
 
@@ -22,17 +22,17 @@ Nothing reaches Trigger.dev or Resend, so the failure is invisible in monitoring
 
 ## Acceptance Criteria
 
-- [ ] **AC1** — `EmployeeService.update()` with a new non-empty `email` on an employee that
+- [x] **AC1** — `EmployeeService.update()` with a new non-empty `email` on an employee that
   has a `userId` updates `User.email` to the same value, atomically with the employee
   update (single `$transaction`). Updating other fields, or an employee without `userId`,
   never touches `User`.
-- [ ] **AC2** — If another `User` already owns the new email, `update()` throws
+- [x] **AC2** — If another `User` already owns the new email, `update()` throws
   `BadRequestException` (same wording family as `create()`) and changes nothing.
-- [ ] **AC3** — `resendInvitation()` throws (`BadRequestException`, "no login account for
+- [x] **AC3** — `resendInvitation()` throws (`BadRequestException`, "no login account for
   this email") when `createWelcomeMagicLink()` returns `null`, instead of returning
   `{ message: 'Invitation resent' }`. The existing web toast `invitationFailed` surfaces it.
-- [ ] **AC4** — Existing employee/invitation tests stay green; new unit tests cover AC1–AC3.
-- [ ] **AC5 (data)** — Production row repaired: `User` linked to employee
+- [x] **AC4** — Existing employee/invitation tests stay green; new unit tests cover AC1–AC3.
+- [x] **AC5 (data)** — Production row repaired: `User` linked to employee
   `a2c3dd64-3969-43df-bd07-a2c197855d2a` gets `email = nadir91270+pawly@gmail.com`
   (verified by a successful "Resend invitation" → Trigger run → Resend `sent`).
 
@@ -55,4 +55,17 @@ Nothing reaches Trigger.dev or Resend, so the failure is invisible in monitoring
 
 ## Result
 
-<!-- Filled after implementation -->
+- Branch `fix/employee-email-user-sync` → PR #135 (develop). Commit `782117c`.
+- `apps/api/src/modules/employee/employee.service.ts` — `update()` syncs `User.email` in a
+  `$transaction` (conflict → `BadRequestException`); `resendInvitation()` throws when no
+  account matches instead of reporting success.
+- `apps/api/src/modules/employee/employee.service.spec.ts` — +5 tests (sync, no-account,
+  untouched email, conflict, resend without account). API suite: 44 suites / 1230 green.
+- Live verification (local API + web, chrome-devtools): resend before repair → error toast;
+  rename via the form → `User.email` follows; resend after repair → Trigger `send-email`
+  run → Resend `sent` then `opened` by the recipient.
+- Data: employee `a2c3dd64-…` (testi teso) re-linked to `nadir91270+pawly@gmail.com`
+  through the fixed path. Left untouched: seed clinic "Clinique Zen Dev" (`camille@pawly.local`
+  vs `employee@pawly.local`).
+- Known pre-existing: employee router surfaces service exceptions as tRPC
+  `INTERNAL_SERVER_ERROR` (no `mapServiceError`); message preserved.
