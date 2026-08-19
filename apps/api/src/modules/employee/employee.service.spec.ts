@@ -425,6 +425,20 @@ describe('EmployeeService', () => {
       );
     });
 
+    it('throws when no login account matches the employee email instead of reporting success', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        email: 'renamed@clinic.fr',
+        userId: 'user-1',
+      });
+      mockAuthService.createWelcomeMagicLink.mockResolvedValueOnce(null);
+
+      await expect(service.resendInvitation(clinicId, 'emp-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockMailService.sendEmployeeInvitationEmail).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequestException when employee has no email', async () => {
       mockPrismaService.employee.findFirst.mockResolvedValue({
         ...mockEmployee,
@@ -581,6 +595,73 @@ describe('EmployeeService', () => {
           endDate: null,
         }),
       });
+    });
+
+    it('syncs the linked User email in one transaction when the email changes', async () => {
+      const linked = { ...mockEmployee, userId: 'user-1', email: 'old@clinic.fr' };
+      mockPrismaService.employee.findFirst.mockResolvedValue(linked);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const txUserUpdate = jest.fn().mockResolvedValue({ id: 'user-1', email: 'new@clinic.fr' });
+      const txEmployeeUpdate = jest
+        .fn()
+        .mockResolvedValue({ ...linked, email: 'new@clinic.fr' });
+      mockPrismaService.$transaction.mockImplementation(async (fn: any) =>
+        fn({ user: { update: txUserUpdate }, employee: { update: txEmployeeUpdate } }),
+      );
+
+      const result = await service.update(clinicId, { id: 'emp-1', email: 'new@clinic.fr' });
+
+      expect(result.email).toBe('new@clinic.fr');
+      expect(txUserUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { email: 'new@clinic.fr' },
+      });
+      expect(txEmployeeUpdate).toHaveBeenCalledWith({
+        where: { id: 'emp-1' },
+        data: expect.objectContaining({ email: 'new@clinic.fr' }),
+      });
+      // The non-transactional path must not run in parallel with the transaction.
+      expect(mockPrismaService.employee.update).not.toHaveBeenCalled();
+    });
+
+    it('does not touch any User when the employee has no linked account', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({ ...mockEmployee, userId: null });
+      mockPrismaService.employee.update.mockResolvedValue({ ...mockEmployee, email: 'new@clinic.fr' });
+
+      await service.update(clinicId, { id: 'emp-1', email: 'new@clinic.fr' });
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(mockPrismaService.employee.update).toHaveBeenCalledWith({
+        where: { id: 'emp-1' },
+        data: expect.objectContaining({ email: 'new@clinic.fr' }),
+      });
+    });
+
+    it('does not look up or touch the User when the email is not part of the update', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({ ...mockEmployee, userId: 'user-1' });
+      mockPrismaService.employee.update.mockResolvedValue({ ...mockEmployee, firstName: 'X' });
+
+      await service.update(clinicId, { id: 'emp-1', firstName: 'X' });
+
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects an email already owned by another User account and writes nothing', async () => {
+      mockPrismaService.employee.findFirst.mockResolvedValue({
+        ...mockEmployee,
+        userId: 'user-1',
+        email: 'old@clinic.fr',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-other', email: 'taken@clinic.fr' });
+
+      await expect(
+        service.update(clinicId, { id: 'emp-1', email: 'taken@clinic.fr' }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(mockPrismaService.employee.update).not.toHaveBeenCalled();
     });
   });
 

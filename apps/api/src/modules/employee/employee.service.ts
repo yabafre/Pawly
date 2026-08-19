@@ -236,11 +236,9 @@ export class EmployeeService {
     const forceClearEndDate = updateData.contractType === 'CDI';
 
     // Verify employee belongs to clinic
-    await this.findById(clinicId, id);
+    const employee = await this.findById(clinicId, id);
 
-    return this.prisma.employee.update({
-      where: { id },
-      data: {
+    const employeeData = {
         ...(updateData.firstName !== undefined && {
           firstName: updateData.firstName,
         }),
@@ -271,8 +269,40 @@ export class EmployeeService {
           !forceClearEndDate && {
             endDate: updateData.endDate ? new Date(updateData.endDate) : null,
           }),
-      },
-    });
+    };
+
+    // The employee's email doubles as the login identity of the linked User
+    // (magic link / OTP lookups and "resend invitation" all resolve the User by
+    // email). A rename that only touched Employee would silently orphan the
+    // account: every later mail would be a no-op reported as success.
+    const newEmail =
+      updateData.email !== undefined ? updateData.email || null : undefined;
+    const mustSyncUser =
+      newEmail !== undefined &&
+      newEmail !== null &&
+      newEmail !== employee.email &&
+      !!employee.userId;
+
+    if (mustSyncUser) {
+      const owner = await this.prisma.user.findUnique({
+        where: { email: newEmail },
+      });
+      if (owner && owner.id !== employee.userId) {
+        throw new BadRequestException(
+          `A user account with email ${newEmail} already exists`,
+        );
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: employee.userId! },
+          data: { email: newEmail },
+        });
+        return tx.employee.update({ where: { id }, data: employeeData });
+      });
+    }
+
+    return this.prisma.employee.update({ where: { id }, data: employeeData });
   }
 
   async toggleActive(clinicId: string, id: string) {
@@ -534,22 +564,27 @@ export class EmployeeService {
       employee.email,
     );
 
-    if (magicLinkUrl) {
-      // Look up locale of the employee's user
-      const empUser = employee.email
-        ? await this.prisma.user.findUnique({
-            where: { email: employee.email },
-            select: { locale: true },
-          })
-        : null;
-      const locale = (empUser?.locale as MailLocale) ?? 'fr';
-      await this.mailService.sendEmployeeInvitationEmail(
-        employee.email,
-        magicLinkUrl,
-        employee.firstName,
-        locale,
+    if (!magicLinkUrl) {
+      // No User carries this email (e.g. the employee was renamed before the
+      // login account followed). Reporting success here would hide a mail that
+      // never leaves — surface it so the admin can fix the email.
+      throw new BadRequestException(
+        `No login account matches ${employee.email} — update the employee email to re-link it`,
       );
     }
+
+    // Look up locale of the employee's user
+    const empUser = await this.prisma.user.findUnique({
+      where: { email: employee.email },
+      select: { locale: true },
+    });
+    const locale = (empUser?.locale as MailLocale) ?? 'fr';
+    await this.mailService.sendEmployeeInvitationEmail(
+      employee.email,
+      magicLinkUrl,
+      employee.firstName,
+      locale,
+    );
 
     return { message: 'Invitation resent' };
   }
