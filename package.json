@@ -19,9 +19,14 @@
     "test": "dotenv -- turbo run test",
     "trigger:dev": "dotenv -- pnpm --filter @pawly/api trigger:dev",
     "trigger:deploy:staging": "dotenv -- pnpm --filter @pawly/api trigger:deploy:staging",
-    "trigger:deploy:prod": "dotenv -- pnpm --filter @pawly/api trigger:deploy:prod"
+    "trigger:deploy:prod": "dotenv -- pnpm --filter @pawly/api trigger:deploy:prod",
+    "e2e:db:reset": "dotenv -e .env.e2e -- pnpm --filter @pawly/api exec tsx test/reset-db.ts && pnpm e2e:db:seed",
+    "e2e:db:seed": "dotenv -e .env.e2e -- pnpm --filter @pawly/api exec tsx prisma/seed.ts",
+    "test:integration": "dotenv -e .env.e2e -- pnpm --filter @pawly/api exec jest --config ./test/jest-e2e.json",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "dotenv-cli": "^8.0.0",
     "prettier": "^3.4.2",
     "sharp": "^0.34.5",

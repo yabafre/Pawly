@@ -1,9 +1,39 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
-  "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts",
+    "tsx"
+  ],
+  "rootDir": "..",
+  "testRegex": "test/.*\\.e2e-spec\\.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)sx?$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "allowJs": true,
+          "esModuleInterop": true,
+          "module": "CommonJS",
+          "moduleResolution": "node",
+          "resolvePackageJsonExports": false
+        }
+      }
+    ]
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@pawly/validators$": "<rootDir>/../../packages/validators/src/index.ts",
+    "^@pawly/zod$": "<rootDir>/../../packages/zod/src/index.ts",
+    "^@pawly/types$": "<rootDir>/../../packages/types/src/index.ts"
+  },
+  "testEnvironment": "node",
+  "testTimeout": 30000,
+  "maxWorkers": 1,
+  "setupFilesAfterEnv": [
+    "<rootDir>/test/setup-after-env.ts"
+  ],
+  "transformIgnorePatterns": [
+    "node_modules/(?!\\.pnpm/(superjson|copy-anything|is-what)|superjson|copy-anything|is-what)"
+  ]
 }
