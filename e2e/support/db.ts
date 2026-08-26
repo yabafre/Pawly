@@ -31,8 +31,14 @@ function databaseUrl(): string {
 
 async function query<T>(sql: string, params: unknown[]): Promise<T[]> {
   const url = databaseUrl();
-  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
-    throw new Error(`Refusing to touch a non-local database: ${url.replace(/:[^:@]*@/, ':***@')}`);
+  // The test database is a database of its own on the shared Neon project, so
+  // "is it local" says nothing useful — what matters is that it is not the one
+  // holding the real data. Same criterion as apps/api/test/setup-after-env.ts.
+  if (!/\/pawly_e2e(\?|$)/.test(url)) {
+    throw new Error(
+      `Refusing to touch ${url.replace(/:[^:@]*@/, ':***@')} — these helpers write ` +
+        'directly to the database and only run against the dedicated `pawly_e2e` one.',
+    );
   }
   const client = new Client({ connectionString: url });
   await client.connect();
