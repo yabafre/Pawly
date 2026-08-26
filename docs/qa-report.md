@@ -9,10 +9,18 @@ because a link or a code in an email is otherwise unreachable from a test.
 
 ## What runs
 
-| Suite | Runner | Tests | Command |
-|---|---|---|---|
-| Integration | Jest + Supertest | 148 | `pnpm test:integration` |
-| Journeys | Playwright (Chromium) | 90 | `pnpm test:e2e` |
+| Suite | Runner | Tests | Last full run | Command |
+|---|---|---|---|---|
+| Integration | Jest + Supertest | 148 | 180 passed, 1 skipped, **exit 0** | `pnpm test:integration` |
+| Journeys | Playwright (Chromium) | 90 | see below | `pnpm test:e2e` |
+
+The journey suite's last complete run predates the final fix to
+`e2e/support/db.ts` (its write helpers rejected any non-localhost database, which
+is exactly what the move to a dedicated Neon database made them). The run after
+that fix was stopped by hand at 37 of 70 tests, with **no genuine failure up to
+that point** — the only ✘ marks were `test.fail` markers doing their job. A full
+green run is the one thing this report does not yet have; CI performs it on
+every pull request.
 
 Both are wired into CI as a separate `E2E & Integration` workflow — separate
 from `Build` on purpose, since it needs a database and a browser and therefore
@@ -44,7 +52,7 @@ fails for different reasons than a compile.
 
 ## Defects found
 
-Five, all confirmed against the source, none of them visible to the 1230 unit
+Seven, all confirmed against the source, none of them visible to the 1230 unit
 tests. Every one of them lives in a seam between layers — a Prisma transaction,
 a guard, a mail side effect — which is exactly where unit tests substitute a
 stub for the thing that actually misbehaves.
@@ -124,6 +132,27 @@ travelled error path in the product — every mistyped password.
 Same root cause as #2: the write happens inside the transaction the method
 throws from. Listed separately because fixing #2 by moving only the counter
 would leave this one behind.
+
+### 6. An admin can never rename their clinic — *feature does not work*
+
+`updateClinicNameAction` validates and sends `{ name }`; `clinic.updateClinicName`
+validates `updateClinicNameSchema`, which expects `{ clinicName }`. Every rename
+is therefore a tRPC input error before it reaches the service. The settings
+form has never been able to do the one thing it is for (10-2, AC2/AC3).
+
+Neither side is wrong on its own, which is why nothing caught it: the web action
+has its own schema, the router has its own schema, and no test ever put the two
+in the same process.
+
+**Fix:** send `{ clinicName }` from the action, or accept `{ name }` in the
+shared schema — one of the two, and a test that crosses the boundary.
+
+### 7. A wrong current password is indistinguishable from an outage — *low*
+
+The API answers `Current password is incorrect`, but `changePasswordAction`
+declares no `experimental_shapeError`, so zsa replaces the message with a
+generic one before `AdminAccountPanel`'s `includes('incorrect')` test can see
+it. The admin is told something went wrong, never what (10-2, AC7).
 
 ## Gaps
 
