@@ -22,6 +22,7 @@ packages/**/src/**/*.d.ts.map
 .env.*.local
 *.env
 .env.docker
+.env.e2e
 
 # IDE
 .idea/
@@ -74,3 +75,9 @@ _bmad/
 
 # workmux worktree config (bootstrapped from .aped/templates by aped-sprint)
 .workmux.yaml
+
+# E2E test artifacts
+e2e/.artifacts/
+e2e/.mailbox.json
+playwright-report/
+test-results/

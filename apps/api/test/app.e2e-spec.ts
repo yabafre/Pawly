@@ -1,25 +1,48 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { createTestHarness, login, type TestHarness } from './harness';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+const SEED = {
+  adminEmail: 'admin@pawly.local',
+  adminPassword: 'Admin123!',
+  employeeEmail: 'employee@pawly.local',
+};
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+describe('API harness (integration)', () => {
+  let harness: TestHarness;
 
-    app = moduleFixture.createNestApplication();
-    await app.init();
+  beforeAll(async () => {
+    harness = await createTestHarness();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await harness.close();
+  });
+
+  it('signs the seeded admin in and returns a usable token', async () => {
+    const token = await login(harness, SEED.adminEmail, SEED.adminPassword);
+    expect(token).toEqual(expect.any(String));
+
+    const profile = await harness
+      .http()
+      .get('/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(profile.body.email).toBe(SEED.adminEmail);
+  });
+
+  it('rejects a tRPC mutation that arrives without the CSRF header', async () => {
+    await harness
+      .http()
+      .post('/trpc/employee.list')
+      .send({ json: {} })
+      .expect(403);
+  });
+
+  it('captures the OTP mail instead of sending it', async () => {
+    harness.mailbox.reset();
+    await harness.http().post('/auth/otp/request').send({ email: SEED.employeeEmail }).expect(201);
+
+    const otp = harness.mailbox.read().find((m) => m.type === 'sendOtpCode');
+    expect(otp?.to).toBe(SEED.employeeEmail);
+    expect(otp?.code).toMatch(/^\d{6}$/);
   });
 });

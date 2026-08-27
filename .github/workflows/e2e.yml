@@ -1,0 +1,92 @@
+name: E2E & Integration
+
+# Kept out of build.yml on purpose: this job needs a database service and a
+# browser, so it is slower and fails for different reasons than a compile.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pawly
+          POSTGRES_PASSWORD: pawly
+          POSTGRES_DB: pawly_e2e
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pawly"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # CI keeps its own throwaway Postgres rather than the Neon database used
+      # locally: faster, and no shared state between concurrent runs. Every
+      # other value is a dummy — no external service is reachable from this job,
+      # and MailService is replaced by the capture stub.
+      DATABASE_URL: postgresql://pawly:pawly@localhost:55432/pawly_e2e
+      NODE_ENV: test
+      API_PORT: '3011'
+      JWT_SECRET: e2e-test-jwt-secret-not-used-anywhere-else-0123456789
+      WEB_APP_URL: http://localhost:3030
+      NEXT_PUBLIC_API_URL: http://localhost:3011
+      RESEND_API_KEY: re_e2e_not_a_real_key
+      MAIL_FROM: Pawly E2E <noreply@e2e.invalid>
+      STRIPE_SECRET_KEY: sk_test_e2e_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_e2e_dummy_secret
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA'
+      TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA'
+      CRON_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm turbo run build
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
+
+      - name: Prepare the test database
+        run: |
+          pnpm --filter @pawly/api exec prisma db push --accept-data-loss
+          pnpm --filter @pawly/api exec tsx prisma/seed.ts
+
+      - name: Integration tests (API)
+        run: pnpm --filter @pawly/api exec jest --config ./test/jest-e2e.json
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E journeys (browser)
+        run: pnpm test:e2e
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            e2e/.artifacts/
+            playwright-report/
+          retention-days: 7
