@@ -11,16 +11,12 @@ because a link or a code in an email is otherwise unreachable from a test.
 
 | Suite | Runner | Tests | Last full run | Command |
 |---|---|---|---|---|
-| Integration | Jest + Supertest | 148 | 180 passed, 1 skipped, **exit 0** | `pnpm test:integration` |
-| Journeys | Playwright (Chromium) | 90 | see below | `pnpm test:e2e` |
+| Integration | Jest + Supertest | 148 | 180 passed, 1 skipped — **exit 0** | `pnpm test:integration` |
+| Journeys | Playwright (Chromium) | 70 | 69 passed, 1 skipped — **exit 0** (7.4 min) | `pnpm test:e2e` |
 
-The journey suite's last complete run predates the final fix to
-`e2e/support/db.ts` (its write helpers rejected any non-localhost database, which
-is exactly what the move to a dedicated Neon database made them). The run after
-that fix was stopped by hand at 37 of 70 tests, with **no genuine failure up to
-that point** — the only ✘ marks were `test.fail` markers doing their job. A full
-green run is the one thing this report does not yet have; CI performs it on
-every pull request.
+Both numbers come from whole-suite runs, which is the only run that means
+anything here: the first full journey run was 41 green and 8 red purely from
+cross-test interference, while every file passed on its own.
 
 Both are wired into CI as a separate `E2E & Integration` workflow — separate
 from `Build` on purpose, since it needs a database and a browser and therefore
@@ -191,3 +187,9 @@ it. The admin is told something went wrong, never what (10-2, AC7).
   red purely from cross-test interference: a per-IP auth throttler shared by
   every test, and fixtures left behind by earlier tests. Only the whole-suite
   run tells the truth, and that is the run CI performs.
+- **One guard nearly took the process down.** Resetting the throttler between
+  tests by clearing its Map looked harmless and was not: the service schedules a
+  timer per hit that reads its own entry back, so a cleared Map made that timer
+  throw from outside any request — an uncaught exception that killed the API
+  mid-run and produced fourteen failures that looked like application bugs. The
+  service's own `resetBlockdRequest` does the same job without the trap.
