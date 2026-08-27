@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -11,7 +11,7 @@ import { join } from 'node:path';
  * would otherwise be untestable in a browser.
  *
  * So this file reaches past the API for that single UPDATE, against the
- * throwaway Postgres in `.env.e2e` and never anything else. `pg` is resolved
+ * dedicated `pawly_e2e` database and never anything else. `pg` is resolved
  * from `apps/api`, which owns the dependency.
  */
 
@@ -21,12 +21,21 @@ const ROOT = join(__dirname, '..', '..');
 const { Client } = createRequire(join(ROOT, 'apps/api/package.json'))('pg') as any;
 
 function databaseUrl(): string {
-  const raw = readFileSync(join(ROOT, '.env.e2e'), 'utf8');
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('DATABASE_URL=')) return trimmed.slice('DATABASE_URL='.length);
+  // `.env.e2e` is gitignored — it holds a real connection string — so CI has no
+  // copy and supplies the value through the environment instead.
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  const path = join(ROOT, '.env.e2e');
+  if (existsSync(path)) {
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('DATABASE_URL=')) return trimmed.slice('DATABASE_URL='.length);
+    }
   }
-  throw new Error('DATABASE_URL missing from .env.e2e');
+
+  throw new Error(
+    'No DATABASE_URL: set it in the environment, or copy .env.e2e.example to .env.e2e.',
+  );
 }
 
 async function query<T>(sql: string, params: unknown[]): Promise<T[]> {

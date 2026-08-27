@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Browser journeys run against a throwaway Postgres (see `.env.e2e`), never the
- * Neon database dev and prod share. Both servers are started by Playwright so a
- * run is one command, and `reuseExistingServer` keeps the loop fast locally.
+ * Browser journeys run against the dedicated `pawly_e2e` database (see
+ * `.env.e2e`), never the one dev and prod share. Both servers are started by
+ * Playwright, so a run is one command, and `reuseExistingServer` keeps the loop
+ * fast locally.
  */
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3030);
 const API_PORT = Number(process.env.E2E_API_PORT ?? 3011);
