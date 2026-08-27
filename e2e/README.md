@@ -16,8 +16,17 @@ as the real data — never to `neondb`, where that data lives. Copy
 gitignored because the connection string is a real credential.
 
 ```bash
-pnpm e2e:db:reset   # truncate every table, then reseed
+# once, if the database does not exist yet — connect to the Neon project and:
+#   CREATE DATABASE pawly_e2e;
+pnpm --filter @pawly/api exec prisma db push --accept-data-loss   # with .env.e2e loaded
+pnpm e2e:db:seed
+
+pnpm e2e:db:reset   # thereafter: truncate every table, then reseed
 ```
+
+The database is not kept between working sessions — it is created when someone
+needs to run the suites locally and dropped afterwards, so nothing idles on the
+Neon project. CI never depends on it.
 
 **A database, not a schema.** Splitting by schema looks equivalent and is not:
 Prisma's `pg` adapter pins itself to `public` whatever `search_path` says, so a
