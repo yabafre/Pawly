@@ -20,7 +20,13 @@ cross-test interference, while every file passed on its own.
 
 Both are wired into CI as a separate `E2E & Integration` workflow — separate
 from `Build` on purpose, since it needs a database and a browser and therefore
-fails for different reasons than a compile.
+fails for different reasons than a compile. CI reproduces both numbers exactly,
+on its own throwaway Postgres.
+
+CI earned its keep immediately: the journey helpers read `.env.e2e` directly,
+and that file is gitignored because it holds a real connection string — so the
+first CI run failed twelve journeys on ENOENT while every local run was green.
+A dependency on a local file is invisible from the machine that has the file.
 
 ### Integration suites
 
