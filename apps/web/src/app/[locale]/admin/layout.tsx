@@ -26,6 +26,25 @@ export default async function AdminLayout({ children, params }: Props) {
     redirect(`/${locale}/login`);
   }
 
+  // Role guard: a cookie only proves someone is signed in, not that they are an
+  // admin. Without this an employee reached /admin/* and the roster rendered.
+  // Mirrors the EMPLOYEE check in the dashboard layout.
+  let role: string | null = null;
+  let authFailed = false;
+  try {
+    role = (await trpc.auth.getMe.query()).role;
+  } catch {
+    authFailed = true;
+  }
+
+  if (authFailed) {
+    redirect(`/${locale}/login`);
+  }
+
+  if (role !== 'ADMIN') {
+    redirect(`/${locale}/dashboard`);
+  }
+
   // Onboarding guard: server-side check
   const headersList = await headers();
   const pathname = headersList.get('x-pathname') ?? '';

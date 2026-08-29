@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { ApprenticeDeclarationRow } from '@pawly/validators';
 
@@ -76,11 +76,30 @@ export class ApprenticeDeclarationService {
     });
   }
 
+  /**
+   * Both foreign keys are satisfied independently, so an upsert on the
+   * composite key happily persists a row pointing at another clinic's
+   * employee. Resolving the employee inside the caller's clinic first is what
+   * every other id-taking planning procedure already does — and it also stops
+   * the answer from revealing whether a foreign id exists.
+   */
+  private async assertEmployeeInClinic(clinicId: string, employeeId: string): Promise<void> {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, clinicId },
+      select: { id: true },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+  }
+
   async upsertNoSchool(
     clinicId: string,
     employeeId: string,
     month: string,
   ): Promise<{ id: string }> {
+    await this.assertEmployeeInClinic(clinicId, employeeId);
+
     const result = await this.prisma.apprenticeMonthDeclaration.upsert({
       where: {
         clinicId_employeeId_month: { clinicId, employeeId, month },
@@ -103,6 +122,8 @@ export class ApprenticeDeclarationService {
     employeeId: string,
     month: string,
   ): Promise<{ deleted: boolean }> {
+    await this.assertEmployeeInClinic(clinicId, employeeId);
+
     try {
       await this.prisma.apprenticeMonthDeclaration.delete({
         where: {

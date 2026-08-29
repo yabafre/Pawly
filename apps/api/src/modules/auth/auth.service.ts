@@ -133,7 +133,10 @@ export class AuthService {
     async login(loginDto: LoginDto) {
         const user = await this.validateUser(loginDto.email, loginDto.password);
         if (!user) {
-            throw new UnauthorizedException('Invalid credentials');
+            // A token, like ADMIN_USE_PASSWORD and EMAIL_ALREADY_EXISTS below:
+            // the web layer maps it to a translated message. A sentence here
+            // reached French users in English and left the translation dead.
+            throw new UnauthorizedException('INVALID_CREDENTIALS');
         }
         return this.generateToken(user);
     }
@@ -316,12 +319,25 @@ export class AuthService {
         const startTime = Date.now();
         const hashedCode = this.hashOtp(code);
 
-        let user: User | null = null;
+        // The transaction REPORTS its outcome instead of throwing it. Throwing
+        // from inside rolls back the very bookkeeping the failure paths just
+        // wrote — the attempt counter never grew, so the ceiling below was
+        // unreachable and the fallback it arms was never armed.
+        // `no-code` and `bad-code` are kept apart because they carry different
+        // messages, exactly as before this method stopped throwing from inside
+        // the transaction.
+        type OtpOutcome =
+            | { kind: 'ok'; user: User }
+            | { kind: 'no-code' }
+            | { kind: 'bad-code' }
+            | { kind: 'locked-out' };
+
+        let outcome: OtpOutcome;
         try {
-            user = await this.prisma.$transaction(async (tx) => {
+            outcome = await this.prisma.$transaction(async (tx): Promise<OtpOutcome> => {
                 const foundUser = await tx.user.findUnique({ where: { email } });
                 if (!foundUser) {
-                    return null;
+                    return { kind: 'no-code' };
                 }
 
                 const otpCode = await tx.otpCode.findFirst({
@@ -334,11 +350,10 @@ export class AuthService {
                 });
 
                 if (!otpCode) {
-                    return null;
+                    return { kind: 'no-code' };
                 }
 
-                // Check max attempts
-                if (otpCode.attempts >= OTP_MAX_ATTEMPTS) {
+                const lockOut = async () => {
                     await tx.user.update({
                         where: { id: foundUser.id },
                         data: {
@@ -349,7 +364,12 @@ export class AuthService {
                         where: { id: otpCode.id, used: false },
                         data: { used: true },
                     });
-                    throw new UnauthorizedException('Too many attempts. Check email for login link.');
+                };
+
+                // Check max attempts
+                if (otpCode.attempts >= OTP_MAX_ATTEMPTS) {
+                    await lockOut();
+                    return { kind: 'locked-out' };
                 }
 
                 // Verify code
@@ -360,26 +380,18 @@ export class AuthService {
                         data: { attempts: { increment: 1 } },
                     });
 
+                    // A concurrent attempt moved the counter first; theirs counts.
                     if (updated.count === 0) {
-                        throw new UnauthorizedException('Invalid code');
+                        return { kind: 'bad-code' };
                     }
 
                     // Check if this increment reaches max
                     if (otpCode.attempts + 1 >= OTP_MAX_ATTEMPTS) {
-                        await tx.user.update({
-                            where: { id: foundUser.id },
-                            data: {
-                                otpFallbackUntil: new Date(Date.now() + OTP_FALLBACK_HOURS * 60 * 60 * 1000),
-                            },
-                        });
-                        await tx.otpCode.updateMany({
-                            where: { id: otpCode.id, used: false },
-                            data: { used: true },
-                        });
-                        throw new UnauthorizedException('Too many attempts. Check email for login link.');
+                        await lockOut();
+                        return { kind: 'locked-out' };
                     }
 
-                    throw new UnauthorizedException('Invalid code');
+                    return { kind: 'bad-code' };
                 }
 
                 // Code matches — optimistic lock mark as used
@@ -389,10 +401,10 @@ export class AuthService {
                 });
 
                 if (usedUpdate.count === 0) {
-                    throw new UnauthorizedException('Invalid code');
+                    return { kind: 'bad-code' };
                 }
 
-                return foundUser;
+                return { kind: 'ok', user: foundUser };
             });
         } catch (error) {
             // Enforce minimum response time on ALL error paths to prevent timing attacks
@@ -400,11 +412,18 @@ export class AuthService {
             throw error;
         }
 
-        if (!user) {
+        if (outcome.kind !== 'ok') {
             authRequestCounter.add(1, { method: 'otp', outcome: 'invalid' });
             await this.delayToMinimumResponse(startTime);
-            throw new UnauthorizedException('Invalid or expired code');
+            const message = {
+                'locked-out': 'Too many attempts. Check email for login link.',
+                'bad-code': 'Invalid code',
+                'no-code': 'Invalid or expired code',
+            }[outcome.kind];
+            throw new UnauthorizedException(message);
         }
+
+        const user = outcome.user;
 
         // Cleanup in background
         this.cleanupExpiredOtpCodes().catch((err) =>

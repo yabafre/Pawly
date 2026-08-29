@@ -377,12 +377,11 @@ test.describe('admin settings (10-2)', () => {
   });
 
   /**
-   * AC2 + AC3 — KNOWN BUG. `updateClinicNameAction` posts `{ name }` while
-   * `clinic.updateClinicName` validates `updateClinicNameSchema`, which wants
-   * `{ clinicName }`. Every rename is a tRPC input error, so an admin can never
-   * rename their clinic from the settings page.
+   * AC2 + AC3. Both sides now validate the shared `updateClinicNameSchema`;
+   * they used to declare `{ name }` and `{ clinicName }` separately, which made
+   * every rename a tRPC input error.
    */
-  test.fail('renaming the clinic updates the header and the slug', async ({ page, request }) => {
+  test('renaming the clinic updates the header and the slug', async ({ page, request }) => {
     await openSettings(page, 'clinic');
 
     await expect(page.getByLabel('Nom de la clinique')).toHaveValue(tenant.clinicName);
@@ -429,13 +428,12 @@ test.describe('admin settings (10-2)', () => {
   });
 
   /**
-   * AC7 verbatim — KNOWN BUG. The API does answer "Current password is
-   * incorrect", but `changePasswordAction` declares no
-   * `experimental_shapeError`, so zsa replaces the message with a generic one
-   * before `AdminAccountPanel`'s `msg.includes("incorrect")` test ever sees it.
-   * The admin cannot tell a wrong password from a server outage.
+   * AC7 verbatim. `changePasswordAction` now declares an
+   * `experimental_shapeError`, so the API's "Current password is incorrect"
+   * survives zsa and reaches the panel's check. Without it the admin could not
+   * tell a wrong password from a server outage.
    */
-  test.fail('a wrong current password is named as such', async ({ page }) => {
+  test('a wrong current password is named as such', async ({ page }) => {
     await openSettings(page, 'account');
 
     await page.locator('#current-pwd').fill('PasLeBonMdp123!');

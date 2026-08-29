@@ -78,18 +78,12 @@ test.describe('the employee area', () => {
   });
 
   /**
-   * PRODUCT BUG — the admin area is reachable by any signed-in employee.
-   *
-   * `app/[locale]/admin/layout.tsx` guards on the presence of the `auth-token`
-   * cookie and never on the role, and `employee.list` carries no role check
-   * either (see `role-boundaries.e2e-spec.ts`). An employee opening
-   * /admin/employees gets the roster rendered in full: colleagues' names,
-   * emails, phone numbers, contract types and contract hours.
-   *
-   * Kept as the assertion that ought to hold; it starts passing the day the
-   * guard lands, and Playwright then flags this marker as stale.
+   * The admin layout now checks the role, not just the presence of a cookie,
+   * and `employee.list` carries its own guard (see
+   * `role-boundaries.e2e-spec.ts`). An employee used to get the roster rendered
+   * in full: colleagues' names, emails, phones and contract hours.
    */
-  test.fail('the admin roster does not render for an employee', async ({ page }) => {
+  test('the admin roster does not render for an employee', async ({ page }) => {
     await page.goto('/fr/admin/employees');
 
     await expect(page.getByRole('heading', { name: 'Employés', level: 1 })).toBeHidden();

@@ -132,8 +132,12 @@ describe('useAuth', () => {
       expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
 
-    it('should show error toast on login failure', async () => {
-      mockMutateAsync.mockResolvedValue([null, { message: 'Invalid credentials' }]);
+    it('should translate the refusal token rather than surfacing it raw', async () => {
+      // The API answers a token, which resolveErrorMessage hands to the
+      // translator. The mock returns the key it is given, so the assertion is
+      // that a KEY reached the toast — it used to receive an English sentence,
+      // which is what French users were shown.
+      mockMutateAsync.mockResolvedValue([null, { message: 'INVALID_CREDENTIALS' }]);
 
       const { result } = renderHook(() => useAuth());
 
@@ -141,7 +145,7 @@ describe('useAuth', () => {
         await result.current.login({ email: 'test@test.com', password: 'wrong' });
       });
 
-      expect(toast.error).toHaveBeenCalledWith('Invalid credentials');
+      expect(toast.error).toHaveBeenCalledWith('INVALID_CREDENTIALS');
       expect(localStorage.getItem('token')).toBeNull();
       expect(localStorage.getItem('user')).toBeNull();
     });

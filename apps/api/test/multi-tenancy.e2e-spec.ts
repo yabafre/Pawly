@@ -565,7 +565,7 @@ describe('Multi-tenant isolation (integration)', () => {
      * `EmployeeService.findById` does) before the upsert, and apply the same
      * guard to `deleteDeclaration`.
      */
-    it.failing(
+    it(
       'planning.upsertNoSchool is rejected for a foreign apprentice',
       async () => {
         const res = await harness.trpcMutation(
@@ -577,7 +577,7 @@ describe('Multi-tenant isolation (integration)', () => {
       },
     );
 
-    it.failing(
+    it(
       'planning.upsertNoSchool does not confirm that a foreign employee id exists',
       async () => {
         const foreign = await harness.trpcMutation(
@@ -596,20 +596,17 @@ describe('Multi-tenant isolation (integration)', () => {
     );
 
     /**
-     * The paired delete does not reject either, but it writes nothing and
-     * answers `deleted: false` — indistinguishable from "no declaration for my
-     * own apprentice", so it leaks nothing. Pinned so a future fix to
-     * upsertNoSchool keeps this side consistent.
+     * The paired delete used to answer `deleted: false` — harmless in itself,
+     * but it resolved the row without checking the clinic. It now refuses on
+     * the same guard as the upsert, so the two sides cannot drift.
      */
-    it('planning.deleteApprenticeDeclaration reports nothing deleted for a foreign apprentice', async () => {
-      const res = trpcData<{ deleted: boolean }>(
-        await harness.trpcMutation(
-          'planning.deleteApprenticeDeclaration',
-          { employeeId: dataB.apprenticeId, month: '2027-11' },
-          tokenA,
-        ),
+    it('planning.deleteApprenticeDeclaration is rejected for a foreign apprentice', async () => {
+      const res = await harness.trpcMutation(
+        'planning.deleteApprenticeDeclaration',
+        { employeeId: dataB.apprenticeId, month: '2027-11' },
+        tokenA,
       );
-      expect(res.deleted).toBe(false);
+      expect(trpcError(res).message).toMatch(/not found/i);
     });
 
     it('leaves every clinic B record exactly as it was', async () => {

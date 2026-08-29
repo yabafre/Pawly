@@ -48,7 +48,7 @@ describe('Role boundaries inside a clinic (integration)', () => {
     });
   });
 
-  describe('procedures that do not', () => {
+  describe('procedures that read clinic-wide data', () => {
     /**
      * PRODUCT BUG — the clinic roster is readable by any employee.
      *
@@ -68,30 +68,27 @@ describe('Role boundaries inside a clinic (integration)', () => {
      * projection (first name, colour, job type) for non-admin callers, which is
      * all the planning views actually need.
      */
-    it.failing('employee.list is refused to an employee', async () => {
+    it('employee.list is refused to an employee', async () => {
       const res = await harness.trpcQuery('employee.list', {}, employeeToken);
       expect(res.status).toBe(403);
     });
 
-    it('employee.list currently returns the full roster — pinned so a fix is noticed', async () => {
-      const roster = trpcData<Array<Record<string, unknown>>>(
-        await harness.trpcQuery('employee.list', {}, employeeToken),
-      );
+    it('the refusal names the roster rather than leaking a field of it', async () => {
+      const res = await harness.trpcQuery('employee.list', {}, employeeToken);
 
-      expect(Array.isArray(roster)).toBe(true);
-      // The fields that make this a disclosure rather than a lookup.
-      expect(roster[0]).toHaveProperty('email');
-      expect(roster[0]).toHaveProperty('contractHours');
+      expect(JSON.stringify(res.body)).not.toContain('contractHours');
+      expect(JSON.stringify(res.body)).toMatch(/admin/i);
     });
 
     /**
-     * Billing state is admin business, and this one answers an employee too.
-     * Lower stakes than the roster — tier and status, no payment data — but the
-     * same missing check.
+     * Reported as a missing check and it is not one: `dashboard/layout.tsx`
+     * calls this to bounce an employee whose clinic has lapsed. Gating it on
+     * the admin role would lock every employee out of their own dashboard.
+     * Pinned as deliberate so the next reader does not "fix" it.
      */
-    it.failing('stripe.getSubscriptionStatus is refused to an employee', async () => {
+    it('stripe.getSubscriptionStatus stays open to employees, by design', async () => {
       const res = await harness.trpcQuery('stripe.getSubscriptionStatus', undefined, employeeToken);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
   });
 });

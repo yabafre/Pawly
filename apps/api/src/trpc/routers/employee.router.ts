@@ -26,9 +26,18 @@ const protectedProcedure = publicProcedure.use(isAuthed);
 const subscribedProcedure = protectedProcedure.use(isSubscribed);
 
 export const employeeRouter = router({
+  // Admin-only: the roster carries colleagues' emails, phone numbers and
+  // contract hours. Nothing under /dashboard reads it — the employee screens
+  // work from the caller's own record.
   list: subscribedProcedure
     .input(listEmployeesSchema)
     .query(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'ADMIN') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Only admins can list the clinic roster',
+        });
+      }
       return ctx.employeeService.findAll(ctx.user.clinicId, input ?? undefined);
     }),
 

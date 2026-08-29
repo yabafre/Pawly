@@ -38,7 +38,7 @@ export function ClinicProfilePanel() {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return;
-    saveName({ name: name.trim() });
+    saveName({ clinicName: name.trim() });
   };
 
   if (isPending) {
