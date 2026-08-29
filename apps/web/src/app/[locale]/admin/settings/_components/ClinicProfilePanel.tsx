@@ -12,12 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Building2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@/i18n/navigation";
 
 export function ClinicProfilePanel() {
   const t = useTranslations("settings.clinic");
   const locale = useLocale();
   const { clinic, isPending } = useClinicProfile();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -29,6 +31,10 @@ export function ClinicProfilePanel() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["clinic-profile"] });
+        // The header renders from the server layout, which a client-side cache
+        // invalidation cannot reach — without this the sidebar kept the old
+        // name until the next navigation.
+        router.refresh();
         toast.success(t("saved"));
       },
       onError: () => toast.error(t("saveError")),
@@ -38,7 +44,7 @@ export function ClinicProfilePanel() {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return;
-    saveName({ name: name.trim() });
+    saveName({ clinicName: name.trim() });
   };
 
   if (isPending) {

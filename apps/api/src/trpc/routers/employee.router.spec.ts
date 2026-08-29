@@ -65,10 +65,10 @@ describe('employeeRouter', () => {
     clinicId: 'clinic-123',
   };
 
-  const createAuthenticatedCaller = () => {
+  const createAuthenticatedCaller = (userOverrides: Record<string, unknown> = {}) => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
     return createCaller({
-      user: authenticatedUser,
+      user: { ...authenticatedUser, ...userOverrides },
       prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);
@@ -147,7 +147,7 @@ describe('employeeRouter', () => {
       const mockResult = [{ id: 'emp-1', firstName: 'Jean' }];
       mockEmployeeService.findAll.mockResolvedValue(mockResult);
 
-      const caller = createAuthenticatedCaller();
+      const caller = createAuthenticatedCaller({ role: 'ADMIN' });
       const result = await caller.list();
 
       expect(result).toEqual(mockResult);
@@ -160,7 +160,7 @@ describe('employeeRouter', () => {
     it('passes filter input to findAll when provided', async () => {
       mockEmployeeService.findAll.mockResolvedValue([]);
 
-      const caller = createAuthenticatedCaller();
+      const caller = createAuthenticatedCaller({ role: 'ADMIN' });
       const input = { includeInactive: true, jobType: 'VET' as const };
       await caller.list(input);
 
@@ -170,10 +170,19 @@ describe('employeeRouter', () => {
       );
     });
 
+    it('refuses a non-admin caller', async () => {
+      // The roster carries colleagues' emails, phones and contract hours; an
+      // employee reached it through the admin page before this guard.
+      const caller = createAuthenticatedCaller({ role: 'EMPLOYEE' });
+
+      await expect(caller.list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(mockEmployeeService.findAll).not.toHaveBeenCalled();
+    });
+
     it('passes search filter to findAll', async () => {
       mockEmployeeService.findAll.mockResolvedValue([]);
 
-      const caller = createAuthenticatedCaller();
+      const caller = createAuthenticatedCaller({ role: 'ADMIN' });
       await caller.list({ search: 'Dupont' });
 
       expect(mockEmployeeService.findAll).toHaveBeenCalledWith('clinic-123', {
@@ -524,7 +533,7 @@ describe('employeeRouter', () => {
     mockPrisma.subscription.findUnique.mockResolvedValue(activeSubscription);
 
     const caller = createCaller({
-      user: { ...authenticatedUser, clinicId: 'clinic-secure' },
+      user: { ...authenticatedUser, role: 'ADMIN', clinicId: 'clinic-secure' },
       prisma: mockPrisma as any, redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), invalidatePattern: jest.fn(), incr: jest.fn().mockResolvedValue(1), isAvailable: false } as any,
       employeeService: mockEmployeeService as any,
     } as any);

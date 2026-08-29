@@ -68,11 +68,10 @@ test.describe('admin password login', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  // KNOWN BUG — the API answers `Invalid credentials` and useAuth's
-  // resolveErrorMessage only maps the token `INVALID_CREDENTIALS`, so the raw
-  // English string is shown to a French user and `auth.errors.INVALID_CREDENTIALS`
-  // ("Email ou mot de passe incorrect.") is dead translation.
-  test.fail('a refused password is reported in French', async ({ page }) => {
+  // The API answers the token `INVALID_CREDENTIALS`, which useAuth maps to
+  // `auth.errors.INVALID_CREDENTIALS`. It used to answer a sentence, and the
+  // token match never fired.
+  test('a refused password is reported in French', async ({ page }) => {
     await openAdminTab(page);
     await fillAdminForm(page, SEED.adminEmail, 'DefinitelyWrong123!');
 

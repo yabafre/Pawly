@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApprenticeDeclarationService } from './apprentice-declaration.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -14,7 +15,7 @@ describe('ApprenticeDeclarationService', () => {
   ];
 
   const mockPrisma = {
-    employee: { findMany: jest.fn() },
+    employee: { findMany: jest.fn(), findFirst: jest.fn() },
     unavailability: { findMany: jest.fn() },
     apprenticeMonthDeclaration: {
       findMany: jest.fn(),
@@ -35,6 +36,9 @@ describe('ApprenticeDeclarationService', () => {
     jest.clearAllMocks();
 
     mockPrisma.employee.findMany.mockResolvedValue(mockApprentices);
+    // The write paths resolve the employee inside the caller's clinic first;
+    // the default is "it belongs to them", and the refusal is asserted below.
+    mockPrisma.employee.findFirst.mockResolvedValue({ id: 'emp-1' });
     mockPrisma.unavailability.findMany.mockResolvedValue([]);
     mockPrisma.apprenticeMonthDeclaration.findMany.mockResolvedValue([]);
   });
@@ -98,6 +102,24 @@ describe('ApprenticeDeclarationService', () => {
         create: { clinicId, employeeId: 'emp-1', month, status: 'NO_SCHOOL_THIS_MONTH' },
         update: { status: 'NO_SCHOOL_THIS_MONTH' },
       });
+    });
+  });
+
+  describe('clinic boundary', () => {
+    it('refuses an employee that is not in the caller clinic', async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.upsertNoSchool('clinic-1', 'employee-of-another-clinic', '2026-09'),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deleteDeclaration('clinic-1', 'employee-of-another-clinic', '2026-09'),
+      ).rejects.toThrow(NotFoundException);
+
+      // The composite key satisfies both foreign keys independently, so without
+      // this lookup Postgres would happily accept the row.
+      expect(mockPrisma.apprenticeMonthDeclaration.upsert).not.toHaveBeenCalled();
+      expect(mockPrisma.apprenticeMonthDeclaration.delete).not.toHaveBeenCalled();
     });
   });
 

@@ -132,7 +132,7 @@ describe('Auth REST surface (integration)', () => {
       // Anti-enumeration: identical code and wording, nothing that hints the
       // account exists.
       expect(wrongPassword.body.error.code).toBe('UNAUTHORIZED');
-      expect(wrongPassword.body.error.message).toBe('Invalid credentials');
+      expect(wrongPassword.body.error.message).toBe('INVALID_CREDENTIALS');
       expect(unknownEmail.body.error.code).toBe(wrongPassword.body.error.code);
       expect(unknownEmail.body.error.message).toBe(
         wrongPassword.body.error.message,
@@ -421,7 +421,7 @@ describe('Auth REST surface (integration)', () => {
      * Fix: perform the attempt bookkeeping outside the transaction (or commit
      * it and signal failure by return value rather than by throwing).
      */
-    it.failing('counts a failed attempt so the lockout can eventually fire', async () => {
+    it('counts a failed attempt so the lockout can eventually fire', async () => {
       await harness
         .http()
         .post('/auth/otp/request')
@@ -475,7 +475,7 @@ describe('Auth REST surface (integration)', () => {
       const wrong = code === '000000' ? '111111' : '000000';
 
       // Arranged straight in the database: the counter cannot get here on its
-      // own — see the it.failing above.
+      // own — see the counter test above.
       await harness.prisma.otpCode.updateMany({
         where: { userId: otpUserId, used: false },
         data: { attempts: 4 },
@@ -499,7 +499,7 @@ describe('Auth REST surface (integration)', () => {
      * message is a lie: no fallback is armed, the code stays live until it
      * expires, and the next OTP request still answers `method: 'otp'`.
      */
-    it.failing(
+    it(
       'persists the lockout and switches the user to magic-link fallback',
       async () => {
         await harness
