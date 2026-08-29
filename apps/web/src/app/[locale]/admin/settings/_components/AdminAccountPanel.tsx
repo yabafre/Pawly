@@ -59,7 +59,15 @@ export function AdminAccountPanel() {
           setConfirmPassword("");
         },
         onError: (err) => {
-          const msg = err instanceof Error ? err.message : String(err);
+          // zsa hands back the shape declared by `experimental_shapeError`, not
+          // an Error — reading only `err.message` off an Error left every
+          // failure looking identical.
+          const msg =
+            err instanceof Error
+              ? err.message
+              : typeof err === "object" && err !== null && "message" in err
+                ? String((err as { message: unknown }).message)
+                : String(err);
           if (msg.includes("incorrect") || msg.includes("UNAUTHORIZED")) {
             setPwdError(t("wrongPassword"));
           } else {
